@@ -1373,7 +1373,7 @@ fn validate_gift_card_transaction(
       Some(gift_card_types.UserError(
         field: [preferred_input_key, preferred_amount_key, "amount"],
         code: Some("NEGATIVE_OR_ZERO_AMOUNT"),
-        message: "Amount must be greater than zero",
+        message: "A positive amount must be used.",
       ))
     False ->
       case existing {
@@ -1489,7 +1489,7 @@ fn validate_gift_card_transaction_money(
           Some(gift_card_types.UserError(
             field: [preferred_input_key, preferred_amount_key, "amount"],
             code: Some("INSUFFICIENT_FUNDS"),
-            message: "Insufficient balance",
+            message: "The gift card does not have sufficient funds to satisfy the request.",
           ))
         False -> None
       }

@@ -380,7 +380,7 @@ fn market_create_input_errors(
     market_create_duplicate_name_errors(store, name),
     market_create_status_enabled_errors(input),
     market_create_handle_errors(store, input, None),
-    market_create_plan_limit_errors(store),
+    market_create_plan_limit_errors(store, input),
     market_create_currency_errors(store, input),
     market_create_region_errors(store, input),
   ])
@@ -437,12 +437,8 @@ fn market_create_duplicate_name_errors(
 fn market_create_status_enabled_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  let status =
-    graphql_helpers.read_arg_string_nonempty(input, "status")
-    |> option.unwrap("DRAFT")
-  let enabled =
-    graphql_helpers.read_arg_bool(input, "enabled")
-    |> option.unwrap(status == "ACTIVE")
+  let status = market_create_status(input)
+  let enabled = market_create_enabled(input)
   case enabled == { status == "ACTIVE" } {
     True -> []
     False -> [
@@ -453,6 +449,21 @@ fn market_create_status_enabled_errors(
       ),
     ]
   }
+}
+
+fn market_create_status(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  graphql_helpers.read_arg_string_nonempty(input, "status")
+  |> option.unwrap("DRAFT")
+}
+
+fn market_create_enabled(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let status = market_create_status(input)
+  graphql_helpers.read_arg_bool(input, "enabled")
+  |> option.unwrap(status == "ACTIVE")
 }
 
 fn market_create_handle_errors(
@@ -476,22 +487,64 @@ fn market_create_handle_errors(
   }
 }
 
-fn market_create_plan_limit_errors(store: Store) -> List(CapturedJsonValue) {
-  let market_count = store.list_effective_markets(store) |> list.length
-  case market_count >= default_market_plan_limit() {
-    True -> [
-      user_error(
-        ["input"],
-        "Shop has reached the maximum number of markets for the current plan.",
-        "SHOP_REACHED_PLAN_MARKETS_LIMIT",
-      ),
-    ]
-    False -> []
+fn market_create_plan_limit_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case market_create_enabled(input), store.shop_markets_home_enabled(store) {
+    False, _ -> []
+    _, True -> []
+    True, False -> {
+      let market_count = enabled_legacy_market_count(store)
+      case market_count >= store.shop_market_plan_limit(store) {
+        True -> [
+          user_error(
+            ["input"],
+            "Shop has reached the maximum number of markets for the current plan.",
+            "SHOP_REACHED_PLAN_MARKETS_LIMIT",
+          ),
+        ]
+        False -> []
+      }
+    }
   }
 }
 
-fn default_market_plan_limit() -> Int {
-  3
+fn enabled_legacy_market_count(store: Store) -> Int {
+  store.list_effective_markets(store)
+  |> list.filter(fn(record) {
+    market_record_enabled(record) && market_record_legacy(record)
+  })
+  |> list.length
+}
+
+fn market_record_enabled(record: MarketRecord) -> Bool {
+  case captured_bool_field(record.data, "enabled") {
+    Some(enabled) -> enabled
+    None ->
+      case captured_string_field(record.data, "status") {
+        Some("ACTIVE") -> True
+        _ -> False
+      }
+  }
+}
+
+fn market_record_legacy(record: MarketRecord) -> Bool {
+  case captured_bool_field(record.data, "isLegacyMarket") {
+    Some(is_legacy) -> is_legacy
+    None ->
+      case captured_bool_field(record.data, "isLegacy") {
+        Some(is_legacy) -> is_legacy
+        None -> True
+      }
+  }
+}
+
+fn captured_bool_field(value: CapturedJsonValue, key: String) -> Option(Bool) {
+  case captured_field(value, key) {
+    Some(CapturedBool(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn market_create_currency_errors(
@@ -1446,11 +1499,12 @@ fn handle_price_list_delete(
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
+          let deleted_price_list = store.clear_price_list_fixed_prices(existing)
           let next_store = store.delete_staged_price_list(store, id)
           let payload =
             CapturedObject([
               #("deletedId", CapturedString(id)),
-              #("priceList", existing.data),
+              #("priceList", deleted_price_list.data),
               #("userErrors", CapturedArray([])),
             ])
           MutationFieldResult(
@@ -2632,89 +2686,55 @@ fn handle_market_localizations_remove(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let market_ids = read_arg_string_array(args, "marketIds") |> option.unwrap([])
-  let localization_keys =
-    read_arg_string_array(args, "marketLocalizationKeys") |> option.unwrap([])
-  case resource_id {
-    Some(id) ->
+  let keys =
+    read_arg_string_array(args, "marketLocalizationKeys")
+    |> option.unwrap([])
+  let market_ids = read_arg_string_array(args, "marketIds")
+  let #(errors, removed, next_store) = case resource_id {
+    Some(id) -> {
       case store.find_effective_metafield_by_id(store, id) {
         Some(_) -> {
-          let #(deleted_records, next_store) =
-            store.delete_staged_market_localizations(
+          let #(removed, updated_store) =
+            store.remove_staged_market_localizations(
               store,
               id,
+              keys,
               market_ids,
-              localization_keys,
             )
-          let deleted_payload = case deleted_records {
-            [] -> CapturedNull
-            _ ->
-              CapturedArray(
-                list.map(deleted_records, fn(record) {
-                  market_localization_payload(store, record)
-                }),
-              )
-          }
-          let staged_ids = case deleted_records {
-            [] -> []
-            _ -> [id]
-          }
-          mutation_payload_result(
-            key,
-            field,
-            fragments,
-            "marketLocalizationsRemove",
-            CapturedObject([
-              #("marketLocalizations", deleted_payload),
-              #("userErrors", CapturedArray([])),
-            ]),
-            next_store,
-            identity,
-            staged_ids,
-          )
+          #([], removed, updated_store)
         }
-        None ->
-          market_localizations_remove_error_result(
-            key,
-            field,
-            fragments,
-            [translation_resource_not_found_error(id)],
-            store,
-            identity,
-          )
+        None -> #([translation_resource_not_found_error(id)], [], store)
       }
-    None ->
-      market_localizations_remove_error_result(
-        key,
-        field,
-        fragments,
-        [translation_resource_not_found_error("")],
-        store,
-        identity,
+    }
+    None -> #([translation_resource_not_found_error("")], [], store)
+  }
+  let localization_payload = case removed {
+    [] -> CapturedNull
+    _ ->
+      CapturedArray(
+        list.map(removed, fn(record) {
+          market_localization_payload(next_store, record)
+        }),
       )
   }
-}
-
-fn market_localizations_remove_error_result(
-  key: String,
-  field: Selection,
-  fragments: FragmentMap,
-  errors: List(CapturedJsonValue),
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-) -> MutationFieldResult {
   mutation_payload_result(
     key,
     field,
     fragments,
     "marketLocalizationsRemove",
     CapturedObject([
-      #("marketLocalizations", CapturedNull),
+      #("marketLocalizations", localization_payload),
       #("userErrors", CapturedArray(errors)),
     ]),
-    store,
+    next_store,
     identity,
-    [],
+    case removed {
+      [] -> []
+      _ ->
+        resource_id
+        |> option.map(fn(id) { [id] })
+        |> option.unwrap([])
+    },
   )
 }
 

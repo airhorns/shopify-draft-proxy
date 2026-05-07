@@ -1,10 +1,14 @@
 {
+  "capturedAt": "2026-05-06T22:45:42.996Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
   "cases": [
     {
       "name": "priceListCreate DKK success",
+      "query": "mutation PriceListCreateDkk($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Denmark",
+          "name": "Denmark 1778107548873",
           "currency": "DKK",
           "parent": {
             "adjustment": {
@@ -20,7 +24,7 @@
           "data": {
             "priceListCreate": {
               "priceList": {
-                "id": "gid://shopify/PriceList/32261898546",
+                "id": "gid://shopify/PriceList/32263831858",
                 "currency": "DKK",
                 "parent": {
                   "adjustment": {
@@ -31,6 +35,17 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -38,8 +53,30 @@
   ],
   "cleanup": {
     "mutation": "priceListDelete",
-    "deletedId": "gid://shopify/PriceList/32261898546",
-    "userErrors": []
+    "deletedId": "gid://shopify/PriceList/32263831858",
+    "userErrors": [],
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "priceListDelete": {
+            "deletedId": "gid://shopify/PriceList/32263831858",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
   },
   "upstreamCalls": []
 }

@@ -1,0 +1,13 @@
+#graphql
+mutation LocationAddInlineCapabilities {
+  locationAdd(input: { name: "Cap", address: { countryCode: CA }, capabilitiesToAdd: [PICKUP] }) {
+    location {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

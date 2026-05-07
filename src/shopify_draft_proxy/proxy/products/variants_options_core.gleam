@@ -39,10 +39,10 @@ import shopify_draft_proxy/proxy/products/variants_helpers.{
   first_missing_selected_product_option, first_option_value_name,
   has_staged_variants_for_product, insert_variant_at_position,
   option_values_are_default, position_options,
-  product_option_duplicate_input_key, product_option_named,
-  product_option_value_source, remove_variant_by_id, selected_options_equal,
-  take_matching_option_loop, upsert_option_value, variant_title,
-  variants_use_option_value,
+  product_option_duplicate_input_key, product_option_linked_metafield_source,
+  product_option_named, product_option_value_source, remove_variant_by_id,
+  selected_options_equal, take_matching_option_loop, upsert_option_value,
+  variant_title, variants_use_option_value,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -84,6 +84,11 @@ pub fn product_option_source(option: ProductOptionRecord) -> SourceValue {
     #("id", SrcString(option.id)),
     #("name", SrcString(option.name)),
     #("position", SrcInt(option.position)),
+    #("linkedMetafield", case option.linked_metafield {
+      Some(linked_metafield) ->
+        product_option_linked_metafield_source(linked_metafield)
+      None -> SrcNull
+    }),
     #(
       "values",
       SrcList(
@@ -789,6 +794,26 @@ pub fn read_option_value_names(
           ObjectVal(fields) ->
             case read_string_field(fields, "name") {
               Some(name) -> Ok(name)
+              None -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn read_option_value_linked_metafield_values(
+  input: Dict(String, ResolvedValue),
+) -> List(String) {
+  case dict.get(input, "values") {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          ObjectVal(fields) ->
+            case read_string_field(fields, "linkedMetafieldValue") {
+              Some(value) -> Ok(value)
               None -> Error(Nil)
             }
           _ -> Error(Nil)

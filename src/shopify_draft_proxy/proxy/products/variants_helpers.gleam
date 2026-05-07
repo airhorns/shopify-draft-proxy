@@ -25,7 +25,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type ProductCategoryRecord, type ProductOptionRecord,
+  type CapturedJsonValue, type ProductCategoryRecord,
+  type ProductOptionLinkedMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, type SellingPlanGroupRecord,
   CapturedInt, CapturedNull, CapturedString, InventoryItemRecord,
@@ -101,7 +102,29 @@ pub fn product_option_value_source(
     #("id", SrcString(option_value.id)),
     #("name", SrcString(option_value.name)),
     #("hasVariants", SrcBool(option_value.has_variants)),
+    #(
+      "linkedMetafieldValue",
+      optional_string_source(option_value.linked_metafield_value),
+    ),
   ])
+}
+
+@internal
+pub fn product_option_linked_metafield_source(
+  linked_metafield: ProductOptionLinkedMetafieldRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("LinkedMetafield")),
+    #("namespace", SrcString(linked_metafield.namespace)),
+    #("key", SrcString(linked_metafield.key)),
+  ])
+}
+
+fn optional_string_source(value: Option(String)) -> SourceValue {
+  case value {
+    Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
 }
 
 @internal
@@ -254,8 +277,10 @@ pub fn make_default_option_record(
           id: value_id,
           name: "Default Title",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
+      linked_metafield: None,
     ),
     next_identity,
     [option_id, value_id],
@@ -564,8 +589,10 @@ pub fn restore_default_option_state(
           id: value_id,
           name: "Default Title",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
+      linked_metafield: None,
     )
   let next_variants = case variants {
     [variant, ..] -> [
@@ -601,7 +628,12 @@ pub fn make_created_option_value_records(
         )
       #(
         [
-          ProductOptionValueRecord(id: id, name: name, has_variants: False),
+          ProductOptionValueRecord(
+            id: id,
+            name: name,
+            has_variants: False,
+            linked_metafield_value: None,
+          ),
           ..records
         ],
         next_identity,
@@ -672,6 +704,7 @@ pub fn upsert_option_value(
             id: value_id,
             name: value_name,
             has_variants: True,
+            linked_metafield_value: None,
           ),
         ]),
         next_identity,

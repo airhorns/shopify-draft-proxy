@@ -60,12 +60,7 @@
         "proxyPath": "$.data",
         "upstreamCapturePath": null,
         "proxyRequest": {
-          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-read-after-create.graphql",
-          "variables": {
-            "query": {
-              "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.name"
-            }
-          }
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-read-after-create.graphql"
         },
         "expectedDifferences": [
           {
@@ -97,8 +92,12 @@
               "id": {
                 "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.id"
               },
-              "name": "Codex Product Search Name That Is Too Long For Shopify",
-              "query": "status:ACTIVE 1777309108817"
+              "name": {
+                "fromCapturePath": "$.savedSearchUpdateTooLongName.request.variables.input.name"
+              },
+              "query": {
+                "fromCapturePath": "$.savedSearchUpdateTooLongName.request.variables.input.query"
+              }
             }
           }
         },

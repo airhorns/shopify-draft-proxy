@@ -17,10 +17,11 @@ import shopify_draft_proxy/proxy/discounts/queries.{child_fields}
 
 import shopify_draft_proxy/proxy/discounts/serializers.{
   apply_bulk_effects, build_discount_record, fetch_taken_code_error,
-  maybe_hydrate_discount, maybe_hydrate_discount_subscription_capability,
-  maybe_hydrate_shopify_function, payload_json,
-  redeem_code_bulk_delete_target_ids, shopify_function_record_from_response,
-  validate_bulk_selector, validate_context_customer_selection_conflict,
+  maybe_hydrate_discount, maybe_hydrate_discount_markets_capability,
+  maybe_hydrate_discount_subscription_capability, maybe_hydrate_shopify_function,
+  payload_json, redeem_code_bulk_delete_target_ids,
+  shopify_function_record_from_response, validate_bulk_selector,
+  validate_context_customer_selection_conflict, validate_discount_create_input,
   validate_discount_input, validate_discount_top_level_errors,
   validate_discount_update_input, validate_redeem_code_bulk_delete_after_hydrate,
   validate_redeem_code_bulk_delete_selector_shape,
@@ -36,6 +37,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
   single_root_log_draft, validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/products
 
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
@@ -124,6 +126,12 @@ pub fn process_mutation(
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
+      let store =
+        products.hydrate_products_for_live_hybrid_mutation(
+          store,
+          variables,
+          upstream,
+        )
       handle_mutation_fields(
         store,
         identity,
@@ -339,6 +347,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "basic",
         "basicCodeDiscount",
+        upstream,
       )
     "discountCodeBxgyCreate" ->
       create_discount(
@@ -366,6 +375,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "bxgy",
         "bxgyCodeDiscount",
+        upstream,
       )
     "discountCodeFreeShippingCreate" ->
       create_discount(
@@ -393,6 +403,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "free_shipping",
         "freeShippingCodeDiscount",
+        upstream,
       )
     "discountCodeAppCreate" ->
       create_discount(
@@ -420,6 +431,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "app",
         "codeAppDiscount",
+        upstream,
       )
     "discountAutomaticBasicCreate" ->
       create_discount(
@@ -447,6 +459,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "basic",
         "automaticBasicDiscount",
+        upstream,
       )
     "discountAutomaticBxgyCreate" ->
       create_discount(
@@ -474,6 +487,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "bxgy",
         "automaticBxgyDiscount",
+        upstream,
       )
     "discountAutomaticFreeShippingCreate" ->
       create_discount(
@@ -501,6 +515,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "free_shipping",
         "freeShippingAutomaticDiscount",
+        upstream,
       )
     "discountAutomaticAppCreate" ->
       create_discount(
@@ -528,6 +543,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "app",
         "automaticAppDiscount",
+        upstream,
       )
     "discountCodeActivate" | "discountAutomaticActivate" ->
       set_status(
@@ -666,6 +682,7 @@ pub fn create_discount_after_top_level_validation(
   key: String,
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
+  let store = maybe_hydrate_discount_markets_capability(store, input, upstream)
   let store =
     maybe_hydrate_discount_subscription_capability(
       store,
@@ -679,7 +696,7 @@ pub fn create_discount_after_top_level_validation(
     _ -> store
   }
   let user_errors =
-    validate_discount_input(
+    validate_discount_create_input(
       store,
       input_name,
       input,
@@ -769,6 +786,7 @@ pub fn update_discount(
   owner_kind: String,
   target_discount_type: String,
   input_name: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id = discount_types.read_string_arg(field, variables, "id")
@@ -800,6 +818,7 @@ pub fn update_discount(
             id,
             input,
             key,
+            upstream,
           )
       }
     }
@@ -834,6 +853,7 @@ pub fn update_discount_after_top_level_validation(
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   key: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let early_user_errors =
     validate_context_customer_selection_conflict(input_name, input)
@@ -860,6 +880,7 @@ pub fn update_discount_after_top_level_validation(
         id,
         input,
         key,
+        upstream,
       )
   }
 }
@@ -877,7 +898,9 @@ pub fn update_discount_existing_record(
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   key: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
+  let store = maybe_hydrate_discount_markets_capability(store, input, upstream)
   let existing = store.get_effective_discount_by_id(store, id)
   case existing {
     None ->
@@ -905,6 +928,7 @@ pub fn update_discount_existing_record(
             input_name,
             input,
             target_discount_type,
+            False,
             False,
             Some(existing_record.id),
           )
@@ -958,55 +982,68 @@ pub fn set_status(
 ) -> MutationResult {
   let key = get_field_response_key(field)
   case discount_types.read_string_arg(field, variables, "id") {
-    Some(id) ->
+    Some(id) -> {
+      let #(store, identity) =
+        maybe_hydrate_discount(store, identity, id, upstream)
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let user_errors = case status {
-            "ACTIVE" -> app_discount_activation_errors(store, record, upstream)
-            _ -> []
-          }
-          case user_errors {
-            [_, ..] ->
+          case status_transition_is_noop(record.status, status) {
+            True ->
               MutationResult(
                 key,
-                payload_json(root, field, fragments, None, user_errors),
+                payload_json(root, field, fragments, Some(record), []),
                 store,
                 identity,
                 [],
                 [],
               )
-            [] -> {
-              let #(updated_at, next_identity) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              let transition_timestamp = case status {
+            False -> {
+              let user_errors = case status {
                 "ACTIVE" ->
-                  case record.status {
-                    "ACTIVE" -> None
-                    _ -> Some(updated_at)
-                  }
-                "EXPIRED" -> Some(updated_at)
-                _ -> None
+                  app_discount_activation_errors(store, record, upstream)
+                _ -> []
               }
-              let record =
-                DiscountRecord(
-                  ..record,
-                  status: status,
-                  payload: discount_types.update_payload_status(
-                      record.payload,
-                      status,
-                      transition_timestamp,
+              case user_errors {
+                [_, ..] ->
+                  MutationResult(
+                    key,
+                    payload_json(root, field, fragments, None, user_errors),
+                    store,
+                    identity,
+                    [],
+                    [],
+                  )
+                [] -> {
+                  let #(updated_at, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let transition_timestamp = case status {
+                    "ACTIVE" -> Some(updated_at)
+                    "EXPIRED" -> Some(updated_at)
+                    _ -> None
+                  }
+                  let record =
+                    DiscountRecord(
+                      ..record,
+                      status: status,
+                      payload: discount_types.update_payload_status(
+                          record.payload,
+                          status,
+                          transition_timestamp,
+                        )
+                        |> discount_types.update_payload_updated_at(updated_at),
                     )
-                    |> discount_types.update_payload_updated_at(updated_at),
-                )
-              let #(record, next_store) = store.stage_discount(store, record)
-              MutationResult(
-                key,
-                payload_json(root, field, fragments, Some(record), []),
-                next_store,
-                next_identity,
-                [record.id],
-                [],
-              )
+                  let #(record, next_store) =
+                    store.stage_discount(store, record)
+                  MutationResult(
+                    key,
+                    payload_json(root, field, fragments, Some(record), []),
+                    next_store,
+                    next_identity,
+                    [record.id],
+                    [],
+                  )
+                }
+              }
             }
           }
         }
@@ -1026,6 +1063,7 @@ pub fn set_status(
             [],
           )
       }
+    }
     None ->
       MutationResult(
         key,
@@ -1037,6 +1075,17 @@ pub fn set_status(
         [],
         [],
       )
+  }
+}
+
+fn status_transition_is_noop(
+  current_status: String,
+  requested_status: String,
+) -> Bool {
+  case current_status, requested_status {
+    "ACTIVE", "ACTIVE" -> True
+    "EXPIRED", "EXPIRED" -> True
+    _, _ -> False
   }
 }
 

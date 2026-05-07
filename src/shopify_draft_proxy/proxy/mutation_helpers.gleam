@@ -565,15 +565,24 @@ fn validate_literal_input_object_fields(
     // LocationAddInput.name/address, so mirror that targeted parser
     // behavior without broadening this validator across all inputs.
     "locationAdd" ->
-      validate_direct_literal_input_fields(
-        mutation,
-        arguments,
-        "input",
-        "LocationAddInput",
-        operation_name,
-        operation_path,
-        source_body,
-        schema,
+      list.append(
+        validate_direct_literal_input_fields(
+          mutation,
+          arguments,
+          "input",
+          "LocationAddInput",
+          operation_name,
+          operation_path,
+          source_body,
+          schema,
+        ),
+        validate_location_add_literal_address_fields(
+          arguments,
+          operation_name,
+          operation_path,
+          source_body,
+          schema,
+        ),
       )
     "carrierServiceCreate" ->
       validate_direct_literal_input_fields(
@@ -597,6 +606,66 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "marketingEngagementCreate" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "marketingEngagement",
+        "MarketingEngagementInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
+    _ -> []
+  }
+}
+
+fn validate_location_add_literal_address_fields(
+  arguments: List(Argument),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case find_argument(arguments, "input") {
+    Some(Argument(value: ast.ObjectValue(fields: input_fields, ..), ..)) ->
+      case find_object_field(input_fields, "address") {
+        Some(ast.ObjectField(
+          value: ast.ObjectValue(fields: address_fields, loc: loc),
+          ..,
+        )) ->
+          case
+            mutation_schema_lookup.get_input_object(
+              schema,
+              "LocationAddAddressInput",
+            )
+          {
+            Some(input_object) ->
+              list.flat_map(input_object.input_fields, fn(input_field) {
+                case
+                  mutation_schema.is_non_null(input_field.type_),
+                  input_field.default_value
+                {
+                  True, None ->
+                    validate_nested_literal_input_field(
+                      address_fields,
+                      ["input", "address"],
+                      "LocationAddAddressInput",
+                      input_field.name,
+                      mutation_schema.render_signature(input_field.type_),
+                      operation_name,
+                      operation_path,
+                      loc,
+                      source_body,
+                    )
+                  _, _ -> []
+                }
+              })
+            None -> []
+          }
+        _ -> []
+      }
     _ -> []
   }
 }
@@ -725,10 +794,10 @@ fn validate_direct_literal_input_field(
 ) -> List(Json) {
   case find_object_field(fields, input_field_name) {
     None -> [
-      build_missing_required_input_object_attribute_error_with_location(
+      build_missing_required_input_object_attribute_error_at_path(
         operation_path,
         operation_name,
-        argument_name,
+        [argument_name, input_field_name],
         input_object_name,
         input_field_name,
         input_field_type,
@@ -737,10 +806,51 @@ fn validate_direct_literal_input_field(
       ),
     ]
     Some(ast.ObjectField(value: ast.NullValue(..), ..)) -> [
-      build_null_input_object_attribute_error_with_location(
+      build_null_input_object_attribute_error_at_path(
         operation_path,
         operation_name,
-        argument_name,
+        [argument_name, input_field_name],
+        input_object_name,
+        input_field_name,
+        input_field_type,
+        loc,
+        source_body,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_nested_literal_input_field(
+  fields: List(ast.ObjectField),
+  path_tail: List(String),
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  operation_name: String,
+  operation_path: String,
+  loc: Option(Location),
+  source_body: String,
+) -> List(Json) {
+  let full_path_tail = list.append(path_tail, [input_field_name])
+  case find_object_field(fields, input_field_name) {
+    None -> [
+      build_missing_required_input_object_attribute_error_at_path(
+        operation_path,
+        operation_name,
+        full_path_tail,
+        input_object_name,
+        input_field_name,
+        input_field_type,
+        loc,
+        source_body,
+      ),
+    ]
+    Some(ast.ObjectField(value: ast.NullValue(..), ..)) -> [
+      build_null_input_object_attribute_error_at_path(
+        operation_path,
+        operation_name,
+        full_path_tail,
         input_object_name,
         input_field_name,
         input_field_type,
@@ -778,6 +888,28 @@ fn build_missing_required_input_object_attribute_error_with_location(
   loc: Option(Location),
   source_body: String,
 ) -> Json {
+  build_missing_required_input_object_attribute_error_at_path(
+    operation_path,
+    operation_name,
+    [argument_name, input_field_name],
+    input_object_name,
+    input_field_name,
+    input_field_type,
+    loc,
+    source_body,
+  )
+}
+
+fn build_missing_required_input_object_attribute_error_at_path(
+  operation_path: String,
+  operation_name: String,
+  path_tail: List(String),
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  loc: Option(Location),
+  source_body: String,
+) -> Json {
   let base = [
     #(
       "message",
@@ -799,10 +931,7 @@ fn build_missing_required_input_object_attribute_error_with_location(
     list.append(with_locations, [
       #(
         "path",
-        json.array(
-          [operation_path, operation_name, argument_name, input_field_name],
-          json.string,
-        ),
+        json.array([operation_path, operation_name, ..path_tail], json.string),
       ),
       #(
         "extensions",
@@ -817,10 +946,10 @@ fn build_missing_required_input_object_attribute_error_with_location(
   )
 }
 
-fn build_null_input_object_attribute_error_with_location(
+fn build_null_input_object_attribute_error_at_path(
   operation_path: String,
   operation_name: String,
-  argument_name: String,
+  path_tail: List(String),
   input_object_name: String,
   input_field_name: String,
   input_field_type: String,
@@ -849,10 +978,7 @@ fn build_null_input_object_attribute_error_with_location(
     list.append(with_locations, [
       #(
         "path",
-        json.array(
-          [operation_path, operation_name, argument_name, input_field_name],
-          json.string,
-        ),
+        json.array([operation_path, operation_name, ..path_tail], json.string),
       ),
       #(
         "extensions",
@@ -1154,6 +1280,24 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "LocationAddInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
+                      "LocationAddAddressInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       _ -> []
                     }
                   Some(schema_field) ->
@@ -1362,31 +1506,72 @@ fn top_level_required_input_field_problems(
   schema: MutationSchema,
 ) -> List(ValueProblem) {
   case mutation_schema.named_leaf(declared_type), resolved {
-    Some("DeliveryCarrierServiceCreateInput"), root_field.ObjectVal(fields) ->
-      case
-        mutation_schema_lookup.get_input_object(
+    Some("LocationAddInput"), root_field.ObjectVal(fields) ->
+      list.append(
+        required_input_field_problems_for(
           schema,
-          "DeliveryCarrierServiceCreateInput",
+          "LocationAddInput",
+          fields,
+          [],
+        ),
+        case dict.get(fields, "address") {
+          Ok(root_field.ObjectVal(address_fields)) ->
+            required_input_field_problems_for(
+              schema,
+              "LocationAddAddressInput",
+              address_fields,
+              [StringSegment("address")],
+            )
+          _ -> []
+        },
+      )
+    Some(input_type_name), root_field.ObjectVal(fields) -> {
+      case
+        list.contains(
+          top_level_required_input_field_strict_types(),
+          input_type_name,
         )
       {
-        Some(input_object) ->
-          list.filter_map(input_object.input_fields, fn(field) {
-            let required =
-              mutation_schema.is_non_null(field.type_)
-              && option.is_none(field.default_value)
-            case required, dict.has_key(fields, field.name) {
-              True, False ->
-                Ok(ValueProblem(
-                  path: [StringSegment(field.name)],
-                  explanation: "Expected value to not be null",
-                  message: None,
-                ))
-              _, _ -> Error(Nil)
-            }
-          })
-        None -> []
+        True ->
+          required_input_field_problems_for(schema, input_type_name, fields, [])
+        False -> []
       }
+    }
     _, _ -> []
+  }
+}
+
+fn top_level_required_input_field_strict_types() -> List(String) {
+  [
+    "DeliveryCarrierServiceCreateInput",
+    "CatalogCreateInput",
+    "PriceListCreateInput",
+  ]
+}
+
+fn required_input_field_problems_for(
+  schema: MutationSchema,
+  input_object_name: String,
+  fields: Dict(String, root_field.ResolvedValue),
+  path_prefix: List(PathSegment),
+) -> List(ValueProblem) {
+  case mutation_schema_lookup.get_input_object(schema, input_object_name) {
+    Some(input_object) ->
+      list.filter_map(input_object.input_fields, fn(field) {
+        let required =
+          mutation_schema.is_non_null(field.type_)
+          && option.is_none(field.default_value)
+        case required, dict.has_key(fields, field.name) {
+          True, False ->
+            Ok(ValueProblem(
+              path: list.append(path_prefix, [StringSegment(field.name)]),
+              explanation: "Expected value to not be null",
+              message: None,
+            ))
+          _, _ -> Error(Nil)
+        }
+      })
+    None -> []
   }
 }
 
@@ -1398,12 +1583,11 @@ fn top_level_required_input_field_problems(
 /// `ListType`. Real Shopify is strict about NON_NULL fields on input
 /// objects that appear *as list elements* (e.g.
 /// `[MetafieldsSetInput!]!.key` missing → INVALID_VARIABLE), but
-/// lenient about NON_NULL fields on a top-level single-object
-/// variable (e.g. `PriceListCreateInput!.parent` missing → no
-/// coercion error, the resolver surfaces it via `userErrors` if it
-/// cares). Mirror that asymmetry — flagging top-level objects too
+/// lenient about most NON_NULL fields on a top-level single-object
+/// variable. Mirror that asymmetry — flagging all top-level objects
 /// produces false positives against the live runtime that is more
-/// permissive than the introspection schema advertises.
+/// permissive than the introspection schema advertises. Narrow
+/// top-level strict exceptions are handled before this traversal.
 fn collect_value_problems(
   resolved: root_field.ResolvedValue,
   schema_type: mutation_schema.SchemaType,
@@ -1535,9 +1719,27 @@ fn url_value_problems(
             "" -> [invalid_url_problem(value, "missing host", path)]
             _ -> []
           }
-        Error(_) -> [invalid_url_problem(value, "missing scheme", path)]
+        Error(_) ->
+          case string.split_once(value, ":") {
+            Ok(#("", _)) -> [invalid_url_problem(value, "empty scheme", path)]
+            Ok(#(scheme, _)) ->
+              case url_scalar_hostless_scheme_allowed(scheme) {
+                True -> []
+                False -> [invalid_url_problem(value, "missing host", path)]
+              }
+            Error(_) -> [invalid_url_problem(value, "missing scheme", path)]
+          }
       }
     _ -> []
+  }
+}
+
+fn url_scalar_hostless_scheme_allowed(scheme: String) -> Bool {
+  case string.lowercase(scheme) {
+    "mailto" -> True
+    "sms" -> True
+    "tel" -> True
+    _ -> False
   }
 }
 
@@ -1605,6 +1807,18 @@ fn collect_unknown_variable_fields(
           message: None,
         ))
       "OnlineStoreThemeInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "LocationAddInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "LocationAddAddressInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,
@@ -1731,6 +1945,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "PRICE_DESC",
     ]),
     #("CountryCode", country_code_values()),
+    #("CurrencyCode", currency_code_values()),
     #("WeightUnit", ["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"]),
     #("FulfillmentEventStatus", [
       "LABEL_PURCHASED",
@@ -1760,6 +1975,14 @@ fn country_code_values() -> List(String) {
 
 fn country_code_values_message() -> String {
   "AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ"
+}
+
+fn currency_code_values() -> List(String) {
+  string.split(currency_code_values_message(), ", ")
+}
+
+fn currency_code_values_message() -> String {
+  "USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS, AMD, AWG, AUD, BBD, AZN, BDT, BSD, BHD, BIF, BYN, BZD, BMD, BTN, BAM, BRL, BOB, BWP, BND, BGN, MMK, KHR, CVE, KYD, XAF, CLP, CNY, COP, KMF, CDF, CRC, HRK, CZK, DKK, DJF, DOP, XCD, EGP, ERN, ETB, FKP, XPF, FJD, GIP, GMD, GHS, GTQ, GYD, GEL, GNF, HTG, HNL, HKD, HUF, ISK, INR, IDR, ILS, IRR, IQD, JMD, JPY, JEP, JOD, KZT, KES, KID, KWD, KGS, LAK, LVL, LBP, LSL, LRD, LYD, LTL, MGA, MKD, MOP, MWK, MVR, MRU, MXN, MYR, MUR, MDL, MAD, MNT, MZN, NAD, NPR, ANG, NZD, NIO, NGN, NOK, OMR, PAB, PKR, PGK, PYG, PEN, PHP, PLN, QAR, RON, RUB, RWF, WST, SHP, SAR, RSD, SCR, SLL, SGD, SDG, SOS, SYP, ZAR, KRW, SSP, SBD, LKR, SRD, SZL, SEK, CHF, TWD, THB, TJS, TZS, TOP, TTD, TND, TRY, TMT, UGX, UAH, AED, UYU, UZS, VUV, VES, VND, XOF, YER, ZMW, USDC, BYR, STD, STN, VED, VEF, XXX"
 }
 
 pub fn tax_exemption_values() -> List(String) {
@@ -1849,10 +2072,15 @@ fn build_invalid_variable_problems_error(
 ) -> Json {
   let message_suffix = case problems {
     [] -> ""
-    [first, ..] -> {
-      let path_str =
-        list.map(first.path, path_segment_to_string) |> string.join(".")
-      " for " <> path_str <> " (" <> first.explanation <> ")"
+    [_, ..] -> {
+      let rendered_problems =
+        problems
+        |> list.map(fn(problem) {
+          let path_str =
+            list.map(problem.path, path_segment_to_string) |> string.join(".")
+          path_str <> " (" <> problem.explanation <> ")"
+        })
+      " for " <> string.join(rendered_problems, ", ")
     }
   }
   let base = [

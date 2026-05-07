@@ -1,0 +1,14 @@
+mutation CustomerTagNoteLimitsSet($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      email
+      note
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

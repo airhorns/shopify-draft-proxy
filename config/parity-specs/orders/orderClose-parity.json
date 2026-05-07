@@ -3,13 +3,13 @@
   "operationNames": ["orderClose"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderClose-parity.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderClose-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderClose-parity.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured 2026-04 orderClose conformance slice for HAR-120 local staging.",
+  "notes": "Captured 2026-04 orderClose conformance slice for local staging.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -30,9 +30,7 @@
         "proxyPath": "$.data.order.closed",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
-          "variables": {
-            "id": "gid://shopify/Order/6830646198505"
-          }
+          "variablesCapturePath": "$.downstreamRead.variables"
         }
       }
     ]

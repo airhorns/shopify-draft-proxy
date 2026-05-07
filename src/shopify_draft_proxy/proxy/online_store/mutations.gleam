@@ -35,6 +35,24 @@ import shopify_draft_proxy/state/types.{
   OnlineStoreContentRecord, OnlineStoreIntegrationRecord,
 }
 
+const article_title_max_length = 255
+
+const article_max_handle_length = 265
+
+const article_body_html_max_byte_size = 1_048_576
+
+const page_title_max_length = 255
+
+const page_handle_max_length = 255
+
+const page_body_html_max_byte_size = 524_287
+
+const blog_title_max_length = 255
+
+const blog_handle_max_length = 255
+
+const blog_feedburner_max_length = 255
+
 type CommentModerationTransition {
   CommentTransitionNoop
   CommentTransitionInvalid(message: String, code: Option(String))
@@ -343,7 +361,7 @@ fn create_content(
         error,
       )
     None ->
-      case future_publish_date_error(payload_key, input, None) {
+      case content_input_length_error(payload_key, input) {
         Some(error) ->
           serializers.content_validation_error_payload(
             outcome,
@@ -353,17 +371,9 @@ fn create_content(
             payload_key,
             error,
           )
-        None -> {
-          case
-            serializers.resolve_content_handle(
-              outcome.store,
-              kind,
-              input,
-              None,
-              None,
-            )
-          {
-            Error(error) ->
+        None ->
+          case future_publish_date_error(payload_key, input, None) {
+            Some(error) ->
               serializers.content_validation_error_payload(
                 outcome,
                 field,
@@ -372,43 +382,70 @@ fn create_content(
                 payload_key,
                 error,
               )
-            Ok(handle) -> {
-              let #(record, identity) =
-                serializers.make_content(
-                  outcome.identity,
+            None -> {
+              case
+                serializers.resolve_content_handle(
+                  outcome.store,
                   kind,
                   input,
                   None,
                   None,
-                  handle,
                 )
-              let #(_, store) =
-                store.upsert_staged_online_store_content(outcome.store, record)
-              let payload =
-                serializers.mutation_payload(
-                  field,
-                  fragments,
-                  payload_key,
-                  serializers.project_content_payload(
-                    store,
-                    record,
+              {
+                Error(error) ->
+                  serializers.content_validation_error_payload(
+                    outcome,
                     field,
                     fragments,
-                    variables,
+                    root,
                     payload_key,
-                  ),
-                  [],
-                )
-              #(
-                key,
-                payload,
-                serializers.mutation_outcome(outcome, store, identity, root, [
-                  record.id,
-                ]),
-              )
+                    error,
+                  )
+                Ok(handle) -> {
+                  let #(record, identity) =
+                    serializers.make_content(
+                      outcome.identity,
+                      kind,
+                      input,
+                      None,
+                      None,
+                      handle,
+                    )
+                  let #(_, store) =
+                    store.upsert_staged_online_store_content(
+                      outcome.store,
+                      record,
+                    )
+                  let payload =
+                    serializers.mutation_payload(
+                      field,
+                      fragments,
+                      payload_key,
+                      serializers.project_content_payload(
+                        store,
+                        record,
+                        field,
+                        fragments,
+                        variables,
+                        payload_key,
+                      ),
+                      [],
+                    )
+                  #(
+                    key,
+                    payload,
+                    serializers.mutation_outcome(
+                      outcome,
+                      store,
+                      identity,
+                      root,
+                      [record.id],
+                    ),
+                  )
+                }
+              }
             }
           }
-        }
       }
   }
 }
@@ -601,21 +638,26 @@ fn article_create_validation_error(
   case serializers.required_title_error("article", article_input) {
     Some(error) -> Some(error)
     None ->
-      case has_blog_id, has_inline_blog {
-        True, True ->
-          Some(serializers.article_user_error(
-            "Can't create a blog from input if a blog ID is supplied.",
-            "AMBIGUOUS_BLOG",
-          ))
-        False, False ->
-          Some(serializers.article_user_error(
-            "Must reference or create a blog when creating an article.",
-            "BLOG_REFERENCE_REQUIRED",
-          ))
-        _, _ ->
-          case article_author_validation_error(article_input) {
-            Some(error) -> Some(error)
-            None -> future_publish_date_error("article", article_input, None)
+      case content_input_length_error("article", article_input) {
+        Some(error) -> Some(error)
+        None ->
+          case has_blog_id, has_inline_blog {
+            True, True ->
+              Some(serializers.article_user_error(
+                "Can't create a blog from input if a blog ID is supplied.",
+                "AMBIGUOUS_BLOG",
+              ))
+            False, False ->
+              Some(serializers.article_user_error(
+                "Must reference or create a blog when creating an article.",
+                "BLOG_REFERENCE_REQUIRED",
+              ))
+            _, _ ->
+              case article_author_validation_error(article_input) {
+                Some(error) -> Some(error)
+                None ->
+                  future_publish_date_error("article", article_input, None)
+              }
           }
       }
   }
@@ -682,6 +724,98 @@ fn future_publish_date_error(
   }
 }
 
+fn content_input_length_error(
+  payload_key: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(graphql_helpers.SourceValue) {
+  let checks = case payload_key {
+    "article" -> [
+      #("title", article_title_max_length, CharacterLimit),
+      #("handle", article_max_handle_length, CharacterLimit),
+      #("body", article_body_html_max_byte_size, ByteLimit(None, "1 MB")),
+    ]
+    "page" -> [
+      #("title", page_title_max_length, CharacterLimit),
+      #("handle", page_handle_max_length, CharacterLimit),
+      #(
+        "body",
+        page_body_html_max_byte_size,
+        ByteLimit(Some("TOO_BIG"), "512 KB"),
+      ),
+    ]
+    "blog" -> [
+      #("title", blog_title_max_length, CharacterLimit),
+      #("handle", blog_handle_max_length, CharacterLimit),
+      #("feedburner", blog_feedburner_max_length, CharacterLimit),
+    ]
+    _ -> []
+  }
+  content_input_length_error_loop(payload_key, input, checks)
+}
+
+type ContentLengthLimit {
+  CharacterLimit
+  ByteLimit(code: Option(String), label: String)
+}
+
+fn content_input_length_error_loop(
+  payload_key: String,
+  input: Dict(String, root_field.ResolvedValue),
+  checks: List(#(String, Int, ContentLengthLimit)),
+) -> Option(graphql_helpers.SourceValue) {
+  case checks {
+    [] -> None
+    [check, ..rest] -> {
+      let #(field, maximum, limit) = check
+      case serializers.input_string(input, field) {
+        Some(value) ->
+          case content_field_too_large(value, maximum, limit) {
+            True ->
+              Some(content_length_user_error(payload_key, field, maximum, limit))
+            False -> content_input_length_error_loop(payload_key, input, rest)
+          }
+        None -> content_input_length_error_loop(payload_key, input, rest)
+      }
+    }
+  }
+}
+
+fn content_field_too_large(
+  value: String,
+  maximum: Int,
+  limit: ContentLengthLimit,
+) -> Bool {
+  case limit {
+    CharacterLimit -> string.length(value) > maximum
+    ByteLimit(_, _) -> string.byte_size(value) > maximum
+  }
+}
+
+fn content_length_user_error(
+  payload_key: String,
+  field: String,
+  maximum: Int,
+  limit: ContentLengthLimit,
+) -> graphql_helpers.SourceValue {
+  case limit {
+    CharacterLimit ->
+      serializers.user_error_with_code(
+        [payload_key, field],
+        string.capitalise(field)
+          <> " is too long (maximum is "
+          <> int.to_string(maximum)
+          <> " characters)",
+        "TOO_LONG",
+      )
+    ByteLimit(code, label) ->
+      serializers.user_error_with_optional_code(
+        [payload_key, field],
+        "Content is too big (maximum is " <> label <> ")",
+        code,
+      )
+  }
+}
+
 fn effective_is_published(
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(OnlineStoreContentRecord),
@@ -735,11 +869,12 @@ fn update_content(
               )
             Ok(input) -> {
               case
-                article_update_validation_errors(
+                content_update_validation_errors(
                   outcome.store,
                   kind,
                   input,
                   existing,
+                  payload_key,
                 )
               {
                 [_, ..] as errors ->
@@ -801,8 +936,16 @@ fn update_content_after_validation(
   existing: OnlineStoreContentRecord,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  case future_publish_date_error(payload_key, input, Some(existing)) {
-    Some(error) ->
+  case
+    serializers.resolve_content_handle(
+      outcome.store,
+      kind,
+      input,
+      existing.parent_id,
+      Some(existing),
+    )
+  {
+    Error(error) ->
       serializers.content_validation_error_payload(
         outcome,
         field,
@@ -811,70 +954,58 @@ fn update_content_after_validation(
         payload_key,
         error,
       )
-    None -> {
-      case
-        serializers.resolve_content_handle(
-          outcome.store,
+    Ok(handle) -> {
+      let #(record, identity) =
+        serializers.make_content(
+          outcome.identity,
           kind,
           input,
           existing.parent_id,
           Some(existing),
+          handle,
         )
-      {
-        Error(error) ->
-          serializers.content_validation_error_payload(
-            outcome,
+      let #(_, store) =
+        store.upsert_staged_online_store_content(outcome.store, record)
+      let payload =
+        serializers.mutation_payload(
+          field,
+          fragments,
+          payload_key,
+          serializers.project_content_payload(
+            store,
+            record,
             field,
             fragments,
-            root,
+            variables,
             payload_key,
-            error,
-          )
-        Ok(handle) -> {
-          let #(record, identity) =
-            serializers.make_content(
-              outcome.identity,
-              kind,
-              input,
-              existing.parent_id,
-              Some(existing),
-              handle,
-            )
-          let #(_, store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          let payload =
-            serializers.mutation_payload(
-              field,
-              fragments,
-              payload_key,
-              serializers.project_content_payload(
-                store,
-                record,
-                field,
-                fragments,
-                variables,
-                payload_key,
-              ),
-              [],
-            )
-          #(
-            key,
-            payload,
-            serializers.mutation_outcome(outcome, store, identity, root, [id]),
-          )
-        }
-      }
+          ),
+          [],
+        )
+      #(
+        key,
+        payload,
+        serializers.mutation_outcome(outcome, store, identity, root, [id]),
+      )
     }
   }
 }
 
-fn article_update_validation_errors(
+fn content_update_validation_errors(
   store: Store,
   kind: String,
   input: Dict(String, root_field.ResolvedValue),
   existing: OnlineStoreContentRecord,
+  payload_key: String,
 ) -> List(graphql_helpers.SourceValue) {
-  case kind {
+  let length_errors =
+    source_option_to_list(content_input_length_error(payload_key, input))
+  let publish_date_errors =
+    source_option_to_list(future_publish_date_error(
+      payload_key,
+      input,
+      Some(existing),
+    ))
+  let article_errors = case kind {
     "article" ->
       list.append(
         article_update_author_errors(store, input),
@@ -884,6 +1015,16 @@ fn article_update_validation_errors(
         ),
       )
     _ -> []
+  }
+  list.append(length_errors, list.append(publish_date_errors, article_errors))
+}
+
+fn source_option_to_list(
+  value: Option(graphql_helpers.SourceValue),
+) -> List(graphql_helpers.SourceValue) {
+  case value {
+    Some(value) -> [value]
+    None -> []
   }
 }
 
@@ -1685,7 +1826,11 @@ fn comment_data_with_status(
 }
 
 fn comment_not_found_user_error() -> graphql_helpers.SourceValue {
-  serializers.user_error(["id"], "Comment does not exist")
+  serializers.user_error_with_code(
+    ["id"],
+    "Comment does not exist",
+    "NOT_FOUND",
+  )
 }
 
 fn comment_invalid_transition_user_error(

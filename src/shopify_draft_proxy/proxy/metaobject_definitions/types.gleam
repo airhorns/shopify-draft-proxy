@@ -34,14 +34,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
   type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
+  type MetaobjectFieldDefinitionCapabilitiesRecord,
   type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord, MetaobjectBool,
   MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionCapabilitiesRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -57,9 +58,23 @@ const metaobject_handle_max_length = 255
 
 const definition_column_size_limit = 255
 
+// These mirror Shopify's default entitlement caps. The proxy cannot know shop-
+// specific entitlement overrides locally, so it uses conservative defaults:
+// over-rejecting a custom-plan shop is preferable to staging writes that later
+// fail during commit.
+pub const default_max_merchant_definitions = 128
+
+pub const max_app_controlled_definitions = 128
+
+pub const default_max_admin_filterable_fields_per_definition = 40
+
+pub const default_max_metaobjects_per_type = 1_000_000
+
 const default_max_fields_per_definition = 40
 
 const forms_max_fields_per_definition = 100
+
+const min_field_key_length = 2
 
 const max_field_key_length = 64
 
@@ -252,6 +267,80 @@ pub fn build_create_definition_uniqueness_errors(
       None,
       None,
     ),
+  )
+  |> append_definition_limit_user_errors(store, input, requesting_api_client_id)
+}
+
+@internal
+pub fn append_definition_limit_user_errors(
+  errors: List(UserError),
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case normalized_definition_type_from_input(input, requesting_api_client_id) {
+    Some(type_) ->
+      append_if(
+        errors,
+        definition_count_after_create(store, type_) > definition_limit(type_),
+        max_definitions_exceeded_user_error(),
+      )
+    None -> errors
+  }
+}
+
+@internal
+pub fn definition_count_after_create(store: Store, type_: String) -> Int {
+  definition_count_for_cap_bucket(store, type_) + 1
+}
+
+@internal
+pub fn definition_count_for_cap_bucket(store: Store, type_: String) -> Int {
+  list_effective_metaobject_definitions(store)
+  |> list.filter(fn(definition) {
+    option.is_none(definition.standard_template)
+    && definition_in_same_limit_bucket(definition.type_, type_)
+  })
+  |> list.length
+}
+
+@internal
+pub fn definition_in_same_limit_bucket(
+  existing_type: String,
+  candidate_type: String,
+) -> Bool {
+  case app_controlled_api_client_id(candidate_type) {
+    Some(api_client_id) ->
+      app_controlled_api_client_id(existing_type) == Some(api_client_id)
+    None -> app_controlled_api_client_id(existing_type) == None
+  }
+}
+
+@internal
+pub fn definition_limit(type_: String) -> Int {
+  case app_controlled_api_client_id(type_) {
+    Some(_) -> max_app_controlled_definitions
+    None -> default_max_merchant_definitions
+  }
+}
+
+@internal
+pub fn app_controlled_api_client_id(type_: String) -> Option(String) {
+  case string.split(type_, "--") {
+    ["app", api_client_id, rest, ..] if api_client_id != "" && rest != "" ->
+      Some(api_client_id)
+    _ -> None
+  }
+}
+
+@internal
+pub fn max_definitions_exceeded_user_error() -> UserError {
+  UserError(
+    None,
+    "Maximum metaobject definitions has been exceeded",
+    "MAX_DEFINITIONS_EXCEEDED",
+    None,
+    None,
   )
 }
 
@@ -447,11 +536,42 @@ pub fn append_create_field_definition_input_errors(
       }
     })
   errors
-  |> append_field_count_user_errors(
-    list.length(values),
+  |> append_create_field_limit_user_errors(
+    values,
     normalized_type |> option.unwrap(""),
   )
   |> append_display_name_key_user_errors(display_name_key, keys)
+}
+
+@internal
+pub fn append_create_field_limit_user_errors(
+  errors: List(UserError),
+  values: List(root_field.ResolvedValue),
+  type_: String,
+) -> List(UserError) {
+  let fields = read_field_definitions(values)
+  append_definition_field_limit_user_errors(
+    errors,
+    list.length(values),
+    fields,
+    type_,
+  )
+}
+
+@internal
+pub fn append_definition_field_limit_user_errors(
+  errors: List(UserError),
+  field_count: Int,
+  fields: List(MetaobjectFieldDefinitionRecord),
+  type_: String,
+) -> List(UserError) {
+  case
+    admin_filterable_field_count(fields)
+    > default_max_admin_filterable_fields_per_definition
+  {
+    True -> append_admin_filterable_field_count_user_errors(errors, fields)
+    False -> append_field_count_user_errors(errors, field_count, type_)
+  }
 }
 
 @internal
@@ -460,29 +580,70 @@ pub fn field_definition_key_user_errors(
   key: String,
   seen_keys: List(String),
 ) -> List(UserError) {
+  field_definition_key_user_errors_with_suffix(index, key, seen_keys, [])
+}
+
+@internal
+pub fn field_definition_key_user_errors_with_suffix(
+  index: Int,
+  key: String,
+  seen_keys: List(String),
+  field_suffix: List(String),
+) -> List(UserError) {
   []
+  |> append_if(key == "", blank_field_key_user_error(index, key, field_suffix))
+  |> append_if(
+    string.length(key) < min_field_key_length,
+    too_short_field_key_user_error(index, key, field_suffix),
+  )
   |> append_if(
     string.length(key) > max_field_key_length,
-    too_long_field_key_user_error(index, key),
+    too_long_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     !is_valid_field_key(key),
-    invalid_field_key_user_error(index, key),
+    invalid_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     is_reserved_field_key(key),
-    reserved_field_key_user_error(index, key),
+    reserved_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     list.contains(seen_keys, key),
-    duplicate_field_key_user_error(index, key),
+    duplicate_field_key_user_error(index, key, field_suffix),
+  )
+}
+
+fn field_definition_error_path(
+  index: Int,
+  suffix: List(String),
+) -> List(String) {
+  list.append(["definition", "fieldDefinitions", int.to_string(index)], suffix)
+}
+
+@internal
+pub fn blank_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
+  UserError(
+    Some(field_definition_error_path(index, field_suffix)),
+    "Key can't be blank",
+    "BLANK",
+    Some(key),
+    None,
   )
 }
 
 @internal
-pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn invalid_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "Key contains one or more invalid characters.",
     "INVALID",
     Some(key),
@@ -491,9 +652,28 @@ pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn too_long_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn too_short_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
+    "Key is too short (minimum is 2 characters)",
+    "TOO_SHORT",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn too_long_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
+  UserError(
+    Some(field_definition_error_path(index, field_suffix)),
     "Key is too long (maximum is 64 characters)",
     "TOO_LONG",
     Some(key),
@@ -502,9 +682,13 @@ pub fn too_long_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn reserved_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn reserved_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "The name \"" <> key <> "\" is reserved for system use",
     "RESERVED_NAME",
     Some(key),
@@ -513,9 +697,13 @@ pub fn reserved_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn duplicate_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn duplicate_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "Field \"" <> key <> "\" duplicates other inputs",
     "DUPLICATE_FIELD_INPUT",
     Some(key),
@@ -546,6 +734,51 @@ pub fn append_field_count_user_errors(
       None,
       None,
     ),
+  )
+}
+
+@internal
+pub fn append_admin_filterable_field_count_user_errors(
+  errors: List(UserError),
+  fields: List(MetaobjectFieldDefinitionRecord),
+) -> List(UserError) {
+  append_if(
+    errors,
+    admin_filterable_field_count(fields)
+      > default_max_admin_filterable_fields_per_definition,
+    admin_filterable_field_count_user_error(),
+  )
+}
+
+@internal
+pub fn admin_filterable_field_count(
+  fields: List(MetaobjectFieldDefinitionRecord),
+) -> Int {
+  fields
+  |> list.filter(fn(field) { field_definition_admin_filterable_enabled(field) })
+  |> list.length
+}
+
+@internal
+pub fn field_definition_admin_filterable_enabled(
+  field: MetaobjectFieldDefinitionRecord,
+) -> Bool {
+  case field.capabilities.admin_filterable {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn admin_filterable_field_count_user_error() -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions"]),
+    "Maximum "
+      <> int.to_string(default_max_admin_filterable_fields_per_definition)
+      <> " admin-filterable fields per metaobject definition",
+    "INVALID",
+    None,
+    None,
   )
 }
 
@@ -622,6 +855,7 @@ pub fn build_definition_from_create_input(
       has_thumbnail_field: Some(False),
       metaobjects_count: Some(0),
       standard_template: None,
+      linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
     ),
@@ -638,7 +872,7 @@ pub fn apply_definition_update(
   reset_field_order: Bool,
   requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
-  case build_unrecoverable_definition_update_user_errors(existing) {
+  case build_unrecoverable_definition_update_user_errors(existing, input) {
     [_, ..] as user_errors -> #(existing, identity, user_errors)
     [] ->
       apply_mutable_definition_update(
@@ -729,7 +963,12 @@ fn apply_mutable_definition_update(
       access_errors,
       user_errors,
       capability_errors,
-      append_field_count_user_errors([], list.length(next_fields), type_),
+      append_definition_field_limit_user_errors(
+        [],
+        list.length(next_fields),
+        next_fields,
+        type_,
+      ),
       append_display_name_key_user_errors(
         [],
         display_name_key,
@@ -960,10 +1199,27 @@ fn renderable_data_storage_key(input_key: String) -> String {
 @internal
 pub fn build_unrecoverable_definition_update_user_errors(
   existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
   case is_standard_or_shopify_reserved_definition(existing) {
     True -> [standard_definition_immutable_user_error()]
-    False -> []
+    False ->
+      case linked_product_option_display_name_key_change(existing, input) {
+        True -> [linked_product_options_display_name_immutable_user_error()]
+        False -> []
+      }
+  }
+}
+
+fn linked_product_option_display_name_key_change(
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case read_string(input, "displayNameKey") {
+    Some(next_display_name_key) ->
+      !list.is_empty(existing.linked_metafields)
+      && Some(next_display_name_key) != existing.display_name_key
+    None -> False
   }
 }
 
@@ -999,6 +1255,17 @@ pub fn standard_definition_immutable_user_error() -> UserError {
   UserError(
     Some(["definition"]),
     "Standard metaobject definitions can't be updated",
+    "IMMUTABLE",
+    None,
+    None,
+  )
+}
+
+@internal
+pub fn linked_product_options_display_name_immutable_user_error() -> UserError {
+  UserError(
+    Some(["definition", "displayNameKey"]),
+    "Cannot change display name field when metaobject is used in product options",
     "IMMUTABLE",
     None,
     None,
@@ -1121,6 +1388,7 @@ pub fn build_standard_definition(
         Some(template.type_),
         Some(template.name),
       )),
+      linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
     ),
@@ -1160,6 +1428,10 @@ pub fn read_field_definition_input(
           infer_field_type_category(type_name),
         ),
         validations: read_validation_inputs(read_list(input, "validations")),
+        capabilities: read_field_definition_capabilities(read_object(
+          input,
+          "capabilities",
+        )),
       ))
     _, _ -> None
   }
@@ -1182,28 +1454,59 @@ pub fn apply_field_definition_operations(
           Some(operation) -> {
             let key = field_operation_key(operation)
             case key {
-              None -> #(
-                fields,
-                list.append(errors, [
-                  UserError(
-                    Some([
-                      "definition",
-                      "fieldDefinitions",
-                      int.to_string(index),
-                      "key",
-                    ]),
-                    "Key can't be blank",
-                    "BLANK",
-                    None,
-                    Some(index),
-                  ),
-                ]),
-                ordered_keys,
-                seen_keys,
-              )
+              None -> {
+                let blank_key_errors = case operation {
+                  FieldDelete(_) -> [
+                    UserError(
+                      Some([
+                        "definition",
+                        "fieldDefinitions",
+                        int.to_string(index),
+                        "delete",
+                        "key",
+                      ]),
+                      "Field definition \"\" does not exist",
+                      "UNDEFINED_OBJECT_FIELD",
+                      Some(""),
+                      None,
+                    ),
+                  ]
+                  _ -> [
+                    UserError(
+                      Some([
+                        "definition",
+                        "fieldDefinitions",
+                        int.to_string(index),
+                        "key",
+                      ]),
+                      "Key can't be blank",
+                      "BLANK",
+                      None,
+                      Some(index),
+                    ),
+                  ]
+                }
+                #(
+                  fields,
+                  list.append(errors, blank_key_errors),
+                  ordered_keys,
+                  seen_keys,
+                )
+              }
               Some(k) -> {
+                let field_suffix = case operation {
+                  FieldCreate(_) -> ["create"]
+                  FieldUpdate(_) -> ["update"]
+                  FieldDelete(_) -> ["delete", "key"]
+                  FieldUpsert(_) -> []
+                }
                 let key_errors =
-                  field_definition_key_user_errors(index, k, seen_keys)
+                  field_definition_key_user_errors_with_suffix(
+                    index,
+                    k,
+                    seen_keys,
+                    field_suffix,
+                  )
                 case key_errors {
                   [_, ..] -> #(
                     fields,
@@ -1255,11 +1558,12 @@ pub fn apply_field_operation(
                 "fieldDefinitions",
                 int.to_string(index),
                 "delete",
+                "key",
               ]),
-              "Field definition not found.",
-              "NOT_FOUND",
+              "Field definition \"" <> key <> "\" does not exist",
+              "UNDEFINED_OBJECT_FIELD",
               Some(key),
-              Some(index),
+              None,
             ),
           ]),
           ordered_keys,
@@ -1281,11 +1585,12 @@ pub fn apply_field_operation(
                 "fieldDefinitions",
                 int.to_string(index),
                 "create",
+                "key",
               ]),
-              "Field definition already exists.",
-              "TAKEN",
+              "Field definition \"" <> key <> "\" is already taken",
+              "OBJECT_FIELD_TAKEN",
               Some(key),
-              Some(index),
+              None,
             ),
           ]),
           ordered_keys,
@@ -1307,11 +1612,12 @@ pub fn apply_field_operation(
                 "fieldDefinitions",
                 int.to_string(index),
                 "update",
+                "key",
               ]),
-              "Field definition not found.",
-              "NOT_FOUND",
+              "Field definition \"" <> key <> "\" does not exist",
+              "UNDEFINED_OBJECT_FIELD",
               Some(key),
-              Some(index),
+              None,
             ),
           ]),
           ordered_keys,
@@ -1404,9 +1710,52 @@ pub fn merge_field_definition(
         )
       None -> existing.type_
     },
+    capabilities: case read_object(input, "capabilities") {
+      Some(capabilities) ->
+        merge_field_definition_capabilities(existing.capabilities, capabilities)
+      None -> existing.capabilities
+    },
     validations: case dict.get(input, "validations") {
       Ok(root_field.ListVal(values)) -> read_validation_inputs(values)
       _ -> existing.validations
+    },
+  )
+}
+
+@internal
+pub fn default_field_definition_capabilities() -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+  )
+}
+
+@internal
+pub fn read_field_definition_capabilities(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  case input {
+    Some(capabilities) ->
+      merge_field_definition_capabilities(
+        default_field_definition_capabilities(),
+        capabilities,
+      )
+    None -> default_field_definition_capabilities()
+  }
+}
+
+@internal
+pub fn merge_field_definition_capabilities(
+  existing: MetaobjectFieldDefinitionCapabilitiesRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: case read_object(input, "adminFilterable") {
+      Some(admin_filterable) ->
+        case read_bool(admin_filterable, "enabled") {
+          Some(enabled) -> Some(MetaobjectDefinitionCapabilityRecord(enabled))
+          None -> existing.admin_filterable
+        }
+      None -> existing.admin_filterable
     },
   )
 }
@@ -1464,6 +1813,43 @@ pub fn build_create_metaobject_user_errors(
       None,
       None,
     ),
+  )
+  |> append_metaobjects_per_type_user_errors(definition)
+}
+
+@internal
+pub fn append_metaobjects_per_type_user_errors(
+  errors: List(UserError),
+  definition: Option(MetaobjectDefinitionRecord),
+) -> List(UserError) {
+  case definition {
+    Some(definition) ->
+      append_if(
+        errors,
+        metaobjects_per_type_limit_reached(definition),
+        max_objects_exceeded_user_error(definition.type_),
+      )
+    None -> errors
+  }
+}
+
+@internal
+pub fn metaobjects_per_type_limit_reached(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  option.is_none(definition.standard_template)
+  && option.unwrap(definition.metaobjects_count, 0)
+  >= default_max_metaobjects_per_type
+}
+
+@internal
+pub fn max_objects_exceeded_user_error(type_: String) -> UserError {
+  UserError(
+    None,
+    "Maximum metaobjects of type '" <> type_ <> "' has been exceeded",
+    "MAX_OBJECTS_EXCEEDED",
+    None,
+    None,
   )
 }
 

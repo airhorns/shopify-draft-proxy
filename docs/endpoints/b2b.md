@@ -93,6 +93,14 @@ Shopify's captured `INVALID` locale-format user error; notes containing HTML
 tags return `CONTAINS_HTML_TAGS`; duplicate effective contact email or
 normalized phone values return Shopify's captured `TAKEN` user error code with
 the relevant `input.email` or `input.phone` field path.
+Malformed contact emails now fail before staging on `companyContactCreate`,
+`companyContactUpdate`, and `companyCreate(input.companyContact)`. Public
+Admin capture shows create/nested-create use message `Email is invalid`, while
+update uses `Email address is invalid`. Contact `firstName` and `lastName`
+local guardrails reject HTML tags, emoji, and URL substrings before synthetic
+customer state is written; the executable public parity target covers the live
+HTML-name create payload (`INVALID_INPUT` at `["input"]`) because the public
+`BusinessCustomerUserError` schema exposes only `field`, `message`, and `code`.
 `companyAssignCustomerAsContact` currently has only `companyId` and
 `customerId` arguments in the checked-in Admin schema, so the local handler
 defaults the created contact locale and derives the contact customer payload

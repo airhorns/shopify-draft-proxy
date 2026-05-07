@@ -1,15 +1,20 @@
 import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, UpstreamContext, empty_upstream_context,
+}
+import shopify_draft_proxy/shopify/upstream_client.{SyncTransport}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -23,6 +28,77 @@ import shopify_draft_proxy/state/types.{
   ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
+}
+
+fn fulfillment_service_create_document() -> String {
+  "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id handle serviceName location { id name isFulfillmentService } } userErrors { field message code } } }"
+}
+
+fn fulfillment_service_update_document() -> String {
+  "mutation UpdateFs($id: ID!, $name: String!) { fulfillmentServiceUpdate(id: $id, name: $name, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id handle serviceName location { id name isFulfillmentService } } userErrors { field message code } } }"
+}
+
+fn fulfillment_service_create(
+  draft_store: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  name: String,
+) -> MutationOutcome {
+  shipping_fulfillments.process_mutation(
+    draft_store,
+    identity,
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_create_document(),
+    dict.from_list([#("name", root_field.StringVal(name))]),
+    empty_upstream_context(),
+  )
+}
+
+fn fulfillment_service_create_with_upstream(
+  name: String,
+  upstream_body: String,
+) -> MutationOutcome {
+  let transport =
+    SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(status: 200, body: upstream_body, headers: []))
+    })
+  shipping_fulfillments.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_create_document(),
+    dict.from_list([#("name", root_field.StringVal(name))]),
+    UpstreamContext(
+      transport: Some(transport),
+      origin: "https://example.myshopify.com",
+      headers: dict.new(),
+      allow_upstream_reads: True,
+    ),
+  )
+}
+
+fn fulfillment_service_update(
+  draft_store: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  id: String,
+  name: String,
+) -> MutationOutcome {
+  shipping_fulfillments.process_mutation(
+    draft_store,
+    identity,
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_update_document(),
+    dict.from_list([
+      #("id", root_field.StringVal(id)),
+      #("name", root_field.StringVal(name)),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+fn fulfillment_service_name_taken_payload(root: String) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\",\"code\":null}]}}}"
 }
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
@@ -51,6 +127,15 @@ fn flat_rate_package(id: String) -> ShippingPackageRecord {
   ShippingPackageRecord(
     ..package(id, "Carrier flat-rate box", False),
     box_type: Some("FLAT_RATE"),
+  )
+}
+
+fn upstream_context_for_origin(origin: String) -> UpstreamContext {
+  UpstreamContext(
+    transport: None,
+    origin: origin,
+    headers: dict.new(),
+    allow_upstream_reads: False,
   )
 }
 
@@ -1730,6 +1815,104 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
     == None
 }
 
+pub fn fulfillment_service_create_rejects_case_insensitive_duplicate_name_test() {
+  let first =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "Acme")
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(first.store)
+  let location_id = created.location_id |> option.unwrap("")
+
+  let duplicate =
+    fulfillment_service_create(first.store, first.identity, "ACME")
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(duplicate.store) == [created]
+  assert store.get_effective_store_property_location_by_id(
+      duplicate.store,
+      location_id,
+    )
+    != None
+  assert store.get_log(duplicate.store) == []
+}
+
+pub fn fulfillment_service_create_rejects_generated_handle_collision_test() {
+  let first =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "A B")
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(first.store)
+
+  let duplicate = fulfillment_service_create(first.store, first.identity, "a-b")
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(duplicate.store) == [created]
+}
+
+pub fn fulfillment_service_update_rejects_name_or_handle_collision_with_other_service_test() {
+  let first =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Hermes A",
+    )
+  let assert [service_a, ..] =
+    store.list_effective_fulfillment_services(first.store)
+  let second =
+    fulfillment_service_create(first.store, first.identity, "Hermes B")
+  let assert [service_a_after_second, service_b] =
+    store.list_effective_fulfillment_services(second.store)
+
+  let duplicate_name =
+    fulfillment_service_update(
+      second.store,
+      second.identity,
+      service_b.id,
+      "hermes a",
+    )
+  assert json.to_string(duplicate_name.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceUpdate")
+  assert store.list_effective_fulfillment_services(duplicate_name.store)
+    == [service_a_after_second, service_b]
+
+  let handle_holder =
+    fulfillment_service_create(second.store, second.identity, "A B")
+  let assert [_, _, handle_service] =
+    store.list_effective_fulfillment_services(handle_holder.store)
+  let handle_collision =
+    fulfillment_service_update(
+      handle_holder.store,
+      handle_holder.identity,
+      handle_service.id,
+      "hermes-a",
+    )
+  assert json.to_string(handle_collision.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceUpdate")
+  assert store.get_effective_fulfillment_service_by_id(
+      handle_collision.store,
+      service_a.id,
+    )
+    == Some(service_a_after_second)
+}
+
+pub fn fulfillment_service_create_rejects_upstream_catalog_name_collision_test() {
+  let upstream_body =
+    "{\"data\":{\"shop\":{\"fulfillmentServices\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentService/9001\",\"handle\":\"upstream-fs\",\"serviceName\":\"Upstream FS\",\"callbackUrl\":null,\"inventoryManagement\":true,\"requiresShippingMethod\":true,\"trackingSupport\":false,\"type\":\"THIRD_PARTY\",\"location\":{\"id\":\"gid://shopify/Location/9001\",\"name\":\"Upstream FS\",\"isFulfillmentService\":true,\"fulfillsOnlineOrders\":true,\"shipsInventory\":false}}]}}}}"
+  let duplicate =
+    fulfillment_service_create_with_upstream("upstream fs", upstream_body)
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  let assert [upstream_service] =
+    store.list_effective_fulfillment_services(duplicate.store)
+  assert upstream_service.id == "gid://shopify/FulfillmentService/9001"
+  assert store.get_effective_store_property_location_by_id(
+      duplicate.store,
+      "gid://shopify/Location/9001",
+    )
+    != None
+}
+
 pub fn fulfillment_service_validation_branches_return_user_errors_test() {
   let create_outcome =
     shipping_fulfillments.process_mutation(
@@ -1776,6 +1959,179 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
+}
+
+pub fn fulfillment_service_callback_url_validation_accepts_app_scoped_urls_test() {
+  let mock_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Mock FS")),
+        #("callbackUrl", root_field.StringVal("http://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  let assert [mock_service] =
+    store.list_effective_fulfillment_services(mock_outcome.store)
+  assert json.to_string(mock_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":{\"id\":\""
+    <> mock_service.id
+    <> "\",\"callbackUrl\":\"http://mock.shop/fs-callback\"},\"userErrors\":[]}}}"
+  assert list.length(mock_outcome.staged_resource_ids) == 2
+
+  let origin_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Origin FS")),
+        #(
+          "callbackUrl",
+          root_field.StringVal(
+            "https://harry-test-heelo.myshopify.com/fs-callback",
+          ),
+        ),
+      ]),
+      upstream_context_for_origin("https://harry-test-heelo.myshopify.com"),
+    )
+  let assert [origin_service] =
+    store.list_effective_fulfillment_services(origin_outcome.store)
+  assert json.to_string(origin_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":{\"id\":\""
+    <> origin_service.id
+    <> "\",\"callbackUrl\":\"https://harry-test-heelo.myshopify.com/fs-callback\"},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_store_property_locations(
+      origin_outcome.store,
+    ))
+    == 1
+}
+
+pub fn fulfillment_service_callback_url_validation_rejects_without_staging_test() {
+  let disallowed_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Disallowed FS")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://example.com/fs-callback"),
+        ),
+      ]),
+      upstream_context_for_origin("https://harry-test-heelo.myshopify.com"),
+    )
+  assert json.to_string(disallowed_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert disallowed_outcome.staged_resource_ids == []
+  assert store.list_effective_fulfillment_services(disallowed_outcome.store)
+    == []
+  assert store.list_effective_store_property_locations(disallowed_outcome.store)
+    == []
+
+  let malformed_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Malformed FS")),
+        #("callbackUrl", root_field.StringVal("not-a-url")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(malformed_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert malformed_outcome.staged_resource_ids == []
+  assert store.list_effective_fulfillment_services(malformed_outcome.store)
+    == []
+  assert store.list_effective_store_property_locations(malformed_outcome.store)
+    == []
+
+  let unsupported_protocol_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes FTP FS")),
+        #("callbackUrl", root_field.StringVal("ftp://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(unsupported_protocol_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url protocol ftp:// is not supported\"}]}}}"
+  assert unsupported_protocol_outcome.staged_resource_ids == []
+}
+
+pub fn fulfillment_service_update_callback_url_validation_rejects_without_staging_test() {
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Update FS")),
+        #("callbackUrl", root_field.StringVal("https://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  let assert [created] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+
+  let reject_outcome =
+    shipping_fulfillments.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation UpdateFs($id: ID!, $callbackUrl: URL!) { fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://example.com/fs-callback"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(reject_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert reject_outcome.staged_resource_ids == []
+  let assert Some(after_reject) =
+    store.get_effective_fulfillment_service_by_id(
+      reject_outcome.store,
+      created.id,
+    )
+  assert after_reject.callback_url == Some("https://mock.shop/fs-callback")
+
+  let accept_outcome =
+    shipping_fulfillments.process_mutation(
+      reject_outcome.store,
+      reject_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation UpdateFs($id: ID!, $callbackUrl: URL!) { fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #(
+          "callbackUrl",
+          root_field.StringVal("http://mock.shop/fs-callback-updated"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(accept_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":{\"id\":\""
+    <> created.id
+    <> "\",\"callbackUrl\":\"http://mock.shop/fs-callback-updated\"},\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_service_delete_transfer_validates_destination_test() {
@@ -2814,6 +3170,144 @@ fn deadline_variables(
   ])
 }
 
+pub fn fulfillment_order_release_hold_with_hold_ids_keeps_remaining_holds_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/selective-release"
+  let first_hold_id = "gid://shopify/FulfillmentHold/selective-1"
+  let second_hold_id = "gid://shopify/FulfillmentHold/selective-2"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      held_fulfillment_order_record(fulfillment_order_id, [
+        fulfillment_hold(first_hold_id, "app-a-first", True, Some("app-a")),
+        fulfillment_hold(second_hold_id, "app-a-second", True, Some("app-a")),
+      ]),
+    ])
+
+  let release_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Release($id: ID!, $holdIds: [ID!]) { fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) { fulfillmentOrder { id status fulfillmentHolds { id handle heldByRequestingApp } supportedActions { action } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #("holdIds", root_field.ListVal([root_field.StringVal(first_hold_id)])),
+      ]),
+      api_client_upstream_context("app-a"),
+    )
+
+  assert json.to_string(release_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReleaseHold\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/selective-release\",\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"id\":\"gid://shopify/FulfillmentHold/selective-2\",\"handle\":\"app-a-second\",\"heldByRequestingApp\":true}],\"supportedActions\":[{\"action\":\"RELEASE_HOLD\"},{\"action\":\"HOLD\"},{\"action\":\"MOVE\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn fulfillment_order_release_hold_rejects_other_app_hold_ids_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/cross-app-release"
+  let hold_id = "gid://shopify/FulfillmentHold/cross-app"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      held_fulfillment_order_record(fulfillment_order_id, [
+        fulfillment_hold(hold_id, "app-a-hold", False, Some("app-a")),
+      ]),
+    ])
+
+  let release_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Release($id: ID!, $holdIds: [ID!]) { fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) { fulfillmentOrder { id status fulfillmentHolds { id handle } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #("holdIds", root_field.ListVal([root_field.StringVal(hold_id)])),
+      ]),
+      api_client_upstream_context("app-b"),
+    )
+
+  assert json.to_string(release_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReleaseHold\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"holdIds\"],\"message\":\"The fulfillment hold is not held by the requesting app.\",\"code\":\"INVALID_ACCESS\"}]}}}"
+}
+
+pub fn fulfillment_order_hold_zeros_line_item_fulfillable_quantity_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/full-hold"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(
+          "gid://shopify/FulfillmentOrderLineItem/full-hold",
+          "gid://shopify/LineItem/full-hold",
+          2,
+        ),
+      ]),
+    ])
+
+  let hold_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) { fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) { fulfillmentOrder { status lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("full-hold")),
+            ]),
+          ),
+        ),
+      ]),
+      api_client_upstream_context("app-a"),
+    )
+
+  assert json.to_string(hold_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/full-hold\",\"quantity\":2,\"fulfillableQuantity\":0}}]}},\"userErrors\":[]}}}"
+}
+
+pub fn held_fulfillment_order_sets_shipping_order_display_status_test() {
+  let order_id = "gid://shopify/Order/held-display-status"
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/held-display-status"
+  let held_order =
+    FulfillmentOrderRecord(
+      ..held_fulfillment_order_record(fulfillment_order_id, [
+        fulfillment_hold(
+          "gid://shopify/FulfillmentHold/held-display-status",
+          "held-display-status",
+          True,
+          Some("app-a"),
+        ),
+      ]),
+      order_id: Some(order_id),
+    )
+  let base_store =
+    store.new()
+    |> store.upsert_base_shipping_orders([
+      ShippingOrderRecord(
+        id: order_id,
+        data: CapturedObject([
+          #("id", CapturedString(order_id)),
+          #("name", CapturedString("#1001")),
+          #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_fulfillment_orders([held_order])
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      base_store,
+      "query ReadHeldOrder($id: ID!) { order(id: $id) { id displayFulfillmentStatus fulfillmentOrders(first: 5) { nodes { id status fulfillmentHolds { id handle } } } } }",
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+
+  assert json.to_string(read_response)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/held-display-status\",\"displayFulfillmentStatus\":\"ON_HOLD\",\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/held-display-status\",\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"id\":\"gid://shopify/FulfillmentHold/held-display-status\",\"handle\":\"held-display-status\"}]}]}}}}"
+}
+
 fn fulfillment_order_record(
   id: String,
   status: String,
@@ -2853,6 +3347,72 @@ fn fulfillment_order_record_with_assignment_status(
       #("assignmentStatus", CapturedString(assignment_status)),
       #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
       #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn held_fulfillment_order_record(
+  id: String,
+  holds: List(CapturedJsonValue),
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: id,
+    order_id: None,
+    status: "ON_HOLD",
+    request_status: "UNSUBMITTED",
+    assigned_location_id: None,
+    assignment_status: None,
+    manually_held: True,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString("ON_HOLD")),
+      #("requestStatus", CapturedString("UNSUBMITTED")),
+      #(
+        "supportedActions",
+        CapturedArray([
+          CapturedObject([#("action", CapturedString("RELEASE_HOLD"))]),
+          CapturedObject([#("action", CapturedString("HOLD"))]),
+          CapturedObject([#("action", CapturedString("MOVE"))]),
+        ]),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray(holds)),
+    ]),
+  )
+}
+
+fn fulfillment_hold(
+  id: String,
+  handle: String,
+  held_by_requesting_app: Bool,
+  api_client_id: Option(String),
+) -> CapturedJsonValue {
+  let owner_fields = case api_client_id {
+    Some(api_client_id) -> [
+      #("__proxyApiClientId", CapturedString(api_client_id)),
+    ]
+    None -> []
+  }
+  CapturedObject(list.append(
+    [
+      #("id", CapturedString(id)),
+      #("handle", CapturedString(handle)),
+      #("reason", CapturedString("OTHER")),
+      #("reasonNotes", CapturedString(handle)),
+      #("displayReason", CapturedString("Other")),
+      #("heldByApp", CapturedNull),
+      #("heldByRequestingApp", CapturedBool(held_by_requesting_app)),
+    ],
+    owner_fields,
+  ))
+}
+
+fn api_client_upstream_context(api_client_id: String) -> UpstreamContext {
+  let base = empty_upstream_context()
+  UpstreamContext(
+    ..base,
+    headers: dict.from_list([
+      #("x-shopify-draft-proxy-api-client-id", api_client_id),
     ]),
   )
 }
@@ -3164,6 +3724,103 @@ pub fn fulfillment_order_split_validates_indexed_inputs_test() {
     )
   assert json.to_string(unknown_order.data)
     == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
+}
+
+pub fn fulfillment_order_submit_request_splits_partial_line_item_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/partial-submit"
+  let line_item_id = "gid://shopify/FulfillmentOrderLineItem/partial-submit"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_id, [
+        #(line_item_id, "gid://shopify/LineItem/partial-submit", 2),
+      ]),
+    ])
+  let mutation =
+    "
+    mutation Submit($id: ID!, $items: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderSubmitFulfillmentRequest(
+        id: $id
+        fulfillmentOrderLineItems: $items
+        message: \"partial submit\"
+        notifyCustomer: false
+      ) {
+        originalFulfillmentOrder {
+          id
+          status
+          requestStatus
+          merchantRequests(first: 5) {
+            nodes { kind message requestOptions responseData }
+          }
+          lineItems(first: 5) {
+            nodes { id totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        submittedFulfillmentOrder { id status requestStatus }
+        unsubmittedFulfillmentOrder {
+          id
+          status
+          requestStatus
+          lineItems(first: 5) {
+            nodes { totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(order_id)),
+        #(
+          "items",
+          root_field.ListVal([
+            root_field.ObjectVal(
+              dict.from_list([
+                #("id", root_field.StringVal(line_item_id)),
+                #("quantity", root_field.IntVal(1)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"originalFulfillmentOrder\":{\"id\":\"" <> order_id,
+  )
+  assert string.contains(body, "\"requestStatus\":\"SUBMITTED\"")
+  assert string.contains(body, "\"kind\":\"FULFILLMENT_REQUEST\"")
+  assert string.contains(body, "\"message\":\"partial submit\"")
+  assert string.contains(body, "\"notify_customer\":false")
+  assert string.contains(body, "\"unsubmittedFulfillmentOrder\":{\"id\":\"")
+  assert string.contains(body, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(body, "\"totalQuantity\":1")
+  assert string.contains(body, "\"remainingQuantity\":1")
+
+  let assert [unsubmitted_id] =
+    store.list_effective_fulfillment_orders(outcome.store)
+    |> list.filter(fn(order) {
+      order.id != order_id && order.request_status == "UNSUBMITTED"
+    })
+    |> list.map(fn(order) { order.id })
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      outcome.store,
+      "query Read($id: ID!) { fulfillmentOrder(id: $id) { id status requestStatus lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id } } } } }",
+      dict.from_list([#("id", root_field.StringVal(unsubmitted_id))]),
+    )
+  let read_json = json.to_string(read_response)
+  assert string.contains(read_json, "\"id\":\"" <> unsubmitted_id <> "\"")
+  assert string.contains(read_json, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(read_json, "\"remainingQuantity\":1")
 }
 
 pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {

@@ -708,13 +708,13 @@
     {
       "operationName": "FulfillmentTopLevelDetails",
       "variables": {
-        "orderId": "gid://shopify/Order/8710564643122",
         "fulfillmentId": "gid://shopify/Fulfillment/7859173130546",
-        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9633582219570",
         "missingFulfillmentId": "gid://shopify/Fulfillment/999999999999",
-        "missingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999"
+        "missingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9633582219570",
+        "orderId": "gid://shopify/Order/8710564643122"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentTopLevelDetails(\n  $orderId: ID!\n  $fulfillmentId: ID!\n  $fulfillmentOrderId: ID!\n  $missingFulfillmentId: ID!\n  $missingFulfillmentOrderId: ID!\n) {\n  fulfillment(id: $fulfillmentId) {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    trackingInfo {\n      number\n      url\n      company\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  fulfillmentOrder(id: $fulfillmentOrderId) {\n    id\n    status\n    requestStatus\n    assignedLocation {\n      name\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingFulfillment: fulfillment(id: $missingFulfillmentId) {\n    id\n    status\n  }\n  missingFulfillmentOrder: fulfillmentOrder(id: $missingFulfillmentOrderId) {\n    id\n    status\n  }\n  order(id: $orderId) {\n    id\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      trackingInfo {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -861,7 +861,7 @@
               "actualQueryCost": 28,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1945,
+                "currentlyAvailable": 1972,
                 "restoreRate": 100
               }
             }
@@ -872,22 +872,63 @@
     {
       "operationName": "FulfillmentTopLevelCatalog",
       "variables": {
-        "first": 5,
         "after": null,
+        "first": 5,
         "query": "status:closed"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentTopLevelCatalog($first: Int!, $after: String, $query: String) {\n  openFulfillmentOrders: fulfillmentOrders(first: $first, sortKey: ID) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  allFulfillmentOrders: fulfillmentOrders(\n    first: $first\n    after: $after\n    includeClosed: true\n    sortKey: ID\n    reverse: false\n    query: $query\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reversedFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  manualHoldsFulfillmentOrders(first: $first) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "openFulfillmentOrders": {
-              "nodes": [],
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633720140082",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721876786",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721909554",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633722466610",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633727480114",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                }
+              ],
               "pageInfo": {
-                "hasNextPage": false,
+                "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNzIwMTQwMDgyLCJsYXN0X3ZhbHVlIjoiOTYzMzcyMDE0MDA4MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzI3NDgwMTE0LCJsYXN0X3ZhbHVlIjoiOTYzMzcyNzQ4MDExNCJ9"
               }
             },
             "allFulfillmentOrders": {
@@ -918,28 +959,156 @@
                       "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
                     }
                   }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701101874",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417004343602",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701724466",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417005424946",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633702740274",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417007292722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268045504818",
+                          "title": "HAR-234 lifecycle item 1777155810808"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633704870194",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417011388722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268049502514",
+                          "title": "HAR-234 fulfillment item hold-release 20260425222456"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9"
+                    }
+                  }
                 }
               ],
               "pageInfo": {
-                "hasNextPage": false,
+                "hasNextPage": true,
                 "hasPreviousPage": false,
                 "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9"
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzA0ODcwMTk0LCJsYXN0X3ZhbHVlIjoiOTYzMzcwNDg3MDE5NCJ9"
               }
             },
             "reversedFulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrder/9633582219570",
-                  "status": "CLOSED",
+                  "id": "gid://shopify/FulfillmentOrder/9656702075186",
+                  "status": "OPEN",
                   "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656702042418",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701845810",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701550898",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701387058",
+                  "status": "OPEN",
+                  "requestStatus": "REJECTED"
                 }
               ],
               "pageInfo": {
-                "hasNextPage": false,
+                "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo5NjU2NzAyMDc1MTg2LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMjA3NTE4NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjU2NzAxMzg3MDU4LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMTM4NzA1OCJ9"
               }
             },
             "manualHoldsFulfillmentOrders": {
@@ -955,10 +1124,542 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 50,
-              "actualQueryCost": 21,
+              "actualQueryCost": 38,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1908,
+                "currentlyAvailable": 1955,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentTopLevelCatalog",
+      "variables": {
+        "after": null,
+        "first": 5,
+        "query": "status:closed"
+      },
+      "query": "query FulfillmentTopLevelCatalog($first: Int!, $after: String, $query: String) {\n  openFulfillmentOrders: fulfillmentOrders(first: $first, sortKey: ID) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  allFulfillmentOrders: fulfillmentOrders(\n    first: $first\n    after: $after\n    includeClosed: true\n    sortKey: ID\n    reverse: false\n    query: $query\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reversedFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  manualHoldsFulfillmentOrders(first: $first) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "openFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633720140082",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721876786",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721909554",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633722466610",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633727480114",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNzIwMTQwMDgyLCJsYXN0X3ZhbHVlIjoiOTYzMzcyMDE0MDA4MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzI3NDgwMTE0LCJsYXN0X3ZhbHVlIjoiOTYzMzcyNzQ4MDExNCJ9"
+              }
+            },
+            "allFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633582219570",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19416788271410",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19267825172786",
+                          "title": "HAR-232 fulfillment probe"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701101874",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417004343602",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701724466",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417005424946",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633702740274",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417007292722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268045504818",
+                          "title": "HAR-234 lifecycle item 1777155810808"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633704870194",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417011388722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268049502514",
+                          "title": "HAR-234 fulfillment item hold-release 20260425222456"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzA0ODcwMTk0LCJsYXN0X3ZhbHVlIjoiOTYzMzcwNDg3MDE5NCJ9"
+              }
+            },
+            "reversedFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656702075186",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656702042418",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701845810",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701550898",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701387058",
+                  "status": "OPEN",
+                  "requestStatus": "REJECTED"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjU2NzAyMDc1MTg2LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMjA3NTE4NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjU2NzAxMzg3MDU4LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMTM4NzA1OCJ9"
+              }
+            },
+            "manualHoldsFulfillmentOrders": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 38,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1940,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentTopLevelCatalog",
+      "variables": {
+        "after": null,
+        "first": 5,
+        "query": "status:closed"
+      },
+      "query": "query FulfillmentTopLevelCatalog($first: Int!, $after: String, $query: String) {\n  openFulfillmentOrders: fulfillmentOrders(first: $first, sortKey: ID) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  allFulfillmentOrders: fulfillmentOrders(\n    first: $first\n    after: $after\n    includeClosed: true\n    sortKey: ID\n    reverse: false\n    query: $query\n  ) {\n    nodes {\n      id\n      status\n      requestStatus\n      assignedLocation {\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reversedFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  manualHoldsFulfillmentOrders(first: $first) {\n    nodes {\n      id\n      status\n      requestStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "openFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633720140082",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721876786",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633721909554",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633722466610",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633727480114",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNzIwMTQwMDgyLCJsYXN0X3ZhbHVlIjoiOTYzMzcyMDE0MDA4MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzI3NDgwMTE0LCJsYXN0X3ZhbHVlIjoiOTYzMzcyNzQ4MDExNCJ9"
+              }
+            },
+            "allFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633582219570",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19416788271410",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19267825172786",
+                          "title": "HAR-232 fulfillment probe"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701101874",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417004343602",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNDM0MzYwMiwibGFzdF92YWx1ZSI6MTk0MTcwMDQzNDM2MDJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633701724466",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417005424946",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268042457394",
+                          "title": "HAR-235 fulfillment item 1777155734039"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNTQyNDk0NiwibGFzdF92YWx1ZSI6MTk0MTcwMDU0MjQ5NDZ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633702740274",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417007292722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268045504818",
+                          "title": "HAR-234 lifecycle item 1777155810808"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAwNzI5MjcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMDcyOTI3MjJ9"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633704870194",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "My Custom Location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19417011388722",
+                        "totalQuantity": 0,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268049502514",
+                          "title": "HAR-234 fulfillment item hold-release 20260425222456"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNzAxMTM4ODcyMiwibGFzdF92YWx1ZSI6MTk0MTcwMTEzODg3MjJ9"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNzA0ODcwMTk0LCJsYXN0X3ZhbHVlIjoiOTYzMzcwNDg3MDE5NCJ9"
+              }
+            },
+            "reversedFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656702075186",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656702042418",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701845810",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701550898",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9656701387058",
+                  "status": "OPEN",
+                  "requestStatus": "REJECTED"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjU2NzAyMDc1MTg2LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMjA3NTE4NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjU2NzAxMzg3MDU4LCJsYXN0X3ZhbHVlIjoiOTY1NjcwMTM4NzA1OCJ9"
+              }
+            },
+            "manualHoldsFulfillmentOrders": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 38,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1927,
                 "restoreRate": 100
               }
             }

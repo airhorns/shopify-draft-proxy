@@ -21,6 +21,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -175,17 +176,11 @@ pub fn build_discount_record(
         ),
         #(
           "customerGets",
-          discount_types.customer_gets_source(discount_types.read_value(
-            input,
-            "customerGets",
-          )),
+          customer_gets_record_source(input, existing, owner_field),
         ),
         #(
           "customerBuys",
-          discount_types.customer_buys_source(discount_types.read_value(
-            input,
-            "customerBuys",
-          )),
+          customer_buys_record_source(input, existing, owner_field),
         ),
         #(
           "minimumRequirement",
@@ -276,6 +271,130 @@ pub fn build_discount_record(
     ),
     next_identity,
   )
+}
+
+@internal
+pub fn customer_gets_record_source(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(DiscountRecord),
+  owner_field: String,
+) -> SourceValue {
+  case discount_types.read_value(input, "customerGets") {
+    root_field.ObjectVal(fields) as value ->
+      case customer_items_remove_only(fields) {
+        True ->
+          existing_discount_nested_source(existing, owner_field, [
+            "customerGets",
+          ])
+          |> option.unwrap(discount_types.customer_gets_source(value))
+        False -> discount_types.customer_gets_source(value)
+      }
+    value -> discount_types.customer_gets_source(value)
+  }
+}
+
+@internal
+pub fn customer_buys_record_source(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(DiscountRecord),
+  owner_field: String,
+) -> SourceValue {
+  case discount_types.read_value(input, "customerBuys") {
+    root_field.ObjectVal(fields) as value ->
+      case customer_items_remove_only(fields) {
+        True ->
+          existing_discount_nested_source(existing, owner_field, [
+            "customerBuys",
+          ])
+          |> option.unwrap(discount_types.customer_buys_source(value))
+        False -> discount_types.customer_buys_source(value)
+      }
+    value -> discount_types.customer_buys_source(value)
+  }
+}
+
+@internal
+pub fn customer_items_remove_only(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case discount_types.read_value(fields, "items") {
+    root_field.ObjectVal(items) -> item_refs_remove_only(items)
+    _ -> False
+  }
+}
+
+@internal
+pub fn item_refs_remove_only(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(items, "products"), dict.get(items, "collections") {
+    Ok(root_field.ObjectVal(products)), Error(_) ->
+      has_any_remove_refs(products) && !has_any_product_add_refs(products)
+    Error(_), Ok(root_field.ObjectVal(collections)) ->
+      has_field_string_refs(collections, "remove")
+      && !has_field_string_refs(collections, "add")
+    _, _ -> False
+  }
+}
+
+@internal
+pub fn has_any_remove_refs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  has_field_string_refs(input, "productsToRemove")
+  || has_field_string_refs(input, "productVariantsToRemove")
+}
+
+@internal
+pub fn has_any_product_add_refs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  has_field_string_refs(input, "productsToAdd")
+  || has_field_string_refs(input, "productVariantsToAdd")
+}
+
+@internal
+pub fn has_field_string_refs(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  discount_types.read_string_array(input, field, []) != []
+}
+
+@internal
+pub fn existing_discount_nested_source(
+  existing: Option(DiscountRecord),
+  owner_field: String,
+  path: List(String),
+) -> Option(SourceValue) {
+  use record <- option.then(existing)
+  case discount_types.captured_to_source(record.payload) {
+    SrcObject(node) ->
+      case dict.get(node, owner_field) {
+        Ok(source) -> nested_source(source, path)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+@internal
+pub fn nested_source(
+  source: SourceValue,
+  path: List(String),
+) -> Option(SourceValue) {
+  case path {
+    [] -> Some(source)
+    [key, ..rest] ->
+      case source {
+        SrcObject(fields) ->
+          case dict.get(fields, key) {
+            Ok(next) -> nested_source(next, rest)
+            _ -> None
+          }
+        _ -> None
+      }
+  }
 }
 
 @internal
@@ -525,6 +644,7 @@ pub fn validate_discount_input(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
   require_code: Bool,
+  is_create: Bool,
   ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
   let errors =
@@ -582,6 +702,11 @@ pub fn validate_discount_input(
   let errors =
     list.append(
       errors,
+      validate_markets_fields(store, input_name, input, is_create),
+    )
+  let errors =
+    list.append(
+      errors,
       validate_cart_line_combination_tag_settings(
         input_name,
         input,
@@ -618,11 +743,11 @@ pub fn validate_discount_input(
       ])
     False -> errors
   }
-  let errors = case input_name {
-    "basicCodeDiscount" ->
-      list.append(errors, validate_basic_refs(input_name, input))
-    _ -> errors
-  }
+  let errors =
+    list.append(
+      errors,
+      validate_discount_item_refs(store, input_name, input, discount_type),
+    )
   case errors {
     [_, ..] -> errors
     [] ->
@@ -636,6 +761,26 @@ pub fn validate_discount_input(
         ),
       )
   }
+}
+
+@internal
+pub fn validate_discount_create_input(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+  require_code: Bool,
+  ignored_discount_id: Option(String),
+) -> List(SourceValue) {
+  validate_discount_input(
+    store,
+    input_name,
+    input,
+    discount_type,
+    require_code,
+    True,
+    ignored_discount_id,
+  )
 }
 
 @internal
@@ -1009,6 +1154,224 @@ pub fn shop_sells_subscriptions_from_response(
         None -> None
       }
     None -> None
+  }
+}
+
+@internal
+pub fn maybe_hydrate_discount_markets_capability(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_shop(store) {
+    Some(_) -> store
+    None ->
+      case discount_markets_fields(input) {
+        Some(_) -> fetch_shop_discount_markets_capability(store, upstream)
+        None -> store
+      }
+  }
+}
+
+@internal
+pub fn fetch_shop_discount_markets_capability(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query DraftProxyShopDiscountMarketsCapability {
+  shop {
+    features {
+      sellsSubscriptions
+      discountsByMarketEnabled
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DraftProxyShopDiscountMarketsCapability",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) ->
+      case shop_discount_markets_capability_from_response(value) {
+        Some(enabled) -> {
+          let store = store.set_shop_discounts_by_market_enabled(store, enabled)
+          case shop_sells_subscriptions_from_response(value) {
+            Some(sells_subscriptions) ->
+              store.set_shop_sells_subscriptions(store, sells_subscriptions)
+            None -> store
+          }
+        }
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+@internal
+pub fn shop_discount_markets_capability_from_response(
+  value: commit.JsonValue,
+) -> Option(Bool) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shop") {
+        Some(shop) ->
+          case json_get(shop, "features") {
+            Some(features) ->
+              case json_get(features, "discountsByMarketEnabled") {
+                Some(commit.JsonBool(value)) -> Some(value)
+                _ -> None
+              }
+            None -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+@internal
+pub fn validate_markets_fields(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  is_create: Bool,
+) -> List(SourceValue) {
+  case discount_markets_fields(input) {
+    Some(markets) ->
+      case store.shop_discounts_by_market_enabled(store) {
+        False -> [
+          discount_types.user_error(
+            [input_name, "context", "markets"],
+            "Discounts by market is not supported for this shop",
+            "INVALID",
+          ),
+        ]
+        True ->
+          list.append(
+            remove_on_create_market_errors(input_name, markets, is_create),
+            invalid_market_id_errors(store, input_name, markets),
+          )
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn discount_markets_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, "context") {
+    Ok(root_field.ObjectVal(context)) ->
+      case dict.get(context, "markets") {
+        Ok(root_field.ObjectVal(markets)) -> Some(markets)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn remove_on_create_market_errors(
+  input_name: String,
+  markets: Dict(String, root_field.ResolvedValue),
+  is_create: Bool,
+) -> List(SourceValue) {
+  case is_create, input_value_is_present(markets, "remove") {
+    True, True -> [
+      discount_types.user_error(
+        [input_name, "context", "markets", "remove"],
+        "Cannot specify market removal on create",
+        "INVALID",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn invalid_market_id_errors(
+  store: Store,
+  input_name: String,
+  markets: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  list.append(
+    market_input_ids(markets, "add"),
+    market_input_ids(markets, "remove"),
+  )
+  |> list.filter_map(fn(id) {
+    case market_id_is_valid_for_store(store, id) {
+      True -> Error(Nil)
+      False ->
+        Ok(discount_types.user_error(
+          [input_name, "context", "markets"],
+          "Market with id: " <> market_error_id_label(id) <> " is invalid",
+          "INVALID",
+        ))
+    }
+  })
+}
+
+fn market_input_ids(
+  markets: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(String) {
+  case dict.get(markets, name) {
+    Ok(root_field.ListVal(items)) ->
+      list.map(items, fn(item) {
+        case item {
+          root_field.StringVal(value) -> value
+          _ -> ""
+        }
+      })
+    Ok(root_field.NullVal) | Error(_) -> []
+    Ok(root_field.StringVal(value)) -> [value]
+    Ok(_) -> [""]
+  }
+}
+
+fn market_id_is_valid_for_store(store: Store, id: String) -> Bool {
+  case market_gid_has_positive_numeric_tail(id) {
+    False -> False
+    True ->
+      case store.list_effective_markets(store) {
+        [] -> True
+        _ ->
+          case store.get_effective_market_by_id(store, id) {
+            Some(_) -> True
+            None -> False
+          }
+      }
+  }
+}
+
+fn market_gid_has_positive_numeric_tail(id: String) -> Bool {
+  case string.starts_with(id, "gid://shopify/Market/") {
+    False -> False
+    True ->
+      case resource_ids.shopify_gid_tail(id) {
+        Some(tail) ->
+          case int.parse(tail) {
+            Ok(value) -> value > 0
+            Error(_) -> False
+          }
+        None -> False
+      }
+  }
+}
+
+fn market_error_id_label(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/Market/") {
+    True -> resource_ids.shopify_gid_tail(id) |> option.unwrap(id)
+    False ->
+      case id {
+        "" -> "unknown"
+        _ -> id
+      }
   }
 }
 
@@ -1550,19 +1913,31 @@ pub fn maybe_hydrate_discount(
       ... on DiscountCodeBasic {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
         codes(first: 250) { nodes { id code } }
       }
       ... on DiscountCodeApp {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountCodeBxgy {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountCodeFreeShipping {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
     }
   }
@@ -1573,18 +1948,30 @@ pub fn maybe_hydrate_discount(
       ... on DiscountAutomaticBasic {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticApp {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticBxgy {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticFreeShipping {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
     }
   }
@@ -1676,6 +2063,7 @@ pub fn code_record_from_hydrate_node(
     discount
     |> option.then(fn(d) { json_get_string(d, "status") })
     |> option.unwrap("ACTIVE")
+  let temporal_fields = discount_temporal_fields(discount)
   let codes = case discount {
     Some(d) ->
       case json_get(d, "codes") {
@@ -1701,49 +2089,55 @@ pub fn code_record_from_hydrate_node(
           #(
             "codeDiscount",
             SrcObject(
-              dict.from_list([
-                #("__typename", SrcString(typename)),
-                #(
-                  "title",
-                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
-                ),
-                #("status", SrcString(status)),
-                #(
-                  "codes",
-                  SrcObject(
-                    dict.from_list([
-                      #(
-                        "nodes",
-                        SrcList(
-                          list.map(codes, fn(pair) {
-                            let #(code_id, code) = pair
-                            SrcObject(
-                              dict.from_list([
-                                #("id", SrcString(code_id)),
-                                #("code", SrcString(code)),
-                                #("asyncUsageCount", SrcInt(0)),
-                              ]),
-                            )
-                          }),
-                        ),
-                      ),
-                      #("edges", SrcList([])),
-                      #(
-                        "pageInfo",
-                        SrcObject(
-                          dict.from_list([
-                            #("hasNextPage", SrcBool(False)),
-                            #("hasPreviousPage", SrcBool(False)),
-                            #("startCursor", SrcNull),
-                            #("endCursor", SrcNull),
-                          ]),
-                        ),
-                      ),
-                    ]),
+              dict.from_list(list.append(
+                [
+                  #("__typename", SrcString(typename)),
+                  #(
+                    "title",
+                    title |> option.map(SrcString) |> option.unwrap(SrcNull),
                   ),
-                ),
-                #("codesCount", discount_types.count_source(list.length(codes))),
-              ]),
+                  #("status", SrcString(status)),
+                  #(
+                    "codes",
+                    SrcObject(
+                      dict.from_list([
+                        #(
+                          "nodes",
+                          SrcList(
+                            list.map(codes, fn(pair) {
+                              let #(code_id, code) = pair
+                              SrcObject(
+                                dict.from_list([
+                                  #("id", SrcString(code_id)),
+                                  #("code", SrcString(code)),
+                                  #("asyncUsageCount", SrcInt(0)),
+                                ]),
+                              )
+                            }),
+                          ),
+                        ),
+                        #("edges", SrcList([])),
+                        #(
+                          "pageInfo",
+                          SrcObject(
+                            dict.from_list([
+                              #("hasNextPage", SrcBool(False)),
+                              #("hasPreviousPage", SrcBool(False)),
+                              #("startCursor", SrcNull),
+                              #("endCursor", SrcNull),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  #(
+                    "codesCount",
+                    discount_types.count_source(list.length(codes)),
+                  ),
+                ],
+                temporal_fields,
+              )),
             ),
           ),
         ]),
@@ -1776,6 +2170,7 @@ pub fn automatic_record_from_hydrate_node(
     discount
     |> option.then(fn(d) { json_get_string(d, "status") })
     |> option.unwrap("ACTIVE")
+  let temporal_fields = discount_temporal_fields(discount)
   let payload =
     discount_types.source_to_captured(
       SrcObject(
@@ -1784,14 +2179,17 @@ pub fn automatic_record_from_hydrate_node(
           #(
             "automaticDiscount",
             SrcObject(
-              dict.from_list([
-                #("__typename", SrcString(typename)),
-                #(
-                  "title",
-                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
-                ),
-                #("status", SrcString(status)),
-              ]),
+              dict.from_list(list.append(
+                [
+                  #("__typename", SrcString(typename)),
+                  #(
+                    "title",
+                    title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                  ),
+                  #("status", SrcString(status)),
+                ],
+                temporal_fields,
+              )),
             ),
           ),
         ]),
@@ -1807,6 +2205,33 @@ pub fn automatic_record_from_hydrate_node(
     payload: payload,
     cursor: None,
   )
+}
+
+fn discount_temporal_fields(
+  discount: Option(commit.JsonValue),
+) -> List(#(String, SourceValue)) {
+  case discount {
+    None -> []
+    Some(discount) ->
+      list.append(
+        optional_source_field(discount, "startsAt"),
+        list.append(
+          optional_source_field(discount, "endsAt"),
+          optional_source_field(discount, "updatedAt"),
+        ),
+      )
+  }
+}
+
+fn optional_source_field(
+  object: commit.JsonValue,
+  key: String,
+) -> List(#(String, SourceValue)) {
+  case json_get(object, key) {
+    Some(commit.JsonString(value)) -> [#(key, SrcString(value))]
+    Some(commit.JsonNull) -> [#(key, SrcNull)]
+    _ -> []
+  }
 }
 
 @internal
@@ -2568,15 +2993,34 @@ pub fn invalid_date_range(
 }
 
 @internal
-pub fn validate_basic_refs(
+pub fn validate_discount_item_refs(
+  store: Store,
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
 ) -> List(SourceValue) {
-  case discount_types.read_value(input, "customerGets") {
-    root_field.ObjectVal(gets) ->
-      case discount_types.read_value(gets, "items") {
+  let gets_errors =
+    validate_discount_item_ref_root(store, input_name, input, "customerGets")
+  let buys_errors = case discount_type {
+    "bxgy" ->
+      validate_discount_item_ref_root(store, input_name, input, "customerBuys")
+    _ -> []
+  }
+  list.append(gets_errors, buys_errors)
+}
+
+@internal
+pub fn validate_discount_item_ref_root(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  item_root: String,
+) -> List(SourceValue) {
+  case discount_types.read_value(input, item_root) {
+    root_field.ObjectVal(fields) ->
+      case discount_types.read_value(fields, "items") {
         root_field.ObjectVal(items) ->
-          validate_discount_items_refs(input_name, items)
+          validate_discount_items_refs(store, input_name, item_root, items)
         _ -> []
       }
     _ -> []
@@ -2585,7 +3029,9 @@ pub fn validate_basic_refs(
 
 @internal
 pub fn validate_discount_items_refs(
+  store: Store,
   input_name: String,
+  item_root: String,
   items: Dict(String, root_field.ResolvedValue),
 ) -> List(SourceValue) {
   let has_products = dict.has_key(items, "products")
@@ -2593,61 +3039,116 @@ pub fn validate_discount_items_refs(
   let errors = case has_products && has_collections {
     True -> [
       discount_types.user_error(
-        [input_name, "customerGets", "items", "collections", "add"],
+        [input_name, item_root, "items", "collections", "add"],
         "Cannot entitle collections in combination with product variants or products",
         "CONFLICT",
       ),
     ]
     False -> []
   }
-  case dict.get(items, "products") {
+  let errors = case dict.get(items, "products") {
     Ok(root_field.ObjectVal(products)) ->
       errors
-      |> list.append(
-        invalid_id_errors(input_name, products, "productsToAdd", "Product", [
-          input_name,
-          "customerGets",
-          "items",
-          "products",
-          "productsToAdd",
-        ]),
-      )
-      |> list.append(
-        invalid_id_errors(
-          input_name,
-          products,
-          "productVariantsToAdd",
-          "Product variant",
-          [
-            input_name,
-            "customerGets",
-            "items",
-            "products",
-            "productVariantsToAdd",
-          ],
-        ),
-      )
+      |> list.append(invalid_id_errors(
+        store,
+        products,
+        "productsToAdd",
+        "Product",
+        [input_name, item_root, "items", "products", "productsToAdd"],
+        "product",
+      ))
+      |> list.append(invalid_id_errors(
+        store,
+        products,
+        "productVariantsToAdd",
+        "Product variant",
+        [input_name, item_root, "items", "products", "productVariantsToAdd"],
+        "variant",
+      ))
     _ -> errors
+  }
+  case has_products && has_collections {
+    True -> errors
+    False ->
+      errors
+      |> list.append(case dict.get(items, "collections") {
+        Ok(root_field.ObjectVal(collections)) ->
+          invalid_id_errors(
+            store,
+            collections,
+            "add",
+            "Collection",
+            [input_name, item_root, "items", "collections", "add"],
+            "collection",
+          )
+        _ -> []
+      })
   }
 }
 
 @internal
 pub fn invalid_id_errors(
-  _input_name: String,
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
   field: String,
   label: String,
   path: List(String),
+  resource_type: String,
 ) -> List(SourceValue) {
   discount_types.read_string_array(input, field, [])
-  |> list.filter(fn(id) { string.ends_with(id, "/0") })
-  |> list.map(fn(_id) {
-    discount_types.user_error(
-      path,
-      label <> " with id: 0 is invalid",
-      "INVALID",
-    )
+  |> list.filter_map(fn(id) {
+    case invalid_discount_item_ref(store, resource_type, id) {
+      Some(tail) ->
+        Ok(discount_types.user_error(
+          path,
+          label <> " with id: " <> tail <> " is invalid",
+          "INVALID",
+        ))
+      None -> Error(Nil)
+    }
   })
+}
+
+@internal
+pub fn invalid_discount_item_ref(
+  store: Store,
+  resource_type: String,
+  id: String,
+) -> Option(String) {
+  let tail = resource_ids.shopify_gid_tail(id) |> option.unwrap(id)
+  case tail == "0" {
+    True -> Some(tail)
+    False ->
+      case reference_exists_or_store_is_cold(store, resource_type, id) {
+        True -> None
+        False -> Some(tail)
+      }
+  }
+}
+
+@internal
+pub fn reference_exists_or_store_is_cold(
+  store: Store,
+  resource_type: String,
+  id: String,
+) -> Bool {
+  case resource_type {
+    "product" -> {
+      let known_count = list.length(store.list_effective_products(store))
+      known_count == 0 || store.get_effective_product_by_id(store, id) != None
+    }
+    "variant" -> {
+      let known_count =
+        list.length(store.list_effective_product_variants(store))
+      known_count == 0 || store.get_effective_variant_by_id(store, id) != None
+    }
+    "collection" -> {
+      let known_count = list.length(store.list_effective_collections(store))
+      known_count == 0
+      || store.get_effective_collection_by_id(store, id) != None
+    }
+    _ -> True
+  }
 }
 
 @internal

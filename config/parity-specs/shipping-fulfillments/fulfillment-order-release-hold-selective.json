@@ -1,0 +1,125 @@
+{
+  "scenarioId": "fulfillment-order-release-hold-selective",
+  "operationNames": ["fulfillmentOrderHold", "fulfillmentOrderReleaseHold"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-release-hold-selective.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-hold.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.workflows.selectiveRelease.firstHold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-hold",
+        "capturePath": "$.workflows.selectiveRelease.firstHold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs while Shopify returns store-assigned IDs."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs while Shopify returns store-assigned IDs."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "second-hold",
+        "capturePath": "$.workflows.selectiveRelease.secondHold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-hold.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.workflows.selectiveRelease.secondHold.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs while Shopify returns store-assigned IDs."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs while Shopify returns store-assigned IDs."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "selective-release-first-hold",
+        "capturePath": "$.workflows.selectiveRelease.releaseFirstHold.response.payload.data.fulfillmentOrderReleaseHold",
+        "proxyPath": "$.data.fulfillmentOrderReleaseHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-release.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.workflows.selectiveRelease.releaseFirstHold.variables.id"
+            },
+            "holdIds": [
+              {
+                "fromProxyResponse": "first-hold",
+                "path": "$.data.fulfillmentOrderHold.fulfillmentHold.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The remaining hold was staged locally with a synthetic ID while Shopify returned a store-assigned hold ID."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "after-selective-release-order-read",
+        "capturePath": "$.workflows.selectiveRelease.afterReleaseRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-order-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.workflows.selectiveRelease.afterReleaseRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The remaining hold was staged locally with a synthetic ID while Shopify returned a store-assigned hold ID."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin 2026-04 capture creates a disposable order, places two requesting-app holds on the same fulfillment order, releases only the first hold via `holdIds`, and confirms the second hold remains with fulfillment-order status `ON_HOLD`. Cross-app ownership rejection remains covered by runtime tests because the active conformance store has a single app credential."
+}

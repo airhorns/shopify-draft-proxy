@@ -150,7 +150,7 @@
       "variables": {
         "id": "gid://shopify/Location/106318463282"
       },
-      "query": "sha:hand-synthesized-StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -158,9 +158,11 @@
             "location": {
               "id": "gid://shopify/Location/106318463282",
               "legacyResourceId": "106318463282",
-              "name": "103 ossington",
-              "activatable": false,
-              "deactivatable": false,
+              "name": "My Custom Location",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2025-03-26T19:51:37Z",
+              "deactivatable": true,
               "deactivatedAt": null,
               "deletable": false,
               "fulfillsOnlineOrders": true,
@@ -168,23 +170,61 @@
               "hasUnfulfilledOrders": false,
               "isActive": true,
               "isFulfillmentService": false,
-              "shipsInventory": true,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:14:29Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "123 Main St",
+                "address2": null,
+                "city": "Toronto",
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["123 Main St", "Toronto ON A1A 1A1", "Canada"],
+                "latitude": 43.682703,
+                "longitude": -79.2994195,
+                "phone": "555-5555",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "A1A 1A1"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
               "inventoryLevels": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryLevel/100000000000?inventory_item_id=200000000000",
+                    "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=51930319388978",
                     "item": {
-                      "id": "gid://shopify/InventoryItem/200000000000"
+                      "id": "gid://shopify/InventoryItem/51930319388978"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
-                      "name": "103 ossington"
+                      "name": "My Custom Location"
                     },
                     "quantities": [
                       {
                         "name": "available",
-                        "quantity": 1,
-                        "updatedAt": "2026-04-25T18:31:00Z"
+                        "quantity": 50,
+                        "updatedAt": "2025-03-26T19:51:43Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 50,
+                        "updatedAt": "2025-03-26T19:51:38Z"
                       }
                     ]
                   }
@@ -192,9 +232,20 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "cursor:location-lifecycle-validation",
-                  "endCursor": "cursor:location-lifecycle-validation"
+                  "startCursor": "eyJsYXN0X2lkIjo1NDg5NTI5NDM0OTYxOCwibGFzdF92YWx1ZSI6IjU0ODk1Mjk0MzQ5NjE4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1NDg5NTI5NDM0OTYxOCwibGFzdF92YWx1ZSI6IjU0ODk1Mjk0MzQ5NjE4In0="
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
               }
             }
           }

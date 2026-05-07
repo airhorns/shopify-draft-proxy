@@ -4,7 +4,7 @@ import gleam/dynamic/decode.{type Decoder}
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import shopify_draft_proxy/state/serialization/shared.{
   dict_field, dict_to_json, optional_field, optional_string_field,
   string_list_field,
@@ -521,6 +521,12 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     decode.string,
   )
   use reports <- decode.field("reports", decode.bool)
+  use discounts_by_market_enabled <- optional_field(
+    "discountsByMarketEnabled",
+    False,
+    decode.bool,
+  )
+  use markets_granted <- optional_field("marketsGranted", 50, decode.int)
   use sells_subscriptions <- decode.field("sellsSubscriptions", decode.bool)
   use show_metrics <- decode.field("showMetrics", decode.bool)
   use storefront <- decode.field("storefront", decode.bool)
@@ -540,6 +546,8 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     live_view: live_view,
     paypal_express_subscription_gateway_status: paypal_express_subscription_gateway_status,
     reports: reports,
+    discounts_by_market_enabled: discounts_by_market_enabled,
+    markets_granted: markets_granted,
     sells_subscriptions: sells_subscriptions,
     show_metrics: show_metrics,
     storefront: storefront,
@@ -1340,6 +1348,11 @@ pub fn metaobject_definition_decoder() -> Decoder(
     None,
     decode.optional(metaobject_standard_template_decoder()),
   )
+  use linked_metafields <- optional_field(
+    "linkedMetafields",
+    [],
+    decode.list(of: metaobject_definition_linked_metafield_decoder()),
+  )
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   decode.success(types.MetaobjectDefinitionRecord(
@@ -1354,8 +1367,29 @@ pub fn metaobject_definition_decoder() -> Decoder(
     has_thumbnail_field: has_thumbnail_field,
     metaobjects_count: metaobjects_count,
     standard_template: standard_template,
+    linked_metafields: linked_metafields,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+@internal
+pub fn metaobject_definition_linked_metafield_decoder() -> Decoder(
+  types.MetaobjectDefinitionLinkedMetafieldRecord,
+) {
+  use owner_type <- decode.field("ownerType", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use metafield_definition_id <- optional_string_field("metafieldDefinitionId")
+  use product_id <- decode.field("productId", decode.string)
+  use product_option_id <- decode.field("productOptionId", decode.string)
+  decode.success(types.MetaobjectDefinitionLinkedMetafieldRecord(
+    owner_type: owner_type,
+    namespace: namespace,
+    key: key,
+    metafield_definition_id: metafield_definition_id,
+    product_id: product_id,
+    product_option_id: product_option_id,
   ))
 }
 
@@ -1420,6 +1454,11 @@ pub fn metaobject_field_definition_decoder() -> Decoder(
   use description <- optional_string_field("description")
   use required <- optional_field("required", None, decode.optional(decode.bool))
   use type_ <- decode.field("type", metaobject_definition_type_decoder())
+  use capabilities <- optional_field(
+    "capabilities",
+    default_metaobject_field_definition_capabilities(),
+    metaobject_field_definition_capabilities_decoder(),
+  )
   use validations <- decode.field(
     "validations",
     decode.list(of: metaobject_field_definition_validation_decoder()),
@@ -1430,7 +1469,29 @@ pub fn metaobject_field_definition_decoder() -> Decoder(
     description: description,
     required: required,
     type_: type_,
+    capabilities: capabilities,
     validations: validations,
+  ))
+}
+
+@internal
+pub fn default_metaobject_field_definition_capabilities() -> types.MetaobjectFieldDefinitionCapabilitiesRecord {
+  types.MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Some(types.MetaobjectDefinitionCapabilityRecord(False)),
+  )
+}
+
+@internal
+pub fn metaobject_field_definition_capabilities_decoder() -> Decoder(
+  types.MetaobjectFieldDefinitionCapabilitiesRecord,
+) {
+  use admin_filterable <- optional_field(
+    "adminFilterable",
+    None,
+    decode.optional(metaobject_definition_capability_decoder()),
+  )
+  decode.success(types.MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: admin_filterable,
   ))
 }
 

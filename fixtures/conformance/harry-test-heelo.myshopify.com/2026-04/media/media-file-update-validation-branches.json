@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-06T20:54:07.559Z",
+  "capturedAt": "2026-05-07T00:10:31.191Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenarioId": "media-file-update-validation-branches",
@@ -9,7 +9,7 @@
         "files": [
           {
             "contentType": "IMAGE",
-            "filename": "har-702-seed-1778100843836.jpg",
+            "filename": "har-702-seed-1778112627312.jpg",
             "originalSource": "https://placehold.co/600x400.jpg",
             "alt": "HAR-702 seed image"
           }
@@ -20,10 +20,10 @@
           "fileCreate": {
             "files": [
               {
-                "id": "gid://shopify/MediaImage/43678570479922",
+                "id": "gid://shopify/MediaImage/43679049449778",
                 "__typename": "MediaImage",
                 "alt": "HAR-702 seed image",
-                "createdAt": "2026-05-06T20:54:03Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "UPLOADED",
                 "image": null,
                 "preview": {
@@ -62,10 +62,10 @@
           "fileCreate": {
             "files": [
               {
-                "id": "gid://shopify/ExternalVideo/43678570512690",
+                "id": "gid://shopify/ExternalVideo/43679049482546",
                 "__typename": "ExternalVideo",
                 "alt": "HAR-702 seed video",
-                "createdAt": "2026-05-06T20:54:04Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "UPLOADED"
               }
             ],
@@ -78,7 +78,7 @@
             "actualQueryCost": 21,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1972,
               "restoreRate": 100
             }
           }
@@ -90,7 +90,7 @@
         "files": [
           {
             "contentType": "IMAGE",
-            "filename": "har-702-non-ready-1778100843836.jpg",
+            "filename": "har-702-non-ready-1778112627312.jpg",
             "originalSource": "https://placehold.co/600x400.jpg",
             "alt": "HAR-702 non-ready image"
           }
@@ -101,10 +101,10 @@
           "fileCreate": {
             "files": [
               {
-                "id": "gid://shopify/MediaImage/43678570545458",
+                "id": "gid://shopify/MediaImage/43679049515314",
                 "__typename": "MediaImage",
                 "alt": "HAR-702 non-ready image",
-                "createdAt": "2026-05-06T20:54:04Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "UPLOADED",
                 "image": null,
                 "preview": {
@@ -121,7 +121,7 @@
             "actualQueryCost": 23,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1970,
+              "currentlyAvailable": 1967,
               "restoreRate": 100
             }
           }
@@ -131,19 +131,19 @@
     "readyImageRead": {
       "data": {
         "node": {
-          "id": "gid://shopify/MediaImage/43678570479922",
+          "id": "gid://shopify/MediaImage/43679049449778",
           "__typename": "MediaImage",
           "alt": "HAR-702 seed image",
-          "createdAt": "2026-05-06T20:54:03Z",
+          "createdAt": "2026-05-07T00:10:27Z",
           "fileStatus": "READY",
           "image": {
-            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
             "width": 600,
             "height": 400
           },
           "preview": {
             "image": {
-              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
               "width": 600,
               "height": 400
             }
@@ -165,10 +165,10 @@
     "readyVideoRead": {
       "data": {
         "node": {
-          "id": "gid://shopify/ExternalVideo/43678570512690",
+          "id": "gid://shopify/ExternalVideo/43679049482546",
           "__typename": "ExternalVideo",
           "alt": "HAR-702 seed video",
-          "createdAt": "2026-05-06T20:54:04Z",
+          "createdAt": "2026-05-07T00:10:27Z",
           "fileStatus": "READY"
         }
       },
@@ -190,7 +190,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43678570545458",
+            "id": "gid://shopify/MediaImage/43679049515314",
             "alt": "HAR-702 non-ready update attempt"
           }
         ]
@@ -225,7 +225,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/ExternalVideo/43678570512690",
+            "id": "gid://shopify/ExternalVideo/43679049482546",
             "originalSource": "https://cdn.example.com/har-702-new-video.mp4"
           }
         ]
@@ -260,8 +260,8 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/ExternalVideo/43678570512690",
-            "filename": "har-702-renamed-1778100843836.youtube"
+            "id": "gid://shopify/ExternalVideo/43679049482546",
+            "filename": "har-702-renamed-1778112627312.youtube"
           }
         ]
       },
@@ -295,8 +295,8 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43678570479922",
-            "filename": "har-702-seed-1778100843836.png"
+            "id": "gid://shopify/MediaImage/43679049449778",
+            "filename": "har-702-seed-1778112627312.png"
           }
         ]
       },
@@ -330,7 +330,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43678570479922",
+            "id": "gid://shopify/MediaImage/43679049449778",
             "referencesToAdd": ["gid://shopify/Product/999999999991"],
             "referencesToRemove": ["gid://shopify/Product/999999999992"]
           }
@@ -366,7 +366,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43678570479922",
+            "id": "gid://shopify/MediaImage/43679049449778",
             "originalSource": "https://placehold.co/600x400.png",
             "revertToVersionId": "gid://shopify/FileVersion/9"
           }
@@ -392,7 +392,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/Video/43678570479922",
+            "id": "gid://shopify/Video/43679049449778",
             "alt": "HAR-702 wrong typed id"
           }
         ]
@@ -404,7 +404,7 @@
             "userErrors": [
               {
                 "field": ["files"],
-                "message": "File id [\"gid://shopify/Video/43678570479922\"] does not exist.",
+                "message": "File id [\"gid://shopify/Video/43679049449778\"] does not exist.",
                 "code": "FILE_DOES_NOT_EXIST"
               }
             ]
@@ -427,7 +427,7 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43678570479922",
+            "id": "gid://shopify/MediaImage/43679049449778",
             "alt": "HAR-702 successful alt update preserves READY"
           }
         ]
@@ -437,19 +437,19 @@
           "fileUpdate": {
             "files": [
               {
-                "id": "gid://shopify/MediaImage/43678570479922",
+                "id": "gid://shopify/MediaImage/43679049449778",
                 "__typename": "MediaImage",
                 "alt": "HAR-702 successful alt update preserves READY",
-                "createdAt": "2026-05-06T20:54:03Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "READY",
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
                   "width": 600,
                   "height": 400
                 },
                 "preview": {
                   "image": {
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
                     "width": 600,
                     "height": 400
                   }
@@ -477,7 +477,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43678570479922"]
+        "fileIds": ["gid://shopify/MediaImage/43679049449778"]
       },
       "query": "sha:media-file-update-hydrate",
       "response": {
@@ -486,19 +486,19 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/MediaImage/43678570479922",
+                "id": "gid://shopify/MediaImage/43679049449778",
                 "__typename": "MediaImage",
                 "alt": "HAR-702 seed image",
-                "createdAt": "2026-05-06T20:54:03Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "READY",
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
                   "width": 600,
                   "height": 400
                 },
                 "preview": {
                   "image": {
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778100843836.jpg?v=1778100845",
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/har-702-seed-1778112627312.jpg?v=1778112628",
                     "width": 600,
                     "height": 400
                   }
@@ -512,7 +512,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/ExternalVideo/43678570512690"]
+        "fileIds": ["gid://shopify/ExternalVideo/43679049482546"]
       },
       "query": "sha:media-file-update-hydrate",
       "response": {
@@ -521,10 +521,10 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/ExternalVideo/43678570512690",
+                "id": "gid://shopify/ExternalVideo/43679049482546",
                 "__typename": "ExternalVideo",
                 "alt": "HAR-702 seed video",
-                "createdAt": "2026-05-06T20:54:04Z",
+                "createdAt": "2026-05-07T00:10:27Z",
                 "fileStatus": "READY"
               }
             ]
@@ -566,18 +566,18 @@
   "cleanup": {
     "variables": {
       "fileIds": [
-        "gid://shopify/MediaImage/43678570479922",
-        "gid://shopify/ExternalVideo/43678570512690",
-        "gid://shopify/MediaImage/43678570545458"
+        "gid://shopify/MediaImage/43679049449778",
+        "gid://shopify/ExternalVideo/43679049482546",
+        "gid://shopify/MediaImage/43679049515314"
       ]
     },
     "response": {
       "data": {
         "fileDelete": {
           "deletedFileIds": [
-            "gid://shopify/MediaImage/43678570479922",
-            "gid://shopify/ExternalVideo/43678570512690",
-            "gid://shopify/MediaImage/43678570545458"
+            "gid://shopify/MediaImage/43679049449778",
+            "gid://shopify/ExternalVideo/43679049482546",
+            "gid://shopify/MediaImage/43679049515314"
           ],
           "userErrors": []
         }

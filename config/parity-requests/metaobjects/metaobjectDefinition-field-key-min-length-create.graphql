@@ -1,0 +1,19 @@
+mutation MetaobjectDefinitionFieldKeyMinLengthCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      displayNameKey
+      fieldDefinitions {
+        key
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

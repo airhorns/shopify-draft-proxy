@@ -1,0 +1,709 @@
+{
+  "scenarioId": "marketing-external-activity-url-scheme-validation",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-06T23:38:39.602Z",
+  "setup": {
+    "suffix": "1778110717537-plsh1t",
+    "remoteIds": {
+      "seed": "url-scheme-valid-https-1778110717537-plsh1t",
+      "invalidCreateFtp": "url-scheme-create-ftp-1778110717537-plsh1t",
+      "invalidCreateData": "url-scheme-create-data-1778110717537-plsh1t",
+      "invalidCreatePreviewFile": "url-scheme-create-preview-file-1778110717537-plsh1t",
+      "invalidUpsertMailto": "url-scheme-upsert-mailto-1778110717537-plsh1t",
+      "invalidUpsertPreviewJavascript": "url-scheme-upsert-preview-javascript-1778110717537-plsh1t"
+    }
+  },
+  "cases": {
+    "validHttpsCreate": {
+      "operation": "create",
+      "variables": {
+        "input": {
+          "title": "URL scheme valid-https 1778110717537-plsh1t",
+          "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/url-scheme/1778110717537-plsh1t/valid-https",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-valid-https-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityCreateExternal": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197059543346",
+                "title": "URL scheme valid-https 1778110717537-plsh1t",
+                "marketingEvent": {
+                  "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+                  "manageUrl": "https://example.com/url-scheme/1778110717537-plsh1t/valid-https",
+                  "previewUrl": null
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validHttpUpdate": {
+      "operation": "update",
+      "variables": {
+        "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+        "input": {
+          "title": "URL scheme valid http 1778110717537-plsh1t",
+          "remoteUrl": "http://example.com/url-scheme/1778110717537-plsh1t/valid-http"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpdateExternal": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197059543346",
+                "title": "URL scheme valid http 1778110717537-plsh1t",
+                "marketingEvent": {
+                  "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+                  "manageUrl": "http://example.com/url-scheme/1778110717537-plsh1t/valid-http",
+                  "previewUrl": null
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidUpdateRemoteUrlFtp": {
+      "operation": "update",
+      "variables": {
+        "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+        "input": {
+          "title": "URL scheme rejected update ftp 1778110717537-plsh1t",
+          "remoteUrl": "ftp://example.com/url-scheme-update"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "The URL scheme must be one of the following: https,http",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                },
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["marketingActivityUpdateExternal"]
+            }
+          ],
+          "data": {
+            "marketingActivityUpdateExternal": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidUpdatePreviewJavascript": {
+      "operation": "update",
+      "variables": {
+        "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+        "input": {
+          "title": "URL scheme rejected update preview javascript 1778110717537-plsh1t",
+          "remotePreviewImageUrl": "javascript:alert(1)"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type MarketingActivityUpdateExternalInput! was provided invalid value for remotePreviewImageUrl (Invalid url 'javascript:alert(1)', missing host)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "URL scheme rejected update preview javascript 1778110717537-plsh1t",
+                  "remotePreviewImageUrl": "javascript:alert(1)"
+                },
+                "problems": [
+                  {
+                    "path": ["remotePreviewImageUrl"],
+                    "explanation": "Invalid url 'javascript:alert(1)', missing host",
+                    "message": "Invalid url 'javascript:alert(1)', missing host"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "readAfterInvalidUpdate": {
+      "operation": "read",
+      "variables": {
+        "remoteIds": ["url-scheme-valid-https-1778110717537-plsh1t"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivities": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/197059543346",
+                  "title": "URL scheme valid http 1778110717537-plsh1t",
+                  "marketingEvent": {
+                    "remoteId": "url-scheme-valid-https-1778110717537-plsh1t",
+                    "manageUrl": "http://example.com/url-scheme/1778110717537-plsh1t/valid-http",
+                    "previewUrl": null
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidCreateRemoteUrlFtp": {
+      "operation": "create",
+      "variables": {
+        "input": {
+          "title": "URL scheme create-ftp 1778110717537-plsh1t",
+          "remoteId": "url-scheme-create-ftp-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "ftp://example.com/url-scheme",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-create-ftp-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "The URL scheme must be one of the following: https,http",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                },
+                {
+                  "line": 1,
+                  "column": 51
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["marketingActivityCreateExternal"]
+            }
+          ],
+          "data": {
+            "marketingActivityCreateExternal": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterInvalidCreate": {
+      "operation": "read",
+      "variables": {
+        "remoteIds": ["url-scheme-create-ftp-1778110717537-plsh1t"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivities": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidCreatePreviewFile": {
+      "operation": "create",
+      "variables": {
+        "input": {
+          "title": "URL scheme create-preview-file 1778110717537-plsh1t",
+          "remoteId": "url-scheme-create-preview-file-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/url-scheme/1778110717537-plsh1t/preview-file",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-create-preview-file-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "remotePreviewImageUrl": "file://example.com/preview.png"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "The URL scheme must be one of the following: https,http",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                },
+                {
+                  "line": 1,
+                  "column": 51
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["marketingActivityCreateExternal"]
+            }
+          ],
+          "data": {
+            "marketingActivityCreateExternal": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidCreateRemoteUrlData": {
+      "operation": "create",
+      "variables": {
+        "input": {
+          "title": "URL scheme create-data 1778110717537-plsh1t",
+          "remoteId": "url-scheme-create-data-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "data:text/plain,hello",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-create-data-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type MarketingActivityCreateExternalInput! was provided invalid value for remoteUrl (Invalid url 'data:text/plain,hello', missing host)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 51
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "URL scheme create-data 1778110717537-plsh1t",
+                  "remoteId": "url-scheme-create-data-1778110717537-plsh1t",
+                  "status": "ACTIVE",
+                  "remoteUrl": "data:text/plain,hello",
+                  "tactic": "NEWSLETTER",
+                  "marketingChannelType": "EMAIL",
+                  "utm": {
+                    "campaign": "url-scheme-create-data-1778110717537-plsh1t",
+                    "source": "email",
+                    "medium": "newsletter"
+                  }
+                },
+                "problems": [
+                  {
+                    "path": ["remoteUrl"],
+                    "explanation": "Invalid url 'data:text/plain,hello', missing host",
+                    "message": "Invalid url 'data:text/plain,hello', missing host"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "invalidUpsertRemoteUrlMailto": {
+      "operation": "upsert",
+      "variables": {
+        "input": {
+          "title": "URL scheme upsert-mailto 1778110717537-plsh1t",
+          "remoteId": "url-scheme-upsert-mailto-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "mailto:marketing@example.com",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-upsert-mailto-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "The URL scheme must be one of the following: https,http",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                },
+                {
+                  "line": 1,
+                  "column": 51
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["marketingActivityUpsertExternal"]
+            }
+          ],
+          "data": {
+            "marketingActivityUpsertExternal": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidUpsertPreviewJavascript": {
+      "operation": "upsert",
+      "variables": {
+        "input": {
+          "title": "URL scheme upsert-preview-javascript 1778110717537-plsh1t",
+          "remoteId": "url-scheme-upsert-preview-javascript-1778110717537-plsh1t",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/url-scheme/1778110717537-plsh1t/upsert-preview-js",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "url-scheme-upsert-preview-javascript-1778110717537-plsh1t",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "remotePreviewImageUrl": "javascript:alert(1)"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type MarketingActivityUpsertExternalInput! was provided invalid value for remotePreviewImageUrl (Invalid url 'javascript:alert(1)', missing host)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 51
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "URL scheme upsert-preview-javascript 1778110717537-plsh1t",
+                  "remoteId": "url-scheme-upsert-preview-javascript-1778110717537-plsh1t",
+                  "status": "ACTIVE",
+                  "remoteUrl": "https://example.com/url-scheme/1778110717537-plsh1t/upsert-preview-js",
+                  "tactic": "NEWSLETTER",
+                  "marketingChannelType": "EMAIL",
+                  "utm": {
+                    "campaign": "url-scheme-upsert-preview-javascript-1778110717537-plsh1t",
+                    "source": "email",
+                    "medium": "newsletter"
+                  },
+                  "remotePreviewImageUrl": "javascript:alert(1)"
+                },
+                "problems": [
+                  {
+                    "path": ["remotePreviewImageUrl"],
+                    "explanation": "Invalid url 'javascript:alert(1)', missing host",
+                    "message": "Invalid url 'javascript:alert(1)', missing host"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "url-scheme-valid-https-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197059543346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-scheme-create-ftp-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-scheme-create-data-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-scheme-create-preview-file-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-scheme-upsert-mailto-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-scheme-upsert-preview-javascript-1778110717537-plsh1t": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

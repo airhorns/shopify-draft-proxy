@@ -15,7 +15,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcString, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
-  store_property_bool_field,
+  captured_array_field, captured_int_field, store_property_bool_field,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
 import shopify_draft_proxy/shopify/resource_ids
@@ -219,14 +219,23 @@ pub fn shipping_order_source(
     store.list_effective_fulfillments(store)
     |> list.filter(fn(fulfillment) { fulfillment.order_id == Some(order.id) })
     |> list.map(fulfillment_source)
-  let fulfillment_orders =
+  let fulfillment_order_records =
     store.list_effective_fulfillment_orders(store)
     |> list.filter(fn(fulfillment_order) {
       fulfillment_order.order_id == Some(order.id)
     })
+  let fulfillment_orders =
+    fulfillment_order_records
     |> list.map(fulfillment_order_source)
   case captured_json_source(order.data) {
-    SrcObject(fields) ->
+    SrcObject(fields) -> {
+      let fields = case
+        order_display_status_is_on_hold(fulfillment_order_records)
+      {
+        True ->
+          dict.insert(fields, "displayFulfillmentStatus", SrcString("ON_HOLD"))
+        False -> fields
+      }
       SrcObject(
         fields
         |> dict.insert("__typename", SrcString("Order"))
@@ -237,14 +246,62 @@ pub fn shipping_order_source(
           source_connection(fulfillment_orders),
         ),
       )
+    }
     _ ->
       src_object([
         #("__typename", SrcString("Order")),
         #("id", SrcString(order.id)),
+        #(
+          "displayFulfillmentStatus",
+          case order_display_status_is_on_hold(fulfillment_order_records) {
+            True -> SrcString("ON_HOLD")
+            False -> SrcNull
+          },
+        ),
         #("fulfillments", SrcList(fulfillments)),
         #("fulfillmentOrders", source_connection(fulfillment_orders)),
       ])
   }
+}
+
+fn has_held_fulfillment_order(
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> Bool {
+  list.any(fulfillment_orders, fn(fulfillment_order) {
+    fulfillment_order.status == "ON_HOLD"
+    || !list.is_empty(captured_array_field(
+      fulfillment_order.data,
+      "fulfillmentHolds",
+      "",
+    ))
+    || !list.is_empty(captured_array_field(
+      fulfillment_order.data,
+      "fulfillmentHolds",
+      "nodes",
+    ))
+  })
+}
+
+fn order_display_status_is_on_hold(
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> Bool {
+  has_held_fulfillment_order(fulfillment_orders)
+  && !list.any(fulfillment_orders, fn(fulfillment_order) {
+    fulfillment_order.status != "CLOSED"
+    && fulfillment_order.status != "ON_HOLD"
+    && fulfillment_order_has_remaining_quantity(fulfillment_order)
+  })
+}
+
+fn fulfillment_order_has_remaining_quantity(
+  fulfillment_order: FulfillmentOrderRecord,
+) -> Bool {
+  captured_array_field(fulfillment_order.data, "lineItems", "nodes")
+  |> list.any(fn(line_item) {
+    captured_int_field(line_item, "remainingQuantity", "")
+    |> option.unwrap(0)
+    > 0
+  })
 }
 
 @internal
@@ -815,30 +872,87 @@ pub fn blank_fulfillment_service_name_errors() -> List(
 }
 
 @internal
+pub fn fulfillment_service_name_taken_error() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["name"]),
+    message: "Name has already been taken",
+    code: None,
+  )
+}
+
+@internal
 pub fn validate_fulfillment_service_callback_url(
   callback_url: Option(String),
+  upstream_origin: String,
 ) -> List(shipping_types.FulfillmentServiceUserError) {
   case callback_url {
     Some(value) ->
-      case is_allowed_fulfillment_service_callback_url(value) {
-        True -> []
-        False -> [
-          shipping_types.FulfillmentServiceUserError(
-            field: Some(["callbackUrl"]),
-            message: "Callback url is not allowed",
-            code: None,
-          ),
-        ]
-      }
+      fulfillment_service_callback_url_errors(value, upstream_origin)
     None -> []
   }
+}
+
+fn fulfillment_service_callback_url_errors(
+  callback_url: String,
+  upstream_origin: String,
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  let url = string.trim(callback_url)
+  let scheme = carrier_service_callback_url_scheme(url)
+  let host = carrier_service_callback_url_host(url)
+  case scheme, host {
+    "", _ -> [fulfillment_service_callback_url_not_allowed_error()]
+    _, "" -> [fulfillment_service_callback_url_not_allowed_error()]
+    "http", _ ->
+      fulfillment_service_callback_url_host_errors(host, upstream_origin)
+    "https", _ ->
+      fulfillment_service_callback_url_host_errors(host, upstream_origin)
+    _, _ -> [
+      shipping_types.FulfillmentServiceUserError(
+        field: Some(["callbackUrl"]),
+        message: "Callback url protocol " <> scheme <> ":// is not supported",
+        code: None,
+      ),
+    ]
+  }
+}
+
+fn fulfillment_service_callback_url_host_errors(
+  host: String,
+  upstream_origin: String,
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  case
+    fulfillment_service_callback_url_host_is_app_scoped(host, upstream_origin)
+  {
+    True -> []
+    False -> [fulfillment_service_callback_url_not_allowed_error()]
+  }
+}
+
+fn fulfillment_service_callback_url_not_allowed_error() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["callbackUrl"]),
+    message: "Callback url is not allowed",
+    code: None,
+  )
 }
 
 @internal
 pub fn is_allowed_fulfillment_service_callback_url(
   callback_url: String,
+  upstream_origin: String,
 ) -> Bool {
-  string.starts_with(callback_url, "https://mock.shop")
+  fulfillment_service_callback_url_errors(callback_url, upstream_origin) == []
+}
+
+fn fulfillment_service_callback_url_host_is_app_scoped(
+  host: String,
+  upstream_origin: String,
+) -> Bool {
+  string.starts_with(host, "mock.shop")
+  || {
+    let upstream_host = carrier_service_callback_url_host(upstream_origin)
+    upstream_host != "" && host == upstream_host
+  }
 }
 
 @internal

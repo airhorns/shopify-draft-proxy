@@ -2560,6 +2560,46 @@ pub fn b2b_contact_create_rejects_invalid_phone_locale_and_html_notes_test() {
   assert string.contains(contact_json, "\"detail\":\"contains_html_tags\"")
 }
 
+pub fn b2b_contact_create_rejects_invalid_email_and_name_spam_test() {
+  let proxy = draft_proxy.new()
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Contact Validation\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert company_status == 200
+  assert string.contains(json.to_string(company_body), "\"userErrors\":[]")
+
+  let create_contact =
+    "mutation { companyContactCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { email: \"not-an-email\", firstName: \"<b>Jane</b>\", lastName: \"https://spam.example\" }) { companyContact { id email customer { id email firstName lastName } } userErrors { field message code detail } } }"
+  let #(Response(status: contact_status, body: contact_body, ..), proxy) =
+    graphql(proxy, create_contact)
+  assert contact_status == 200
+  let contact_json = json.to_string(contact_body)
+  assert string.contains(contact_json, "\"companyContact\":null")
+  assert string.contains(
+    contact_json,
+    "\"field\":[\"input\",\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    contact_json,
+    "\"field\":[\"input\"],\"message\":\"Invalid input.\",\"code\":\"INVALID_INPUT\",\"detail\":\"contains_html_tags\"",
+  )
+  assert string.contains(
+    contact_json,
+    "\"field\":[\"input\"],\"message\":\"Invalid input.\",\"code\":\"INVALID_INPUT\"",
+  )
+
+  let read_contact =
+    "query { companyContact(id: \"gid://shopify/CompanyContact/6?shopify-draft-proxy=synthetic\") { id email } company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { contacts(first: 5) { nodes { id email } } } customer(id: \"gid://shopify/Customer/7?shopify-draft-proxy=synthetic\") { id email } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_contact)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"companyContact\":null")
+  assert string.contains(read_json, "\"nodes\":[]")
+  assert string.contains(read_json, "\"customer\":null")
+}
+
 pub fn b2b_company_create_validates_nested_contact_input_test() {
   let proxy = draft_proxy.new()
   let create_company =
@@ -2579,6 +2619,36 @@ pub fn b2b_company_create_validates_nested_contact_input_test() {
     graphql(proxy, read_query)
   assert read_status == 200
   let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"nodes\":[]")
+  assert string.contains(read_json, "\"count\":0")
+}
+
+pub fn b2b_company_create_rejects_nested_contact_email_before_staging_test() {
+  let proxy = draft_proxy.new()
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Nested Contact Validation\" }, companyContact: { email: \"stillbad@\", firstName: \"Buyer\" }, companyLocation: { name: \"HQ\" } }) { company { id contacts(first: 5) { nodes { id email } } } companyContact { id } companyLocation { id } userErrors { field message code detail } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert status == 200
+  let create_json = json.to_string(body)
+  assert string.contains(create_json, "\"company\":null")
+  assert string.contains(create_json, "\"companyContact\":null")
+  assert string.contains(create_json, "\"companyLocation\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"input\",\"companyContact\",\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"",
+  )
+
+  let read_query =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { id } companyContact(id: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { id } companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id } customer(id: \"gid://shopify/Customer/6?shopify-draft-proxy=synthetic\") { id } companies(first: 5) { nodes { id } } companiesCount { count } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_query)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"company\":null")
+  assert string.contains(read_json, "\"companyContact\":null")
+  assert string.contains(read_json, "\"companyLocation\":null")
+  assert string.contains(read_json, "\"customer\":null")
   assert string.contains(read_json, "\"nodes\":[]")
   assert string.contains(read_json, "\"count\":0")
 }
@@ -2664,6 +2734,56 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
     phone_update_json,
     "\"detail\":\"duplicate_phone_number\"",
   )
+}
+
+pub fn b2b_contact_update_rejects_invalid_email_and_names_test() {
+  let proxy = draft_proxy.new()
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Update Contact Validation\" }, companyContact: { email: \"valid-contact-validation@example.com\", firstName: \"Safe\", lastName: \"Buyer\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id customer { id email firstName lastName } } } userErrors { code } } }"
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert company_status == 200
+  let company_json = json.to_string(company_body)
+  assert string.contains(company_json, "\"userErrors\":[]")
+  assert string.contains(
+    company_json,
+    "\"id\":\"gid://shopify/Customer/6?shopify-draft-proxy=synthetic\"",
+  )
+
+  let update_contact =
+    "mutation { companyContactUpdate(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", input: { email: \"stillbad@\", firstName: \"\\u{1F600} Jane\", lastName: \"www.spam.example\" }) { companyContact { id email customer { id email firstName lastName } } userErrors { field message code detail } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update_contact)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"companyContact\":null")
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\",\"email\"],\"message\":\"Email address is invalid\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\"],\"message\":\"Invalid input.\",\"code\":\"INVALID_INPUT\"",
+  )
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\"],\"message\":\"Invalid input.\",\"code\":\"INVALID_INPUT\"",
+  )
+
+  let read_contact =
+    "query { companyContact(id: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { id email customer { id email firstName lastName } } customer(id: \"gid://shopify/Customer/6?shopify-draft-proxy=synthetic\") { id email firstName lastName } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_contact)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"email\":\"valid-contact-validation@example.com\"",
+  )
+  assert string.contains(read_json, "\"firstName\":\"Safe\"")
+  assert string.contains(read_json, "\"lastName\":\"Buyer\"")
+  assert !string.contains(read_json, "stillbad@")
+  assert !string.contains(read_json, "www.spam.example")
 }
 
 pub fn b2b_contact_delete_rejects_contacts_with_associated_orders_test() {

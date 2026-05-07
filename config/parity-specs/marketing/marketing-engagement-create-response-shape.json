@@ -1,0 +1,66 @@
+{
+  "scenarioId": "marketing-engagement-create-response-shape",
+  "operationNames": ["marketingActivityCreateExternal", "marketingEngagementCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-response-shape.json"
+  ],
+  "runtimeTestFiles": [
+    "test/parity_test.gleam",
+    "test/shopify_draft_proxy/proxy/marketing_test.gleam",
+    "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-create-activity.graphql",
+    "variablesCapturePath": "$.cases.createActivity.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for Admin GraphQL 2026-04 marketingEngagementCreate immediate response shape. Shopify echoes supplied engagement fields for full input, and rejects sparse inline input missing isCumulative/utcOffset plus missing occurredOn with top-level missingRequiredInputObjectAttribute errors before resolver side effects. Proxy replay creates the disposable activity locally, then stages only the full-input engagement response without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-activity",
+        "capturePath": "$.cases.createActivity.response.payload.data.marketingActivityCreateExternal.userErrors",
+        "proxyPath": "$.data.marketingActivityCreateExternal.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "full-input-echo",
+        "capturePath": "$.cases.fullInputEcho.response.payload.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-full.graphql",
+          "variablesCapturePath": "$.cases.fullInputEcho.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "sparse-input-errors",
+        "capturePath": "$.cases.sparseInput.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-sparse.graphql",
+          "variablesCapturePath": "$.cases.sparseInput.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-occurred-on-errors",
+        "capturePath": "$.cases.missingOccurredOn.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-missing-occurred-on.graphql",
+          "variablesCapturePath": "$.cases.missingOccurredOn.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

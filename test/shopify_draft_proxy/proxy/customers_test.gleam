@@ -898,6 +898,105 @@ pub fn customer_set_sanitizes_and_dedupes_email_test() {
     == "{\"data\":{\"customerSet\":{\"customer\":null,\"userErrors\":[{\"field\":[\"input\",\"email\"],\"message\":\"Email has already been taken\",\"code\":\"TAKEN\"}]}}}"
 }
 
+pub fn customer_create_splits_comma_tags_and_dedupes_case_insensitively_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"tags-normalized@example.com\", tags: [\"a, b , c\", \"VIP\", \"vip\"] }) { customer { id tags } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"tags\":[\"a\",\"b\",\"c\",\"VIP\"]")
+  assert string.contains(create_json, "\"userErrors\":[]")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id tags } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"tags\":[\"a\",\"b\",\"c\",\"VIP\"]",
+  )
+}
+
+pub fn customer_create_rejects_tag_count_after_comma_split_test() {
+  let proxy = draft_proxy.new()
+  let tag_csv = numbered_tags_csv(251)
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"too-many-tags@example.com\", tags: [\""
+        <> tag_csv
+        <> "\"] }) { customer { id tags } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"tags\"],\"message\":\"Tags cannot be more than 250\",\"code\":\"TOO_MANY_TAGS\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+}
+
+pub fn customer_note_length_codes_apply_to_create_update_and_set_test() {
+  let long_note = string.repeat("N", times: 5001)
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"too-long-note-create@example.com\", note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"userErrors\":[{\"field\":[\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+
+  let #(Response(status: base_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"note-base@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert base_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert string.contains(
+    json.to_string(update_body),
+    "\"userErrors\":[{\"field\":[\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_occurrences(proxy, "customerCreate", 1)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/1\" }, input: { note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert string.contains(
+    json.to_string(set_body),
+    "\"userErrors\":[{\"field\":[\"input\",\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_occurrences(proxy, "customerCreate", 1)
+  assert_log_omits_root(proxy, "customerSet")
+}
+
 pub fn customer_update_rejects_clearing_last_email_identity_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
@@ -961,6 +1060,89 @@ pub fn customer_update_rejects_clearing_last_phone_identity_test() {
   assert string.contains(
     json.to_string(read_body),
     "\"defaultPhoneNumber\":{\"phoneNumber\":\"+14155550123\"}",
+  )
+}
+
+pub fn customer_create_normalizes_formatted_phone_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+1 (613) 450-4538\" }) { customer { id phone defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(create_json, "\"phone\":\"+16134504538\"")
+  assert string.contains(
+    create_json,
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+16134504538\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { phone defaultPhoneNumber { phoneNumber } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"phone\":\"+16134504538\"",
+  )
+  assert string.contains(
+    json.to_string(read_body),
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+16134504538\"}",
+  )
+}
+
+pub fn customer_phone_validation_and_uniqueness_use_normalized_values_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+1-613-450-4538\" }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+16134504538\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  let duplicate_json = json.to_string(duplicate_body)
+  assert string.contains(duplicate_json, "\"customer\":null")
+  assert string.contains(
+    duplicate_json,
+    "\"userErrors\":[{\"field\":[\"phone\"],\"message\":\"Phone has already been taken\"",
+  )
+
+  let long_phone = "+" <> string.repeat("1", times: 255)
+  let #(Response(status: long_status, body: long_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \""
+        <> long_phone
+        <> "\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  let long_json = json.to_string(long_body)
+  assert string.contains(long_json, "\"customer\":null")
+  assert string.contains(
+    long_json,
+    "\"userErrors\":[{\"field\":[\"phone\"],\"message\":\"Phone is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"},{\"field\":[\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { email: \"phone-set-invalid@example.com\" }, input: { email: \"phone-set-invalid@example.com\", phone: \"+1234abcd\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert string.contains(
+    json.to_string(set_body),
+    "\"userErrors\":[{\"field\":[\"input\",\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"}]",
   )
 }
 
@@ -1523,6 +1705,162 @@ pub fn customer_address_country_province_validation_test() {
   assert string.contains(read_json, "\"province\":\"California\"")
   assert !string.contains(read_json, "Bad Province")
   assert !string.contains(read_json, "Bad Country")
+}
+
+pub fn customer_address_input_rejects_string_guardrails_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-validation@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let too_long = string.repeat("x", times: 256)
+  let #(Response(status: address_status, body: address_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \""
+        <> too_long
+        <> "\", address2: \"<b>Suite</b>\", city: \"https://evil.example\", company: \"<i>Acme</i>\", zip: \"H0H 0H0 https://x\", phone: \"<a>+1 613\", countryCode: CA, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert address_status == 200
+  let address_json = json.to_string(address_body)
+  assert string.contains(address_json, "\"address\":null")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"address1\"],\"message\":\"Address1 is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"",
+  )
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"address2\"],\"message\":\"Address2 cannot contain HTML tags\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"city\"],\"message\":\"City cannot contain URL\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"company\"],\"message\":\"Company cannot contain HTML tags\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"zip\"],\"message\":\"Zip cannot contain URL\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    address_json,
+    "\"field\":[\"address\",\"phone\"],\"message\":\"Phone cannot contain HTML tags\",\"code\":\"INVALID\"",
+  )
+  let #(Response(status: html_city_status, body: html_city_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { city: \"<script>\", countryCode: CA, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert html_city_status == 200
+  assert string.contains(
+    json.to_string(html_city_body),
+    "\"field\":[\"address\",\"city\"],\"message\":\"City cannot contain HTML tags\",\"code\":\"INVALID\"",
+  )
+
+  let #(Response(status: phone_url_status, body: phone_url_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { phone: \"https://evil.example\", countryCode: CA, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert phone_url_status == 200
+  assert string.contains(
+    json.to_string(phone_url_body),
+    "\"field\":[\"address\",\"phone\"],\"message\":\"Phone cannot contain URL\",\"code\":\"INVALID\"",
+  )
+
+  let #(Response(status: emoji_status, body: emoji_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-emoji@example.com\", addresses: [{ address1: \"100 Main \u{1F600}\", countryCode: CA, provinceCode: ON }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert emoji_status == 200
+  let emoji_json = json.to_string(emoji_body)
+  assert string.contains(emoji_json, "\"customer\":null")
+  assert string.contains(
+    emoji_json,
+    "\"field\":[\"addresses\",\"0\",\"address1\"],\"message\":\"Address1 cannot contain emojis\",\"code\":\"INVALID\"",
+  )
+
+  let #(Response(status: blank_create_status, body: blank_create_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-blank@example.com\", addresses: [{ address1: \" \", address2: \" \", city: \" \", company: \" \", zip: \" \", phone: \" \" }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert blank_create_status == 200
+  let blank_create_json = json.to_string(blank_create_body)
+  assert string.contains(blank_create_json, "\"customer\":null")
+  assert string.contains(
+    blank_create_json,
+    "\"field\":[\"addresses\",\"0\"],\"message\":\"Customer address cannot be blank.\",\"code\":\"INVALID\"",
+  )
+}
+
+pub fn customer_address_inputs_are_trimmed_before_staging_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-trim@example.com\", firstName: \"Ada\", lastName: \"Lovelace\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: address_status, body: address_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \" 100 Main \", address2: \" Suite 4 \", city: \" Ottawa \", company: \" Acme \", countryCode: CA, provinceCode: ON, zip: \" K1A 0B1 \", phone: \" +14155550123 \" }, setAsDefault: true) { address { id address1 address2 city company zip phone formattedArea } userErrors { field message } } }",
+    )
+  assert address_status == 200
+  let address_json = json.to_string(address_body)
+  assert string.contains(address_json, "\"userErrors\":[]")
+  assert string.contains(address_json, "\"address1\":\"100 Main\"")
+  assert string.contains(address_json, "\"address2\":\"Suite 4\"")
+  assert string.contains(address_json, "\"city\":\"Ottawa\"")
+  assert string.contains(address_json, "\"company\":\"Acme\"")
+  assert string.contains(address_json, "\"zip\":\"K1A 0B1\"")
+  assert string.contains(address_json, "\"phone\":\"+14155550123\"")
+  assert !string.contains(address_json, " 100 Main ")
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { address1: \" 200 Side \", city: \" Toronto \", countryCode: CA, provinceCode: ON, zip: \" M5H 2N2 \" }) { address { id address1 city zip formattedArea } userErrors { field message } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(update_json, "\"address1\":\"200 Side\"")
+  assert string.contains(update_json, "\"city\":\"Toronto\"")
+  assert string.contains(update_json, "\"zip\":\"M5H 2N2\"")
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/1\" }, input: { email: \"address-trim@example.com\", addresses: [{ address1: \" 300 Set \", city: \" Vancouver \", countryCode: CA, provinceCode: BC, zip: \" V6B 1A1 \" }] }) { customer { id defaultAddress { address1 city zip } addressesV2(first: 5) { nodes { address1 city zip } } } userErrors { field message } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"userErrors\":[]")
+  assert string.contains(set_json, "\"address1\":\"300 Set\"")
+  assert string.contains(set_json, "\"city\":\"Vancouver\"")
+  assert string.contains(set_json, "\"zip\":\"V6B 1A1\"")
+  assert !string.contains(set_json, " 300 Set ")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { defaultAddress { address1 city zip } addressesV2(first: 5) { nodes { address1 city zip } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"address1\":\"300 Set\"")
+  assert string.contains(read_json, "\"city\":\"Vancouver\"")
+  assert string.contains(read_json, "\"zip\":\"V6B 1A1\"")
+  assert !string.contains(read_json, " 300 Set ")
 }
 
 pub fn customer_address_update_requires_address_owner_test() {
@@ -2315,5 +2653,18 @@ fn do_repeat(value: String, remaining: Int, acc: String) -> String {
   case remaining <= 0 {
     True -> acc
     False -> do_repeat(value, remaining - 1, acc <> value)
+  }
+}
+
+fn numbered_tags_csv(count: Int) -> String {
+  int_range(from: 0, to: count - 1)
+  |> list.map(fn(index) { "tag-" <> int.to_string(index) })
+  |> string.join(",")
+}
+
+fn int_range(from start: Int, to stop: Int) -> List(Int) {
+  case start > stop {
+    True -> []
+    False -> [start, ..int_range(from: start + 1, to: stop)]
   }
 }

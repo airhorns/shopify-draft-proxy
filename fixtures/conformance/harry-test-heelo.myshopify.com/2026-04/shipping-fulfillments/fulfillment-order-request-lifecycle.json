@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-26T01:06:52.000Z",
+  "capturedAt": "2026-05-06T22:22:36.651Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "setup": {
@@ -8,21 +8,32 @@
         "data": {
           "fulfillmentServiceCreate": {
             "fulfillmentService": {
-              "id": "gid://shopify/FulfillmentService/71890010418?id=true",
-              "serviceName": "HAR233 Lifecycle 1777165605041",
-              "handle": "har233-lifecycle-1777165605041",
+              "id": "gid://shopify/FulfillmentService/71925137714?id=true",
+              "handle": "hermes-request-lifecycle-1778106156651",
+              "serviceName": "Hermes Request Lifecycle 1778106156651",
               "type": "THIRD_PARTY",
               "location": {
-                "id": "gid://shopify/Location/112681910578",
-                "name": "HAR233 Lifecycle 1777165605041"
+                "id": "gid://shopify/Location/112865280306",
+                "name": "Hermes Request Lifecycle 1778106156651"
               }
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
-    "notes": "Disposable orders were created with orderCreate and moved to the temporary API fulfillment-service location with fulfillmentOrderMove before request/cancellation lifecycle probes."
+    "notes": "Disposable orders were created with orderCreate and moved to a temporary API fulfillment-service location before request/cancellation lifecycle probes."
   },
   "invalidIdBranches": {
     "id": "gid://shopify/FulfillmentOrder/0",
@@ -44,69 +55,65 @@
   "partialSubmit": {
     "operationName": "fulfillmentOrderSubmitFulfillmentRequest",
     "variables": {
-      "id": "gid://shopify/FulfillmentOrder/9633912684850",
+      "id": "gid://shopify/FulfillmentOrder/9656703910194",
       "fulfillmentOrderLineItems": [
         {
-          "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+          "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
           "quantity": 1
         }
       ],
-      "message": "HAR-233 partial submit",
+      "message": "Hermes partial submit",
       "notifyCustomer": false
     },
     "response": {
       "data": {
         "fulfillmentOrderSubmitFulfillmentRequest": {
           "originalFulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "id": "gid://shopify/FulfillmentOrder/9656703910194",
             "status": "OPEN",
             "requestStatus": "SUBMITTED",
             "merchantRequests": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
                   "kind": "FULFILLMENT_REQUEST",
-                  "message": "HAR-233 partial submit",
+                  "message": "Hermes partial submit",
                   "requestOptions": {
                     "notify_customer": false
                   },
-                  "responseData": null,
-                  "sentAt": "2026-04-26T01:06:46Z"
+                  "responseData": null
                 }
               ]
             },
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
                   "totalQuantity": 1,
                   "remainingQuantity": 1,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19268425515314",
-                    "title": "HAR-233 accept-cancel-accept 1777165605041"
+                    "id": "gid://shopify/LineItem/19308253118770",
+                    "title": "Hermes fulfillment-order request partial 20260506222236"
                   }
                 }
               ]
             }
           },
           "submittedFulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "id": "gid://shopify/FulfillmentOrder/9656703910194",
             "status": "OPEN",
             "requestStatus": "SUBMITTED"
           },
           "unsubmittedFulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912750386",
             "status": "OPEN",
             "requestStatus": "UNSUBMITTED",
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386484018",
                   "totalQuantity": 1,
                   "remainingQuantity": 1,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19268425515314",
-                    "title": "HAR-233 accept-cancel-accept 1777165605041"
+                    "id": "gid://shopify/LineItem/19308253118770",
+                    "title": "Hermes fulfillment-order request partial 20260506222236"
                   }
                 }
               ]
@@ -114,38 +121,69 @@
           },
           "userErrors": []
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 32,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "acceptFulfillmentRequest": {
     "operationName": "fulfillmentOrderAcceptFulfillmentRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9656703910194",
+      "message": "Hermes accepted",
+      "estimatedShippedAt": "2026-04-27T00:00:00Z"
+    },
     "response": {
       "data": {
         "fulfillmentOrderAcceptFulfillmentRequest": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "id": "gid://shopify/FulfillmentOrder/9656703910194",
             "status": "IN_PROGRESS",
             "requestStatus": "ACCEPTED"
           },
           "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
         }
       }
     }
   },
   "submitCancellationRequest": {
     "operationName": "fulfillmentOrderSubmitCancellationRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9656703910194",
+      "message": "Hermes cancel requested"
+    },
     "response": {
       "data": {
         "fulfillmentOrderSubmitCancellationRequest": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "id": "gid://shopify/FulfillmentOrder/9656703910194",
             "status": "IN_PROGRESS",
             "requestStatus": "ACCEPTED",
             "merchantRequests": {
               "nodes": [
                 {
                   "kind": "FULFILLMENT_REQUEST",
-                  "message": "HAR-233 partial submit",
+                  "message": "Hermes partial submit",
                   "requestOptions": {
                     "notify_customer": false
                   },
@@ -153,7 +191,7 @@
                 },
                 {
                   "kind": "CANCELLATION_REQUEST",
-                  "message": "HAR-233 cancel requested",
+                  "message": "Hermes cancel requested",
                   "requestOptions": {},
                   "responseData": null
                 }
@@ -162,22 +200,37 @@
           },
           "userErrors": []
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "acceptCancellationRequest": {
     "operationName": "fulfillmentOrderAcceptCancellationRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9656703910194",
+      "message": "Hermes accepted cancellation"
+    },
     "response": {
       "data": {
         "fulfillmentOrderAcceptCancellationRequest": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "id": "gid://shopify/FulfillmentOrder/9656703910194",
             "status": "CLOSED",
             "requestStatus": "CANCELLATION_ACCEPTED",
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
                   "totalQuantity": 0,
                   "remainingQuantity": 0
                 }
@@ -186,38 +239,68 @@
           },
           "userErrors": []
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "rejectFulfillmentRequest": {
     "operationName": "fulfillmentOrderRejectFulfillmentRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9656703942962",
+      "message": "Hermes rejected"
+    },
     "response": {
       "data": {
         "fulfillmentOrderRejectFulfillmentRequest": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912815922",
+            "id": "gid://shopify/FulfillmentOrder/9656703942962",
             "status": "OPEN",
             "requestStatus": "REJECTED"
           },
           "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
         }
       }
     }
   },
   "rejectCancellationRequest": {
     "operationName": "fulfillmentOrderRejectCancellationRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9656703975730",
+      "message": "Hermes cancel rejected"
+    },
     "response": {
       "data": {
         "fulfillmentOrderRejectCancellationRequest": {
           "fulfillmentOrder": {
-            "id": "gid://shopify/FulfillmentOrder/9633912914226",
+            "id": "gid://shopify/FulfillmentOrder/9656703975730",
             "status": "IN_PROGRESS",
             "requestStatus": "CANCELLATION_REJECTED",
             "merchantRequests": {
               "nodes": [
                 {
                   "kind": "FULFILLMENT_REQUEST",
-                  "message": "HAR-233 submit cancel reject",
+                  "message": "Hermes submit cancel reject",
                   "requestOptions": {
                     "notify_customer": false
                   },
@@ -225,7 +308,7 @@
                 },
                 {
                   "kind": "CANCELLATION_REQUEST",
-                  "message": "HAR-233 cancellation to reject",
+                  "message": "Hermes cancellation to reject",
                   "requestOptions": {},
                   "responseData": null
                 }
@@ -234,143 +317,195 @@
           },
           "userErrors": []
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "cleanup": {
-    "orderCancelAcceptedCancellationOrder": {
-      "userErrors": [],
-      "orderCancelUserErrors": []
-    },
-    "orderCancelRejectedFulfillmentOrder": {
-      "userErrors": [],
-      "orderCancelUserErrors": []
-    },
-    "orderCancelRejectedCancellationOrder": {
-      "userErrors": [
-        {
-          "field": ["orderId"],
-          "message": "Cannot cancel an order that has outstanding fulfillments"
-        }
-      ],
-      "orderCancelUserErrors": [
-        {
-          "field": ["orderId"],
-          "message": "Cannot cancel an order that has outstanding fulfillments",
-          "code": "INVALID"
-        }
-      ]
-    },
     "fulfillmentServiceDelete": {
-      "deletedId": "gid://shopify/FulfillmentService/71890010418",
-      "userErrors": []
+      "data": {
+        "fulfillmentServiceDelete": {
+          "deletedId": "gid://shopify/FulfillmentService/71925137714",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
     }
   },
   "upstreamCalls": [
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9633912684850"
+        "id": "gid://shopify/FulfillmentOrder/9656703910194"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/fulfillment-order-request-partial",
-              "name": "#REQUEST-PARTIAL",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9633912684850",
-                    "status": "OPEN",
-                    "requestStatus": "SUBMITTED",
-                    "merchantRequests": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
-                          "kind": "FULFILLMENT_REQUEST",
-                          "message": "HAR-233 partial submit",
-                          "requestOptions": {
-                            "notify_customer": false
-                          },
-                          "responseData": null,
-                          "sentAt": "2026-04-26T01:06:46Z"
-                        }
-                      ]
-                    },
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
-                          "totalQuantity": 1,
-                          "remainingQuantity": 1,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19268425515314",
-                            "title": "HAR-233 accept-cancel-accept 1777165605041"
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9633912750386",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19417386484018",
-                          "totalQuantity": 1,
-                          "remainingQuantity": 1,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19268425515314",
-                            "title": "HAR-233 accept-cancel-accept 1777165605041"
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9633912684850",
+              "id": "gid://shopify/FulfillmentOrder/9656703910194",
               "status": "OPEN",
-              "requestStatus": "SUBMITTED",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-06T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T22:23:24Z",
+              "supportedActions": [
+                {
+                  "action": "REQUEST_FULFILLMENT"
+                },
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                },
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Hermes Request Lifecycle 1778106156651",
+                "location": {
+                  "id": "gid://shopify/Location/112865280306",
+                  "name": "Hermes Request Lifecycle 1778106156651"
+                }
+              },
+              "fulfillmentHolds": [],
               "merchantRequests": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
-                    "kind": "FULFILLMENT_REQUEST",
-                    "message": "HAR-233 partial submit",
-                    "requestOptions": {
-                      "notify_customer": false
-                    },
-                    "responseData": null,
-                    "sentAt": "2026-04-26T01:06:46Z"
-                  }
-                ]
+                "nodes": []
               },
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19308253118770",
+                      "title": "Hermes fulfillment-order request partial 20260506222236",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8733134258482",
+                "name": "#1304",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9656703942962"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9656703942962",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-06T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T22:23:25Z",
+              "supportedActions": [
+                {
+                  "action": "REQUEST_FULFILLMENT"
+                },
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Hermes Request Lifecycle 1778106156651",
+                "location": {
+                  "id": "gid://shopify/Location/112865280306",
+                  "name": "Hermes Request Lifecycle 1778106156651"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456668978",
                     "totalQuantity": 1,
                     "remainingQuantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19268425515314",
-                      "title": "HAR-233 accept-cancel-accept 1777165605041"
+                      "id": "gid://shopify/LineItem/19308253151538",
+                      "title": "Hermes fulfillment-order request reject 20260506222323",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
                     }
                   }
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/fulfillment-order-request-partial",
-                "name": "#REQUEST-PARTIAL",
+                "id": "gid://shopify/Order/8733134291250",
+                "name": "#1305",
                 "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
               }
             }
           }
@@ -380,109 +515,75 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9633912815922"
+        "id": "gid://shopify/FulfillmentOrder/9656703975730"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "order": {
-              "id": "gid://shopify/Order/fulfillment-order-request-reject",
-              "name": "#HYDRATE",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9633912815922",
-                    "status": "OPEN",
-                    "requestStatus": "REJECTED"
-                  }
-                ]
-              }
-            },
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9633912815922",
+              "id": "gid://shopify/FulfillmentOrder/9656703975730",
               "status": "OPEN",
-              "requestStatus": "REJECTED",
-              "order": {
-                "id": "gid://shopify/Order/fulfillment-order-request-reject",
-                "name": "#HYDRATE",
-                "displayFulfillmentStatus": "UNFULFILLED"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentOrderHydrate",
-      "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9633912914226"
-      },
-      "query": "sha:hand-synthesized",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "order": {
-              "id": "gid://shopify/Order/fulfillment-order-request-reject-cancel",
-              "name": "#HYDRATE",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9633912914226",
-                    "status": "IN_PROGRESS",
-                    "requestStatus": "CANCELLATION_REJECTED",
-                    "merchantRequests": {
-                      "nodes": [
-                        {
-                          "kind": "FULFILLMENT_REQUEST",
-                          "message": "HAR-233 submit cancel reject",
-                          "requestOptions": {
-                            "notify_customer": false
-                          },
-                          "responseData": null
-                        },
-                        {
-                          "kind": "CANCELLATION_REQUEST",
-                          "message": "HAR-233 cancellation to reject",
-                          "requestOptions": {},
-                          "responseData": null
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9633912914226",
-              "status": "IN_PROGRESS",
-              "requestStatus": "CANCELLATION_REJECTED",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-06T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T22:23:25Z",
+              "supportedActions": [
+                {
+                  "action": "REQUEST_FULFILLMENT"
+                },
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Hermes Request Lifecycle 1778106156651",
+                "location": {
+                  "id": "gid://shopify/Location/112865280306",
+                  "name": "Hermes Request Lifecycle 1778106156651"
+                }
+              },
+              "fulfillmentHolds": [],
               "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
                 "nodes": [
                   {
-                    "kind": "FULFILLMENT_REQUEST",
-                    "message": "HAR-233 submit cancel reject",
-                    "requestOptions": {
-                      "notify_customer": false
-                    },
-                    "responseData": null
-                  },
-                  {
-                    "kind": "CANCELLATION_REQUEST",
-                    "message": "HAR-233 cancellation to reject",
-                    "requestOptions": {},
-                    "responseData": null
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456701746",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19308253184306",
+                      "title": "Hermes fulfillment-order request reject-cancellation 20260506222323",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
                   }
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/fulfillment-order-request-reject-cancel",
-                "name": "#HYDRATE",
+                "id": "gid://shopify/Order/8733134324018",
+                "name": "#1306",
                 "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
               }
             }
           }

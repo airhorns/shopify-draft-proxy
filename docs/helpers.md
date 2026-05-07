@@ -22,6 +22,17 @@ Shared helper for request-owned app identity.
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
+## `src/shopify_draft_proxy/proxy/phone_numbers.gleam`
+
+Shared helper for Shopify-like phone number normalization.
+
+- normalizes formatted international and national phone inputs to E.164 strings
+- accepts common separators such as spaces, parentheses, dashes, and dots
+- applies compatibility-style handling for full-width plus signs and digits
+- uses the effective shop country as the default territory, falling back to `US`
+
+Use this module when Admin API domain input accepts phone numbers and should stage or compare the normalized value instead of raw input text.
+
 ## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
 
 Shared helper for versioned Shopify Admin API route parsing.
@@ -75,10 +86,14 @@ Shared in-memory store helpers for cross-domain shop capability reads.
 
 - `shop_sells_subscriptions` reads the effective staged/base `ShopRecord.features.sellsSubscriptions` capability and defaults missing synthetic shop state to `False`
 - `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
+- `shop_discounts_by_market_enabled` reads the effective staged/base `ShopRecord.features.discountsByMarketEnabled` capability and defaults missing synthetic shop state to `False`
+- `set_shop_discounts_by_market_enabled` configures the effective shop discount-market capability for tests and local-runtime scenarios without introducing ambient/global shop state
+- `shop_markets_home_enabled` reads the effective staged/base `ShopRecord.features.unifiedMarkets` capability for Markets Home behavior and defaults missing synthetic shop state to `True`, matching the modern conformance shop posture
+- `shop_market_plan_limit` reads the effective staged/base `ShopRecord.features.marketsGranted` limit used by legacy Markets plan-limit checks and defaults missing synthetic shop state to `50`
 - `payment_gateway_by_id` reads an opt-in synthetic shop payment gateway by ID from effective staged/base `ShopRecord.paymentSettings.paymentGateways`
 - `set_shop_payment_gateways` configures the effective shop payment gateway catalog for tests and local-runtime scenarios without introducing ambient/global shop state
 
-Use these helpers when validation depends on synthetic shop capabilities or installed payment-provider fixtures. Endpoint handlers should not add resource-local copies of shop capability defaults or gateway catalog lookups.
+Use these helpers when validation depends on synthetic shop capabilities, Markets plan posture, or installed payment-provider fixtures. Endpoint handlers should not add resource-local copies of shop capability defaults or gateway catalog lookups.
 
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 

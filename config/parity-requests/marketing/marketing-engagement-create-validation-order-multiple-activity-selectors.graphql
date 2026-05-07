@@ -1,0 +1,16 @@
+mutation MarketingEngagementCreateValidationOrderMultipleActivitySelectors(
+  $activityId: ID!
+  $remoteId: String!
+  $engagement: MarketingEngagementInput!
+) {
+  marketingEngagementCreate(marketingActivityId: $activityId, remoteId: $remoteId, marketingEngagement: $engagement) {
+    marketingEngagement {
+      occurredOn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

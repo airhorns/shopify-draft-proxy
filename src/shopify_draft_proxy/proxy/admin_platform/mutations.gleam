@@ -5,8 +5,8 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
+import gleam/uri
 import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
@@ -17,7 +17,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, LogDraft, MutationOutcome,
+  type MutationOutcome, LogDraft, MutationOutcome, RequiredArgument,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -226,50 +226,74 @@ fn handle_flow_generate_signature(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = graphql_helpers.field_args(field, variables)
-  let id = queries.read_string_arg(args, "id")
-  let payload = queries.read_string_arg(args, "payload")
-  case valid_flow_trigger_id(id) {
-    False ->
-      MutationFieldResult(
-        json.null(),
-        [resource_not_found_error(field, document, id)],
-        store,
-        identity,
-        [],
-        [],
-      )
-    True -> {
-      let signature =
-        crypto.sha256_hex(flow_signature_secret <> "|" <> id <> "|" <> payload)
-      let #(record_id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "FlowGenerateSignature")
-      let #(created_at, identity_after_time) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        AdminPlatformFlowSignatureRecord(
-          id: record_id,
-          flow_trigger_id: id,
-          payload_sha256: crypto.sha256_hex(payload),
-          signature_sha256: crypto.sha256_hex(signature),
-          created_at: created_at,
-        )
-      let #(_, next_store) =
-        store.stage_admin_platform_flow_signature(store, record)
-      MutationFieldResult(
-        queries.project_selection(
-          flow_generate_signature_source(payload, signature),
-          field,
-          fragments,
-        ),
-        [],
-        next_store,
-        identity_after_time,
-        [record_id],
-        [
-          "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
-        ],
-      )
+  let argument_errors =
+    mutation_helpers.validate_required_field_arguments(
+      field,
+      variables,
+      "flowGenerateSignature",
+      [
+        RequiredArgument("id", "ID!"),
+        RequiredArgument("payload", "String!"),
+      ],
+      "mutation",
+      document,
+    )
+
+  case argument_errors {
+    [_, ..] ->
+      MutationFieldResult(json.null(), argument_errors, store, identity, [], [])
+    [] -> {
+      let args = graphql_helpers.field_args(field, variables)
+      let id = queries.read_string_arg(args, "id")
+      let payload = queries.read_string_arg(args, "payload")
+      case valid_flow_trigger_id(id) {
+        False ->
+          MutationFieldResult(
+            json.null(),
+            [resource_not_found_error(field, document, id)],
+            store,
+            identity,
+            [],
+            [],
+          )
+        True -> {
+          let signature =
+            crypto.sha256_hex(
+              flow_signature_secret <> "|" <> id <> "|" <> payload,
+            )
+          let #(record_id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "FlowGenerateSignature",
+            )
+          let #(created_at, identity_after_time) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let record =
+            AdminPlatformFlowSignatureRecord(
+              id: record_id,
+              flow_trigger_id: id,
+              payload_sha256: crypto.sha256_hex(payload),
+              signature_sha256: crypto.sha256_hex(signature),
+              created_at: created_at,
+            )
+          let #(_, next_store) =
+            store.stage_admin_platform_flow_signature(store, record)
+          MutationFieldResult(
+            queries.project_selection(
+              flow_generate_signature_source(payload, signature),
+              field,
+              fragments,
+            ),
+            [],
+            next_store,
+            identity_after_time,
+            [record_id],
+            [
+              "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
+            ],
+          )
+        }
+      }
     }
   }
 }
@@ -308,7 +332,7 @@ fn handle_flow_trigger_receive(
   let handle_present = string_option_present(handle)
   let payload_present = resolved_value_present(payload)
   let body_validation = case body_present, body {
-    True, Some(value) -> validate_flow_trigger_body(value)
+    True, Some(value) -> validate_flow_trigger_body(value, store)
     _, _ -> Ok("")
   }
   let user_errors = case body_present, handle_present, payload_present {
@@ -423,141 +447,252 @@ fn is_known_missing_flow_trigger_handle(handle: String) -> Bool {
 
 fn validate_flow_trigger_body(
   raw_body: String,
+  store: Store,
 ) -> Result(String, List(SourceValue)) {
   case json.parse(raw_body, commit.json_value_decoder()) {
     Ok(value) ->
-      case validate_flow_trigger_body_value(value) {
+      case validate_flow_trigger_body_value(value, store) {
         Ok(Nil) -> Ok(json.to_string(commit.json_value_to_json(value)))
-        Error(message) -> Error([flow_trigger_body_schema_error(message)])
+        Error(messages) -> Error([flow_trigger_body_schema_error(messages)])
       }
     Error(_) ->
       Error([
-        flow_trigger_body_schema_error(flow_trigger_json_parse_message(raw_body)),
+        flow_trigger_body_schema_error([
+          flow_trigger_json_parse_message(raw_body),
+        ]),
       ])
   }
 }
 
 fn validate_flow_trigger_body_value(
   value: commit.JsonValue,
-) -> Result(Nil, String) {
+  store: Store,
+) -> Result(Nil, List(String)) {
   case value {
-    commit.JsonObject(fields) -> validate_flow_trigger_body_fields(fields)
-    _ -> Error("Type error: body is not an Object.")
+    commit.JsonObject(fields) ->
+      validate_flow_trigger_body_fields(fields, store)
+    _ -> Error(["Type error: body is not an Object."])
   }
 }
 
 fn validate_flow_trigger_body_fields(
   fields: List(#(String, commit.JsonValue)),
-) -> Result(Nil, String) {
-  use _ <- result.try(validate_flow_trigger_properties(fields))
-  use _ <- result.try(validate_optional_flow_trigger_string(
-    fields,
-    "trigger_id",
-  ))
-  use _ <- result.try(validate_optional_flow_trigger_string(
-    fields,
-    "trigger_title",
-  ))
-  validate_optional_flow_trigger_resources(fields)
+  store: Store,
+) -> Result(Nil, List(String)) {
+  let property_errors = validate_flow_trigger_properties(fields)
+  let trigger_type_errors =
+    list.append(
+      validate_optional_flow_trigger_string(fields, "trigger_id"),
+      validate_optional_flow_trigger_string(fields, "trigger_title"),
+    )
+  let resource_errors = validate_optional_flow_trigger_resources(fields)
+  let structural_errors =
+    []
+    |> list.append(property_errors)
+    |> list.append(validate_unknown_flow_trigger_body_fields(fields))
+    |> list.append(trigger_type_errors)
+    |> list.append(resource_errors)
+  let reference_errors =
+    validate_flow_trigger_reference(fields, store, structural_errors)
+  case list.append(structural_errors, reference_errors) {
+    [] -> Ok(Nil)
+    errors -> Error(errors)
+  }
 }
 
 fn validate_flow_trigger_properties(
   fields: List(#(String, commit.JsonValue)),
-) -> Result(Nil, String) {
+) -> List(String) {
   case json_object_field(fields, "properties") {
-    Some(commit.JsonObject(_)) -> Ok(Nil)
-    Some(value) ->
-      Error(
-        "Type error for field 'properties': "
-        <> flow_trigger_json_error_value(value)
-        <> " is not an Object.",
-      )
-    None -> Error("Required field missing: 'properties'.")
+    Some(commit.JsonObject(_)) -> []
+    Some(value) -> [
+      "Type error for field 'properties': "
+      <> flow_trigger_json_error_value(value)
+      <> " is not an Object.",
+    ]
+    None -> ["Required field missing: 'properties'."]
   }
+}
+
+fn validate_unknown_flow_trigger_body_fields(
+  fields: List(#(String, commit.JsonValue)),
+) -> List(String) {
+  case fields {
+    [] -> []
+    [#(key, _), ..rest] -> {
+      let rest_errors = validate_unknown_flow_trigger_body_fields(rest)
+      case is_flow_trigger_body_field(key) {
+        True -> rest_errors
+        False -> list.append(["Invalid field: '" <> key <> "'."], rest_errors)
+      }
+    }
+  }
+}
+
+fn is_flow_trigger_body_field(key: String) -> Bool {
+  key == "trigger_id"
+  || key == "trigger_title"
+  || key == "resources"
+  || key == "properties"
 }
 
 fn validate_optional_flow_trigger_string(
   fields: List(#(String, commit.JsonValue)),
   name: String,
-) -> Result(Nil, String) {
+) -> List(String) {
   case json_object_field(fields, name) {
-    Some(commit.JsonString(_)) -> Ok(Nil)
-    Some(value) ->
-      Error(
-        "Type error for field '"
-        <> name
-        <> "': "
-        <> flow_trigger_json_error_value(value)
-        <> " is not a String.",
-      )
-    None -> Ok(Nil)
+    Some(commit.JsonString(_)) -> []
+    Some(value) -> [
+      "Type error for field '"
+      <> name
+      <> "': "
+      <> flow_trigger_json_error_value(value)
+      <> " is not a String.",
+    ]
+    None -> []
   }
 }
 
 fn validate_optional_flow_trigger_resources(
   fields: List(#(String, commit.JsonValue)),
-) -> Result(Nil, String) {
+) -> List(String) {
   case json_object_field(fields, "resources") {
     Some(commit.JsonArray(resources)) ->
       validate_flow_trigger_resources(resources)
-    Some(value) ->
-      Error(
-        "Type error for field 'resources': "
-        <> flow_trigger_json_error_value(value)
-        <> " is not an Array.",
-      )
-    None -> Ok(Nil)
+    Some(value) -> [
+      "Type error for field 'resources': "
+      <> flow_trigger_json_error_value(value)
+      <> " is not an Array.",
+    ]
+    None -> []
   }
 }
 
 fn validate_flow_trigger_resources(
   resources: List(commit.JsonValue),
-) -> Result(Nil, String) {
+) -> List(String) {
   case resources {
-    [] -> Ok(Nil)
+    [] -> []
     [resource, ..rest] -> {
-      use _ <- result.try(validate_flow_trigger_resource(resource))
-      validate_flow_trigger_resources(rest)
+      list.append(
+        validate_flow_trigger_resource(resource),
+        validate_flow_trigger_resources(rest),
+      )
     }
   }
 }
 
-fn validate_flow_trigger_resource(
-  resource: commit.JsonValue,
-) -> Result(Nil, String) {
+fn validate_flow_trigger_resource(resource: commit.JsonValue) -> List(String) {
   case resource {
     commit.JsonObject(fields) -> {
-      use _ <- result.try(validate_required_flow_trigger_resource_string(
-        fields,
-        "url",
-      ))
-      validate_required_flow_trigger_resource_string(fields, "name")
-    }
-    _ ->
-      Error(
-        "Type error for field 'resources': "
-        <> flow_trigger_json_error_value(resource)
-        <> " is not an Object.",
+      list.append(
+        validate_missing_flow_trigger_resource_fields(fields),
+        validate_present_flow_trigger_resource_fields(fields),
       )
+    }
+    _ -> [
+      "Type error for field 'resources': "
+      <> flow_trigger_json_error_value(resource)
+      <> " is not an Object.",
+    ]
   }
 }
 
-fn validate_required_flow_trigger_resource_string(
+fn validate_missing_flow_trigger_resource_fields(
+  fields: List(#(String, commit.JsonValue)),
+) -> List(String) {
+  []
+  |> list.append(validate_missing_flow_trigger_resource_field(fields, "url"))
+  |> list.append(validate_missing_flow_trigger_resource_field(fields, "name"))
+}
+
+fn validate_missing_flow_trigger_resource_field(
   fields: List(#(String, commit.JsonValue)),
   name: String,
-) -> Result(Nil, String) {
+) -> List(String) {
   case json_object_field(fields, name) {
-    Some(commit.JsonString(_)) -> Ok(Nil)
-    Some(value) ->
-      Error(
-        "Type error for field '"
-        <> name
-        <> "': "
-        <> flow_trigger_json_error_value(value)
-        <> " is not a String.",
-      )
-    None -> Error("Required field missing: '" <> name <> "'.")
+    Some(_) -> []
+    None -> ["Required field missing: '" <> name <> "'."]
   }
+}
+
+fn validate_present_flow_trigger_resource_fields(
+  fields: List(#(String, commit.JsonValue)),
+) -> List(String) {
+  []
+  |> list.append(validate_present_flow_trigger_resource_field(fields, "url"))
+  |> list.append(validate_present_flow_trigger_resource_field(fields, "name"))
+}
+
+fn validate_present_flow_trigger_resource_field(
+  fields: List(#(String, commit.JsonValue)),
+  name: String,
+) -> List(String) {
+  case json_object_field(fields, name) {
+    Some(commit.JsonString(value)) ->
+      case name == "url" && !flow_trigger_url_is_absolute(value) {
+        True -> [
+          "Type error for field 'url': " <> value <> " is not an absolute URL.",
+        ]
+        False -> []
+      }
+    Some(value) -> [
+      "Type error for field '"
+      <> name
+      <> "': "
+      <> flow_trigger_json_error_value(value)
+      <> " is not a String.",
+    ]
+    None -> []
+  }
+}
+
+fn flow_trigger_url_is_absolute(value: String) -> Bool {
+  case uri.parse(value) {
+    Ok(uri.Uri(scheme: Some(scheme), ..)) -> string.trim(scheme) != ""
+    _ -> False
+  }
+}
+
+fn validate_flow_trigger_reference(
+  fields: List(#(String, commit.JsonValue)),
+  store: Store,
+  structural_errors: List(String),
+) -> List(String) {
+  case structural_errors {
+    [] -> validate_flow_trigger_reference_after_shape(fields, store)
+    _ -> []
+  }
+}
+
+fn validate_flow_trigger_reference_after_shape(
+  fields: List(#(String, commit.JsonValue)),
+  store: Store,
+) -> List(String) {
+  case json_object_field(fields, "trigger_id") {
+    Some(commit.JsonString(id)) ->
+      case known_flow_trigger_id(store, id) {
+        True -> []
+        False -> ["Invalid trigger_id '" <> id <> "'."]
+      }
+    _ ->
+      case json_object_field(fields, "trigger_title") {
+        Some(commit.JsonString(title)) ->
+          case known_flow_trigger_title(store, title) {
+            True -> []
+            False -> ["Invalid trigger_title '" <> title <> "'."]
+          }
+        _ -> ["Required field missing: 'trigger_id'."]
+      }
+  }
+}
+
+fn known_flow_trigger_id(_store: Store, _id: String) -> Bool {
+  False
+}
+
+fn known_flow_trigger_title(_store: Store, _title: String) -> Bool {
+  False
 }
 
 fn json_object_field(
@@ -574,8 +709,12 @@ fn json_object_field(
   }
 }
 
-fn flow_trigger_body_schema_error(message: String) -> SourceValue {
-  user_error(["body"], "Errors validating schema:\n  " <> message <> "\n", None)
+fn flow_trigger_body_schema_error(messages: List(String)) -> SourceValue {
+  user_error(
+    ["body"],
+    "Errors validating schema:\n  " <> string.join(messages, "\n  ") <> "\n",
+    None,
+  )
 }
 
 fn flow_trigger_json_parse_message(raw_body: String) -> String {

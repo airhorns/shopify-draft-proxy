@@ -1,0 +1,679 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "activeCodeId": "gid://shopify/DiscountCodeNode/1640637301042",
+    "expiredCodeId": "gid://shopify/DiscountCodeNode/1640637333810",
+    "activeAutomaticId": "gid://shopify/DiscountAutomaticNode/1640637366578",
+    "expiredAutomaticId": "gid://shopify/DiscountAutomaticNode/1640637432114",
+    "activeCode": "NOOPACT1778108889288",
+    "expiredCode": "NOOPEXP1778108889288"
+  },
+  "requests": {
+    "codeActivateNoop": {
+      "query": "#graphql\n  mutation DiscountCodeActivateNoopIdempotence($id: ID!) {\n    discountCodeActivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640637301042"
+      }
+    },
+    "codeDeactivateNoop": {
+      "query": "#graphql\n  mutation DiscountCodeDeactivateNoopIdempotence($id: ID!) {\n    discountCodeDeactivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640637333810"
+      }
+    },
+    "automaticActivateNoop": {
+      "query": "#graphql\n  mutation DiscountAutomaticActivateNoopIdempotence($id: ID!) {\n    discountAutomaticActivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640637366578"
+      }
+    },
+    "automaticDeactivateNoop": {
+      "query": "#graphql\n  mutation DiscountAutomaticDeactivateNoopIdempotence($id: ID!) {\n    discountAutomaticDeactivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640637432114"
+      }
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "activeCodeCreate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeBasicCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640637301042",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "status": "ACTIVE",
+                "updatedAt": "2026-05-06T23:08:09Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "expiredCodeCreate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeBasicCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640637333810",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "status": "ACTIVE",
+                "updatedAt": "2026-05-06T23:08:09Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "activeAutomaticCreate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticBasicCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640637366578",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "status": "ACTIVE",
+                "updatedAt": "2026-05-06T23:08:09Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "expiredAutomaticCreate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticBasicCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "status": "ACTIVE",
+                "updatedAt": "2026-05-06T23:08:09Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstCodeDeactivate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDeactivate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640637333810",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": "2026-05-06T23:08:10Z",
+                "status": "EXPIRED",
+                "updatedAt": "2026-05-06T23:08:10Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstAutomaticDeactivate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDeactivate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": "2026-05-06T23:08:10Z",
+                "status": "EXPIRED",
+                "updatedAt": "2026-05-06T23:08:10Z"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "codeActivateNoop": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640637301042",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "startsAt": "2026-05-06T23:06:09Z",
+              "endsAt": null,
+              "status": "ACTIVE",
+              "updatedAt": "2026-05-06T23:08:09Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "codeDeactivateNoop": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDeactivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640637333810",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "startsAt": "2026-05-06T23:06:09Z",
+              "endsAt": "2026-05-06T23:08:10Z",
+              "status": "EXPIRED",
+              "updatedAt": "2026-05-06T23:08:10Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "automaticActivateNoop": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticActivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1640637366578",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "startsAt": "2026-05-06T23:06:09Z",
+              "endsAt": null,
+              "status": "ACTIVE",
+              "updatedAt": "2026-05-06T23:08:09Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "automaticDeactivateNoop": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticDeactivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "startsAt": "2026-05-06T23:06:09Z",
+              "endsAt": "2026-05-06T23:08:10Z",
+              "status": "EXPIRED",
+              "updatedAt": "2026-05-06T23:08:10Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640637301042"
+      },
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1640637301042",
+              "locations": [
+                {
+                  "line": 43,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["automaticNode"]
+            }
+          ],
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640637301042",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "No-op active code 1778108889288",
+                "status": "ACTIVE",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "updatedAt": "2026-05-06T23:08:09Z",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21668367761714",
+                      "code": "NOOPACT1778108889288"
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640637333810"
+      },
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1640637333810",
+              "locations": [
+                {
+                  "line": 43,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["automaticNode"]
+            }
+          ],
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640637333810",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "No-op expired code 1778108889288",
+                "status": "EXPIRED",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": "2026-05-06T23:08:10Z",
+                "updatedAt": "2026-05-06T23:08:10Z",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21668367794482",
+                      "code": "NOOPEXP1778108889288"
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640637366578"
+      },
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1640637366578",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["codeNode"]
+            }
+          ],
+          "data": {
+            "codeNode": null,
+            "automaticNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640637366578",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "No-op active automatic 1778108889288",
+                "status": "ACTIVE",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": null,
+                "updatedAt": "2026-05-06T23:08:09Z"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640637432114"
+      },
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1640637432114",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["codeNode"]
+            }
+          ],
+          "data": {
+            "codeNode": null,
+            "automaticNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "No-op expired automatic 1778108889288",
+                "status": "EXPIRED",
+                "startsAt": "2026-05-06T23:06:09Z",
+                "endsAt": "2026-05-06T23:08:10Z",
+                "updatedAt": "2026-05-06T23:08:10Z"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

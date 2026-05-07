@@ -276,6 +276,8 @@ fn trial_shop() -> ShopRecord {
       live_view: False,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: False,
+      discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: False,
       storefront: True,
@@ -331,6 +333,16 @@ pub fn gift_card_create_zero_initial_value_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"initialValue\"],\"code\":\"GREATER_THAN\",\"message\":\"must be greater than 0\"}]}}}"
+}
+
+pub fn gift_card_mutation_user_errors_use_payload_specific_typenames_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { setupSmallBalance: giftCardCreate(input: { initialValue: \"5\", code: \"typenameSmall\" }) { giftCard { id } } createError: giftCardCreate(input: { initialValue: \"0\" }) { userErrors { __typename code field message } } updateError: giftCardUpdate(id: \"gid://shopify/GiftCard/9999999\", input: { note: \"x\" }) { userErrors { __typename code field message } } creditError: giftCardCredit(id: \"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\", creditInput: { creditAmount: { amount: \"-1\", currencyCode: \"CAD\" } }) { userErrors { __typename code field message } } debitError: giftCardDebit(id: \"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\", debitInput: { debitAmount: { amount: \"9999\", currencyCode: \"CAD\" } }) { userErrors { __typename code field message } } deactivateError: giftCardDeactivate(id: \"gid://shopify/GiftCard/9999999\") { userErrors { __typename code field message } } notificationCustomerError: giftCardSendNotificationToCustomer(giftCardId: \"gid://shopify/GiftCard/notification-missing\") { userErrors { __typename code field message } } notificationRecipientError: giftCardSendNotificationToRecipient(giftCardId: \"gid://shopify/GiftCard/notification-missing\") { userErrors { __typename code field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"setupSmallBalance\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\"}},\"createError\":{\"userErrors\":[{\"__typename\":\"GiftCardUserError\",\"code\":\"GREATER_THAN\",\"field\":[\"input\",\"initialValue\"],\"message\":\"must be greater than 0\"}]},\"updateError\":{\"userErrors\":[{\"__typename\":\"UserError\",\"code\":\"GIFT_CARD_NOT_FOUND\",\"field\":[\"id\"],\"message\":\"The gift card could not be found.\"}]},\"creditError\":{\"userErrors\":[{\"__typename\":\"GiftCardTransactionUserError\",\"code\":\"NEGATIVE_OR_ZERO_AMOUNT\",\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"message\":\"A positive amount must be used.\"}]},\"debitError\":{\"userErrors\":[{\"__typename\":\"GiftCardTransactionUserError\",\"code\":\"INSUFFICIENT_FUNDS\",\"field\":[\"debitInput\",\"debitAmount\",\"amount\"],\"message\":\"The gift card does not have sufficient funds to satisfy the request.\"}]},\"deactivateError\":{\"userErrors\":[{\"__typename\":\"GiftCardDeactivateUserError\",\"code\":\"GIFT_CARD_NOT_FOUND\",\"field\":[\"id\"],\"message\":\"The gift card could not be found.\"}]},\"notificationCustomerError\":{\"userErrors\":[{\"__typename\":\"GiftCardSendNotificationToCustomerUserError\",\"code\":\"GIFT_CARD_NOT_FOUND\",\"field\":[\"id\"],\"message\":\"The gift card could not be found.\"}]},\"notificationRecipientError\":{\"userErrors\":[{\"__typename\":\"GiftCardSendNotificationToRecipientUserError\",\"code\":\"GIFT_CARD_NOT_FOUND\",\"field\":[\"id\"],\"message\":\"The gift card could not be found.\"}]}}}"
 }
 
 pub fn gift_card_create_normalizes_provided_code_test() {
@@ -886,7 +898,7 @@ pub fn gift_card_credit_rejects_non_positive_amount_with_nested_field_test() {
       "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/1\", creditInput: { creditAmount: { amount: \"-1\", currencyCode: \"USD\" } }) { giftCard { id } giftCardCreditTransaction { __typename } userErrors { field code message } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"code\":\"NEGATIVE_OR_ZERO_AMOUNT\",\"message\":\"Amount must be greater than zero\"}]}}}"
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"code\":\"NEGATIVE_OR_ZERO_AMOUNT\",\"message\":\"A positive amount must be used.\"}]}}}"
   assert outcome.staged_resource_ids == []
 }
 
@@ -980,7 +992,7 @@ pub fn gift_card_debit_rejects_overdraft_with_nested_field_test() {
       "mutation { giftCardDebit(id: \"gid://shopify/GiftCard/debit-small-balance\", debitInput: { debitAmount: { amount: \"9999\", currencyCode: \"USD\" } }) { giftCard { balance { amount currencyCode } } giftCardDebitTransaction { __typename } userErrors { field code message } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"giftCardDebit\":{\"giftCard\":null,\"giftCardDebitTransaction\":null,\"userErrors\":[{\"field\":[\"debitInput\",\"debitAmount\",\"amount\"],\"code\":\"INSUFFICIENT_FUNDS\",\"message\":\"Insufficient balance\"}]}}}"
+    == "{\"data\":{\"giftCardDebit\":{\"giftCard\":null,\"giftCardDebitTransaction\":null,\"userErrors\":[{\"field\":[\"debitInput\",\"debitAmount\",\"amount\"],\"code\":\"INSUFFICIENT_FUNDS\",\"message\":\"The gift card does not have sufficient funds to satisfy the request.\"}]}}}"
   let assert Some(after) =
     store.get_effective_gift_card_by_id(outcome.store, id)
   assert after.balance == money("5.0", "USD")

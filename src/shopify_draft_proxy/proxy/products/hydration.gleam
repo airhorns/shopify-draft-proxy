@@ -41,7 +41,8 @@ import shopify_draft_proxy/state/types.{
   type InventoryItemRecord, type InventoryLevelRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOptionLinkedMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, type SellingPlanGroupRecord,
   CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
@@ -50,9 +51,10 @@ import shopify_draft_proxy/state/types.{
   InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
   LocationRecord, ProductCollectionRecord, ProductMediaRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, SellingPlanGroupRecord,
+  ProductMetafieldRecord, ProductOptionLinkedMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  SellingPlanGroupRecord,
 }
 
 @internal
@@ -1030,9 +1032,27 @@ pub fn product_option_from_json(
         name: json_string_field(node, "name") |> option.unwrap(""),
         position: json_int_field(node, "position")
           |> option.unwrap(fallback_position),
+        linked_metafield: linked_metafield_from_json(node),
         option_values: json_array_field(node, ["optionValues"])
           |> list.map(product_option_value_from_json),
       ))
+  }
+}
+
+fn linked_metafield_from_json(
+  node: commit.JsonValue,
+) -> Option(ProductOptionLinkedMetafieldRecord) {
+  case
+    json_string_field_at(node, ["linkedMetafield", "namespace"]),
+    json_string_field_at(node, ["linkedMetafield", "key"])
+  {
+    Some(namespace), Some(key) ->
+      Some(ProductOptionLinkedMetafieldRecord(
+        namespace: namespace,
+        key: key,
+        metafield_definition_id: None,
+      ))
+    _, _ -> None
   }
 }
 
@@ -1045,6 +1065,7 @@ pub fn product_option_value_from_json(
       |> option.unwrap(json_string_field(node, "name") |> option.unwrap("")),
     name: json_string_field(node, "name") |> option.unwrap(""),
     has_variants: json_bool_field(node, "hasVariants") |> option.unwrap(False),
+    linked_metafield_value: json_string_field(node, "linkedMetafieldValue"),
   )
 }
 

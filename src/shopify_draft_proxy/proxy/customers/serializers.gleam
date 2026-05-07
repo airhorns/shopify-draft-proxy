@@ -30,6 +30,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/payments
+import shopify_draft_proxy/proxy/phone_numbers
 import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy, LiveHybrid}
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
@@ -411,6 +412,10 @@ pub fn customer_to_source(
     ),
     #("email", graphql_helpers.option_string_source(customer.email)),
     #(
+      "phone",
+      graphql_helpers.option_string_source(customer_phone_number(customer)),
+    ),
+    #(
       "legacyResourceId",
       graphql_helpers.option_string_source(customer.legacy_resource_id),
     ),
@@ -477,6 +482,12 @@ pub fn customer_to_source(
     #("createdAt", graphql_helpers.option_string_source(customer.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(customer.updated_at)),
   ])
+}
+
+@internal
+pub fn customer_phone_number(customer: CustomerRecord) -> Option(String) {
+  customer.default_phone_number
+  |> option.then(fn(record) { record.phone_number })
 }
 
 @internal
@@ -1028,7 +1039,12 @@ pub fn find_customer_by_identifier(
     Some(id) -> store.get_effective_customer_by_id(store, id)
     None -> {
       let email = read_customer_email(identifier, "emailAddress")
-      let phone = read_obj_string(identifier, "phoneNumber")
+      let phone =
+        read_obj_string(identifier, "phoneNumber")
+        |> option.map(fn(value) {
+          phone_numbers.normalize_for_store(store, value)
+          |> result.unwrap(value)
+        })
       find_customer_by_email_or_phone(
         store.list_effective_customers(store),
         email,

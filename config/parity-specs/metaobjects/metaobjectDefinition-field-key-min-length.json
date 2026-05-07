@@ -1,0 +1,146 @@
+{
+  "scenarioId": "metaobjectDefinition-field-key-min-length",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinition-field-key-min-length.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-valid-definition",
+        "capturePath": "$.setup.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-key-a",
+        "capturePath": "$.createKeyA.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createKeyA.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-key-empty",
+        "capturePath": "$.createKeyEmpty.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createKeyEmpty.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-key-ab",
+        "capturePath": "$.createKeyAb.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql",
+          "variablesCapturePath": "$.createKeyAb.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-create-key-a",
+        "capturePath": "$.updateCreateKeyA.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateKeyA.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-create-key-empty",
+        "capturePath": "$.updateCreateKeyEmpty.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateKeyEmpty.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-create-key-ab",
+        "capturePath": "$.updateCreateKeyAb.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateCreateKeyAb.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy uses the staged synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-delete-key-empty",
+        "capturePath": "$.updateDeleteKeyEmpty.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.updateDeleteKeyEmpty.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

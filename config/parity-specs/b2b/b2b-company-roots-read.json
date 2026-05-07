@@ -6,8 +6,7 @@
     "company",
     "companyContact",
     "companyContactRole",
-    "companyLocation",
-    "companyLocations"
+    "companyLocation"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "catalog-count", "detail-null", "nested-roles-locations"],

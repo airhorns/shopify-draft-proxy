@@ -1,0 +1,172 @@
+{
+  "scenarioId": "comment-moderation-not-found-codes",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T23:50:40.488Z",
+  "variables": {
+    "id": "gid://shopify/Comment/0"
+  },
+  "capture": {
+    "request": {
+      "query": "mutation CommentModerationNotFoundCodes($id: ID!) {\n  commentApprove(id: $id) {\n    comment {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  commentSpam(id: $id) {\n    comment {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  commentNotSpam(id: $id) {\n    comment {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  commentDelete(id: $id) {\n    deletedCommentId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Comment/0"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "commentApprove": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist",
+                "code": "NOT_FOUND"
+              }
+            ]
+          },
+          "commentSpam": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist",
+                "code": "NOT_FOUND"
+              }
+            ]
+          },
+          "commentNotSpam": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist",
+                "code": "NOT_FOUND"
+              }
+            ]
+          },
+          "commentDelete": {
+            "deletedCommentId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "live-shopify",
+    "notes": [
+      "Captured against harry-test-heelo.myshopify.com using API 2025-01.",
+      "The probe uses a harmless non-existent Comment GID to exercise resolver-level not-found userErrors without setup or cleanup state."
+    ]
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/0"
+      },
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: cccdab53-071a-4c22-97d6-44f97682b9d3-1778111749 (include this in support requests).",
+              "extensions": {
+                "requestId": "cccdab53-071a-4c22-97d6-44f97682b9d3-1778111749",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/0"
+      },
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 17aa2556-22f1-4e23-93df-5d7ac1fb83a6-1778111750 (include this in support requests).",
+              "extensions": {
+                "requestId": "17aa2556-22f1-4e23-93df-5d7ac1fb83a6-1778111750",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/0"
+      },
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: f0ea8104-136e-4f4a-98c4-6f43f4eb9d41-1778111750 (include this in support requests).",
+              "extensions": {
+                "requestId": "f0ea8104-136e-4f4a-98c4-6f43f4eb9d41-1778111750",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/0"
+      },
+      "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 27d81f1d-baff-44e7-b889-8ffb893fb4bd-1778111750 (include this in support requests).",
+              "extensions": {
+                "requestId": "27d81f1d-baff-44e7-b889-8ffb893fb4bd-1778111750",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    }
+  ]
+}

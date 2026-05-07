@@ -1,0 +1,42 @@
+mutation FlowTriggerReceiveBodySchemaGaps {
+  missingTriggerReference: flowTriggerReceive(body: "{\"properties\":{}}") {
+    userErrors {
+      field
+      message
+    }
+  }
+  unknownTriggerId: flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"properties\":{}}") {
+    userErrors {
+      field
+      message
+    }
+  }
+  unknownTriggerTitle: flowTriggerReceive(body: "{\"trigger_title\":\"foo\",\"properties\":{}}") {
+    userErrors {
+      field
+      message
+    }
+  }
+  nonAbsoluteResourceUrl: flowTriggerReceive(
+    body: "{\"trigger_id\":\"abc\",\"properties\":{},\"resources\":[{\"url\":\"not-a-url\",\"name\":\"x\"}]}"
+  ) {
+    userErrors {
+      field
+      message
+    }
+  }
+  unknownRootField: flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"properties\":{},\"unknown_root\":1}") {
+    userErrors {
+      field
+      message
+    }
+  }
+  multipleSchemaErrors: flowTriggerReceive(
+    body: "{\"properties\":{},\"resources\":[{\"url\":\"not-a-url\"}],\"unknown_root\":1}"
+  ) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,1084 @@
+{
+  "capturedAt": "2026-05-07T00:13:32.358Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "paid": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation PaymentTermsOrderEligibilityOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "email": "payment-terms-order-eligibility-paid-1778112806944@example.com",
+              "note": "payment terms order eligibility paid capture",
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "paid"],
+              "test": true,
+              "currency": "USD",
+              "presentmentCurrency": "USD",
+              "lineItems": [
+                {
+                  "title": "Payment terms order eligibility paid",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "sdp-payment-terms-eligibility-paid-1778112806944"
+                }
+              ],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "test": true,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8733285318962",
+                  "name": "#1323",
+                  "displayFinancialStatus": "PAID",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "stateRead": {
+          "query": "query PaymentTermsOrderEligibilityOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Order/8733285318962"
+          },
+          "response": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8733285318962",
+                "name": "#1323",
+                "displayFinancialStatus": "PAID",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 1,
+                "actualQueryCost": 1,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1999,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "hydrate": {
+        "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8733285318962"
+        },
+        "response": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285318962",
+              "displayFinancialStatus": "PAID",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "mutation PaymentTermsOrderEligibilityCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "referenceId": "gid://shopify/Order/8733285318962",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot create payment terms on an Order that has already been paid in full.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "closed": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation PaymentTermsOrderEligibilityOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "email": "payment-terms-order-eligibility-closed-1778112806944@example.com",
+              "note": "payment terms order eligibility closed capture",
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "closed"],
+              "test": true,
+              "currency": "USD",
+              "presentmentCurrency": "USD",
+              "lineItems": [
+                {
+                  "title": "Payment terms order eligibility closed",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "sdp-payment-terms-eligibility-closed-1778112806944"
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8733285351730",
+                  "name": "#1324",
+                  "displayFinancialStatus": null,
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderClose": {
+          "query": "mutation PaymentTermsOrderEligibilityOrderClose($input: OrderCloseInput!) {\n    orderClose(input: $input) {\n      order {\n        id\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Order/8733285351730"
+            }
+          },
+          "response": {
+            "data": {
+              "orderClose": {
+                "order": {
+                  "id": "gid://shopify/Order/8733285351730",
+                  "displayFinancialStatus": null,
+                  "closed": true,
+                  "closedAt": "2026-05-07T00:13:28Z",
+                  "cancelledAt": null
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "stateRead": {
+          "query": "query PaymentTermsOrderEligibilityOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Order/8733285351730"
+          },
+          "response": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8733285351730",
+                "name": "#1324",
+                "displayFinancialStatus": null,
+                "closed": true,
+                "closedAt": "2026-05-07T00:13:28Z",
+                "cancelledAt": null,
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 1,
+                "actualQueryCost": 1,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1999,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "paymentTermsDelete": {
+          "query": "mutation PaymentTermsOrderEligibilityTermsCleanup($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "paymentTermsId": "gid://shopify/PaymentTerms/145999266098"
+            }
+          },
+          "response": {
+            "data": {
+              "paymentTermsDelete": {
+                "deletedId": "gid://shopify/PaymentTerms/145999266098",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "hydrate": {
+        "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8733285351730"
+        },
+        "response": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285351730",
+              "displayFinancialStatus": null,
+              "closed": true,
+              "closedAt": "2026-05-07T00:13:28Z",
+              "cancelledAt": null,
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "mutation PaymentTermsOrderEligibilityCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "referenceId": "gid://shopify/Order/8733285351730",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/145999266098"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cancelled": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation PaymentTermsOrderEligibilityOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "email": "payment-terms-order-eligibility-cancelled-1778112806944@example.com",
+              "note": "payment terms order eligibility cancelled capture",
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "cancelled"],
+              "test": true,
+              "currency": "USD",
+              "presentmentCurrency": "USD",
+              "lineItems": [
+                {
+                  "title": "Payment terms order eligibility cancelled",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "sdp-payment-terms-eligibility-cancelled-1778112806944"
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8733285384498",
+                  "name": "#1325",
+                  "displayFinancialStatus": null,
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderCancel": {
+          "query": "mutation PaymentTermsOrderEligibilityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "orderId": "gid://shopify/Order/8733285384498",
+            "reason": "OTHER",
+            "notifyCustomer": false,
+            "restock": false
+          },
+          "response": {
+            "data": {
+              "orderCancel": {
+                "job": {
+                  "id": "gid://shopify/Job/b3bcb9fe-f3d1-40ff-b938-8ac584c0db83",
+                  "done": false
+                },
+                "orderCancelUserErrors": [],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "stateRead": {
+          "query": "query PaymentTermsOrderEligibilityOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Order/8733285384498"
+          },
+          "response": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8733285384498",
+                "name": "#1325",
+                "displayFinancialStatus": null,
+                "closed": true,
+                "closedAt": "2026-05-07T00:13:29Z",
+                "cancelledAt": "2026-05-07T00:13:29Z",
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 1,
+                "actualQueryCost": 1,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1999,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "paymentTermsDelete": {
+          "query": "mutation PaymentTermsOrderEligibilityTermsCleanup($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "paymentTermsId": "gid://shopify/PaymentTerms/145999298866"
+            }
+          },
+          "response": {
+            "data": {
+              "paymentTermsDelete": {
+                "deletedId": "gid://shopify/PaymentTerms/145999298866",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "hydrate": {
+        "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8733285384498"
+        },
+        "response": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285384498",
+              "displayFinancialStatus": null,
+              "closed": true,
+              "closedAt": "2026-05-07T00:13:29Z",
+              "cancelledAt": "2026-05-07T00:13:29Z",
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "mutation PaymentTermsOrderEligibilityCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "referenceId": "gid://shopify/Order/8733285384498",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/145999298866"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733285318962"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285318962",
+              "displayFinancialStatus": "PAID",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733285351730"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285351730",
+              "displayFinancialStatus": null,
+              "closed": true,
+              "closedAt": "2026-05-07T00:13:28Z",
+              "cancelledAt": null,
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733285384498"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733285384498",
+              "displayFinancialStatus": null,
+              "closed": true,
+              "closedAt": "2026-05-07T00:13:29Z",
+              "cancelledAt": "2026-05-07T00:13:29Z",
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured against disposable Shopify test Orders. Shopify rejects paid Orders before creating payment terms, but accepted unpaid closed and cancelled Orders in the public 2026-04 Admin API; setup/cleanup mutations are live-store-only evidence and are not replayed by the proxy parity request."
+}

@@ -1,45 +1,62 @@
 {
-  "data": {
-    "companyUpdate": {
-      "company": null,
-      "userErrors": [
-        {
-          "field": ["companyId"],
-          "message": "Resource requested does not exist.",
-          "code": "RESOURCE_NOT_FOUND"
-        }
-      ]
+  "scenarioId": "b2b-company-mutation-validation",
+  "capturedAt": "2026-05-06T23:22:52.769Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "mutationValidation": {
+    "request": {
+      "query": "mutation B2BCompanyMutationValidation(\n  $companyId: ID!\n  $companyLocationId: ID!\n  $companyContactId: ID!\n) {\n  companyUpdate(companyId: $companyId, input: { name: \"Missing company\" }) {\n    company {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  companyLocationUpdate(companyLocationId: $companyLocationId, input: { name: \"Missing location\" }) {\n    companyLocation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  companyContactUpdate(companyContactId: $companyContactId, input: { title: \"Missing contact\" }) {\n    companyContact {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/999999999999",
+        "companyLocationId": "gid://shopify/CompanyLocation/999999999999",
+        "companyContactId": "gid://shopify/CompanyContact/999999999999"
+      }
     },
-    "companyLocationUpdate": {
-      "companyLocation": null,
-      "userErrors": [
-        {
-          "field": ["input"],
-          "message": "The company location doesn't exist",
-          "code": "RESOURCE_NOT_FOUND"
+    "response": {
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        },
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input"],
+              "message": "The company location doesn't exist",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        },
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["companyContactId"],
+              "message": "The company contact doesn't exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
         }
-      ]
-    },
-    "companyContactUpdate": {
-      "companyContact": null,
-      "userErrors": [
-        {
-          "field": ["companyContactId"],
-          "message": "The company contact doesn't exist.",
-          "code": "RESOURCE_NOT_FOUND"
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
         }
-      ]
-    }
-  },
-  "extensions": {
-    "cost": {
-      "requestedQueryCost": 30,
-      "actualQueryCost": 30,
-      "throttleStatus": {
-        "maximumAvailable": 2000,
-        "currentlyAvailable": 1970,
-        "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": []
 }

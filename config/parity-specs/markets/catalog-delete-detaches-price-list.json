@@ -1,0 +1,44 @@
+{
+  "scenarioId": "catalog-delete-detaches-price-list",
+  "operationNames": ["catalogDelete", "catalog", "priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "delete-cascade", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/delete-cascades-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-delete-detaches-price-list-setup-read.graphql",
+    "variablesCapturePath": "$.catalogDeleteDetachPriceList.setupRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Admin GraphQL 2026-04 capture creates a disposable market catalog attached to a disposable price list. After live catalogDelete, Shopify returns catalog(id:) as null and the disposable attached priceList(id:) also becomes null; the local proxy intentionally preserves the ticket-expected surviving PriceList record while clearing its catalog field, so this spec compares the catalog deletion and detached price-list catalog field rather than requiring the disposable price-list root to disappear.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-delete-payload",
+        "capturePath": "$.catalogDeleteDetachPriceList.delete.response.payload.data.catalogDelete",
+        "proxyPath": "$.data.catalogDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-delete-detaches-price-list-delete.graphql",
+          "variablesCapturePath": "$.catalogDeleteDetachPriceList.delete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "catalog-delete-detaches-price-list-downstream-read",
+        "capturePath": "$.catalogDeleteDetachPriceList.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.catalog"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-delete-detaches-price-list-read.graphql",
+          "variablesCapturePath": "$.catalogDeleteDetachPriceList.downstreamRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

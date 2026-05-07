@@ -524,7 +524,20 @@ pub type ProductVariantRecord {
 }
 
 pub type ProductOptionValueRecord {
-  ProductOptionValueRecord(id: String, name: String, has_variants: Bool)
+  ProductOptionValueRecord(
+    id: String,
+    name: String,
+    has_variants: Bool,
+    linked_metafield_value: Option(String),
+  )
+}
+
+pub type ProductOptionLinkedMetafieldRecord {
+  ProductOptionLinkedMetafieldRecord(
+    namespace: String,
+    key: String,
+    metafield_definition_id: Option(String),
+  )
 }
 
 pub type ProductOptionRecord {
@@ -533,6 +546,7 @@ pub type ProductOptionRecord {
     product_id: String,
     name: String,
     position: Int,
+    linked_metafield: Option(ProductOptionLinkedMetafieldRecord),
     option_values: List(ProductOptionValueRecord),
   )
 }
@@ -863,6 +877,8 @@ pub type ShopFeaturesRecord {
     live_view: Bool,
     paypal_express_subscription_gateway_status: String,
     reports: Bool,
+    discounts_by_market_enabled: Bool,
+    markets_granted: Int,
     sells_subscriptions: Bool,
     show_metrics: Bool,
     storefront: Bool,
@@ -1288,6 +1304,12 @@ pub type MetaobjectFieldDefinitionValidationRecord {
   MetaobjectFieldDefinitionValidationRecord(name: String, value: Option(String))
 }
 
+pub type MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Option(MetaobjectDefinitionCapabilityRecord),
+  )
+}
+
 pub type MetaobjectFieldDefinitionRecord {
   MetaobjectFieldDefinitionRecord(
     key: String,
@@ -1295,12 +1317,24 @@ pub type MetaobjectFieldDefinitionRecord {
     description: Option(String),
     required: Option(Bool),
     type_: MetaobjectDefinitionTypeRecord,
+    capabilities: MetaobjectFieldDefinitionCapabilitiesRecord,
     validations: List(MetaobjectFieldDefinitionValidationRecord),
   )
 }
 
 pub type MetaobjectStandardTemplateRecord {
   MetaobjectStandardTemplateRecord(type_: Option(String), name: Option(String))
+}
+
+pub type MetaobjectDefinitionLinkedMetafieldRecord {
+  MetaobjectDefinitionLinkedMetafieldRecord(
+    owner_type: String,
+    namespace: String,
+    key: String,
+    metafield_definition_id: Option(String),
+    product_id: String,
+    product_option_id: String,
+  )
 }
 
 pub type MetaobjectDefinitionRecord {
@@ -1316,6 +1350,7 @@ pub type MetaobjectDefinitionRecord {
     has_thumbnail_field: Option(Bool),
     metaobjects_count: Option(Int),
     standard_template: Option(MetaobjectStandardTemplateRecord),
+    linked_metafields: List(MetaobjectDefinitionLinkedMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
   )

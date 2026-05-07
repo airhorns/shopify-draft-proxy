@@ -70,7 +70,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductOptionRecord, type ProductRecord, type ProductVariantRecord,
+  type MetafieldDefinitionRecord, type MetafieldDefinitionValidationRecord,
+  type ProductOptionLinkedMetafieldRecord, type ProductOptionRecord,
+  type ProductRecord, type ProductVariantRecord,
+  ProductOptionLinkedMetafieldRecord,
 }
 
 // ===== from variants_l12 =====
@@ -1383,7 +1386,12 @@ pub fn stage_valid_product_options_create(
   fragments: FragmentMap,
 ) -> MutationFieldResult {
   let #(created_options, identity_after_options) =
-    make_created_option_records(identity, product_id, option_inputs)
+    make_created_option_records(
+      Some(store),
+      identity,
+      product_id,
+      option_inputs,
+    )
   let next_options =
     list.append(starting_options, created_options)
     |> sort_and_position_options
@@ -1414,6 +1422,7 @@ pub fn stage_valid_product_options_create(
     store
     |> store.replace_staged_variants_for_product(product_id, next_variants)
     |> store.replace_staged_options_for_product(product_id, synced_options)
+    |> link_metaobject_definitions_for_options(product_id, synced_options)
   let staged_ids =
     list.append(
       list.map(created_options, fn(option) { option.id }),
@@ -1434,6 +1443,72 @@ pub fn stage_valid_product_options_create(
     final_identity,
     staged_ids,
   )
+}
+
+fn link_metaobject_definitions_for_options(
+  store_in: Store,
+  product_id: String,
+  options: List(ProductOptionRecord),
+) -> Store {
+  list.fold(options, store_in, fn(current_store, option) {
+    case option.linked_metafield {
+      Some(linked_metafield) ->
+        case
+          hydrate_linked_metafield_definition(current_store, linked_metafield)
+        {
+          Some(#(hydrated_linked_metafield, definition_id)) ->
+            store.link_metaobject_definition_to_product_option(
+              current_store,
+              definition_id,
+              "PRODUCT",
+              hydrated_linked_metafield,
+              product_id,
+              option.id,
+            )
+          None -> current_store
+        }
+      None -> current_store
+    }
+  })
+}
+
+fn hydrate_linked_metafield_definition(
+  store_in: Store,
+  linked_metafield: ProductOptionLinkedMetafieldRecord,
+) -> Option(#(ProductOptionLinkedMetafieldRecord, String)) {
+  case
+    store.find_effective_metafield_definition(
+      store_in,
+      "PRODUCT",
+      linked_metafield.namespace,
+      linked_metafield.key,
+    )
+  {
+    Some(definition) ->
+      case metaobject_definition_id_validation(definition) {
+        Some(definition_id) ->
+          Some(#(
+            ProductOptionLinkedMetafieldRecord(
+              ..linked_metafield,
+              metafield_definition_id: Some(definition.id),
+            ),
+            definition_id,
+          ))
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn metaobject_definition_id_validation(
+  definition: MetafieldDefinitionRecord,
+) -> Option(String) {
+  definition.validations
+  |> list.find(fn(validation) { validation.name == "metaobject_definition_id" })
+  |> option.from_result
+  |> option.then(fn(validation: MetafieldDefinitionValidationRecord) {
+    validation.value
+  })
 }
 
 // ===== from variants_l14 =====

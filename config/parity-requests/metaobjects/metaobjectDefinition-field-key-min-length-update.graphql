@@ -1,0 +1,19 @@
+mutation MetaobjectDefinitionFieldKeyMinLengthUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      displayNameKey
+      fieldDefinitions {
+        key
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
