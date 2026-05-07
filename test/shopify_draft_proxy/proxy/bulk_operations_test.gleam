@@ -669,6 +669,25 @@ pub fn run_query_empty_string_returns_invalid_bulk_query_error_test() {
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Invalid bulk query: syntax error, unexpected end of file\",\"code\":\"INVALID\"}]}}}"
 }
 
+pub fn run_query_rejects_non_query_operation_type_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"mutation { productCreate(input: {title: \\\"x\\\"}) { product { id } } }\") { bulkOperation { id } userErrors { field message code } } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Invalid operation type. Only `query` operations are supported.\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn run_query_rejects_top_level_node_with_shopify_error_test() {
   let response =
     run_query_mutation("{ node(id: \\\"gid://shopify/Product/1\\\") { id } }")
@@ -682,6 +701,16 @@ pub fn run_query_rejects_nodes_selection_with_shopify_error_test() {
 
   assert response
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_allows_multiple_roots_to_reach_real_validators_test() {
+  let response =
+    run_query_mutation(
+      "{ products { edges { node { id } } } node(id: \\\"gid://shopify/Product/1\\\") { id } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain a top level `node` field.\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn run_query_rejects_more_than_five_connections_test() {
@@ -702,6 +731,25 @@ pub fn run_query_rejects_connection_nesting_depth_greater_than_two_test() {
 
   assert response
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain connections with a nesting depth greater than 2.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_connection_within_curated_list_field_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ orders { edges { node { id fulfillments { events { edges { node { id } } } } } } } }\") { bulkOperation { id } userErrors { field message code } } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Queries that contain a connection field within a list field are not currently supported.\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn run_query_rejects_nested_connection_without_parent_id_test() {
