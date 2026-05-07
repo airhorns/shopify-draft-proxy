@@ -4752,7 +4752,7 @@ pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
     == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"},{\"field\":[\"input\",\"quantities\",\"1\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"}]}}}"
 }
 
-pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
+pub fn inventory_set_accepts_on_hand_and_adjust_rejects_on_hand_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
 
@@ -4765,12 +4765,84 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"available\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}},{\"name\":\"on_hand\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 
   let adjust_query =
-    "mutation { inventoryAdjustQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://har-568/on-hand\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id name } } } userErrors { field message code } } }"
-  let #(Response(status: adjust_status, body: adjust_body, ..), _) =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://inventory/on-hand\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id name } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(adjust_query))
   assert adjust_status == 200
   assert json.to_string(adjust_body)
-    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":4},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":4},{\"name\":\"on_hand\",\"quantity\":4}]}]}}}}"
+
+  let assert [set_entry, adjust_entry] = store.get_log(proxy.store)
+  assert set_entry.status == store_types.Staged
+  assert adjust_entry.status == store_types.Failed
+  assert adjust_entry.staged_resource_ids == []
+}
+
+pub fn inventory_adjust_quantities_rejects_committed_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"committed\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://committed/test\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(adjust_query))
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1}]}]}}}}"
+
+  let assert [adjust_entry] = store.get_log(proxy.store)
+  assert adjust_entry.status == store_types.Failed
+  assert adjust_entry.staged_resource_ids == []
+}
+
+pub fn inventory_move_quantities_rejects_reserved_public_names_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let move_query =
+    "mutation { inventoryMoveQuantities(input: { reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"on_hand\\\", ledgerDocumentUri: \\\"ledger://move/on-hand-from\\\" }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"damaged\\\", ledgerDocumentUri: \\\"ledger://move/damaged-to\\\" } }, { inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"committed\\\", ledgerDocumentUri: \\\"ledger://move/committed-from\\\" }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"reserved\\\", ledgerDocumentUri: \\\"ledger://move/reserved-to\\\" } }] }) { inventoryAdjustmentGroup { changes { name delta } } userErrors { field message code } } }"
+  let #(Response(status: move_status, body: move_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(move_query))
+  assert move_status == 200
+  assert json.to_string(move_body)
+    == "{\"data\":{\"inventoryMoveQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"changes\",\"0\",\"from\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"},{\"field\":[\"input\",\"changes\",\"1\",\"from\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"damaged\\\", \\\"reserved\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"reserved\",\"quantity\":0}]}]}}}}"
+
+  let assert [move_entry] = store.get_log(proxy.store)
+  assert move_entry.status == store_types.Failed
+  assert move_entry.staged_resource_ids == []
 }
 
 pub fn inventory_adjust_quantities_preserves_product_total_inventory_test() {
