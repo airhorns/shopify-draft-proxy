@@ -725,6 +725,42 @@ pub fn staged_uploads_create_rejects_image_unsupported_mime_test() {
     == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"mimeType\"],\"message\":\"x.exe: (application/x-msdownload) is not a recognized format\"}]}}}"
 }
 
+pub fn staged_uploads_create_bulk_variables_post_uses_google_form_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: BULK_MUTATION_VARIABLES, filename: \"vars.jsonl\", mimeType: \"text/jsonl\", httpMethod: POST }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"Content-Type\",\"value\":\"text/jsonl\"},{\"name\":\"success_action_status\",\"value\":\"201\"},{\"name\":\"acl\",\"value\":\"private\"},{\"name\":\"key\",\"value\":\"shopify-draft-proxy/gid://shopify/StagedUploadTarget0/1/vars.jsonl\"},{\"name\":\"x-goog-date\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-date\"},{\"name\":\"x-goog-credential\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-credential\"},{\"name\":\"x-goog-algorithm\",\"value\":\"GOOG4-RSA-SHA256\"},{\"name\":\"x-goog-signature\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-signature\"},{\"name\":\"policy\",\"value\":\"shopify-draft-proxy-placeholder-policy\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_bulk_variables_put_uses_captured_put_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: BULK_MUTATION_VARIABLES, filename: \"vars.jsonl\", mimeType: \"text/jsonl\", httpMethod: PUT }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/jsonl\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_shop_image_uses_image_family_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: SHOP_IMAGE, filename: \"logo.png\", mimeType: \"image/png\", httpMethod: POST }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"Content-Type\",\"value\":\"image/png\"},{\"name\":\"success_action_status\",\"value\":\"201\"},{\"name\":\"acl\",\"value\":\"private\"},{\"name\":\"key\",\"value\":\"shopify-draft-proxy/gid://shopify/StagedUploadTarget0/1/logo.png\"},{\"name\":\"x-goog-date\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-date\"},{\"name\":\"x-goog-credential\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-credential\"},{\"name\":\"x-goog-algorithm\",\"value\":\"GOOG4-RSA-SHA256\"},{\"name\":\"x-goog-signature\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-signature\"},{\"name\":\"policy\",\"value\":\"shopify-draft-proxy-placeholder-policy\"}]}],\"userErrors\":[]}}}"
+}
+
 pub fn staged_uploads_create_user_errors_rejects_code_selection_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(

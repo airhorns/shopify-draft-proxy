@@ -990,6 +990,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-non-merchandising-targets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-non-merchandising-conformance.ts',
+    purpose:
+      'stagedUploadsCreate target metadata for non-merchandising resources, PUT-vs-POST parameter shape, access-scope blocked SHOP_IMAGE, and schema-invalid import resources.',
+    requiredAuthScopes: ['write_files', 'bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-non-merchandising.json`,
+      'config/parity-specs/media/media-staged-uploads-create-non-merchandising.json',
+      'config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql',
+    ],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-validation-conformance.ts',
