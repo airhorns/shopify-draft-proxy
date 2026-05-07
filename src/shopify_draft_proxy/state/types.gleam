@@ -1366,6 +1366,7 @@ pub type MetaobjectDefinitionRecord {
     description: Option(String),
     display_name_key: Option(String),
     online_store_url_handle: Option(String),
+    online_store_create_redirects: Option(Bool),
     access: Dict(String, Option(String)),
     capabilities: MetaobjectDefinitionCapabilitiesRecord,
     field_definitions: List(MetaobjectFieldDefinitionRecord),

@@ -1211,6 +1211,10 @@ pub fn metaobject_definition_json(
     #("description", optional_string(record.description)),
     #("displayNameKey", optional_string(record.display_name_key)),
     #("onlineStoreUrlHandle", optional_string(record.online_store_url_handle)),
+    #(
+      "onlineStoreCreateRedirects",
+      optional_bool(record.online_store_create_redirects),
+    ),
     #("access", dict_to_json(record.access, optional_string)),
     #(
       "capabilities",

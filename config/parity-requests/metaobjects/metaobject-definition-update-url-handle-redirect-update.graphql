@@ -1,0 +1,24 @@
+mutation MetaobjectDefinitionUpdateUrlHandleRedirectUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      capabilities {
+        onlineStore {
+          enabled
+          data {
+            urlHandle
+            canCreateRedirects
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
