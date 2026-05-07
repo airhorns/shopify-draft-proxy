@@ -5877,6 +5877,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-permits-sku-sharing-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-permits-sku-sharing-validation-conformance.ts',
+    purpose:
+      'fulfillmentServiceCreate removed permitsSkuSharing argument validation plus inventoryManagement create/update downstream read parity.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-permits-sku-sharing-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-permits-sku-sharing-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-permits-sku-sharing-validation.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-read.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-update.graphql',
+    ],
+    cleanupBehavior:
+      'Captures schema validation for the removed argument without creating a record, then creates one disposable fulfillment service for inventoryManagement read-after-write evidence and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'shipping-user-error-codes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-shipping-user-error-codes-conformance.ts',

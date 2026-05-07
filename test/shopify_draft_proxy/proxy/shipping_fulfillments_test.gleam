@@ -1816,6 +1816,49 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
     == None
 }
 
+pub fn fulfillment_service_rejects_removed_public_arguments_test() {
+  let body =
+    json.object([
+      #(
+        "query",
+        json.string(
+          "mutation RemovedArgs($name: String!) { fulfillmentServiceCreate(name: $name, permitsSkuSharing: false, inventorySyncEnabled: true, fulfillmentOrdersOptIn: false) { fulfillmentService { id serviceName } userErrors { field message } } }",
+        ),
+      ),
+      #("variables", json.object([#("name", json.string("Removed Args FS"))])),
+    ])
+    |> json.to_string
+
+  let #(response, proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      proxy_state.Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: body,
+      ),
+    )
+  let serialized = json.to_string(response.body)
+
+  assert response.status == 200
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'permitsSkuSharing'",
+  )
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'inventorySyncEnabled'",
+  )
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'fulfillmentOrdersOptIn'",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert store.get_log(proxy.store) == []
+  assert store.list_effective_fulfillment_services(proxy.store) == []
+}
+
 pub fn fulfillment_service_create_rejects_case_insensitive_duplicate_name_test() {
   let first =
     fulfillment_service_create(store.new(), synthetic_identity.new(), "Acme")
