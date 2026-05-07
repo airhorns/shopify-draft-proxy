@@ -609,6 +609,7 @@ pub type ProductRecord {
     template_suffix: Option(String),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
+    requires_selling_plan: Option(Bool),
     publication_ids: List(String),
     contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),

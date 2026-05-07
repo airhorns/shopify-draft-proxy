@@ -1168,6 +1168,7 @@ fn product_record(id: String, title: String) -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    requires_selling_plan: None,
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
