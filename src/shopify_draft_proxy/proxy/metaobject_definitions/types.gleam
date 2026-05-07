@@ -901,6 +901,8 @@ pub fn build_definition_from_create_input(
       standard_template_id: None,
       standard_template_dependent_on_app: False,
       app_config_managed: False,
+      enabled_by_shopify: False,
+      enabled_by_shopify_at: None,
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
@@ -1450,6 +1452,7 @@ pub fn standard_template(
 pub fn build_standard_definition(
   identity: SyntheticIdentityRegistry,
   template: standard_templates.StandardMetaobjectTemplate,
+  enabled_by_shopify: Bool,
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
@@ -1469,13 +1472,25 @@ pub fn build_standard_definition(
       field_definitions: template.field_definitions,
       has_thumbnail_field: template.has_thumbnail_field,
       metaobjects_count: Some(0),
-      standard_template: Some(MetaobjectStandardTemplateRecord(
-        Some(template.type_),
-        Some(template.name),
-      )),
+      standard_template: Some(
+        MetaobjectStandardTemplateRecord(
+          type_: Some(template.type_),
+          name: Some(template.name),
+          enabled_by_shopify: enabled_by_shopify,
+          enabled_by_shopify_at: case enabled_by_shopify {
+            True -> Some(now)
+            False -> None
+          },
+        ),
+      ),
       standard_template_id: Some(template.type_),
       standard_template_dependent_on_app: False,
       app_config_managed: False,
+      enabled_by_shopify: enabled_by_shopify,
+      enabled_by_shopify_at: case enabled_by_shopify {
+        True -> Some(now)
+        False -> None
+      },
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),

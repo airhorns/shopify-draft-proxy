@@ -1447,6 +1447,8 @@ HAR-242 implements local staging for definition create/update/delete plus a boun
 HAR-245's 2026-04 schema-change capture added several easy traps:
 
 - `metaobjectDefinitionUpdate` accepts `resetFieldOrder` inside `MetaobjectDefinitionUpdateInput`; it is not a top-level mutation argument on this schema.
+- Public Admin GraphQL 2026-04 rejects top-level `metaobjectDefinitionUpdate(..., resetFieldOrder:)` with `argumentNotAccepted` on the offending argument path before resolver execution.
+- Public Admin GraphQL 2026-04 also rejects `standardMetaobjectDefinitionEnable(..., enabledByShopify:)` with `argumentNotAccepted`; the configured conformance credential cannot reach Shopify internal Admin visibility, so enabled-by-Shopify success evidence remains local-runtime-backed.
 - `MetaobjectFieldDefinitionUpdateInput` does not expose `type`, so field type changes cannot be submitted through the captured update input shape. Validation changes are captured; type changes are not part of the supported local update surface.
 - when publishable capability is enabled and `metaobjectCreate` omits a publishable status, Shopify defaulted the row to `DRAFT`, not `ACTIVE`.
 - after a required display field is added, pre-existing rows return that field with `value: null`; `displayName` falls back to a titleized handle until the row is updated with the required display field.

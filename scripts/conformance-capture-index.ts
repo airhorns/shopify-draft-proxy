@@ -1972,6 +1972,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-mutation-arg-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-mutation-arg-shape-conformance.ts',
+    purpose:
+      'Public GraphQL schema-validation evidence for metaobjectDefinitionUpdate resetFieldOrder and standardMetaobjectDefinitionEnable enabledByShopify argument visibility.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-mutation-arg-shape.json`,
+      'config/parity-specs/metaobjects/metaobject-mutation-arg-shape.json',
+      'config/parity-requests/metaobjects/metaobject-mutation-arg-shape-reset.graphql',
+      'config/parity-requests/metaobjects/metaobject-mutation-arg-shape-public-enable.graphql',
+    ],
+    cleanupBehavior:
+      'Runs validation-only GraphQL requests that fail before resolver execution; no records are created and no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Internal enabledByShopify success evidence remains unavailable to the public conformance credential and is covered by focused runtime tests only.',
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-field-validation-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',

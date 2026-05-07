@@ -1,0 +1,38 @@
+{
+  "scenarioId": "metaobject-mutation-arg-shape",
+  "operationNames": ["metaobjectDefinitionUpdate", "standardMetaobjectDefinitionEnable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "live-shopify-evidence", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-mutation-arg-shape.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-mutation-arg-shape-reset.graphql",
+    "variablesCapturePath": "$.captures.topLevelReset.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-resetFieldOrder-rejected",
+        "capturePath": "$.captures.topLevelReset.response.payload",
+        "proxyPath": "$"
+      },
+      {
+        "name": "public-enabledByShopify-rejected",
+        "capturePath": "$.captures.publicEnabledByShopify.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-mutation-arg-shape-public-enable.graphql",
+          "variablesCapturePath": "$.captures.publicEnabledByShopify.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 public evidence for metaobject mutation argument-shape validation. `resetFieldOrder` is rejected as a top-level metaobjectDefinitionUpdate argument and remains accepted only inside MetaobjectDefinitionUpdateInput. Public callers cannot pass standardMetaobjectDefinitionEnable.enabledByShopify; the local internal-visibility branch is runtime-test-backed because this public conformance credential cannot reach Shopify's internal Admin visibility."
+}
