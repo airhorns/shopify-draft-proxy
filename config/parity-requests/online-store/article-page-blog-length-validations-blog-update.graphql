@@ -1,0 +1,14 @@
+mutation ArticlePageBlogLengthValidationsBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+  blogUpdate(id: $id, blog: $blog) {
+    blog {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

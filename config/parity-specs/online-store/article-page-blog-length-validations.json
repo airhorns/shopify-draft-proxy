@@ -1,0 +1,353 @@
+{
+  "scenarioId": "online-store/article-page-blog-length-validations",
+  "operationNames": ["blogCreate", "blogUpdate", "pageCreate", "pageUpdate", "articleCreate", "articleUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/article-page-blog-length-validations.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Online Store article/blog/page title, handle, and body length validation behavior. Public Admin API 2025-01 rejects `feedburner` on BlogCreateInput/BlogUpdateInput before resolver validation, so those interactions remain in the live fixture as schema evidence while executable parity covers exposed title/handle/body validation branches. The captured public article body byte-size userError has `code: null` in both 2025-01 and 2026-04, so local parity follows the public API response rather than the internal RailsErrorCode expectation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable article reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "blogCreate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[1].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-blog-create.graphql",
+          "variablesCapturePath": "$.interactions[1].request.variables"
+        },
+        "selectedPaths": ["$.blog", "$.userErrors"]
+      },
+      {
+        "name": "blogCreate handle over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[2].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-blog-create.graphql",
+          "variablesCapturePath": "$.interactions[2].request.variables"
+        },
+        "selectedPaths": ["$.blog", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[5].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-create.graphql",
+          "variablesCapturePath": "$.interactions[5].request.variables"
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate handle over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[6].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-create.graphql",
+          "variablesCapturePath": "$.interactions[6].request.variables"
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate body over 512 KB returns TOO_BIG",
+        "capturePath": "$.interactions[7].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-create.graphql",
+          "variablesCapturePath": "$.interactions[7].request.variables"
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[8].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[8].request.variables.article.title"
+              },
+              "blogId": {
+                "fromProxyResponse": "blogCreate setup provides a usable article reference",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[8].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate handle over 265 returns TOO_LONG",
+        "capturePath": "$.interactions[9].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[9].request.variables.article.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.interactions[9].request.variables.article.handle"
+              },
+              "blogId": {
+                "fromProxyResponse": "blogCreate setup provides a usable article reference",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[9].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate body over 1 MB returns public API body error",
+        "capturePath": "$.interactions[10].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[10].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[10].request.variables.article.body"
+              },
+              "blogId": {
+                "fromProxyResponse": "blogCreate setup provides a usable article reference",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[10].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate setup provides a usable update target",
+        "capturePath": "$.interactions[11].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-create.graphql",
+          "variablesCapturePath": "$.interactions[11].request.variables"
+        },
+        "selectedPaths": ["$.page.title", "$.page.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate setup provides a usable update target",
+        "capturePath": "$.interactions[12].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[12].request.variables.article.title"
+              },
+              "blogId": {
+                "fromProxyResponse": "blogCreate setup provides a usable article reference",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[12].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article.title", "$.article.handle", "$.userErrors"]
+      },
+      {
+        "name": "blogUpdate handle over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[14].response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-blog-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "blogCreate setup provides a usable article reference",
+              "path": "$.data.blogCreate.blog.id"
+            },
+            "blog": {
+              "handle": {
+                "fromCapturePath": "$.interactions[14].request.variables.blog.handle"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.blog", "$.userErrors"]
+      },
+      {
+        "name": "blogUpdate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[13].response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-blog-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "blogCreate setup provides a usable article reference",
+              "path": "$.data.blogCreate.blog.id"
+            },
+            "blog": {
+              "title": {
+                "fromCapturePath": "$.interactions[13].request.variables.blog.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.blog", "$.userErrors"]
+      },
+      {
+        "name": "pageUpdate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[15].response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "pageCreate setup provides a usable update target",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "page": {
+              "title": {
+                "fromCapturePath": "$.interactions[15].request.variables.page.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "pageUpdate handle over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[16].response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "pageCreate setup provides a usable update target",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "page": {
+              "handle": {
+                "fromCapturePath": "$.interactions[16].request.variables.page.handle"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "pageUpdate body over 512 KB returns TOO_BIG",
+        "capturePath": "$.interactions[17].response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-page-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "pageCreate setup provides a usable update target",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "page": {
+              "body": {
+                "fromCapturePath": "$.interactions[17].request.variables.page.body"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate title over 255 returns TOO_LONG",
+        "capturePath": "$.interactions[18].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup provides a usable update target",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[18].request.variables.article.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate handle over 265 returns TOO_LONG",
+        "capturePath": "$.interactions[19].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup provides a usable update target",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "handle": {
+                "fromCapturePath": "$.interactions[19].request.variables.article.handle"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate body over 1 MB returns public API body error",
+        "capturePath": "$.interactions[20].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-page-blog-length-validations-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup provides a usable update target",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "body": {
+                "fromCapturePath": "$.interactions[20].request.variables.article.body"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      }
+    ]
+  }
+}
