@@ -55,6 +55,13 @@ Staged mutations:
   Connection pagination uses local stable cursors rather than Shopify's opaque cursor encoding.
 - `customerSegmentMembersQuery(id:)` returns the staged job or `null` with Shopify's captured
   `INTERNAL_SERVER_ERROR`-shaped error for unknown query IDs.
+- `customerSegmentMembersQueryCreate(input: { query })` uses the broader segment storage grammar as the local
+  acceptance boundary for direct query strings, then stages Shopify's captured async creation shape. This mutation
+  surface is CDP-backed in Shopify rather than the local customer-member evaluator: accepted-but-unmodeled filters
+  create readable query jobs with `currentCount: 0` / `done: false`, but they do not imply local membership
+  evaluation support. The captured malformed direct-query branch returns `field: null`, `code: INVALID`, and
+  `message: "Line 1 Column 6: 'valid' is unexpected."`; uncaptured CDP validation failures are staged instead of
+  guessed with fabricated parser messages.
 - `customerSegmentMembership(customerId:, segmentIds:)` returns membership rows only for segment IDs that exist in
   effective local segment state. Missing segment IDs are skipped, and missing/non-matching customers return
   `isMember: false` for known segments.
@@ -87,6 +94,7 @@ Staged mutations:
 - Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
 - Segment create/update query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-query-grammar.json`
 - Member-query segmentId branch fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-segment-id-paths.json`
+- Member-query direct query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-direct-query-grammar.json`
 - Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
 - Segment length/limit validation spec: `config/parity-specs/segments/segments-create-update-validation-limits.json`
@@ -96,7 +104,9 @@ Staged mutations:
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment create/update query grammar parity spec: `config/parity-specs/segments/segment-create-update-query-grammar.json`
 - Member-query segmentId branch parity spec: `config/parity-specs/segments/customer-segment-members-query-create-segment-id-paths.json`
+- Member-query direct query grammar parity spec: `config/parity-specs/segments/customer-segment-members-query-create-direct-query-grammar.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
 - Member-query segmentId branch capture script: `scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts`
+- Member-query direct query grammar capture script: `scripts/capture-customer-segment-members-query-create-direct-query-grammar-conformance.ts`
 - Review coverage includes segmentId-backed member query jobs, direct query reads, and accepted-but-unmodeled filter
   storage boundaries.
