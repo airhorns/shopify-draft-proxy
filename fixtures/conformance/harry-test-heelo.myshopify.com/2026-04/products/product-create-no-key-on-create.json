@@ -1,0 +1,124 @@
+{
+  "capturedAt": "2026-05-07T03:24:17.376Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scenarios": {
+    "inputId": {
+      "document": "#graphql\n  mutation ProductCreateNoKeyOnCreate($input: ProductInput!) {\n    productCreate(input: $input) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/1",
+          "title": "No Key ID"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "id cannot be specified during creation"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inputIdBeforeBlankTitle": {
+      "document": "#graphql\n  mutation ProductCreateNoKeyOnCreate($input: ProductInput!) {\n    productCreate(input: $input) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/1",
+          "title": ""
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "id cannot be specified during creation"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variantProductId": {
+      "document": "#graphql\n  mutation ProductCreateNoKeyOnCreate($input: ProductInput!) {\n    productCreate(input: $input) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "No Key Variant",
+          "variants": [
+            {
+              "productId": "gid://shopify/Product/1",
+              "price": "1.00"
+            }
+          ]
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 39
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "No Key Variant",
+                "variants": [
+                  {
+                    "productId": "gid://shopify/Product/1",
+                    "price": "1.00"
+                  }
+                ]
+              },
+              "problems": [
+                {
+                  "path": ["variants"],
+                  "explanation": "Field is not defined on ProductInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "notes": [
+    "Public Admin GraphQL accepts the deprecated productCreate(input:) spelling in 2026-04 even though introspection only lists productCreate(product:).",
+    "Legacy input.id returns a productCreate.userErrors payload with field [\"input\"] and message \"id cannot be specified during creation\"; it is not a top-level GraphQL error on this live store.",
+    "Legacy input.variants is rejected by input coercion before resolver execution because ProductInput does not define variants."
+  ],
+  "upstreamCalls": []
+}

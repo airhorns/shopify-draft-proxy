@@ -106,6 +106,7 @@ pub fn process_mutation(
     variables,
     upstream,
     app_identity.read_requesting_api_client_id(upstream.headers),
+    app_identity.has_internal_visibility(upstream.headers),
   )
 }
 
@@ -126,6 +127,7 @@ pub fn process_mutation_with_headers(
     variables,
     upstream,
     app_identity.read_requesting_api_client_id(request_headers),
+    app_identity.has_internal_visibility(request_headers),
   )
 }
 
@@ -136,6 +138,7 @@ fn process_mutation_with_requesting_api_client_id(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
   requesting_api_client_id: Option(String),
+  internal_visibility: Bool,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -151,6 +154,7 @@ fn process_mutation_with_requesting_api_client_id(
             variables,
             upstream,
             requesting_api_client_id,
+            internal_visibility,
           )
         errors ->
           MutationOutcome(
@@ -176,6 +180,7 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
   requesting_api_client_id: Option(String),
+  internal_visibility: Bool,
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(entries, errors, final_store, final_identity, staged_ids, drafts) =
@@ -200,6 +205,7 @@ fn handle_mutation_fields(
               name.value,
               upstream,
               requesting_api_client_id,
+              internal_visibility,
             )
           let #(field_result, next_store, next_identity) = result
           let next_errors =
@@ -373,6 +379,7 @@ fn dispatch_mutation_field(
   name: String,
   upstream: UpstreamContext,
   requesting_api_client_id: Option(String),
+  internal_visibility: Bool,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case name {
     "metaobjectDefinitionCreate" ->
@@ -403,6 +410,7 @@ fn dispatch_mutation_field(
         field,
         fragments,
         variables,
+        internal_visibility,
       )
     "metaobjectCreate" ->
       handle_metaobject_create(
@@ -633,30 +641,48 @@ fn handle_definition_delete(
           identity,
         )
         Some(definition) -> {
-          let cascaded_metaobject_ids =
-            list_effective_metaobjects_by_type(store, definition.type_)
-            |> list.map(fn(metaobject) { metaobject.id })
-          let store_after_entries =
-            list.fold(cascaded_metaobject_ids, store, fn(acc, metaobject_id) {
-              delete_staged_metaobject(acc, metaobject_id)
-            })
-          let next_store =
-            delete_staged_metaobject_definition(
-              store_after_entries,
-              definition_id,
+          case
+            metaobject_definition_types.build_definition_delete_guard_user_errors(
+              definition,
             )
-          let staged_ids = list.append([definition_id], cascaded_metaobject_ids)
-          #(
-            definition_delete_result_with_staged_ids(
-              key,
-              field,
-              Some(definition_id),
-              [],
-              staged_ids,
-            ),
-            next_store,
-            identity,
-          )
+          {
+            [_, ..] as user_errors -> #(
+              definition_delete_result(key, field, None, user_errors),
+              store,
+              identity,
+            )
+            [] -> {
+              let cascaded_metaobject_ids =
+                list_effective_metaobjects_by_type(store, definition.type_)
+                |> list.map(fn(metaobject) { metaobject.id })
+              let store_after_entries =
+                list.fold(
+                  cascaded_metaobject_ids,
+                  store,
+                  fn(acc, metaobject_id) {
+                    delete_staged_metaobject(acc, metaobject_id)
+                  },
+                )
+              let next_store =
+                delete_staged_metaobject_definition(
+                  store_after_entries,
+                  definition_id,
+                )
+              let staged_ids =
+                list.append([definition_id], cascaded_metaobject_ids)
+              #(
+                definition_delete_result_with_staged_ids(
+                  key,
+                  field,
+                  Some(definition_id),
+                  [],
+                  staged_ids,
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         }
       }
   }
@@ -668,9 +694,15 @@ fn handle_standard_definition_enable(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  internal_visibility: Bool,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
+  let enabled_by_shopify =
+    option.unwrap(
+      metaobject_definition_types.read_bool(args, "enabledByShopify"),
+      False,
+    )
   case metaobject_definition_types.read_string(args, "type") {
     None -> {
       let payload =
@@ -700,6 +732,7 @@ fn handle_standard_definition_enable(
                 metaobject_definition_types.build_standard_definition(
                   identity,
                   template,
+                  enabled_by_shopify && internal_visibility,
                 )
               let #(staged, next_store) =
                 upsert_staged_metaobject_definition(store, definition)
@@ -1880,6 +1913,17 @@ fn definition_from_json(
       value,
       "standardTemplate",
     )),
+    standard_template_id: json_get_string(value, "standardTemplateId"),
+    standard_template_dependent_on_app: json_get_bool(
+      value,
+      "standardTemplateDependentOnApp",
+    )
+      |> option.unwrap(False),
+    app_config_managed: json_get_bool(value, "appConfigManaged")
+      |> option.unwrap(False),
+    enabled_by_shopify: json_get_bool(value, "enabledByShopify")
+      |> option.unwrap(False),
+    enabled_by_shopify_at: json_get_string(value, "enabledByShopifyAt"),
     linked_metafields: [],
     created_at: json_get_string(value, "createdAt"),
     updated_at: json_get_string(value, "updatedAt"),
@@ -1994,6 +2038,15 @@ fn standard_template_from_json(
       Some(MetaobjectStandardTemplateRecord(
         type_: json_get_string(option.unwrap(value, commit.JsonNull), "type"),
         name: json_get_string(option.unwrap(value, commit.JsonNull), "name"),
+        enabled_by_shopify: json_get_bool(
+          option.unwrap(value, commit.JsonNull),
+          "enabledByShopify",
+        )
+          |> option.unwrap(False),
+        enabled_by_shopify_at: json_get_string(
+          option.unwrap(value, commit.JsonNull),
+          "enabledByShopifyAt",
+        ),
       ))
     _ -> None
   }

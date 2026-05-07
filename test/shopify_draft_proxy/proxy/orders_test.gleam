@@ -1774,6 +1774,231 @@ pub fn orders_order_edit_set_quantity_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_edit_quantity_validation_rejects_without_mutation_test() {
+  let order_id = "gid://shopify/Order/quantity-validation"
+  let product_id = "gid://shopify/Product/quantity-validation"
+  let variant_id = "gid://shopify/ProductVariant/quantity-validation"
+  let calculated_order_id = "gid://shopify/CalculatedOrder/1"
+  let calculated_line_item_id = "gid://shopify/CalculatedLineItem/2"
+  let line_item =
+    types.CapturedObject([
+      #("id", types.CapturedString(calculated_line_item_id)),
+      #("title", types.CapturedString("Existing widget")),
+      #("quantity", types.CapturedInt(3)),
+      #("currentQuantity", types.CapturedInt(3)),
+      #("sku", types.CapturedString("EX-3")),
+      #("variant", types.CapturedNull),
+      #(
+        "originalUnitPriceSet",
+        types.CapturedObject([
+          #(
+            "shopMoney",
+            types.CapturedObject([
+              #("amount", types.CapturedString("10.0")),
+              #("currencyCode", types.CapturedString("CAD")),
+            ]),
+          ),
+          #(
+            "presentmentMoney",
+            types.CapturedObject([
+              #("amount", types.CapturedString("10.0")),
+              #("currencyCode", types.CapturedString("CAD")),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let seeded =
+    store.new()
+    |> store.upsert_base_products([
+      types.ProductRecord(
+        id: product_id,
+        legacy_resource_id: None,
+        title: "Quantity validation product",
+        handle: "",
+        status: "ACTIVE",
+        vendor: None,
+        product_type: None,
+        tags: [],
+        price_range_min: None,
+        price_range_max: None,
+        total_variants: None,
+        has_only_default_variant: None,
+        has_out_of_stock_variants: None,
+        total_inventory: None,
+        tracks_inventory: None,
+        created_at: None,
+        updated_at: None,
+        published_at: None,
+        description_html: "",
+        online_store_preview_url: None,
+        template_suffix: None,
+        seo: types.ProductSeoRecord(title: None, description: None),
+        category: None,
+        publication_ids: [],
+        contextual_pricing: None,
+        cursor: None,
+        combined_listing_role: None,
+        combined_listing_parent_id: None,
+        combined_listing_child_ids: [],
+      ),
+    ])
+    |> store.upsert_base_product_variants([
+      types.ProductVariantRecord(
+        id: variant_id,
+        product_id: product_id,
+        title: "Default Title",
+        sku: Some("QV-1"),
+        barcode: None,
+        price: Some("12.00"),
+        compare_at_price: None,
+        taxable: None,
+        inventory_policy: None,
+        inventory_quantity: None,
+        selected_options: [],
+        media_ids: [],
+        inventory_item: None,
+        contextual_pricing: None,
+        cursor: None,
+      ),
+    ])
+    |> store.upsert_base_orders([
+      order_edit_test_order(order_id, "PAID", None, [
+        order_edit_test_session_with_line_items(order_id, calculated_order_id, [
+          line_item,
+        ]),
+      ]),
+    ])
+  let identity = synthetic_identity.new()
+  let set_quantity =
+    "
+    mutation SetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+      orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let set_negative =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #("lineItemId", root_field.StringVal(calculated_line_item_id)),
+        #("quantity", root_field.IntVal(-1)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(set_negative.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"quantity\"],\"message\":\"must be greater than or equal to 0\"}]}}}"
+  assert set_negative.store == seeded
+  assert set_negative.identity == identity
+
+  let add_variant =
+    "
+    mutation AddVariant($id: ID!, $variantId: ID!, $quantity: Int!) {
+      orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+        calculatedOrder {
+          lineItems(first: 10) {
+            nodes {
+              title
+              quantity
+            }
+          }
+          addedLineItems(first: 10) {
+            nodes {
+              title
+              quantity
+              variant {
+                id
+              }
+            }
+          }
+        }
+        calculatedLineItem {
+          title
+          quantity
+          variant {
+            id
+          }
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let add_zero =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #("variantId", root_field.StringVal(variant_id)),
+        #("quantity", root_field.IntVal(0)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(add_zero.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"quantity\"],\"message\":\"must be greater than 0\"}]}}}"
+  assert add_zero.store == seeded
+  assert add_zero.identity == identity
+
+  let add_negative =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #("variantId", root_field.StringVal(variant_id)),
+        #("quantity", root_field.IntVal(-3)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(add_negative.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"quantity\"],\"message\":\"must be greater than 0\"},{\"field\":[\"quantity\"],\"message\":\"must be greater than or equal to 0\"}]}}}"
+  assert add_negative.store == seeded
+  assert add_negative.identity == identity
+
+  let add_valid_after_rejections =
+    orders.process_mutation(
+      add_negative.store,
+      add_negative.identity,
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #("variantId", root_field.StringVal(variant_id)),
+        #("quantity", root_field.IntVal(2)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(add_valid_after_rejections.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":{\"lineItems\":{\"nodes\":[{\"title\":\"Existing widget\",\"quantity\":3}]},\"addedLineItems\":{\"nodes\":[{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}}]}},\"calculatedLineItem\":{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
+}
+
 pub fn orders_order_edit_commit_updates_history_fulfillment_orders_and_totals_test() {
   let order_id = "gid://shopify/Order/order-edit-commit-state"
   let existing_line_item_id = "gid://shopify/LineItem/order-edit-existing"
@@ -2336,6 +2561,109 @@ pub fn orders_draft_order_create_user_error_code_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn orders_draft_order_line_items_max_top_level_errors_test() {
+  let oversized_input = draft_order_input_with_line_item_count(500)
+
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderCreateLineItemsMax($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([#("input", oversized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderCreate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert store.list_effective_draft_orders(create_outcome.store) == []
+  assert create_outcome.log_drafts == []
+
+  let calculate_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderCalculateLineItemsMax($input: DraftOrderInput!) {
+      draftOrderCalculate(input: $input) {
+        calculatedDraftOrder { totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([#("input", oversized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(calculate_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderCalculate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert calculate_outcome.log_drafts == []
+
+  let setup_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderLineItemsMaxSetup($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([
+        #("input", draft_order_input_with_line_item_count(1)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  let update_outcome =
+    orders.process_mutation(
+      setup_outcome.store,
+      setup_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderUpdateLineItemsMax($id: ID!, $input: DraftOrderInput!) {
+      draftOrderUpdate(id: $id, input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #("input", oversized_input),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderUpdate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert update_outcome.log_drafts == []
+
+  let assert Ok(after_update_read) =
+    orders.process(
+      update_outcome.store,
+      "
+      query {
+        draftOrder(id: \"gid://shopify/DraftOrder/1\") {
+          id
+          totalQuantityOfLineItems
+        }
+      }
+    ",
+      dict.new(),
+    )
+  assert json.to_string(after_update_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"totalQuantityOfLineItems\":1}}}"
 }
 
 pub fn orders_draft_order_complete_validation_guardrails_test() {
@@ -11987,6 +12315,34 @@ fn draft_order_string_list_value(
   values
   |> list.map(root_field.StringVal)
   |> root_field.ListVal
+}
+
+fn draft_order_input_with_line_item_count(
+  count: Int,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #(
+        "lineItems",
+        root_field.ListVal(
+          int.range(from: 1, to: count + 1, with: [], run: fn(acc, index) {
+            [draft_order_custom_line_item_value(index), ..acc]
+          })
+          |> list.reverse,
+        ),
+      ),
+    ]),
+  )
+}
+
+fn draft_order_custom_line_item_value(index: Int) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("title", root_field.StringVal("Max probe " <> int.to_string(index))),
+      #("quantity", root_field.IntVal(1)),
+      #("originalUnitPrice", root_field.StringVal("1.00")),
+    ]),
+  )
 }
 
 pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {

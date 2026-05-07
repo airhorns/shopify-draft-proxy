@@ -34,6 +34,23 @@ const productSetShapeMutation = `#graphql
   }
 `;
 
+const productSetIdentifierMutation = `#graphql
+  mutation ProductSetIdentifierIdNotAllowed($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(identifier: $identifier, input: $input, synchronous: $synchronous) {
+      product {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const productSetAsyncMutation = `#graphql
   mutation ProductSetAsyncOperationParity($input: ProductSetInput!, $synchronous: Boolean!) {
     productSet(input: $input, synchronous: $synchronous) {
@@ -175,6 +192,33 @@ function buildUnknownProductVariables(): JsonRecord {
   };
 }
 
+function buildIdentifierIdNotAllowedVariables(runId: string): JsonRecord {
+  const handle = `hermes-product-set-id-not-allowed-${runId}`;
+  return {
+    synchronous: true,
+    identifier: {
+      handle,
+    },
+    input: {
+      id: 'gid://shopify/Product/999999999999',
+      title: `Hermes ProductSet ID Not Allowed ${runId}`,
+      handle,
+      vendor: 'Hermes',
+    },
+  };
+}
+
+function buildMissingIdentifierVariables(runId: string): JsonRecord {
+  return {
+    synchronous: true,
+    identifier: null,
+    input: {
+      title: `Hermes ProductSet Missing Identifier ${runId}`,
+      vendor: 'Hermes',
+    },
+  };
+}
+
 function buildAsyncVariables(runId: string): JsonRecord {
   return {
     synchronous: false,
@@ -215,6 +259,15 @@ const inventoryQuantitiesLimitResponse = (
 ).payload;
 const unknownProductVariables = buildUnknownProductVariables();
 const unknownProductResponse = (await runGraphqlRaw(productSetShapeMutation, unknownProductVariables)).payload;
+
+const identifierIdNotAllowedVariables = buildIdentifierIdNotAllowedVariables(runId);
+const identifierIdNotAllowedResponse = (
+  await runGraphqlRaw(productSetIdentifierMutation, identifierIdNotAllowedVariables)
+).payload;
+const missingIdentifierVariables = buildMissingIdentifierVariables(runId);
+const missingIdentifierResponse = (await runGraphqlRaw(productSetIdentifierMutation, missingIdentifierVariables))
+  .payload;
+const missingIdentifierProductId = readPath(responseData(missingIdentifierResponse), ['productSet', 'product', 'id']);
 
 let asyncProductId: string | null = null;
 try {
@@ -263,6 +316,11 @@ try {
   }
 }
 
+if (typeof missingIdentifierProductId === 'string') {
+  const cleanup = await cleanupProduct(missingIdentifierProductId);
+  console.log(JSON.stringify({ cleanupProductId: missingIdentifierProductId, cleanup }, null, 2));
+}
+
 await writeFile(
   path.join(outputDir, 'product-set-shape-validator-parity.json'),
   `${JSON.stringify(
@@ -281,6 +339,25 @@ await writeFile(
       },
       locations: {
         response: locationsResponse,
+      },
+      upstreamCalls: [],
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+await writeFile(
+  path.join(outputDir, 'product-set-id-not-allowed.json'),
+  `${JSON.stringify(
+    {
+      idNotAllowed: {
+        variables: identifierIdNotAllowedVariables,
+        response: identifierIdNotAllowedResponse,
+      },
+      missingIdentifier: {
+        variables: missingIdentifierVariables,
+        response: missingIdentifierResponse,
       },
       upstreamCalls: [],
     },

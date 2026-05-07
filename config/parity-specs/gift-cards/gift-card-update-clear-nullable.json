@@ -1,0 +1,99 @@
+{
+  "scenarioId": "gift-card-update-clear-nullable",
+  "operationNames": ["giftCardCreate", "giftCardUpdate", "giftCard"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-update-clear-nullable.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-update-clear-nullable-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify accepting explicit null values for giftCardUpdate note, expiresOn, and templateSuffix against a populated gift card. The replay first stages an equivalent local gift card, then clears each nullable scalar and verifies downstream giftCard(id) readback.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-clear-nullable-card-user-errors",
+        "capturePath": "$.setup[0].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors"
+      },
+      {
+        "name": "giftCardUpdate explicit-null clear branches",
+        "capturePath": "$.operations.clear.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-clear-nullable.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-clear-nullable-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.noteClear.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the clear update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.noteClear.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          },
+          {
+            "path": "$.expiresClear.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the clear update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.expiresClear.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          },
+          {
+            "path": "$.templateClear.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the clear update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.templateClear.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          }
+        ]
+      },
+      {
+        "name": "downstream giftCard read after nullable clears",
+        "capturePath": "$.operations.readAfterClear.response.payload.data.giftCard",
+        "proxyPath": "$.data.giftCard",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-clear-nullable-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-clear-nullable-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy reads back the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          }
+        ]
+      }
+    ]
+  }
+}

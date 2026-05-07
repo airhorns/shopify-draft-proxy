@@ -1,0 +1,45 @@
+{
+  "scenarioId": "run-mutation-allowed-roots",
+  "operationNames": ["bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-test-backed-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-allowed-roots.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-allowed-roots.graphql",
+    "variablesCapturePath": "$.cases.customerCreate.missingUpload.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-create-missing-upload-accepted-through-no-such-file",
+        "capturePath": "$.cases.customerCreate.missingUpload.run.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation"
+      },
+      {
+        "name": "metaobject-definition-create-missing-upload-accepted-through-no-such-file",
+        "capturePath": "$.cases.metaobjectDefinitionCreate.missingUpload.run.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-allowed-roots.graphql",
+          "variablesCapturePath": "$.cases.metaobjectDefinitionCreate.missingUpload.run.variables"
+        }
+      },
+      {
+        "name": "metafields-set-missing-upload-accepted-through-no-such-file",
+        "capturePath": "$.cases.metafieldsSet.missingUpload.run.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-allowed-roots.graphql",
+          "variablesCapturePath": "$.cases.metafieldsSet.missingUpload.run.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL 2026-04 accepting customerCreate, metaobjectDefinitionCreate, and metafieldsSet as non-products inner roots for bulkOperationRunMutation. The generic parity runner replays each accepted root through the deterministic missing-upload branch, proving the validator no longer rejects those roots before staged-upload lookup. The valid-upload CREATED response, terminal read-after-write visibility, result JSONL semantics, and local/unsupported execution behavior are covered by runtime tests because the generic parity runner cannot replay multipart staged uploads."
+}

@@ -1,0 +1,15 @@
+query ValidationUpdateMetafieldsUpsertRead($id: ID!) {
+  validation(id: $id) {
+    id
+    title
+    metafields(first: 5) {
+      nodes {
+        namespace
+        key
+        type
+        value
+        updatedAt
+      }
+    }
+  }
+}

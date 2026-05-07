@@ -54,6 +54,11 @@ const google_signed_upload_parameter_names: List(String) = [
   "signature",
 ]
 
+const google_put_upload_parameter_names: List(String) = [
+  "content_type",
+  "acl",
+]
+
 const staged_upload_resource_values: List(String) = [
   "COLLECTION_IMAGE",
   "FILE",
@@ -136,17 +141,83 @@ pub fn process_mutation(
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
-      let fragments = get_document_fragments(document)
-      handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        variables,
-        upstream,
-      )
+      case file_update_top_level_errors(fields, variables) {
+        #(errors, data_entries) if errors != [] ->
+          MutationOutcome(
+            data: json.object([
+              #("errors", json.preprocessed_array(errors)),
+              #("data", json.object(data_entries)),
+            ]),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [],
+          )
+        _ -> {
+          let fragments = get_document_fragments(document)
+          handle_mutation_fields(
+            store,
+            identity,
+            fields,
+            fragments,
+            variables,
+            upstream,
+          )
+        }
+      }
     }
   }
+}
+
+fn file_update_top_level_errors(
+  fields: List(Selection),
+  variables: Dict(String, ResolvedValue),
+) -> #(List(json.Json), List(#(String, json.Json))) {
+  fields
+  |> list.fold(#([], []), fn(acc, field) {
+    let #(errors, data_entries) = acc
+    case field {
+      Field(name: name, ..) if name.value == "fileUpdate" -> {
+        let key = get_field_response_key(field)
+        let inputs =
+          graphql_helpers.field_args(field, variables)
+          |> read_object_list_arg("files")
+        let length_errors =
+          inputs
+          |> enumerate_objects
+          |> list.filter_map(fn(entry) {
+            let #(input, _) = entry
+            case read_string_field(input, "originalSource") {
+              Some(value) ->
+                case string.length(value) > 2048 {
+                  True -> Ok(file_update_invalid_field_arguments_error(key))
+                  False -> Error(Nil)
+                }
+              _ -> Error(Nil)
+            }
+          })
+        case length_errors {
+          [] -> acc
+          _ -> #(
+            list.append(errors, length_errors),
+            list.append(data_entries, [#(key, json.null())]),
+          )
+        }
+      }
+      _ -> acc
+    }
+  })
+}
+
+fn file_update_invalid_field_arguments_error(root_key: String) -> json.Json {
+  json.object([
+    #("message", json.string("originalSource is too long (maximum is 2048)")),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+    ),
+    #("path", json.array([root_key], json.string)),
+  ])
 }
 
 fn handle_mutation_fields(
@@ -1187,9 +1258,9 @@ fn validate_optional_url(
         True -> []
         False -> [
           media_types.FilesUserError(
-            ["files", int.to_string(index), field_name],
-            "Image URL is invalid",
-            "INVALID",
+            ["files", int.to_string(index), "previewImageSource"],
+            "Invalid image source url value provided",
+            "INVALID_IMAGE_SOURCE_URL",
           ),
         ]
       }
@@ -1336,6 +1407,12 @@ fn make_file_record(
       },
       image_width: None,
       image_height: None,
+      preview_image_url: case content_type {
+        Some("IMAGE") -> Some(original_source)
+        _ -> None
+      },
+      preview_image_width: None,
+      preview_image_height: None,
       update_failure_acknowledged_at: None,
     ),
     next_identity,
@@ -1349,13 +1426,20 @@ fn update_file_record(
   let original_source = read_string_field(input, "originalSource")
   let preview_source = read_string_field(input, "previewImageSource")
   let image_url =
-    option.then(preview_source, non_empty_string)
-    |> option.or(option.then(original_source, non_empty_string))
+    option.then(original_source, non_empty_string)
     |> option.or(file.image_url)
+  let #(next_image_url, next_image_width, next_image_height) = case
+    option.then(preview_source, non_empty_string)
+  {
+    Some(_) -> #(None, None, None)
+    None -> #(image_url, file.image_width, file.image_height)
+  }
   FileRecord(
     ..file,
     alt: read_string_field(input, "alt") |> option.or(file.alt),
-    image_url: image_url,
+    image_url: next_image_url,
+    image_width: next_image_width,
+    image_height: next_image_height,
     original_source: original_source
       |> option.or(Some(file.original_source))
       |> option.unwrap(""),
@@ -1383,30 +1467,18 @@ fn make_staged_target(
   let method = read_string_field(input, "httpMethod") |> option.unwrap("POST")
   let key = "shopify-draft-proxy/" <> id <> "/" <> filename
   let parameters = case resource {
-    "IMAGE" | "FILE" ->
-      list.map(google_form_upload_parameter_names, fn(name) {
-        case name {
-          "Content-Type" -> #(name, mime_type)
-          "success_action_status" -> #(name, "201")
-          "acl" -> #(name, "private")
-          "key" -> #(name, key)
-          "x-goog-algorithm" -> #(name, "GOOG4-RSA-SHA256")
-          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
-        }
-      })
-    "VIDEO" | "MODEL_3D" ->
-      list.map(google_signed_upload_parameter_names, fn(name) {
-        case name {
-          "key" -> #(name, key)
-          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
-        }
-      })
-    _ -> [
-      #("key", key),
-      #("Content-Type", mime_type),
-      #("x-shopify-draft-proxy-resource", resource),
-      #("x-shopify-draft-proxy-http-method", method),
-    ]
+    "IMAGE"
+    | "FILE"
+    | "COLLECTION_IMAGE"
+    | "PRODUCT_IMAGE"
+    | "SHOP_IMAGE"
+    | "BULK_MUTATION_VARIABLES"
+    | "RETURN_LABEL"
+    | "URL_REDIRECT_IMPORT"
+    | "DISPUTE_FILE_UPLOAD" ->
+      make_google_upload_parameters(method, mime_type, key)
+    "VIDEO" | "MODEL_3D" -> make_signed_upload_parameters(key)
+    _ -> make_google_upload_parameters(method, mime_type, key)
   }
   let encoded_id = encode_upload_segment(id)
   let encoded_filename = encode_upload_segment(filename)
@@ -1425,6 +1497,43 @@ fn make_staged_target(
     ),
     next_identity,
   )
+}
+
+fn make_google_upload_parameters(
+  method: String,
+  mime_type: String,
+  key: String,
+) -> List(#(String, String)) {
+  case method {
+    "PUT" ->
+      list.map(google_put_upload_parameter_names, fn(name) {
+        case name {
+          "content_type" -> #(name, mime_type)
+          "acl" -> #(name, "private")
+          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+        }
+      })
+    _ ->
+      list.map(google_form_upload_parameter_names, fn(name) {
+        case name {
+          "Content-Type" -> #(name, mime_type)
+          "success_action_status" -> #(name, "201")
+          "acl" -> #(name, "private")
+          "key" -> #(name, key)
+          "x-goog-algorithm" -> #(name, "GOOG4-RSA-SHA256")
+          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+        }
+      })
+  }
+}
+
+fn make_signed_upload_parameters(key: String) -> List(#(String, String)) {
+  list.map(google_signed_upload_parameter_names, fn(name) {
+    case name {
+      "key" -> #(name, key)
+      _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+    }
+  })
 }
 
 fn empty_staged_target() -> media_types.StagedTarget {
@@ -1526,7 +1635,7 @@ fn new_product_media_from_file(
     image_url: file.image_url,
     image_width: file.image_width,
     image_height: file.image_height,
-    preview_image_url: file.image_url,
+    preview_image_url: file.preview_image_url,
     source_url: Some(file.original_source),
   )
 }
@@ -1545,7 +1654,7 @@ fn product_media_from_file(
     image_url: file.image_url,
     image_width: file.image_width,
     image_height: file.image_height,
-    preview_image_url: file.image_url,
+    preview_image_url: file.preview_image_url,
     source_url: Some(file.original_source),
   )
 }
@@ -1638,6 +1747,9 @@ fn file_record_from_product_media(media: ProductMediaRecord) -> FileRecord {
     image_url: media.image_url |> option.or(media.preview_image_url),
     image_width: media.image_width,
     image_height: media.image_height,
+    preview_image_url: media.preview_image_url,
+    preview_image_width: media.image_width,
+    preview_image_height: media.image_height,
     update_failure_acknowledged_at: None,
   )
 }
@@ -2001,13 +2113,16 @@ fn file_record_from_file_node(
         filename: source_url |> option.then(derive_filename),
         original_source: source_url |> option.unwrap(""),
         image_url: image
-          |> option.then(fn(value) { json_get_string(value, "url") })
-          |> option.or(
-            preview |> option.then(fn(value) { json_get_string(value, "url") }),
-          ),
+          |> option.then(fn(value) { json_get_string(value, "url") }),
         image_width: image
           |> option.then(fn(value) { json_get_int(value, "width") }),
         image_height: image
+          |> option.then(fn(value) { json_get_int(value, "height") }),
+        preview_image_url: preview
+          |> option.then(fn(value) { json_get_string(value, "url") }),
+        preview_image_width: preview
+          |> option.then(fn(value) { json_get_int(value, "width") }),
+        preview_image_height: preview
           |> option.then(fn(value) { json_get_int(value, "height") }),
         update_failure_acknowledged_at: None,
       ))

@@ -79,6 +79,24 @@ new version-specific capture proves Shopify changed the public API branch. The
 checked-in anchor is
 `config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
 
+## Current: productCreate legacy ProductInput key guard differs from internal notes
+
+A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed
+that public Admin GraphQL still accepts the deprecated `input: ProductInput`
+argument even though mutation introspection lists only `productCreate(product:)`.
+For that legacy branch, `input.id` returns a payload `userErrors` entry with
+`field: ["input"]` and message `id cannot be specified during creation`; it is
+not a top-level GraphQL error on this store. The same public schema rejects
+`input.variants` before resolver execution because `ProductInput` does not
+define `variants`, so variant `productId` never reaches a product-create
+resolver guard through that shape.
+
+Practical rule: for this proxy, follow the captured public Admin behavior:
+reject legacy `input.id` before scalar validation without staging a product, and
+let schema validation reject unknown `ProductInput` fields such as `variants`.
+The checked-in anchor is
+`config/parity-specs/products/product-create-no-key-on-create.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against
@@ -1429,6 +1447,8 @@ HAR-242 implements local staging for definition create/update/delete plus a boun
 HAR-245's 2026-04 schema-change capture added several easy traps:
 
 - `metaobjectDefinitionUpdate` accepts `resetFieldOrder` inside `MetaobjectDefinitionUpdateInput`; it is not a top-level mutation argument on this schema.
+- Public Admin GraphQL 2026-04 rejects top-level `metaobjectDefinitionUpdate(..., resetFieldOrder:)` with `argumentNotAccepted` on the offending argument path before resolver execution.
+- Public Admin GraphQL 2026-04 also rejects `standardMetaobjectDefinitionEnable(..., enabledByShopify:)` with `argumentNotAccepted`; the configured conformance credential cannot reach Shopify internal Admin visibility, so enabled-by-Shopify success evidence remains local-runtime-backed.
 - `MetaobjectFieldDefinitionUpdateInput` does not expose `type`, so field type changes cannot be submitted through the captured update input shape. Validation changes are captured; type changes are not part of the supported local update surface.
 - when publishable capability is enabled and `metaobjectCreate` omits a publishable status, Shopify defaulted the row to `DRAFT`, not `ACTIVE`.
 - after a required display field is added, pre-existing rows return that field with `value: null`; `displayName` falls back to a titleized handle until the row is updated with the required display field.
@@ -1450,9 +1470,14 @@ HAR-675 live parity work replaces the old local definition-delete associated-ent
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 
 - `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- reserved create handling for an existing standard-template type (`shopify--qa-pair`) and an unresolved `shopify--*` type returns public GraphQL `NOT_AUTHORIZED` on `["definition"]` with message `Not authorized. This type is reserved for use by another application.` The internal service path may call this reserved-name handling, but do not emit `RESERVED_NAME` for the captured public 2026-04 shape without a newer live capture proving that code.
 - definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
 - uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
 - Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
+Delete guard caveat:
+
+- public Admin GraphQL 2026-04 does not expose the internal `app_config_managed?`, `standard_template_id`, or standard-template `dependent_on_app?` metadata needed to safely discover protected delete candidates. The current conformance shop's visible definitions are created by the conformance app, so `APP_CONFIG_MANAGED` and `STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP` delete responses remain runtime-test-backed until an eligible shop/app setup is available.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -2042,7 +2067,7 @@ Observed behavior from live writes:
 Practical rule for the proxy:
 
 - `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
-- HAR-568 updates this older note for `inventoryAdjustQuantities`: real Shopify accepts direct `on_hand` and `committed` adjustment names in addition to the previously captured non-available names, so adjust/move/set validators must stay split by mutation root instead of sharing one inventory quantity-name union.
+- Fresh 2026-04 evidence corrects older notes for `inventoryAdjustQuantities`: Admin GraphQL rejects direct `on_hand` and `committed` public adjust names with the valid-values message `available, damaged, incoming, quality_control, reserved, safety_stock`. Public adjust and move validators share that six-name allowlist; `inventorySetQuantities` remains a separate `available` / `on_hand` set path.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
@@ -2388,7 +2413,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -3039,6 +3064,7 @@ Captured facts:
 - a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
 - HAR-568 live validation captures refined the set-name boundary: `inventorySetQuantities` accepts only `available` and `on_hand`; broader read names such as `damaged` and `committed` return `INVALID_NAME` at `["input", "name"]` with the exact message `The quantity name must be either 'available' or 'on_hand'.`
 - Direct `name: "on_hand"` set writes are valid and returned paired `available` and `on_hand` change rows in the mutation payload.
+- Fresh 2026-04 evidence refined the public adjust/move boundary: `inventoryAdjustQuantities(name: "on_hand")`, `inventoryAdjustQuantities(name: "committed")`, and same-location `inventoryMoveQuantities` terminal names `on_hand` / `committed` all return payload `userErrors` with `inventoryAdjustmentGroup: null` and no quantity changes. The deprecated `inventorySetOnHandQuantities` root still accepts a set-on-hand write with `@idempotent(key:)`, but it remains captured upstream context rather than local supported-operation coverage.
 - `quantity: 1_000_000_001` returns `INVALID_QUANTITY_TOO_HIGH`; duplicate `inventoryItemId` + `locationId` rows return one `NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR` userError per duplicate row at each row's `locationId`.
 - immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
 - `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
@@ -3175,11 +3201,15 @@ Captured facts:
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+- On the captured 2025-01 shop, `giftCardConfiguration.issueLimit` was `3000.0 CAD` while `purchaseLimit` was `14000.0 CAD`; a card created at exactly the issue limit rejected a one-cent `giftCardCredit` with `GIFT_CARD_LIMIT_EXCEEDED`, so credit limit validation follows the issue-limit ceiling rather than the larger purchase limit in this public Admin path
+- The credit over-limit message is not the create-time formatted limit message. Public Admin returned `The gift card's value exceeds the allowed limits.` on `["creditInput", "creditAmount", "amount"]`
+- A one-cent `giftCardDebit` after the rejected credit succeeded with empty `userErrors`; debit decreases balance and did not surface `GIFT_CARD_LIMIT_EXCEEDED` in this path
 
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
+- credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

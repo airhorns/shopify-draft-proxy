@@ -1,0 +1,21 @@
+mutation MetafieldDefinitionAccessValidationInlineGrants {
+  metafieldDefinitionCreate(
+    definition: {
+      name: "Explicit grants"
+      namespace: "har1050_grants"
+      key: "grant"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      access: { grants: [{ grantee: "gid://shopify/App/1", access: READ_WRITE }] }
+    }
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,87 @@
+mutation OrderEditQuantityValidationAddVariant(
+  $id: ID!
+  $variantId: ID!
+  $quantity: Int!
+  $locationId: ID
+  $allowDuplicates: Boolean
+) {
+  orderEditAddVariant(
+    id: $id
+    variantId: $variantId
+    quantity: $quantity
+    locationId: $locationId
+    allowDuplicates: $allowDuplicates
+  ) {
+    calculatedOrder {
+      id
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      addedLineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      sku
+      variant {
+        id
+      }
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    orderEditSession {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

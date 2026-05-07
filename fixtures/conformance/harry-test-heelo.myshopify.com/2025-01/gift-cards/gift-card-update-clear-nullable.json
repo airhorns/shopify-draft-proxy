@@ -1,0 +1,189 @@
+{
+  "capturedAt": "2026-05-07T07:42:54.271Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Captures live giftCardUpdate behavior for explicit null note, expiresOn, and templateSuffix inputs against a gift card with populated values.",
+    "Shopify accepts each null-valued editable key, clears the corresponding nullable field, returns empty userErrors, and read-after-write returns null for all cleared fields.",
+    "Setup creates one disposable gift card with known editable fields; cleanup deactivates the setup gift card."
+  ],
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "initialValue": "5.00",
+        "code": "CLRmov6ieci",
+        "note": "nullable clear current note",
+        "expiresOn": "2030-01-01",
+        "templateSuffix": "birthday"
+      }
+    }
+  },
+  "setup": [
+    {
+      "label": "clearNullableCardCreate",
+      "query": "#graphql\n  mutation GiftCardUpdateClearNullableCreate($input: GiftCardCreateInput!) {\n    giftCardCreate(input: $input) {\n      giftCard {\n        id\n        note\n        expiresOn\n        templateSuffix\n      }\n      giftCardCode\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "CLRmov6ieci",
+          "note": "nullable clear current note",
+          "expiresOn": "2030-01-01",
+          "templateSuffix": "birthday"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654866940210",
+                "note": "nullable clear current note",
+                "expiresOn": "2030-01-01",
+                "templateSuffix": "birthday"
+              },
+              "giftCardCode": "clrmov6ieci",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "clear": {
+      "label": "updateClearNullable",
+      "query": "#graphql\n  mutation GiftCardUpdateClearNullable($id: ID!) {\n    noteClear: giftCardUpdate(id: $id, input: { note: null }) {\n      giftCard {\n        id\n        note\n        expiresOn\n        templateSuffix\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    expiresClear: giftCardUpdate(id: $id, input: { expiresOn: null }) {\n      giftCard {\n        id\n        note\n        expiresOn\n        templateSuffix\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    templateClear: giftCardUpdate(id: $id, input: { templateSuffix: null }) {\n      giftCard {\n        id\n        note\n        expiresOn\n        templateSuffix\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654866940210"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "noteClear": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654866940210",
+                "note": null,
+                "expiresOn": "2030-01-01",
+                "templateSuffix": "birthday",
+                "updatedAt": "2026-05-07T07:42:53Z"
+              },
+              "userErrors": []
+            },
+            "expiresClear": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654866940210",
+                "note": null,
+                "expiresOn": null,
+                "templateSuffix": "birthday",
+                "updatedAt": "2026-05-07T07:42:53Z"
+              },
+              "userErrors": []
+            },
+            "templateClear": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654866940210",
+                "note": null,
+                "expiresOn": null,
+                "templateSuffix": null,
+                "updatedAt": "2026-05-07T07:42:54Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterClear": {
+      "label": "readAfterClear",
+      "query": "#graphql\n  query GiftCardUpdateClearNullableRead($id: ID!) {\n    giftCard(id: $id) {\n      id\n      note\n      expiresOn\n      templateSuffix\n      updatedAt\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654866940210"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654866940210",
+              "note": null,
+              "expiresOn": null,
+              "templateSuffix": null,
+              "updatedAt": "2026-05-07T07:42:54Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:clearNullableCard",
+      "query": "#graphql\n      mutation GiftCardUpdateClearNullableGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654866940210"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654866940210",
+                "enabled": false,
+                "deactivatedAt": "2026-05-07T07:42:54Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

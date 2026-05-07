@@ -2851,6 +2851,98 @@ mutation HAR548ProductSetCommitReplay($input: ProductSetInput!, $synchronous: Bo
   assert string.contains(replay_body, "\"synchronous\":true")
 }
 
+pub fn product_set_rejects_input_id_when_identifier_supplied_test() {
+  let query =
+    "
+mutation ProductSetIdentifierIdRejection($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(identifier: $identifier, input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+"
+  let create_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #("identifier", json.null()),
+            #(
+              "input",
+              json.object([
+                #("title", json.string("Identifier Seed")),
+                #("handle", json.string("identifier-seed")),
+              ]),
+            ),
+            #("synchronous", json.bool(True)),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: create_status, body: create_response, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(create_body),
+    )
+  assert create_status == 200
+  assert json.to_string(create_response)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Identifier Seed\",\"handle\":\"identifier-seed\"},\"userErrors\":[]}}}"
+
+  let reject_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #(
+              "identifier",
+              json.object([#("handle", json.string("identifier-seed"))]),
+            ),
+            #(
+              "input",
+              json.object([
+                #("id", json.string("gid://shopify/Product/999999999999")),
+                #("title", json.string("Should Not Stage")),
+              ]),
+            ),
+            #("synchronous", json.bool(True)),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: reject_status, body: reject_response, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request_body(reject_body))
+  assert reject_status == 200
+  assert json.to_string(reject_response)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"The id field is not allowed if identifier is provided.\",\"code\":\"ID_NOT_ALLOWED\"}]}}}"
+
+  let read_query =
+    "query { productByIdentifier(identifier: { handle: \\\"identifier-seed\\\" }) { id title handle } }"
+  let #(Response(status: read_status, body: read_response, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_response)
+    == "{\"data\":{\"productByIdentifier\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Identifier Seed\",\"handle\":\"identifier-seed\"}}}"
+
+  let assert [create_entry, reject_entry] = store.get_log(next_proxy.store)
+  assert create_entry.operation_name == Some("productSet")
+  assert create_entry.status == store_types.Staged
+  assert reject_entry.operation_name == Some("productSet")
+  assert reject_entry.status == store_types.Failed
+  assert reject_entry.staged_resource_ids == []
+}
+
 pub fn product_create_stages_product_default_variant_and_inventory_test() {
   let proxy = draft_proxy.new()
   let query =
@@ -3978,6 +4070,76 @@ pub fn product_create_legacy_input_validation_uses_input_field_path_test() {
   assert entry.staged_resource_ids == []
 }
 
+pub fn product_create_legacy_input_id_rejects_before_scalar_validation_test() {
+  let query =
+    "mutation { productCreate(input: { id: \\\"gid://shopify/Product/1\\\", title: \\\"\\\" }) { product { id title } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"id cannot be specified during creation\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productCreate")
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+  assert store.list_effective_products(next_proxy.store) == []
+
+  let read_query =
+    "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id title } node(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id } products(first: 10) { nodes { id title } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":null,\"node\":null,\"products\":{\"nodes\":[]}}}"
+}
+
+pub fn product_create_legacy_input_variants_rejected_by_schema_test() {
+  let inline_query =
+    "mutation { productCreate(input: { title: \\\"No Key Variant\\\", variants: [{ productId: \\\"gid://shopify/Product/1\\\", price: \\\"1.00\\\" }] }) { product { id title } userErrors { field message } } }"
+  let #(Response(status: inline_status, body: inline_body, ..), inline_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(inline_query),
+    )
+
+  assert inline_status == 200
+  let inline_serialized = json.to_string(inline_body)
+  assert string.contains(inline_serialized, "\"errors\":[")
+  assert string.contains(
+    inline_serialized,
+    "InputObject 'ProductInput' doesn't accept argument 'variants'",
+  )
+  assert string.contains(inline_serialized, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(inline_serialized, "\"argumentName\":\"variants\"")
+  assert store.get_log(inline_proxy.store) == []
+
+  let variable_request_body =
+    "{\"query\":\"mutation Legacy($input: ProductInput!) { productCreate(input: $input) { product { id title } userErrors { field message } } }\",\"variables\":{\"input\":{\"title\":\"No Key Variant\",\"variants\":[{\"productId\":\"gid://shopify/Product/1\",\"price\":\"1.00\"}]}}}"
+  let #(
+    Response(status: variable_status, body: variable_body, ..),
+    variable_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(variable_request_body),
+    )
+
+  assert variable_status == 200
+  let variable_serialized = json.to_string(variable_body)
+  assert string.contains(variable_serialized, "\"errors\":[")
+  assert string.contains(variable_serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    variable_serialized,
+    "Variable $input of type ProductInput! was provided invalid value for variants",
+  )
+  assert string.contains(
+    variable_serialized,
+    "\"explanation\":\"Field is not defined on ProductInput\"",
+  )
+  assert store.get_log(variable_proxy.store) == []
+}
+
 pub fn product_create_missing_input_argument_top_level_error_test() {
   // No `product:` and no `input:` argument → top-level GraphQL error,
   // mirroring real Shopify's `missingRequiredArguments` extension code,
@@ -4590,7 +4752,115 @@ pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
     == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"},{\"field\":[\"input\",\"quantities\",\"1\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"}]}}}"
 }
 
-pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
+pub fn inventory_quantity_mutations_reject_invalid_reason_without_staging_test() {
+  let invalid_reason_error =
+    "{\"field\":[\"input\",\"reason\"],\"message\":\"The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.\",\"code\":\"INVALID_REASON\"}"
+
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-adjust\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), adjust_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(adjust_query, "2026-04"),
+    )
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [adjust_entry] = store.get_log(adjust_proxy.store)
+  assert adjust_entry.status == store_types.Failed
+
+  let set_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-set\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: set_status, body: set_body, ..), set_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(set_query, "2026-04"),
+    )
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [set_entry] = store.get_log(set_proxy.store)
+  assert set_entry.status == store_types.Failed
+
+  let move_query =
+    "mutation { inventoryMoveQuantities(input: { reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"available\\\", changeFromQuantity: 1 }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"damaged\\\", changeFromQuantity: 0, ledgerDocumentUri: \\\"ledger://invalid-reason/move\\\" } }] }) @idempotent(key: \\\"invalid-reason-move\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: move_status, body: move_body, ..), move_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(move_query, "2026-04"),
+    )
+  assert move_status == 200
+  assert json.to_string(move_body)
+    == "{\"data\":{\"inventoryMoveQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [move_entry] = store.get_log(move_proxy.store)
+  assert move_entry.status == store_types.Failed
+
+  let set_on_hand_query =
+    "mutation { inventorySetOnHandQuantities(input: { reason: \\\"completely_made_up\\\", setQuantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-set-on-hand\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(
+    Response(status: set_on_hand_status, body: set_on_hand_body, ..),
+    set_on_hand_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(set_on_hand_query, "2026-04"),
+    )
+  assert set_on_hand_status == 200
+  assert json.to_string(set_on_hand_body)
+    == "{\"data\":{\"inventorySetOnHandQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [set_on_hand_entry] = store.get_log(set_on_hand_proxy.store)
+  assert set_on_hand_entry.status == store_types.Failed
+}
+
+pub fn inventory_invalid_reason_preserves_downstream_quantities_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: tracked_inventory_store(),
+    )
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-read-after-write\\\") { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(adjust_query, "2026-04"),
+    )
+  assert adjust_status == 200
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { inventoryLevels(first: 5) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"damaged\\\"]) { name quantity } } } } }",
+        "2026-04",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"damaged\",\"quantity\":0}]}]}}}}"
+}
+
+pub fn inventory_set_accepts_on_hand_and_adjust_rejects_on_hand_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
 
@@ -4603,12 +4873,84 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"available\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}},{\"name\":\"on_hand\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 
   let adjust_query =
-    "mutation { inventoryAdjustQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://har-568/on-hand\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id name } } } userErrors { field message code } } }"
-  let #(Response(status: adjust_status, body: adjust_body, ..), _) =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://inventory/on-hand\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id name } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(adjust_query))
   assert adjust_status == 200
   assert json.to_string(adjust_body)
-    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":4},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":4},{\"name\":\"on_hand\",\"quantity\":4}]}]}}}}"
+
+  let assert [set_entry, adjust_entry] = store.get_log(proxy.store)
+  assert set_entry.status == store_types.Staged
+  assert adjust_entry.status == store_types.Failed
+  assert adjust_entry.staged_resource_ids == []
+}
+
+pub fn inventory_adjust_quantities_rejects_committed_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"committed\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://committed/test\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(adjust_query))
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1}]}]}}}}"
+
+  let assert [adjust_entry] = store.get_log(proxy.store)
+  assert adjust_entry.status == store_types.Failed
+  assert adjust_entry.staged_resource_ids == []
+}
+
+pub fn inventory_move_quantities_rejects_reserved_public_names_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let move_query =
+    "mutation { inventoryMoveQuantities(input: { reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"on_hand\\\", ledgerDocumentUri: \\\"ledger://move/on-hand-from\\\" }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"damaged\\\", ledgerDocumentUri: \\\"ledger://move/damaged-to\\\" } }, { inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"committed\\\", ledgerDocumentUri: \\\"ledger://move/committed-from\\\" }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"reserved\\\", ledgerDocumentUri: \\\"ledger://move/reserved-to\\\" } }] }) { inventoryAdjustmentGroup { changes { name delta } } userErrors { field message code } } }"
+  let #(Response(status: move_status, body: move_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(move_query))
+  assert move_status == 200
+  assert json.to_string(move_body)
+    == "{\"data\":{\"inventoryMoveQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"changes\",\"0\",\"from\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"},{\"field\":[\"input\",\"changes\",\"1\",\"from\",\"name\"],\"message\":\"The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"damaged\\\", \\\"reserved\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"damaged\",\"quantity\":0},{\"name\":\"reserved\",\"quantity\":0}]}]}}}}"
+
+  let assert [move_entry] = store.get_log(proxy.store)
+  assert move_entry.status == store_types.Failed
+  assert move_entry.staged_resource_ids == []
 }
 
 pub fn inventory_adjust_quantities_preserves_product_total_inventory_test() {
@@ -5509,6 +5851,11 @@ fn product_option_metaobject_definition(
     has_thumbnail_field: Some(False),
     metaobjects_count: Some(0),
     standard_template: None,
+    standard_template_id: None,
+    standard_template_dependent_on_app: False,
+    app_config_managed: False,
+    enabled_by_shopify: False,
+    enabled_by_shopify_at: None,
     linked_metafields: [],
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),

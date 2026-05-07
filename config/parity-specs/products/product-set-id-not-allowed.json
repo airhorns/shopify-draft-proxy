@@ -1,0 +1,38 @@
+{
+  "scenarioId": "product-set-id-not-allowed",
+  "operationNames": ["productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "resource-set-identifier-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-set-id-not-allowed.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-set-id-not-allowed.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.idNotAllowed.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify 2026-04 ResourceSetIdentifierExtension behavior for productSet: supplying an identifier argument and input.id together returns ID_NOT_ALLOWED on [\"input\"]. The capture also records the complementary no-identifier/no-input-id create path, which Shopify accepts as a product create.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "id-not-allowed-user-error",
+        "capturePath": "$.idNotAllowed.response.data.productSet",
+        "proxyPath": "$.data.productSet"
+      },
+      {
+        "name": "missing-identifier-create-control",
+        "capturePath": "$.missingIdentifier.response.data.productSet.userErrors",
+        "proxyPath": "$.data.productSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-set-id-not-allowed.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.missingIdentifier.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,252 @@
+{
+  "capturedAt": "2026-05-07T11:34:39.092Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateCompaniesNull",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateForMemberQuerySegmentIdPaths($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Member query companies member-query-segment-id-paths-1778153677912",
+          "query": "companies IS NULL"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648593080626",
+                "name": "Member query companies member-query-segment-id-paths-1778153677912",
+                "query": "companies IS NULL"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentIdCreateCompaniesNull",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/648593080626"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/baee3120-4a08-11f1-8876-1698b3034858",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateCustomerCountriesCa",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateForMemberQuerySegmentIdPaths($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Member query customer country member-query-segment-id-paths-1778153677912",
+          "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648593113394",
+                "name": "Member query customer country member-query-segment-id-paths-1778153677912",
+                "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentIdCreateCustomerCountriesCa",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/648593113394"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/bb3f97c2-4a08-11f1-8f72-46660574aba9",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknownSegmentIdRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateSegmentIdPaths($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/999999999999999999"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "code": "INVALID",
+                  "message": "Invalid segment ID."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "segmentId": "gid://shopify/Segment/648593113394",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648593113394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "segmentId": "gid://shopify/Segment/648593080626",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648593080626",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) accepts stored segment queries using broad segment grammar without revalidating the resolved query on this mutation surface.",
+    "The configured live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead.",
+    "Live evidence that an unknown valid Segment GID returns CustomerSegmentMembersQueryUserError field:null code:INVALID message:\"Invalid segment ID.\"",
+    "Disposable segments are created to capture segmentId-backed branches, then deleted during cleanup.",
+    "CustomerSegmentMembersQuery jobs are Shopify async query state and do not have a cleanup mutation."
+  ],
+  "upstreamCalls": []
+}

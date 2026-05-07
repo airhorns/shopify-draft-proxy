@@ -22,6 +22,9 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("imageUrl", optional_string(record.image_url)),
     #("imageWidth", optional_int(record.image_width)),
     #("imageHeight", optional_int(record.image_height)),
+    #("previewImageUrl", optional_string(record.preview_image_url)),
+    #("previewImageWidth", optional_int(record.preview_image_width)),
+    #("previewImageHeight", optional_int(record.preview_image_height)),
     #(
       "updateFailureAcknowledgedAt",
       optional_string(record.update_failure_acknowledged_at),
@@ -1223,6 +1226,14 @@ pub fn metaobject_definition_json(
         metaobject_standard_template_json,
       ),
     ),
+    #("standardTemplateId", optional_string(record.standard_template_id)),
+    #(
+      "standardTemplateDependentOnApp",
+      json.bool(record.standard_template_dependent_on_app),
+    ),
+    #("appConfigManaged", json.bool(record.app_config_managed)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
     #(
       "linkedMetafields",
       json.array(
@@ -1355,6 +1366,8 @@ pub fn metaobject_standard_template_json(
   json.object([
     #("type", optional_string(record.type_)),
     #("name", optional_string(record.name)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
   ])
 }
 
@@ -1538,8 +1551,30 @@ pub fn cart_transform_json(record: types.CartTransformRecord) -> Json {
     #("functionId", optional_string(record.function_id)),
     #("functionHandle", optional_string(record.function_handle)),
     #("shopifyFunctionId", optional_string(record.shopify_function_id)),
+    #(
+      "metafields",
+      json.array(record.metafields, cart_transform_metafield_json),
+    ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+@internal
+pub fn cart_transform_metafield_json(
+  record: types.CartTransformMetafieldRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cartTransformId", json.string(record.cart_transform_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("ownerType", optional_string(record.owner_type)),
   ])
 }
 

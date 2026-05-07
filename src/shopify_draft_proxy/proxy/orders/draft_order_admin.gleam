@@ -38,14 +38,14 @@ import shopify_draft_proxy/proxy/orders/draft_order_builders.{
 }
 import shopify_draft_proxy/proxy/orders/draft_order_tags.{
   append_too_many_draft_order_tags_error, draft_order_bulk_tag_input,
-  draft_order_tag_count_exceeds_limit, draft_order_tags,
-  draft_order_tags_max_input_size_error, update_draft_order_tags,
+  draft_order_tag_count_exceeds_limit, draft_order_tags, update_draft_order_tags,
 }
 import shopify_draft_proxy/proxy/orders/draft_orders.{
   build_updated_draft_order, captured_order_currency, complete_draft_order,
-  draft_order_input_tag_count_over_graphql_limit, draft_order_line_items,
-  duplicate_draft_order, serialize_draft_order_mutation_payload,
-  validate_draft_order_calculate_input, validate_draft_order_input_tags,
+  draft_order_line_items, duplicate_draft_order,
+  serialize_draft_order_mutation_payload, validate_draft_order_calculate_input,
+  validate_draft_order_input_max_input_size_errors,
+  validate_draft_order_input_tags,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_by_id, maybe_hydrate_draft_order_customer_from_input,
@@ -859,19 +859,16 @@ pub fn handle_draft_order_calculate(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          case draft_order_input_tag_count_over_graphql_limit(input) {
-            Some(tag_count) -> #(
-              key,
-              json.null(),
-              [
-                draft_order_tags_max_input_size_error(
-                  "draftOrderCalculate",
-                  tag_count,
-                ),
-              ],
-              [],
+          let max_input_errors =
+            validate_draft_order_input_max_input_size_errors(
+              "draftOrderCalculate",
+              document,
+              field,
+              input,
             )
-            None -> {
+          case max_input_errors {
+            [_, ..] -> #(key, json.null(), max_input_errors, [])
+            [] -> {
               let hydrated_store =
                 maybe_hydrate_draft_order_variant_catalog_from_input(
                   store,
@@ -1343,22 +1340,24 @@ pub fn handle_draft_order_update(
       let input = read_object(args, "input")
       case id, input {
         Some(id), Some(input) -> {
-          case draft_order_input_tag_count_over_graphql_limit(input) {
-            Some(tag_count) -> #(
+          let max_input_errors =
+            validate_draft_order_input_max_input_size_errors(
+              "draftOrderUpdate",
+              document,
+              field,
+              input,
+            )
+          case max_input_errors {
+            [_, ..] -> #(
               key,
               json.null(),
               store,
               identity,
               [],
-              [
-                draft_order_tags_max_input_size_error(
-                  "draftOrderUpdate",
-                  tag_count,
-                ),
-              ],
+              max_input_errors,
               [],
             )
-            None -> {
+            [] -> {
               // Pattern 2: updates merge user input into Shopify's existing draft
               // order payload before staging the changed draft locally.
               let hydrated_store =

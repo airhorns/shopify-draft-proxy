@@ -1,0 +1,106 @@
+{
+  "scenarioId": "orderEdit-quantity-validation",
+  "operationNames": ["orderEditBegin", "orderEditSetQuantity", "orderEditAddVariant"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write-parity",
+    "calculated-order-projection-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEdit-quantity-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEdit-quantity-validation-begin.graphql",
+    "variablesCapturePath": "$.begin.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 orderEdit quantity validation. Negative setQuantity and zero/negative addVariant return quantity userErrors and leave the calculated order unchanged, proven by the original line item quantity remaining 3 in a final valid addVariant payload. The valid addVariant target compares the calculated-order line item lists strictly: Shopify returns the newly added variant under addedLineItems while keeping calculatedOrder.lineItems scoped to the original line items.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-session-baseline",
+        "capturePath": "$.begin.response.payload.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.lineItems.nodes[*].id", "$.orderEditSession.id"]
+      },
+      {
+        "name": "negative-set-quantity-user-error",
+        "capturePath": "$.cases.setQuantityNegative.response.payload.data.orderEditSetQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-quantity-validation-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": -1,
+            "restock": false
+          }
+        },
+        "proxyPath": "$.data.orderEditSetQuantity"
+      },
+      {
+        "name": "zero-add-variant-user-error",
+        "capturePath": "$.cases.addVariantZero.response.payload.data.orderEditAddVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-quantity-validation-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "quantity": 0,
+            "allowDuplicates": true
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant"
+      },
+      {
+        "name": "negative-add-variant-user-error",
+        "capturePath": "$.cases.addVariantNegative.response.payload.data.orderEditAddVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-quantity-validation-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "quantity": -3,
+            "allowDuplicates": true
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant"
+      },
+      {
+        "name": "valid-add-variant-after-rejected-quantities",
+        "capturePath": "$.cases.addVariantHappyPath.response.payload.data.orderEditAddVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-quantity-validation-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "quantity": 2,
+            "allowDuplicates": true
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant",
+        "excludedPaths": [
+          "$.calculatedOrder.id",
+          "$.calculatedOrder.lineItems.nodes[*].id",
+          "$.calculatedOrder.addedLineItems.nodes[*].id",
+          "$.calculatedLineItem.id",
+          "$.orderEditSession.id"
+        ]
+      }
+    ]
+  }
+}

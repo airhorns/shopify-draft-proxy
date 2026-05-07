@@ -14,8 +14,10 @@ import gleam/option.{type Option, None, Some}
 
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/location as graphql_location
 
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_field_response_key,
@@ -72,6 +74,8 @@ import shopify_draft_proxy/state/types.{
   CapturedString, DraftOrderRecord,
 }
 
+pub const draft_order_line_items_max_input_size = 499
+
 @internal
 pub fn handle_draft_order_create(
   store: Store,
@@ -107,22 +111,24 @@ pub fn handle_draft_order_create(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          case draft_order_input_tag_count_over_graphql_limit(input) {
-            Some(tag_count) -> #(
+          let max_input_errors =
+            validate_draft_order_input_max_input_size_errors(
+              "draftOrderCreate",
+              document,
+              field,
+              input,
+            )
+          case max_input_errors {
+            [_, ..] -> #(
               key,
               json.null(),
               store,
               identity,
               [],
-              [
-                draft_order_tags_max_input_size_error(
-                  "draftOrderCreate",
-                  tag_count,
-                ),
-              ],
+              max_input_errors,
               [],
             )
-            None -> {
+            [] -> {
               // Pattern 2: draftOrderCreate stays local, but real variant IDs in
               // captured inputs need a narrow upstream variant/catalog hydration.
               let hydrated_store =
@@ -594,6 +600,110 @@ pub fn source_order_line_item_variant(
           ])
         None -> CapturedNull
       }
+  }
+}
+
+@internal
+pub fn validate_draft_order_line_items_max_input_size(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  let line_item_count = draft_order_line_items_input_size(input)
+  case line_item_count > draft_order_line_items_max_input_size {
+    True -> [
+      draft_order_line_items_max_input_size_error(
+        operation_name,
+        document,
+        field,
+        line_item_count,
+      ),
+    ]
+    False -> []
+  }
+}
+
+@internal
+pub fn validate_draft_order_input_max_input_size_errors(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  list.append(
+    validate_draft_order_line_items_max_input_size(
+      operation_name,
+      document,
+      field,
+      input,
+    ),
+    case draft_order_input_tag_count_over_graphql_limit(input) {
+      Some(tag_count) -> [
+        draft_order_tags_max_input_size_error(operation_name, tag_count),
+      ]
+      None -> []
+    },
+  )
+}
+
+fn draft_order_line_items_input_size(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  case dict.get(input, "lineItems") {
+    Ok(root_field.ListVal(items)) -> list.length(items)
+    _ -> 0
+  }
+}
+
+fn draft_order_line_items_max_input_size_error(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  line_item_count: Int,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(line_item_count)
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(draft_order_line_items_max_input_size)
+        <> ".",
+      ),
+    ),
+  ]
+  let with_locations = case field_location(field, document) {
+    Some(locations) -> list.append(base, [#("locations", locations)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", json.array([operation_name, "input", "lineItems"], json.string)),
+      #(
+        "extensions",
+        json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+      ),
+    ]),
+  )
+}
+
+fn field_location(field: Selection, document: String) -> Option(Json) {
+  case field {
+    Field(loc: Some(loc), ..) -> {
+      let source = graphql_source.new(document)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Some(
+        json.preprocessed_array([
+          json.object([
+            #("line", json.int(computed.line)),
+            #("column", json.int(computed.column)),
+          ]),
+        ]),
+      )
+    }
+    _ -> None
   }
 }
 

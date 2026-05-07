@@ -24,6 +24,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   default_selected_field_options, get_field_response_key,
   get_selected_child_fields, project_graphql_value, src_object,
 }
+import shopify_draft_proxy/proxy/handles
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   build_null_argument_error, find_argument,
@@ -554,6 +555,15 @@ pub fn product_set_product_does_not_exist_error(
 }
 
 @internal
+pub fn product_set_input_id_not_allowed_error() -> ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(
+    field: Some(["input"]),
+    message: "The id field is not allowed if identifier is provided.",
+    code: Some("ID_NOT_ALLOWED"),
+  )
+}
+
+@internal
 pub fn product_set_product_suspended_error() -> ProductOperationUserErrorRecord {
   ProductOperationUserErrorRecord(
     field: Some(["input"]),
@@ -722,25 +732,12 @@ pub fn duplicate_product_metafields(
 
 @internal
 pub fn finish_handle_parts(parts_state: #(List(String), String)) -> String {
-  let #(parts, current) = parts_state
-  let parts = case current {
-    "" -> parts
-    _ -> [current, ..parts]
-  }
-  parts
-  |> list.reverse
-  |> string.join("-")
+  handles.finish_handle_parts(parts_state)
 }
 
 @internal
 pub fn is_handle_grapheme(grapheme: String) -> Bool {
-  case grapheme {
-    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
-    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
-    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
-    "u" | "v" | "w" | "x" | "y" | "z" -> True
-    _ -> False
-  }
+  handles.is_ascii_handle_grapheme(grapheme)
 }
 
 @internal

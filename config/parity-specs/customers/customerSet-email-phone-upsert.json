@@ -79,8 +79,7 @@
               }
             },
             "input": {
-              "email": "hermes-customerset-upsert-1777169079011@example.com",
-              "addresses": []
+              "fromCapturePath": "$.clearAddresses.variables.input"
             }
           }
         }

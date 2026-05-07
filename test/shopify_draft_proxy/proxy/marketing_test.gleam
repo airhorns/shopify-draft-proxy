@@ -201,12 +201,34 @@ fn external_activity_with_details(
   parent_remote_id: String,
   hierarchy_level: String,
 ) {
+  external_activity_with_details_and_tactic(
+    id,
+    remote_id,
+    title,
+    channel_handle,
+    url_parameter_value,
+    parent_remote_id,
+    hierarchy_level,
+    "NEWSLETTER",
+  )
+}
+
+fn external_activity_with_details_and_tactic(
+  id: String,
+  remote_id: String,
+  title: String,
+  channel_handle: String,
+  url_parameter_value: String,
+  parent_remote_id: String,
+  hierarchy_level: String,
+  tactic: String,
+) {
   let event_id = "gid://shopify/MarketingEvent/" <> string.drop_start(id, 34)
   let event =
     dict.from_list([
       #("__typename", MarketingString("MarketingEvent")),
       #("id", MarketingString(event_id)),
-      #("type", MarketingString("NEWSLETTER")),
+      #("type", MarketingString(tactic)),
       #("remoteId", MarketingString(remote_id)),
       #("description", MarketingString(title)),
       #("startedAt", MarketingString("2026-05-05T00:00:00Z")),
@@ -225,7 +247,7 @@ fn external_activity_with_details(
       #("updatedAt", MarketingString("2026-05-05T00:00:00Z")),
       #("status", MarketingString("ACTIVE")),
       #("statusLabel", MarketingString("Sending")),
-      #("tactic", MarketingString("NEWSLETTER")),
+      #("tactic", MarketingString(tactic)),
       #("marketingChannelType", MarketingString("EMAIL")),
       #("sourceAndMedium", MarketingString("Email newsletter")),
       #("isExternal", MarketingBool(True)),
@@ -1018,6 +1040,197 @@ pub fn external_activity_create_and_upsert_reject_currency_mismatch_test() {
   )
   assert string.contains(upsert_response, "\"code\":null")
   assert store.list_effective_marketing_activities(upsert.store) == []
+}
+
+pub fn external_activity_update_and_upsert_reject_currency_mismatch_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      external_create_with_budget_doc(
+        "remote-currency-update",
+        "Currency baseline",
+        "currency-update",
+        "currency-update-url",
+      ),
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(json.to_string(create.data), "\"userErrors\":[]")
+
+  let update =
+    marketing.process_mutation(
+      create.store,
+      create.identity,
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-currency-update\", input: { title: \"Changed currency\", budget: { budgetType: DAILY, total: { amount: \"1.00\", currencyCode: USD } }, adSpend: { amount: \"1.00\", currencyCode: EUR } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let update_response = json.to_string(update.data)
+  assert string.contains(update_response, "\"marketingActivity\":null")
+  assert string.contains(update_response, "\"field\":[\"input\"]")
+  assert string.contains(
+    update_response,
+    "\"message\":\"Currency code is not matching between budget and ad spend\"",
+  )
+  assert string.contains(update_response, "\"code\":null")
+  assert run(
+      update.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title tactic adSpend { amount currencyCode } } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Currency baseline\",\"tactic\":\"NEWSLETTER\",\"adSpend\":null}}"
+
+  let upsert =
+    marketing.process_mutation(
+      create.store,
+      create.identity,
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-currency-update\", title: \"Changed currency\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, budget: { budgetType: DAILY, total: { amount: \"1.00\", currencyCode: USD } }, adSpend: { amount: \"1.00\", currencyCode: EUR }, utm: { campaign: \"currency-update\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let upsert_response = json.to_string(upsert.data)
+  assert string.contains(upsert_response, "\"marketingActivity\":null")
+  assert string.contains(upsert_response, "\"field\":[\"input\"]")
+  assert string.contains(
+    upsert_response,
+    "\"message\":\"Currency code is not matching between budget and ad spend\"",
+  )
+  assert string.contains(upsert_response, "\"code\":null")
+  assert run(
+      upsert.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title tactic adSpend { amount currencyCode } } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Currency baseline\",\"tactic\":\"NEWSLETTER\",\"adSpend\":null}}"
+}
+
+pub fn external_activity_update_and_upsert_reject_storefront_tactic_transitions_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let activity_id = "gid://shopify/MarketingActivity/501"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      external_activity_with_details(
+        activity_id,
+        "remote-tactic",
+        "Original tactic",
+        "email",
+        "promo-tactic",
+        "parent-a",
+        "CAMPAIGN",
+      ),
+    ])
+
+  let update_to_storefront =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-tactic\", input: { title: \"Storefront\", tactic: STOREFRONT_APP }) { marketingActivity { id title tactic } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let update_to_storefront_response = json.to_string(update_to_storefront.data)
+  assert string.contains(
+    update_to_storefront_response,
+    "\"code\":\"CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP\"",
+  )
+  assert string.contains(
+    update_to_storefront_response,
+    "\"message\":\"You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.\"",
+  )
+  assert run(
+      update_to_storefront.store,
+      "{ marketingActivity(id: \"" <> activity_id <> "\") { title tactic } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Original tactic\",\"tactic\":\"NEWSLETTER\"}}"
+
+  let upsert_to_storefront =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-tactic\", title: \"Storefront\", status: ACTIVE, tactic: STOREFRONT_APP, marketingChannelType: EMAIL, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title tactic } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let upsert_to_storefront_response = json.to_string(upsert_to_storefront.data)
+  assert string.contains(
+    upsert_to_storefront_response,
+    "\"code\":\"CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP\"",
+  )
+  assert run(
+      upsert_to_storefront.store,
+      "{ marketingActivity(id: \"" <> activity_id <> "\") { title tactic } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Original tactic\",\"tactic\":\"NEWSLETTER\"}}"
+
+  let storefront_activity_id = "gid://shopify/MarketingActivity/502"
+  let storefront_source =
+    store.upsert_base_marketing_activities(store.new(), [
+      external_activity_with_details_and_tactic(
+        storefront_activity_id,
+        "remote-storefront-original",
+        "Original storefront",
+        "email",
+        "promo-storefront",
+        "parent-a",
+        "CAMPAIGN",
+        "STOREFRONT_APP",
+      ),
+    ])
+
+  let update_from_storefront =
+    marketing.process_mutation(
+      storefront_source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpdateExternal(marketingActivityId: \"gid://shopify/MarketingActivity/502\", input: { title: \"Newsletter\", tactic: NEWSLETTER }) { marketingActivity { id title tactic } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let update_from_storefront_response =
+    json.to_string(update_from_storefront.data)
+  assert string.contains(
+    update_from_storefront_response,
+    "\"code\":\"CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP\"",
+  )
+  assert string.contains(
+    update_from_storefront_response,
+    "\"message\":\"You can not update an activity tactic from STOREFRONT_APP.\"",
+  )
+  assert run(
+      update_from_storefront.store,
+      "{ marketingActivity(id: \""
+        <> storefront_activity_id
+        <> "\") { title tactic } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Original storefront\",\"tactic\":\"STOREFRONT_APP\"}}"
+
+  let upsert_from_storefront =
+    marketing.process_mutation(
+      storefront_source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-storefront-original\", title: \"Newsletter\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL }) { marketingActivity { id title tactic } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let upsert_from_storefront_response =
+    json.to_string(upsert_from_storefront.data)
+  assert string.contains(
+    upsert_from_storefront_response,
+    "\"code\":\"CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP\"",
+  )
+  assert run(
+      upsert_from_storefront.store,
+      "{ marketingActivity(id: \""
+        <> storefront_activity_id
+        <> "\") { title tactic } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Original storefront\",\"tactic\":\"STOREFRONT_APP\"}}"
 }
 
 pub fn external_activity_create_rejects_distinct_uniqueness_errors_test() {
