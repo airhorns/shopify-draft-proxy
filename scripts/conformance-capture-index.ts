@@ -5811,6 +5811,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-address-input-validation',
+    scriptPath: 'scripts/capture-customer-address-input-validation-conformance.mts',
+    purpose: 'Customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-input-validation.json`,
+      'config/parity-specs/customers/customer-address-input-validation.json',
+      'config/parity-requests/customers/customerInputValidation-create.graphql',
+      'config/parity-requests/customers/customer-address-lifecycle-create-address.graphql',
+      'config/parity-requests/customers/customer-address-lifecycle-update-address.graphql',
+      'config/parity-requests/customers/customerSet-parity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, records address validation and normalization branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry.',
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-account-page-data-erasure',
     scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
     purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
