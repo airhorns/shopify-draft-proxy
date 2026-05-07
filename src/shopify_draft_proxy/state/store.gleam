@@ -382,6 +382,8 @@ pub const delete_staged_market_localizations = markets.delete_staged_market_loca
 
 pub const list_effective_market_localizations = markets.list_effective_market_localizations
 
+pub const remove_staged_market_localizations = markets.remove_staged_market_localizations
+
 pub const upsert_staged_market = markets.upsert_staged_market
 
 pub const delete_staged_market = markets.delete_staged_market
@@ -457,6 +459,10 @@ pub const get_effective_shop = admin_platform.get_effective_shop
 pub const shop_sells_subscriptions = admin_platform.shop_sells_subscriptions
 
 pub const shop_discounts_by_market_enabled = admin_platform.shop_discounts_by_market_enabled
+
+pub const shop_markets_home_enabled = admin_platform.shop_markets_home_enabled
+
+pub const shop_market_plan_limit = admin_platform.shop_market_plan_limit
 
 pub const payment_gateway_by_id = admin_platform.payment_gateway_by_id
 
@@ -657,6 +663,8 @@ pub const upsert_base_marketing_channel_definitions = marketing.upsert_base_mark
 pub const stage_marketing_activity = marketing.stage_marketing_activity
 
 pub const stage_marketing_event = marketing.stage_marketing_event
+
+pub const stage_delete_marketing_event = marketing.stage_delete_marketing_event
 
 pub const stage_delete_marketing_activity = marketing.stage_delete_marketing_activity
 

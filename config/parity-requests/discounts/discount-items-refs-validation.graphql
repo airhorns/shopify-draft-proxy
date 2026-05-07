@@ -1,0 +1,99 @@
+mutation DiscountItemsRefsValidation(
+  $unknownProduct: DiscountCodeBasicInput!
+  $unknownVariant: DiscountCodeBasicInput!
+  $unknownCollection: DiscountCodeBasicInput!
+  $bxgyUnknownBuy: DiscountCodeBxgyInput!
+  $collectionSentinel: DiscountCodeBasicInput!
+  $successProduct: DiscountCodeBasicInput!
+  $successVariant: DiscountCodeBasicInput!
+  $successCollection: DiscountCodeBasicInput!
+) {
+  unknownProduct: discountCodeBasicCreate(basicCodeDiscount: $unknownProduct) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownVariant: discountCodeBasicCreate(basicCodeDiscount: $unknownVariant) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownCollection: discountCodeBasicCreate(basicCodeDiscount: $unknownCollection) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyUnknownBuy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyUnknownBuy) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  collectionSentinel: discountCodeBasicCreate(basicCodeDiscount: $collectionSentinel) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  successProduct: discountCodeBasicCreate(basicCodeDiscount: $successProduct) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  successVariant: discountCodeBasicCreate(basicCodeDiscount: $successVariant) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  successCollection: discountCodeBasicCreate(basicCodeDiscount: $successCollection) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

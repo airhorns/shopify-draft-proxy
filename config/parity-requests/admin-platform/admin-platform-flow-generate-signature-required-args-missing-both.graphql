@@ -1,0 +1,5 @@
+mutation FlowGenerateSignatureMissingBothRequiredArgs {
+  flowGenerateSignature {
+    signature
+  }
+}

@@ -1346,6 +1346,67 @@ fn seeded_proxy() -> DraftProxy {
   DraftProxy(..proxy, store: seeded_store)
 }
 
+fn legacy_markets_proxy(markets_granted: Int) -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let shop = acme_shop()
+  let features = shop.features
+  let seeded_store =
+    store.upsert_base_shop(
+      proxy.store,
+      ShopRecord(
+        ..shop,
+        features: ShopFeaturesRecord(
+          ..features,
+          markets_granted: markets_granted,
+          unified_markets: False,
+        ),
+      ),
+    )
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn markets_home_proxy(markets_granted: Int) -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let shop = acme_shop()
+  let features = shop.features
+  let seeded_store =
+    store.upsert_base_shop(
+      proxy.store,
+      ShopRecord(
+        ..shop,
+        features: ShopFeaturesRecord(
+          ..features,
+          markets_granted: markets_granted,
+          unified_markets: True,
+        ),
+      ),
+    )
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn plan_limit_market(
+  id: String,
+  enabled: Bool,
+  is_legacy_market: Bool,
+) -> MarketRecord {
+  let status = case enabled {
+    True -> "ACTIVE"
+    False -> "DRAFT"
+  }
+  MarketRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("Market")),
+      #("id", CapturedString(id)),
+      #("name", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("enabled", CapturedBool(enabled)),
+      #("isLegacyMarket", CapturedBool(is_legacy_market)),
+    ]),
+  )
+}
+
 fn catalog_price_list_proxy() -> DraftProxy {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let market = cad_market_record()
@@ -1530,6 +1591,7 @@ fn acme_shop() -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
@@ -1563,23 +1625,24 @@ pub fn market_create_rejects_status_enabled_mismatch_test() {
 
 pub fn market_create_rejects_plan_market_limit_test() {
   let #(Response(status: first_status, body: first_body, ..), proxy) =
-    graphql(
-      "mutation { marketCreate(input: { name: \"Market One\", regions: [{ countryCode: BR }] }) { market { id } userErrors { field message code } } }",
+    graphql_with_proxy(
+      legacy_markets_proxy(3),
+      "mutation { marketCreate(input: { name: \"Market One\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
     )
   let #(Response(status: second_status, body: second_body, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { marketCreate(input: { name: \"Market Two\", regions: [{ countryCode: CL }] }) { market { id } userErrors { field message code } } }",
+      "mutation { marketCreate(input: { name: \"Market Two\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
     )
   let #(Response(status: third_status, body: third_body, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { marketCreate(input: { name: \"Market Three\", regions: [{ countryCode: PE }] }) { market { id } userErrors { field message code } } }",
+      "mutation { marketCreate(input: { name: \"Market Three\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
     )
   let #(Response(status: fourth_status, body: fourth_body, ..), _) =
     graphql_with_proxy(
       proxy,
-      "mutation { marketCreate(input: { name: \"Market Four\", regions: [{ countryCode: CO }] }) { market { id } userErrors { field message code } } }",
+      "mutation { marketCreate(input: { name: \"Market Four\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
     )
 
   assert first_status == 200
@@ -1593,6 +1656,59 @@ pub fn market_create_rejects_plan_market_limit_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/5\"},\"userErrors\":[]}}}"
   assert fourth_status == 200
   assert json.to_string(fourth_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Shop has reached the maximum number of markets for the current plan.\",\"code\":\"SHOP_REACHED_PLAN_MARKETS_LIMIT\"}]}}}"
+}
+
+pub fn market_create_skips_plan_limit_for_markets_home_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      markets_home_proxy(0),
+      "mutation { marketCreate(input: { name: \"Markets Home\", status: ACTIVE, enabled: true }) { market { id status enabled } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"status\":\"ACTIVE\",\"enabled\":true},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_skips_plan_limit_for_draft_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      legacy_markets_proxy(0),
+      "mutation { marketCreate(input: { name: \"Draft\", status: DRAFT, enabled: false }) { market { id status enabled } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"status\":\"DRAFT\",\"enabled\":false},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_plan_limit_counts_only_enabled_legacy_markets_test() {
+  let proxy = legacy_markets_proxy(2)
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([
+      plan_limit_market("gid://shopify/Market/active-legacy", True, True),
+      plan_limit_market("gid://shopify/Market/active-modern", True, False),
+      plan_limit_market("gid://shopify/Market/draft-legacy", False, True),
+    ])
+  let proxy = DraftProxy(..proxy, store: seeded_store)
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Second Legacy\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Third Legacy\", status: ACTIVE, enabled: true }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Shop has reached the maximum number of markets for the current plan.\",\"code\":\"SHOP_REACHED_PLAN_MARKETS_LIMIT\"}]}}}"
 }
 
@@ -1856,6 +1972,71 @@ pub fn market_localizations_remove_returns_null_when_no_staged_records_match_tes
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}]}}}"
+}
+
+pub fn market_localizations_remove_unmatched_filters_noop_test() {
+  let proxy = market_localization_proxy()
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: key_status, body: key_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"value\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: market_status, body: market_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/missing\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert key_status == 200
+  assert json.to_string(key_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn market_localizations_remove_returns_removed_staged_rows_test() {
+  let #(Response(status: register_status, body: register_body, ..), proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value market { id } } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+
+  assert register_status == 200
+  assert json.to_string(register_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"outdated\":false,\"market\":{\"id\":\"gid://shopify/Market/ca\"}}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"outdated\":false,\"market\":{\"id\":\"gid://shopify/Market/ca\"}}],\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[]}}}"
+  assert noop_status == 200
+  assert json.to_string(noop_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
 }
 
 fn too_many_market_localization_inputs() -> String {

@@ -228,6 +228,24 @@ pub fn shop_discounts_by_market_enabled(store: Store) -> Bool {
   }
 }
 
+pub fn shop_markets_home_enabled(store: Store) -> Bool {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.features.unified_markets
+    None -> True
+  }
+}
+
+pub fn shop_market_plan_limit(store: Store) -> Int {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.features.markets_granted
+    None -> default_market_plan_limit()
+  }
+}
+
+fn default_market_plan_limit() -> Int {
+  50
+}
+
 pub fn payment_gateway_by_id(
   store: Store,
   id: String,
@@ -452,10 +470,11 @@ fn default_shop_features() -> types_mod.ShopFeaturesRecord {
     paypal_express_subscription_gateway_status: "DISABLED",
     reports: False,
     discounts_by_market_enabled: False,
+    markets_granted: default_market_plan_limit(),
     sells_subscriptions: False,
     show_metrics: False,
     storefront: False,
-    unified_markets: False,
+    unified_markets: True,
   )
 }
 

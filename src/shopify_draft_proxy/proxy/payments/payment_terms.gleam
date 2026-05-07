@@ -39,6 +39,33 @@ fn payment_terms_error(
   UserError(field: Some(field), message: message, code: Some(code))
 }
 
+fn reference_not_found_error(reference_id: String) -> UserError {
+  case payment_terms_owner_resource_type(reference_id) {
+    Some("Order") ->
+      UserError(
+        field: None,
+        message: "Cannot find the specific Order with id "
+          <> gid_tail(reference_id)
+          <> ".",
+        code: Some(payment_terms_creation_unsuccessful_code),
+      )
+    Some("DraftOrder") ->
+      UserError(
+        field: None,
+        message: "Cannot find the specific Draft order with id "
+          <> gid_tail(reference_id)
+          <> ".",
+        code: Some(payment_terms_creation_unsuccessful_code),
+      )
+    _ ->
+      payment_terms_error(
+        ["referenceId"],
+        "Reference does not exist",
+        payment_terms_creation_unsuccessful_code,
+      )
+  }
+}
+
 @internal
 pub fn maybe_hydrate_payment_terms_owner(
   store: Store,
@@ -452,13 +479,7 @@ pub fn create_payment_terms(store, identity, field, fragments, variables) {
                 fragments,
                 "paymentTermsCreate",
                 None,
-                [
-                  payment_terms_error(
-                    ["referenceId"],
-                    "Reference does not exist",
-                    payment_terms_creation_unsuccessful_code,
-                  ),
-                ],
+                [reference_not_found_error(owner_id)],
                 [],
               )
           }

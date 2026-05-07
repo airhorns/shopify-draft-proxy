@@ -46,6 +46,12 @@ type EngagementIdentifier {
   ChannelIdentifier(value: String)
 }
 
+type EngagementSelector {
+  ActivitySelector(value: String)
+  RemoteSelector(value: String)
+  ChannelSelector(value: String)
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -1204,7 +1210,7 @@ fn marketing_engagement_create(
   let input =
     graphql_helpers.read_arg_object(args, "marketingEngagement")
     |> option.unwrap(dict.new())
-  case validate_engagement_input_currency(input) {
+  case resolve_marketing_engagement_selector(args) {
     Error(user_error) ->
       validation_result(
         key,
@@ -1213,11 +1219,32 @@ fn marketing_engagement_create(
         store,
         identity,
       )
-    Ok(engagement_currency_code) ->
+    Ok(selector) ->
+      handle_marketing_engagement_selector(
+        store,
+        identity,
+        key,
+        selector,
+        input,
+        requesting_api_client_id,
+      )
+  }
+}
+
+fn handle_marketing_engagement_selector(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  selector: EngagementSelector,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  case selector {
+    ChannelSelector(handle) ->
       case
-        resolve_marketing_engagement_identifier(
+        resolve_channel_engagement_identifier(
           store,
-          args,
+          handle,
           requesting_api_client_id,
         )
       {
@@ -1230,10 +1257,42 @@ fn marketing_engagement_create(
             identity,
           )
         Ok(identifier) ->
+          case validate_engagement_input_currency(input) {
+            Error(user_error) ->
+              validation_result(
+                key,
+                "marketingEngagementCreate",
+                [user_error],
+                store,
+                identity,
+              )
+            Ok(_) ->
+              create_marketing_engagement_success(
+                store,
+                identity,
+                key,
+                identifier,
+                input,
+                requesting_api_client_id,
+              )
+          }
+      }
+    _ ->
+      case validate_engagement_input_currency(input) {
+        Error(user_error) ->
+          validation_result(
+            key,
+            "marketingEngagementCreate",
+            [user_error],
+            store,
+            identity,
+          )
+        Ok(engagement_currency_code) ->
           case
-            validate_engagement_activity_currency(
-              identifier,
-              engagement_currency_code,
+            resolve_activity_engagement_identifier(
+              store,
+              selector,
+              requesting_api_client_id,
             )
           {
             Error(user_error) ->
@@ -1244,36 +1303,69 @@ fn marketing_engagement_create(
                 store,
                 identity,
               )
-            Ok(Nil) -> {
-              let engagement =
-                build_marketing_engagement_record(
+            Ok(identifier) ->
+              case
+                validate_engagement_activity_currency(
                   identifier,
-                  input,
-                  requesting_api_client_id,
+                  engagement_currency_code,
                 )
-              let #(staged, next_store) =
-                store.stage_marketing_engagement(store, engagement)
-              #(
-                MutationFieldResult(
-                  key,
-                  src_object([
-                    #(
-                      "marketingEngagement",
-                      serializers.marketing_data_to_source(staged.data),
-                    ),
-                    #("userErrors", user_errors_source([])),
-                  ]),
-                  [staged.id],
-                  True,
-                  [],
-                ),
-                next_store,
-                identity,
-              )
-            }
+              {
+                Error(user_error) ->
+                  validation_result(
+                    key,
+                    "marketingEngagementCreate",
+                    [user_error],
+                    store,
+                    identity,
+                  )
+                Ok(Nil) ->
+                  create_marketing_engagement_success(
+                    store,
+                    identity,
+                    key,
+                    identifier,
+                    input,
+                    requesting_api_client_id,
+                  )
+              }
           }
       }
   }
+}
+
+fn create_marketing_engagement_success(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  identifier: EngagementIdentifier,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let engagement =
+    build_marketing_engagement_record(
+      identifier,
+      input,
+      requesting_api_client_id,
+    )
+  let #(staged, next_store) =
+    store.stage_marketing_engagement(store, engagement)
+  #(
+    MutationFieldResult(
+      key,
+      src_object([
+        #(
+          "marketingEngagement",
+          serializers.marketing_data_to_source(staged.data),
+        ),
+        #("userErrors", user_errors_source([])),
+      ]),
+      [staged.id],
+      True,
+      [],
+    ),
+    next_store,
+    identity,
+  )
 }
 
 fn marketing_engagements_delete(
@@ -2422,11 +2514,9 @@ fn optional_marketing_bool_entry(
   }
 }
 
-fn resolve_marketing_engagement_identifier(
-  store: Store,
+fn resolve_marketing_engagement_selector(
   args: Dict(String, root_field.ResolvedValue),
-  requesting_api_client_id: Option(String),
-) -> Result(EngagementIdentifier, UserError) {
+) -> Result(EngagementSelector, UserError) {
   let marketing_activity_id =
     graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
   let remote_id = graphql_helpers.read_arg_string_nonempty(args, "remoteId")
@@ -2441,40 +2531,110 @@ fn resolve_marketing_engagement_identifier(
     n if n > 1 -> Error(engagement_invalid_identifier_error())
     _ ->
       case marketing_activity_id, remote_id, channel_handle {
-        Some(id), _, _ ->
-          case
-            store.get_effective_marketing_activity_record_by_id_for_app(
-              store,
-              id,
-              requesting_api_client_id,
-            )
-          {
-            Some(activity) -> Ok(ActivityIdentifier(id, activity))
-            None -> Error(marketing_activity_missing_error())
-          }
-        _, Some(remote_id), _ ->
-          case
-            store.get_effective_marketing_activity_by_remote_id_for_app(
-              store,
-              remote_id,
-              requesting_api_client_id,
-            )
-          {
-            Some(activity) -> Ok(RemoteIdentifier(remote_id, activity))
-            None -> Error(marketing_activity_missing_error())
-          }
-        _, _, Some(handle) ->
-          case
-            store.has_known_marketing_channel_handle_for_app(
-              store,
-              handle,
-              requesting_api_client_id,
-            )
-          {
-            True -> Ok(ChannelIdentifier(handle))
-            False -> Error(invalid_channel_handle_error())
-          }
+        Some(id), _, _ -> Ok(ActivitySelector(id))
+        _, Some(remote_id), _ -> Ok(RemoteSelector(remote_id))
+        _, _, Some(handle) -> Ok(ChannelSelector(handle))
         _, _, _ -> Error(engagement_missing_identifier_error())
+      }
+  }
+}
+
+fn resolve_channel_engagement_identifier(
+  store: Store,
+  handle: String,
+  requesting_api_client_id: Option(String),
+) -> Result(EngagementIdentifier, UserError) {
+  case
+    store.has_known_marketing_channel_handle_for_app(
+      store,
+      handle,
+      requesting_api_client_id,
+    )
+  {
+    True -> Ok(ChannelIdentifier(handle))
+    False -> Error(invalid_channel_handle_error())
+  }
+}
+
+fn resolve_activity_engagement_identifier(
+  store: Store,
+  selector: EngagementSelector,
+  requesting_api_client_id: Option(String),
+) -> Result(EngagementIdentifier, UserError) {
+  case selector {
+    ActivitySelector(id) ->
+      case
+        store.get_effective_marketing_activity_record_by_id_for_app(
+          store,
+          id,
+          requesting_api_client_id,
+        )
+      {
+        Some(activity) ->
+          case
+            marketing_activity_has_effective_event(
+              store,
+              activity,
+              requesting_api_client_id,
+            )
+          {
+            True -> Ok(ActivityIdentifier(id, activity))
+            False -> Error(marketing_event_does_not_exist_error())
+          }
+        None -> Error(marketing_activity_missing_error())
+      }
+    RemoteSelector(remote_id) ->
+      case
+        store.get_effective_marketing_activity_by_remote_id_for_app(
+          store,
+          remote_id,
+          requesting_api_client_id,
+        )
+      {
+        Some(activity) ->
+          case
+            marketing_activity_has_effective_event(
+              store,
+              activity,
+              requesting_api_client_id,
+            )
+          {
+            True -> Ok(RemoteIdentifier(remote_id, activity))
+            False -> Error(marketing_event_does_not_exist_error())
+          }
+        None -> Error(marketing_activity_missing_error())
+      }
+    ChannelSelector(handle) ->
+      resolve_channel_engagement_identifier(
+        store,
+        handle,
+        requesting_api_client_id,
+      )
+  }
+}
+
+fn marketing_activity_has_effective_event(
+  store: Store,
+  activity: MarketingRecord,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case serializers.read_marketing_bool(activity.data, "isExternal") {
+    False -> True
+    True ->
+      case serializers.read_marketing_object(activity.data, "marketingEvent") {
+        None -> False
+        Some(event) ->
+          case serializers.read_marketing_object_string(Some(event), "id") {
+            Some(id) ->
+              option.is_some(
+                store.get_effective_marketing_event_record_by_id_for_app(
+                  store,
+                  id,
+                  requesting_api_client_id,
+                ),
+              )
+            None -> False
+          }
       }
   }
 }

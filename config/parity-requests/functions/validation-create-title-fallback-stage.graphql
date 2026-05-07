@@ -1,0 +1,35 @@
+mutation ValidationCreateTitleFallback($functionHandle: String!) {
+  omitted: validationCreate(validation: { functionHandle: $functionHandle }) {
+    validation {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  explicitNull: validationCreate(validation: { functionHandle: $functionHandle, title: null }) {
+    validation {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  emptyString: validationCreate(validation: { functionHandle: $functionHandle, title: "" }) {
+    validation {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

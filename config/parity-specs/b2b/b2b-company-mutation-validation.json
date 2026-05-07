@@ -1,0 +1,27 @@
+{
+  "scenarioId": "b2b-company-mutation-validation",
+  "operationNames": ["companyUpdate", "companyLocationUpdate", "companyContactUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-mutation-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-company-mutation-validation.graphql",
+    "variablesCapturePath": "$.mutationValidation.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for B2B not-found validation branches on companyUpdate, companyLocationUpdate, and companyContactUpdate. The live requests use unknown resource IDs and do not create or mutate Shopify resources.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "b2b-mutation-validation-data",
+        "capturePath": "$.mutationValidation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+mutation MediaFileUserErrorAggregationUpdate($files: [FileUpdateInput!]!) {
+  fileUpdate(files: $files) {
+    files {
+      id
+      __typename
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
