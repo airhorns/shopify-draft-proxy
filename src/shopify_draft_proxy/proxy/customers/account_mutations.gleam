@@ -53,6 +53,16 @@ import shopify_draft_proxy/state/types.{
   StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
 }
 
+const max_store_credit_balance_cents = 9_999_999
+
+type StoreCreditAttribution {
+  StoreCreditAttribution(
+    user_id: Option(String),
+    point_of_sale_device_id: Option(String),
+    location_id: Option(String),
+  )
+}
+
 @internal
 pub fn handle_email_consent(store, identity, field, fragments, variables) {
   let input =
@@ -876,6 +886,8 @@ pub fn handle_store_credit_adjustment(
     True -> "creditAmount"
     False -> "debitAmount"
   }
+  let notify = read_obj_bool(input, "notify")
+  let attribution = read_store_credit_attribution(input)
   case account_id, amount {
     Some(id), Some(money) -> {
       let validation_errors =
@@ -922,7 +934,22 @@ pub fn handle_store_credit_adjustment(
                 ]
                 False -> []
               }
-              let errors = list.append(currency_errors, limit_errors)
+              let credit_limit_errors = case
+                is_credit && new_balance > max_store_credit_balance_cents
+              {
+                True -> [
+                  UserError(
+                    [input_name, amount_key, "amount"],
+                    "The operation would cause the account's credit limit to be exceeded",
+                    Some("CREDIT_LIMIT_EXCEEDED"),
+                  ),
+                ]
+                False -> []
+              }
+              let errors =
+                currency_errors
+                |> list.append(limit_errors)
+                |> list.append(credit_limit_errors)
               case errors {
                 [] -> {
                   let #(transaction_id, after_id) =
@@ -951,6 +978,10 @@ pub fn handle_store_credit_adjustment(
                       balance_after_transaction: new_account.balance,
                       created_at: timestamp,
                       event: "ADJUSTMENT",
+                      notify: notify,
+                      attribution_user_id: attribution.user_id,
+                      attribution_point_of_sale_device_id: attribution.point_of_sale_device_id,
+                      attribution_location_id: attribution.location_id,
                     )
                   let next_store =
                     store.stage_store_credit_account(store, new_account)
@@ -1066,6 +1097,27 @@ pub fn handle_store_credit_adjustment(
       )
     }
   }
+}
+
+fn read_obj_bool(
+  obj: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(obj, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_store_credit_attribution(
+  input: Dict(String, root_field.ResolvedValue),
+) -> StoreCreditAttribution {
+  let attribution = read_nested_object(input, "attribution")
+  StoreCreditAttribution(
+    user_id: read_obj_string(attribution, "userId"),
+    point_of_sale_device_id: read_obj_string(attribution, "pointOfSaleDeviceId"),
+    location_id: read_obj_string(attribution, "locationId"),
+  )
 }
 
 @internal

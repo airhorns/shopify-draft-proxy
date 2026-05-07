@@ -521,6 +521,11 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     decode.string,
   )
   use reports <- decode.field("reports", decode.bool)
+  use b2b_deposits_enabled <- optional_field(
+    "b2bDepositsEnabled",
+    True,
+    decode.bool,
+  )
   use discounts_by_market_enabled <- optional_field(
     "discountsByMarketEnabled",
     False,
@@ -546,6 +551,7 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     live_view: live_view,
     paypal_express_subscription_gateway_status: paypal_express_subscription_gateway_status,
     reports: reports,
+    b2b_deposits_enabled: b2b_deposits_enabled,
     discounts_by_market_enabled: discounts_by_market_enabled,
     markets_granted: markets_granted,
     sells_subscriptions: sells_subscriptions,

@@ -2131,6 +2131,122 @@ pub fn store_credit_credit_debit_readback_test() {
   )
 }
 
+pub fn store_credit_credit_preserves_notify_and_variables_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"credit-context@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let credit_body =
+    "{\"query\":\"mutation Credit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) { storeCreditAccountCredit(id: $id, creditInput: $creditInput) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Customer/1\",\"creditInput\":{\"creditAmount\":{\"amount\":\"5.00\",\"currencyCode\":\"USD\"},\"notify\":true}}}"
+  let #(Response(status: credit_status, body: credit_response, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: credit_body,
+      ),
+    )
+  assert credit_status == 200
+  assert string.contains(json.to_string(credit_response), "\"userErrors\":[]")
+
+  let debit_body =
+    "{\"query\":\"mutation Debit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) { storeCreditAccountDebit(id: $id, debitInput: $debitInput) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/StoreCreditAccount/3\",\"debitInput\":{\"debitAmount\":{\"amount\":\"1.00\",\"currencyCode\":\"USD\"}}}}"
+  let #(Response(status: debit_status, body: debit_response, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: debit_body,
+      ),
+    )
+  assert debit_status == 200
+  assert string.contains(json.to_string(debit_response), "\"userErrors\":[]")
+
+  let #(Response(status: state_status, body: state_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "GET",
+        path: "/__meta/state",
+        headers: dict.new(),
+        body: "",
+      ),
+    )
+  assert state_status == 200
+  let state_json = json.to_string(state_body)
+  assert string.contains(state_json, "\"notify\":true")
+
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: ""),
+    )
+  assert log_status == 200
+  let log_json = json.to_string(log_body)
+  assert string.contains(log_json, "\"notify\":true")
+}
+
+pub fn store_credit_attribution_unknown_fields_match_schema_errors_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"credit-context@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let credit_body =
+    "{\"query\":\"mutation Credit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) { storeCreditAccountCredit(id: $id, creditInput: $creditInput) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Customer/1\",\"creditInput\":{\"creditAmount\":{\"amount\":\"5.00\",\"currencyCode\":\"USD\"},\"notify\":true,\"attribution\":{\"userId\":\"gid://shopify/User/1\",\"locationId\":\"gid://shopify/Location/3\"}}}}"
+  let #(Response(status: credit_status, body: credit_response, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: credit_body,
+      ),
+    )
+  assert credit_status == 200
+  let credit_json = json.to_string(credit_response)
+  assert string.contains(credit_json, "\"errors\"")
+  assert string.contains(
+    credit_json,
+    "Field is not defined on StoreCreditAccountCreditInput",
+  )
+  assert string.contains(credit_json, "\"path\":[\"attribution\"]")
+
+  let debit_body =
+    "{\"query\":\"mutation Debit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) { storeCreditAccountDebit(id: $id, debitInput: $debitInput) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Customer/1\",\"debitInput\":{\"debitAmount\":{\"amount\":\"1.00\",\"currencyCode\":\"USD\"},\"attribution\":{\"userId\":\"gid://shopify/User/4\"},\"notify\":false}}}"
+  let #(Response(status: debit_status, body: debit_response, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: debit_body,
+      ),
+    )
+  assert debit_status == 200
+  let debit_json = json.to_string(debit_response)
+  assert string.contains(debit_json, "\"errors\"")
+  assert string.contains(
+    debit_json,
+    "Field is not defined on StoreCreditAccountDebitInput",
+  )
+  assert string.contains(debit_json, "\"path\":[\"attribution\"]")
+  assert string.contains(debit_json, "\"path\":[\"notify\"]")
+}
+
 pub fn store_credit_credit_customer_id_creates_account_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
@@ -2250,6 +2366,11 @@ pub fn store_credit_adjustments_validate_currency_amount_expiry_and_limits_test(
     proxy,
     "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"99.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
     "INSUFFICIENT_FUNDS",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"100000.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "CREDIT_LIMIT_EXCEEDED",
   )
 }
 

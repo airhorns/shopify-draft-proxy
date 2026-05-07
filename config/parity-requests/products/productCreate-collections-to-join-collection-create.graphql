@@ -1,0 +1,18 @@
+mutation ProductCreateCollectionsToJoinCollectionCreate($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      handle
+      products(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -57,6 +57,12 @@ pub const contact_does_not_match_company_detail = "contact_does_not_match_compan
 
 pub const existing_orders_detail = "existing_orders"
 
+pub const buyer_experience_configuration_empty_detail = "buyer_experience_configuration_empty"
+
+pub const deposit_without_payment_terms_detail = "deposit_without_payment_terms"
+
+pub const deposit_not_enabled_detail = "deposit_not_enabled"
+
 @internal
 pub type UserError {
   UserError(

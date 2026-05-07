@@ -1,0 +1,12 @@
+query DiscountBulkSearchEffectsReadAutomatic($id: ID!) {
+  automatic: automaticDiscountNode(id: $id) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        title
+        status
+      }
+    }
+  }
+}
