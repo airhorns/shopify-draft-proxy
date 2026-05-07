@@ -3760,6 +3760,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-add-metafields',
+    scriptPath: 'scripts/capture-location-add-metafields-conformance.mts',
+    purpose:
+      'locationAdd input.metafields staging, downstream location metafield reads, and metafield validation userErrors.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-add-metafields.json`,
+      'config/parity-specs/store-properties/location-add-metafields.json',
+      'config/parity-requests/store-properties/location-add-metafields.graphql',
+      'config/parity-requests/store-properties/location-add-metafields-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable locations for the successful metafield branch and blank-value branch, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-edit-fields-and-state-machine',
     scriptPath: 'scripts/capture-location-edit-fields-and-state-machine-conformance.mts',
     purpose:
