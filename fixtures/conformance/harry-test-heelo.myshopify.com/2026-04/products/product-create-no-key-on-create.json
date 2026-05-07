@@ -17,9 +17,7 @@
             "product": null,
             "userErrors": [
               {
-                "field": [
-                  "input"
-                ],
+                "field": ["input"],
                 "message": "id cannot be specified during creation"
               }
             ]
@@ -52,9 +50,7 @@
             "product": null,
             "userErrors": [
               {
-                "field": [
-                  "input"
-                ],
+                "field": ["input"],
                 "message": "id cannot be specified during creation"
               }
             ]
@@ -109,9 +105,7 @@
               },
               "problems": [
                 {
-                  "path": [
-                    "variants"
-                  ],
+                  "path": ["variants"],
                   "explanation": "Field is not defined on ProductInput"
                 }
               ]
