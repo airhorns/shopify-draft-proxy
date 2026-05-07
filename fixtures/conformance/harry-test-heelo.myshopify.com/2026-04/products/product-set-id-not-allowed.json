@@ -18,9 +18,7 @@
           "product": null,
           "userErrors": [
             {
-              "field": [
-                "input"
-              ],
+              "field": ["input"],
               "message": "The id field is not allowed if identifier is provided.",
               "code": "ID_NOT_ALLOWED"
             }
