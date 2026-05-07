@@ -2874,6 +2874,86 @@ pub fn fulfillment_order_release_hold_rejects_other_app_hold_ids_test() {
     == "{\"data\":{\"fulfillmentOrderReleaseHold\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"holdIds\"],\"message\":\"The fulfillment hold is not held by the requesting app.\",\"code\":\"INVALID_ACCESS\"}]}}}"
 }
 
+pub fn fulfillment_order_hold_zeros_line_item_fulfillable_quantity_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/full-hold"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(
+          "gid://shopify/FulfillmentOrderLineItem/full-hold",
+          "gid://shopify/LineItem/full-hold",
+          2,
+        ),
+      ]),
+    ])
+
+  let hold_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) { fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) { fulfillmentOrder { status lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("full-hold")),
+            ]),
+          ),
+        ),
+      ]),
+      api_client_upstream_context("app-a"),
+    )
+
+  assert json.to_string(hold_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/full-hold\",\"quantity\":2,\"fulfillableQuantity\":0}}]}},\"userErrors\":[]}}}"
+}
+
+pub fn held_fulfillment_order_sets_shipping_order_display_status_test() {
+  let order_id = "gid://shopify/Order/held-display-status"
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/held-display-status"
+  let held_order =
+    FulfillmentOrderRecord(
+      ..held_fulfillment_order_record(fulfillment_order_id, [
+        fulfillment_hold(
+          "gid://shopify/FulfillmentHold/held-display-status",
+          "held-display-status",
+          True,
+          Some("app-a"),
+        ),
+      ]),
+      order_id: Some(order_id),
+    )
+  let base_store =
+    store.new()
+    |> store.upsert_base_shipping_orders([
+      ShippingOrderRecord(
+        id: order_id,
+        data: CapturedObject([
+          #("id", CapturedString(order_id)),
+          #("name", CapturedString("#1001")),
+          #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_fulfillment_orders([held_order])
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      base_store,
+      "query ReadHeldOrder($id: ID!) { order(id: $id) { id displayFulfillmentStatus fulfillmentOrders(first: 5) { nodes { id status fulfillmentHolds { id handle } } } } }",
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+
+  assert json.to_string(read_response)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/held-display-status\",\"displayFulfillmentStatus\":\"ON_HOLD\",\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/held-display-status\",\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"id\":\"gid://shopify/FulfillmentHold/held-display-status\",\"handle\":\"held-display-status\"}]}]}}}}"
+}
+
 fn fulfillment_order_record(
   id: String,
   status: String,

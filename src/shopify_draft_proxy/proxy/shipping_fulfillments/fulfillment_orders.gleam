@@ -32,6 +32,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
   fulfillment_order_hold_validation_errors, fulfillment_order_holds,
   fulfillment_order_line_items_after_split,
   fulfillment_order_line_items_for_split, fulfillment_order_line_items_total,
+  fulfillment_order_line_items_with_line_item_fulfillable,
   fulfillment_order_line_items_with_quantity,
   fulfillment_order_line_items_with_quantity_and_fulfillable,
   fulfillment_order_merge_ids, fulfillment_order_missing_mutation_result,
@@ -135,12 +136,20 @@ pub fn handle_fulfillment_order_hold(
                   first_fulfillment_order_line_item_total(order.data) - quantity,
                   0,
                 )
-              let fulfillment_holds =
-                list.append(fulfillment_order_holds(order.data), [hold])
+              let existing_holds = fulfillment_order_holds(order.data)
+              let fulfillment_holds = list.append(existing_holds, [hold])
               let held_line_items = case line_item_inputs {
                 [] ->
-                  captured_field(order.data, "lineItems")
-                  |> option.unwrap(CapturedArray([]))
+                  case list.is_empty(existing_holds) {
+                    True ->
+                      fulfillment_order_line_items_with_line_item_fulfillable(
+                        order.data,
+                        0,
+                      )
+                    False ->
+                      captured_field(order.data, "lineItems")
+                      |> option.unwrap(CapturedArray([]))
+                  }
                 [_, ..] ->
                   fulfillment_order_line_items_with_quantity_and_fulfillable(
                     order.data,

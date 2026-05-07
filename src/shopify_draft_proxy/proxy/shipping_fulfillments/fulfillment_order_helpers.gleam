@@ -1119,6 +1119,29 @@ pub fn fulfillment_order_line_items_with_quantity_and_optional_fulfillable(
 }
 
 @internal
+pub fn fulfillment_order_line_items_with_line_item_fulfillable(
+  data: CapturedJsonValue,
+  line_item_fulfillable_quantity: Int,
+) -> CapturedJsonValue {
+  let nodes =
+    captured_array_field(data, "lineItems", "nodes")
+    |> list.map(fn(node) {
+      let line_item = case captured_field(node, "lineItem") {
+        Some(value) ->
+          captured_upsert_fields(value, [
+            #(
+              "fulfillableQuantity",
+              CapturedInt(line_item_fulfillable_quantity),
+            ),
+          ])
+        None -> CapturedNull
+      }
+      captured_upsert_fields(node, [#("lineItem", line_item)])
+    })
+  captured_connection(nodes)
+}
+
+@internal
 pub fn fulfillment_order_line_items_after_split(
   data: CapturedJsonValue,
   requested: List(#(String, Int)),
