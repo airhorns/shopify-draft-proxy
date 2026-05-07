@@ -1,0 +1,499 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "capturedAt": "2026-05-06T22:52:43.116Z",
+    "stamp": 1778107961141
+  },
+  "cases": {
+    "createSanitized": {
+      "variables": {
+        "input": {
+          "email": "hermes-email-normal ization-create-1778107961141@example.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10586343637298",
+              "email": "hermes-email-normalization-create-1778107961141@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-email-normalization-create-1778107961141@example.com"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "downstreamRead": {
+      "variables": {
+        "identifier": {
+          "emailAddress": "Hermes-email-normal iz ation-create-1778107961141@example.com "
+        },
+        "query": "email:hermes-email-normalization-create-1778107961141@example.com",
+        "first": 5
+      },
+      "response": {
+        "data": {
+          "customerByIdentifier": {
+            "email": "hermes-email-normalization-create-1778107961141@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-email-normalization-create-1778107961141@example.com"
+            }
+          },
+          "customers": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "duplicateCreate": {
+      "variables": {
+        "input": {
+          "email": "Hermes-email-normal iz ation-create-1778107961141@example.com "
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "invalidFooAt": {
+      "variables": {
+        "input": {
+          "email": "foo@"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "invalidAtDomain": {
+      "variables": {
+        "input": {
+          "email": "@bar.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "invalidNoDotDomain": {
+      "variables": {
+        "input": {
+          "email": "foo@bar"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "invalidDoubleAt": {
+      "variables": {
+        "input": {
+          "email": "foo@@bar.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "tooLongCreate": {
+      "variables": {
+        "input": {
+          "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["email"],
+                "message": "Email is too long (maximum is 255 characters)"
+              },
+              {
+                "field": ["email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "updateSanitized": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10586343637298",
+          "email": "hermes-email-normalization-up dated-1778107961141@example.com "
+        }
+      },
+      "response": {
+        "data": {
+          "customerUpdate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10586343637298",
+              "email": "hermes-email-normalization-updated-1778107961141@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-email-normalization-updated-1778107961141@example.com"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "customerSetSanitized": {
+      "variables": {
+        "input": {
+          "email": "hermes-email-normalization-s et-1778107961141@example.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10586343833906",
+              "email": "hermes-email-normalization-set-1778107961141@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-email-normalization-set-1778107961141@example.com"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "customerSetDuplicate": {
+      "variables": {
+        "input": {
+          "email": "Hermes-email-normalization-s e t-1778107961141@example.com "
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input", "email"],
+                "message": "Email has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "customerSetInvalid": {
+      "variables": {
+        "input": {
+          "email": "foo@"
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input", "email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "customerSetTooLong": {
+      "variables": {
+        "input": {
+          "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com"
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input", "email"],
+                "message": "Email is too long (maximum is 255 characters)"
+              },
+              {
+                "field": ["input", "email"],
+                "message": "Email is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "cleanup": [
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10586343833906"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10586343833906",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10586343637298"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10586343637298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
