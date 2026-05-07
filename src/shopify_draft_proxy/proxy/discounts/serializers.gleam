@@ -3525,11 +3525,63 @@ pub fn validate_bulk_search_selector(
               ),
             ]
           }
-        _ -> []
+        _ ->
+          []
+          |> list.append(validate_bulk_search_fields(root, search))
       }
     }
     _ -> []
   }
+}
+
+fn validate_bulk_search_fields(
+  root: String,
+  search: String,
+) -> List(SourceValue) {
+  case root {
+    "discountCodeBulkDelete" -> {
+      let invalid_fields =
+        search_query_parser.parse_search_query(
+          search,
+          search_query_parser.default_parse_options(),
+        )
+        |> option.map(search_query_parser.search_query_node_fields)
+        |> option.unwrap([])
+        |> list.unique
+        |> list.filter(fn(field) {
+          !list.contains(discount_code_bulk_delete_search_fields(), field)
+        })
+      case invalid_fields {
+        [] -> []
+        _ -> [
+          discount_types.user_error(
+            ["search"],
+            "Invalid search field(s): "
+              <> string.join(invalid_fields, ", ")
+              <> ". Check the query syntax.",
+            "INVALID",
+          ),
+        ]
+      }
+    }
+    _ -> []
+  }
+}
+
+fn discount_code_bulk_delete_search_fields() -> List(String) {
+  [
+    "status",
+    "times_used",
+    "discount_type",
+    "type",
+    "title",
+    "starts_at",
+    "ends_at",
+    "created_at",
+    "updated_at",
+    "method",
+    "id",
+  ]
 }
 
 @internal

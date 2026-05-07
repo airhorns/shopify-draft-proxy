@@ -78,7 +78,7 @@ Use this module before adding resource-local custom-data parsers or serializers.
 
 ## `src/shopify_draft_proxy/search_query_parser.gleam`
 
-Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
+Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, parsed field-name collection for allowlist validators, term-list guards, and primitive term matching.
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
 
