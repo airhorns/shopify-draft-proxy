@@ -107,3 +107,12 @@ pub fn translation_error(
     code: translation_error_code_to_string(code),
   )
 }
+
+@internal
+pub fn proxy_translation_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> AnyUserError {
+  TranslationError(field: field, message: message, code: code)
+}

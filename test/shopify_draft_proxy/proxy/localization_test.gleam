@@ -5,13 +5,13 @@
 
 import gleam/dict
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  LocaleRecord, ProductRecord, ProductSeoRecord, ShopLocaleRecord,
-  TranslationRecord,
+  type CollectionRecord, type ProductSeoRecord, CollectionRecord, LocaleRecord,
+  ProductRecord, ProductSeoRecord, ShopLocaleRecord, TranslationRecord,
 }
 
 fn run(store_in: store.Store, query: String) -> String {
@@ -191,6 +191,30 @@ pub fn translatable_resources_include_effective_products_test() {
     == "{\"translatableResources\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Product/1\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"The Inventory Not Tracked Snowboard\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"},{\"key\":\"handle\",\"value\":\"the-inventory-not-tracked-snowboard\",\"locale\":\"en\",\"type\":\"URI\"},{\"key\":\"product_type\",\"value\":\"snowboard\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"}]}]}}"
 }
 
+pub fn translatable_resources_include_effective_collections_test() {
+  let s =
+    store.new()
+    |> store.upsert_base_collections([
+      collection_record(
+        "gid://shopify/Collection/1",
+        "Summer Hats",
+        "summer-hats",
+        Some("<p>Shade-ready hats.</p>"),
+        ProductSeoRecord(
+          title: Some("Sun hats"),
+          description: Some("Wide brim and cap styles."),
+        ),
+      ),
+    ])
+  let result =
+    run(
+      s,
+      "{ translatableResources(first: 10, resourceType: COLLECTION) { nodes { resourceId translatableContent { key value digest locale type } } } }",
+    )
+  assert result
+    == "{\"translatableResources\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Collection/1\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"Summer Hats\",\"digest\":\"76ea81053fa568ea139bf950083fb6a073e6a2e123ae897fba5109c2cc6a8883\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"},{\"key\":\"handle\",\"value\":\"summer-hats\",\"digest\":\"a4c27b620d608aa7bd8bd8c3c67cdde9b5217b3aabf447813eccd452c3487d0f\",\"locale\":\"en\",\"type\":\"URI\"},{\"key\":\"body_html\",\"value\":\"<p>Shade-ready hats.</p>\",\"digest\":\"71e67d60d121e7ecb39614f1bc2e67b21b8634b32d1805592f33cfd49a0dc437\",\"locale\":\"en\",\"type\":\"HTML\"},{\"key\":\"meta_title\",\"value\":\"Sun hats\",\"digest\":\"caa78e4b8ae1ab01d7d7c970d48558ca1eb17e30bafe9fae57c1e6bd1fe7a96a\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"},{\"key\":\"meta_description\",\"value\":\"Wide brim and cap styles.\",\"digest\":\"2e17d64ac9234b787db9a59d18c6ada32d79466c5543b01a1450b250d1aece33\",\"locale\":\"en\",\"type\":\"MULTI_LINE_TEXT_FIELD\"}]}]}}"
+}
+
 pub fn translatable_resources_include_seeded_source_markers_test() {
   let s = store.new()
   let #(_, s) =
@@ -242,4 +266,58 @@ pub fn translatable_resources_by_ids_finds_synthesized_test() {
     )
   assert result
     == "{\"translatableResourcesByIds\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Product/42\"}]}}"
+}
+
+pub fn translatable_resources_by_ids_finds_collection_source_marker_test() {
+  let s = store.new()
+  let #(_, s) =
+    store.stage_translation(
+      s,
+      TranslationRecord(
+        resource_id: "gid://shopify/Collection/42",
+        key: "title",
+        locale: "__source",
+        value: "Collection source",
+        translatable_content_digest: "digest-title",
+        market_id: None,
+        updated_at: "1970-01-01T00:00:00Z",
+        outdated: False,
+      ),
+    )
+  let result =
+    run(
+      s,
+      "{ translatableResourcesByIds(first: 10, resourceIds: [\"gid://shopify/Collection/42\"]) { nodes { resourceId translatableContent { key value digest type } } } }",
+    )
+  assert result
+    == "{\"translatableResourcesByIds\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Collection/42\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"Collection source\",\"digest\":\"digest-title\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"}]}]}}"
+}
+
+fn collection_record(
+  id: String,
+  title: String,
+  handle: String,
+  description_html: Option(String),
+  seo: ProductSeoRecord,
+) -> CollectionRecord {
+  CollectionRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: title,
+    handle: handle,
+    publication_ids: [],
+    updated_at: None,
+    description: None,
+    description_html: description_html,
+    image: None,
+    sort_order: None,
+    template_suffix: None,
+    seo: seo,
+    rule_set: None,
+    products_count: None,
+    is_smart: False,
+    cursor: None,
+    title_cursor: None,
+    updated_at_cursor: None,
+  )
 }
