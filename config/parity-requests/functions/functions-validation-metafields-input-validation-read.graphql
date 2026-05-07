@@ -1,0 +1,13 @@
+query ValidationMetafieldsPostRejectedUpdateRead($id: ID!) {
+  validation(id: $id) {
+    title
+    metafields(first: 5) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+  }
+}

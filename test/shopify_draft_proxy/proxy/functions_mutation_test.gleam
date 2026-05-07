@@ -429,6 +429,24 @@ pub fn validation_create_persists_metafields_for_downstream_reads_test() {
     == "{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
 }
 
+pub fn validation_create_rejects_invalid_metafields_atomically_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/metafield-validation",
+      "metafield-validation",
+      "VALIDATION",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { mixedMissingKey: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }, { namespace: \"custom\", type: \"single_line_text_field\", value: \"v\" }] }) { validation { id } userErrors { field message code } } missingType: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", value: \"v\" }] }) { validation { id } userErrors { field message code } } blankType: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"\", value: \"v\" }] }) { validation { id } userErrors { field message code } } missingValue: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\" }] }) { validation { id } userErrors { field message code } } blankValue: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"\" }] }) { validation { id } userErrors { field message code } } invalidType: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"bogus_type\", value: \"v\" }] }) { validation { id } userErrors { field message code } } reservedShopify: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"shopify\", key: \"mode\", type: \"single_line_text_field\", value: \"v\" }] }) { validation { id } userErrors { field message code } } invalidValue: validationCreate(validation: { functionHandle: \"metafield-validation\", metafields: [{ namespace: \"custom\", key: \"count\", type: \"number_integer\", value: \"not a number\" }] }) { validation { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"mixedMissingKey\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"1\"],\"message\":\"presence\",\"code\":null}]},\"missingType\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"One or more required inputs are blank.\",\"code\":\"BLANK\"}]},\"blankType\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"One or more required inputs are blank.\",\"code\":\"BLANK\"}]},\"missingValue\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"presence\",\"code\":null}]},\"blankValue\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"The value is invalid.\",\"code\":\"INVALID_VALUE\"}]},\"invalidType\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"The type is invalid.\",\"code\":\"INVALID_TYPE\"}]},\"reservedShopify\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"ApiPermission metafields can only be created or updated by the app owner.\",\"code\":\"APP_NOT_AUTHORIZED\"}]},\"invalidValue\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"The value is invalid.\",\"code\":\"INVALID_VALUE\"}]}}}"
+  assert store.list_effective_validations(outcome.store) == []
+}
+
 // ----------- validationUpdate -----------
 
 pub fn validation_update_changes_title_and_enable_test() {
@@ -625,6 +643,37 @@ pub fn validation_update_persists_metafields_for_downstream_reads_test() {
     )
   assert json.to_string(read_data)
     == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
+}
+
+pub fn validation_update_rejects_invalid_metafields_without_mutation_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/metafield-validation",
+      "metafield-validation",
+      "VALIDATION",
+    )
+  let create_outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { validationCreate(validation: { functionHandle: \"metafield-validation\", title: \"Metafield validation\", metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { validation { id } userErrors { field } } }",
+    )
+  let update_outcome =
+    run_mutation_outcome(
+      create_outcome.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/1\", validation: { metafields: [{ namespace: \"custom\", type: \"single_line_text_field\", value: \"loose\" }] }) { validation { id metafields(first: 5) { nodes { namespace key value } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"metafields\",\"0\"],\"message\":\"presence\",\"code\":null}]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      update_outcome.store,
+      "{ validation(id: \"gid://shopify/Validation/1\") { title metafields(first: 5) { nodes { namespace key type value } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validation\":{\"title\":\"Metafield validation\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"type\":\"single_line_text_field\",\"value\":\"strict\"}]}}}"
 }
 
 pub fn validation_update_unknown_id_emits_user_error_test() {
