@@ -5306,6 +5306,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-reminder-send-additional-guards',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-payment-reminder-additional-guards-conformance.ts',
+    purpose:
+      'Records public Admin-reproducible paymentReminderSend guard branches for blank order email and one reminder per order per 24 hours.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json',
+      'config/parity-specs/payments/payment-reminder-send-additional-guards.json',
+      'config/parity-requests/payments/payment-reminder-send.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable draft/order/payment-terms records, sends one customer-visible reminder for the rate-limit baseline, captures the immediate second-send rejection, and cancels the completed orders during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Selling-plan, capture-at-fulfillment, and unsent PaymentCollection reminder guards depend on internal order/payment state that this public conformance harness cannot currently construct; runtime tests cover those local guardrails with explicit order-side state hints.',
+  },
+  {
+    domain: 'payments',
     captureId: 'platform-payments-orphaned-fixtures-payments',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01', ORPHAN_FIXTURE_GROUP: 'payments' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',

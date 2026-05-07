@@ -475,6 +475,101 @@ pub fn payment_reminder_stages_for_overdue_open_order_schedule_test() {
   assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 1
 }
 
+pub fn payment_reminder_rejects_additional_order_guardrails_test() {
+  let selling_plan_schedule_id = "gid://shopify/PaymentSchedule/selling-plan"
+  let capture_schedule_id = "gid://shopify/PaymentSchedule/capture"
+  let missing_email_schedule_id = "gid://shopify/PaymentSchedule/missing-email"
+  let collection_schedule_id = "gid://shopify/PaymentSchedule/collection"
+  let base_store =
+    store.new()
+    |> store.upsert_base_orders([
+      selling_plan_order("gid://shopify/Order/selling-plan"),
+      capture_at_fulfillment_order("gid://shopify/Order/capture"),
+      missing_email_order("gid://shopify/Order/missing-email"),
+      payment_collection_request_not_sent_order(
+        "gid://shopify/Order/collection",
+      ),
+    ])
+    |> store.upsert_staged_payment_terms(
+      overdue_terms(
+        "gid://shopify/PaymentTerms/selling-plan",
+        "gid://shopify/Order/selling-plan",
+        [schedule(selling_plan_schedule_id, None)],
+      ),
+    )
+    |> store.upsert_staged_payment_terms(
+      overdue_terms(
+        "gid://shopify/PaymentTerms/capture",
+        "gid://shopify/Order/capture",
+        [schedule(capture_schedule_id, None)],
+      ),
+    )
+    |> store.upsert_staged_payment_terms(
+      overdue_terms(
+        "gid://shopify/PaymentTerms/missing-email",
+        "gid://shopify/Order/missing-email",
+        [schedule(missing_email_schedule_id, None)],
+      ),
+    )
+    |> store.upsert_staged_payment_terms(
+      overdue_terms(
+        "gid://shopify/PaymentTerms/collection",
+        "gid://shopify/Order/collection",
+        [schedule(collection_schedule_id, None)],
+      ),
+    )
+  let proxy = DraftProxy(..draft_proxy.new(), store: base_store)
+
+  let #(
+    Response(status: selling_plan_status, body: selling_plan_body, ..),
+    proxy,
+  ) = run_reminder(proxy, selling_plan_schedule_id)
+  let #(Response(status: capture_status, body: capture_body, ..), proxy) =
+    run_reminder(proxy, capture_schedule_id)
+  let #(
+    Response(status: missing_email_status, body: missing_email_body, ..),
+    proxy,
+  ) = run_reminder(proxy, missing_email_schedule_id)
+  let #(Response(status: collection_status, body: collection_body, ..), proxy) =
+    run_reminder(proxy, collection_schedule_id)
+
+  assert selling_plan_status == 200
+  assert json.to_string(selling_plan_body) == selling_plan_response()
+  assert capture_status == 200
+  assert json.to_string(capture_body) == capture_at_fulfillment_response()
+  assert missing_email_status == 200
+  assert json.to_string(missing_email_body) == missing_email_response()
+  assert collection_status == 200
+  assert json.to_string(collection_body)
+    == payment_collection_request_not_sent_response()
+  assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 0
+}
+
+pub fn payment_reminder_rejects_second_send_inside_24h_window_test() {
+  let schedule_id = "gid://shopify/PaymentSchedule/rate-limit"
+  let proxy =
+    seeded_proxy(
+      open_order("gid://shopify/Order/rate-limit"),
+      overdue_terms(
+        "gid://shopify/PaymentTerms/rate-limit",
+        "gid://shopify/Order/rate-limit",
+        [schedule(schedule_id, None)],
+      ),
+    )
+
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    run_reminder(proxy, schedule_id)
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    run_reminder(proxy, schedule_id)
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"paymentReminderSend\":{\"success\":true,\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body) == send_limit_response()
+  assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 1
+}
+
 pub fn payment_reminder_rejects_customer_payment_method_selection_test() {
   let schedule_id = "gid://shopify/PaymentSchedule/shape"
   let proxy =
@@ -633,10 +728,90 @@ fn open_order(id: String) -> OrderRecord {
     cursor: None,
     data: CapturedObject([
       #("id", CapturedString(id)),
+      #("email", CapturedString("payment-reminder@example.com")),
+      #("contactEmail", CapturedString("payment-reminder@example.com")),
       #("closed", CapturedBool(False)),
       #("closedAt", CapturedNull),
       #("cancelledAt", CapturedNull),
       #("displayFinancialStatus", CapturedString("PENDING")),
+    ]),
+  )
+}
+
+fn selling_plan_order(id: String) -> OrderRecord {
+  OrderRecord(
+    ..open_order(id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("email", CapturedString("payment-reminder@example.com")),
+      #("contactEmail", CapturedString("payment-reminder@example.com")),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("displayFinancialStatus", CapturedString("PENDING")),
+      #(
+        "lineItems",
+        CapturedObject([
+          #(
+            "nodes",
+            CapturedArray([
+              CapturedObject([
+                #(
+                  "sellingPlan",
+                  CapturedObject([#("name", CapturedString("Monthly"))]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn capture_at_fulfillment_order(id: String) -> OrderRecord {
+  OrderRecord(
+    ..open_order(id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("email", CapturedString("payment-reminder@example.com")),
+      #("contactEmail", CapturedString("payment-reminder@example.com")),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("displayFinancialStatus", CapturedString("PENDING")),
+      #("captureAtFulfillment", CapturedBool(True)),
+    ]),
+  )
+}
+
+fn missing_email_order(id: String) -> OrderRecord {
+  OrderRecord(
+    ..open_order(id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("email", CapturedString("")),
+      #("contactEmail", CapturedNull),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("displayFinancialStatus", CapturedString("PENDING")),
+    ]),
+  )
+}
+
+fn payment_collection_request_not_sent_order(id: String) -> OrderRecord {
+  OrderRecord(
+    ..open_order(id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("email", CapturedString("payment-reminder@example.com")),
+      #("contactEmail", CapturedString("payment-reminder@example.com")),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("displayFinancialStatus", CapturedString("PENDING")),
+      #("paymentCollection", CapturedObject([#("requestSentAt", CapturedNull)])),
     ]),
   )
 }
@@ -695,6 +870,26 @@ fn already_completed_response() -> String {
 
 fn not_for_order_response() -> String {
   "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment schedule is not for an Order\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
+}
+
+fn selling_plan_response() -> String {
+  "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"Order has a selling plan\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
+}
+
+fn capture_at_fulfillment_response() -> String {
+  "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"Order has capture at fulfillment terms\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
+}
+
+fn missing_email_response() -> String {
+  "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"Order does not have a contact email\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
+}
+
+fn payment_collection_request_not_sent_response() -> String {
+  "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment collection request has not been sent\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
+}
+
+fn send_limit_response() -> String {
+  "{\"data\":{\"paymentReminderSend\":{\"success\":null,\"userErrors\":[{\"field\":null,\"message\":\"You cannot send more than 1 payment reminders for the same order in a 24hour period\",\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"}]}}}"
 }
 
 pub fn payment_customization_metafields_and_function_handle_readback_test() {
