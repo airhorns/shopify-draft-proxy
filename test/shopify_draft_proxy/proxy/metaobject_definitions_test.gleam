@@ -2,7 +2,7 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
@@ -488,6 +488,227 @@ fn definition_record(
     enabled_by_shopify: False,
     enabled_by_shopify_at: None,
     linked_metafields: [],
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn linked_metaobject_id(handle: String) -> String {
+  "gid://shopify/Metaobject/" <> handle <> "?shopify-draft-proxy=synthetic"
+}
+
+fn linked_product_option_metaobject_proxy(
+  type_: String,
+  linked_metaobject_ids: List(String),
+) -> proxy_state.DraftProxy {
+  linked_product_option_metaobject_proxy_with_display_name_key(
+    type_,
+    Some("title"),
+    linked_metaobject_ids,
+  )
+}
+
+fn linked_product_option_metaobject_proxy_with_display_name_key(
+  type_: String,
+  display_name_key: Option(String),
+  linked_metaobject_ids: List(String),
+) -> proxy_state.DraftProxy {
+  let initial_store =
+    store.new()
+    |> store.upsert_base_products([linked_option_product()])
+    |> store.upsert_base_metaobject_definitions([
+      linked_option_metaobject_definition(type_, display_name_key),
+    ])
+    |> store.upsert_base_metaobjects([
+      linked_option_metaobject(type_, "one", Some("One")),
+      linked_option_metaobject(type_, "two", Some("Two")),
+      linked_option_metaobject(type_, "unrelated", Some("Unrelated")),
+    ])
+    |> store.upsert_base_metafield_definitions([
+      linked_option_metafield_definition(type_),
+    ])
+  let proxy = proxy_state.DraftProxy(..draft_proxy.new(), store: initial_store)
+  let create_option = "mutation {
+      productOptionsCreate(
+        productId: \"gid://shopify/Product/linked-option\",
+        options: [{
+          name: \"Choice\",
+          linkedMetafield: {
+            namespace: \"linked_option\",
+            key: \"choice\",
+            values: [" <> quote_strings(linked_metaobject_ids) <> "]
+          }
+        }]
+      ) {
+        product { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), linked_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_option))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsCreate\":{\"product\":{\"id\":\"gid://shopify/Product/linked-option\"},\"userErrors\":[]}}}"
+  linked_proxy
+}
+
+fn quote_strings(values: List(String)) -> String {
+  values
+  |> list.map(fn(value) { json.to_string(json.string(value)) })
+  |> string.join(",")
+}
+
+fn linked_option_product() -> state_types.ProductRecord {
+  state_types.ProductRecord(
+    id: "gid://shopify/Product/linked-option",
+    legacy_resource_id: None,
+    title: "Linked Option Product",
+    handle: "linked-option-product",
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: Some(0),
+    has_only_default_variant: Some(False),
+    has_out_of_stock_variants: Some(False),
+    total_inventory: Some(0),
+    tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: state_types.ProductSeoRecord(title: None, description: None),
+    category: None,
+    requires_selling_plan: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
+  )
+}
+
+fn linked_option_metafield_definition(
+  type_: String,
+) -> state_types.MetafieldDefinitionRecord {
+  state_types.MetafieldDefinitionRecord(
+    id: "gid://shopify/MetafieldDefinition/linked-option-" <> type_,
+    name: "Linked option choice",
+    namespace: "linked_option",
+    key: "choice",
+    owner_type: "PRODUCT",
+    type_: state_types.MetafieldDefinitionTypeRecord(
+      name: "list.metaobject_reference",
+      category: None,
+    ),
+    description: None,
+    validations: [
+      state_types.MetafieldDefinitionValidationRecord(
+        name: "metaobject_definition_id",
+        value: Some(linked_option_metaobject_definition_id(type_)),
+      ),
+    ],
+    access: dict.new(),
+    capabilities: state_types.MetafieldDefinitionCapabilitiesRecord(
+      admin_filterable: state_types.MetafieldDefinitionCapabilityRecord(
+        enabled: False,
+        eligible: True,
+        status: None,
+      ),
+      smart_collection_condition: state_types.MetafieldDefinitionCapabilityRecord(
+        enabled: False,
+        eligible: True,
+        status: None,
+      ),
+      unique_values: state_types.MetafieldDefinitionCapabilityRecord(
+        enabled: False,
+        eligible: True,
+        status: None,
+      ),
+    ),
+    constraints: None,
+    pinned_position: None,
+    validation_status: "ALL_VALID",
+  )
+}
+
+fn linked_option_metaobject_definition_id(type_: String) -> String {
+  "gid://shopify/MetaobjectDefinition/linked-option-" <> type_
+}
+
+fn linked_option_metaobject_definition(
+  type_: String,
+  display_name_key: Option(String),
+) -> state_types.MetaobjectDefinitionRecord {
+  state_types.MetaobjectDefinitionRecord(
+    id: linked_option_metaobject_definition_id(type_),
+    type_: type_,
+    name: Some("Linked option choice"),
+    description: None,
+    display_name_key: display_name_key,
+    online_store_url_handle: None,
+    access: dict.new(),
+    capabilities: state_types.MetaobjectDefinitionCapabilitiesRecord(
+      publishable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      translatable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      renderable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      online_store: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+    ),
+    field_definitions: [text_field_definition("title")],
+    has_thumbnail_field: Some(False),
+    metaobjects_count: Some(3),
+    standard_template: None,
+    standard_template_id: None,
+    standard_template_dependent_on_app: False,
+    app_config_managed: False,
+    enabled_by_shopify: False,
+    enabled_by_shopify_at: None,
+    linked_metafields: [],
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn linked_option_metaobject(
+  type_: String,
+  handle: String,
+  display_name: Option(String),
+) -> state_types.MetaobjectRecord {
+  state_types.MetaobjectRecord(
+    id: linked_metaobject_id(handle),
+    handle: handle,
+    type_: type_,
+    display_name: display_name,
+    fields: [
+      state_types.MetaobjectFieldRecord(
+        key: "title",
+        type_: Some("single_line_text_field"),
+        value: display_name,
+        json_value: case display_name {
+          Some(value) -> state_types.MetaobjectString(value)
+          None -> state_types.MetaobjectNull
+        },
+        definition: Some(state_types.MetaobjectFieldDefinitionReferenceRecord(
+          key: "title",
+          name: Some("title"),
+          required: Some(False),
+          type_: state_types.MetaobjectDefinitionTypeRecord(
+            "single_line_text_field",
+            Some("TEXT"),
+          ),
+        )),
+      ),
+    ],
+    capabilities: state_types.MetaobjectCapabilitiesRecord(
+      publishable: None,
+      online_store: None,
+    ),
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
@@ -2328,6 +2549,170 @@ pub fn metaobject_update_preserves_display_name_until_display_field_changes_test
     )
   assert json.to_string(title_update.data)
     == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"displayName\":\"Changed title\",\"updatedAt\":\"2024-01-01T00:00:04.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Changed title\"},{\"key\":\"body\",\"value\":\"Changed body\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn metaobject_update_rejects_display_name_conflict_for_linked_product_option_test() {
+  let linked =
+    linked_product_option_metaobject_proxy(
+      "codex_display_name_conflict_update",
+      [linked_metaobject_id("one")],
+    )
+  let update = "mutation {
+      metaobjectUpdate(
+        id: \"" <> linked_metaobject_id("two") <> "\",
+        metaobject: { fields: [{ key: \"title\", value: \"One\" }] }
+      ) {
+        metaobject { id displayName }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), after_update) =
+    draft_proxy.process_request(linked, graphql_request(update))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"fields\",\"0\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  let assert Some(two) =
+    store.get_effective_metaobject_by_id(
+      after_update.store,
+      linked_metaobject_id("two"),
+    )
+  assert two.display_name == Some("Two")
+}
+
+pub fn metaobject_upsert_rejects_display_name_conflict_for_linked_product_option_test() {
+  let linked =
+    linked_product_option_metaobject_proxy(
+      "codex_display_name_conflict_upsert",
+      [linked_metaobject_id("one")],
+    )
+  let upsert =
+    "mutation {
+      metaobjectUpsert(
+        handle: { type: \"codex_display_name_conflict_upsert\", handle: \"two\" },
+        metaobject: { fields: [{ key: \"title\", value: \"One\" }] }
+      ) {
+        metaobject { id displayName }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), after_upsert) =
+    draft_proxy.process_request(linked, graphql_request(upsert))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"fields\",\"0\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  let assert Some(two) =
+    store.get_effective_metaobject_by_id(
+      after_upsert.store,
+      linked_metaobject_id("two"),
+    )
+  assert two.display_name == Some("Two")
+}
+
+pub fn metaobject_update_allows_display_name_collision_when_competing_row_is_not_linked_test() {
+  let linked =
+    linked_product_option_metaobject_proxy("codex_display_name_conflict_gate", [
+      linked_metaobject_id("unrelated"),
+    ])
+  let update = "mutation {
+      metaobjectUpdate(
+        id: \"" <> linked_metaobject_id("two") <> "\",
+        metaobject: { fields: [{ key: \"title\", value: \"One\" }] }
+      ) {
+        metaobject { id displayName }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(linked, graphql_request(update))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/two?shopify-draft-proxy=synthetic\",\"displayName\":\"One\"},\"userErrors\":[]}}}"
+}
+
+pub fn metaobject_update_allows_unchanged_display_name_even_when_same_named_row_is_linked_test() {
+  let linked =
+    linked_product_option_metaobject_proxy(
+      "codex_display_name_conflict_unchanged",
+      [linked_metaobject_id("one")],
+    )
+  let assert Some(existing_two) =
+    store.get_effective_metaobject_by_id(
+      linked.store,
+      linked_metaobject_id("two"),
+    )
+  let #(_, conflict_store) =
+    store.upsert_staged_metaobject(
+      linked.store,
+      state_types.MetaobjectRecord(..existing_two, display_name: Some("One")),
+    )
+  let conflict_proxy = proxy_state.DraftProxy(..linked, store: conflict_store)
+  let update = "mutation {
+      metaobjectUpdate(
+        id: \"" <> linked_metaobject_id("two") <> "\",
+        metaobject: { fields: [{ key: \"title\", value: \"One\" }] }
+      ) {
+        metaobject { id displayName }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(conflict_proxy, graphql_request(update))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/two?shopify-draft-proxy=synthetic\",\"displayName\":\"One\"},\"userErrors\":[]}}}"
+}
+
+pub fn metaobject_update_rejects_handle_derived_display_name_conflict_test() {
+  let linked =
+    linked_product_option_metaobject_proxy_with_display_name_key(
+      "codex_display_name_conflict_handle",
+      None,
+      [linked_metaobject_id("one")],
+    )
+  let update = "mutation {
+      metaobjectUpdate(
+        id: \"" <> linked_metaobject_id("two") <> "\",
+        metaobject: { handle: \"one-\" }
+      ) {
+        metaobject { id handle displayName }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(linked, graphql_request(update))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_create_continues_to_suffix_duplicate_handles_without_display_conflict_validation_test() {
+  let linked =
+    linked_product_option_metaobject_proxy(
+      "codex_display_name_conflict_create",
+      [linked_metaobject_id("one")],
+    )
+  let create =
+    "mutation {
+      metaobjectCreate(metaobject: {
+        type: \"codex_display_name_conflict_create\",
+        handle: \"one\",
+        fields: [{ key: \"title\", value: \"One\" }]
+      }) {
+        metaobject { id handle displayName }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(linked, graphql_request(create))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/4?shopify-draft-proxy=synthetic\",\"handle\":\"one-1\",\"displayName\":\"One\"},\"userErrors\":[]}}}"
 }
 
 pub fn definition_delete_cascades_associated_entries_locally_test() {

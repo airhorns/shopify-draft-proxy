@@ -24,8 +24,9 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/state/store.{
   type Store, find_effective_metaobject_by_handle,
   find_effective_metaobject_definition_by_type,
-  list_effective_metaobject_definitions, list_effective_metaobjects_by_type,
-  translation_storage_key, upsert_staged_metaobject_definition,
+  get_effective_product_option_by_id, list_effective_metaobject_definitions,
+  list_effective_metaobjects_by_type, translation_storage_key,
+  upsert_staged_metaobject_definition,
 }
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -2130,34 +2131,216 @@ fn apply_valid_metaobject_update_input(
               {
                 True ->
                   metaobject_display_name(definition, fields, Some(handle))
-                False -> existing.display_name
+                False ->
+                  case definition.display_name_key {
+                    None ->
+                      case existing.handle != handle {
+                        True -> Some(metaobject_handle_display_name(handle))
+                        False -> existing.display_name
+                      }
+                    Some(_) -> existing.display_name
+                  }
               }
-              let #(now, next_identity) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              #(
-                Some(
-                  MetaobjectRecord(
-                    ..existing,
-                    handle: handle,
-                    display_name: display_name,
-                    fields: fields,
-                    capabilities: build_metaobject_capabilities(
-                      input,
-                      definition,
-                      Some(existing.capabilities),
+              let conflict_errors =
+                metaobject_display_name_conflict_user_errors(
+                  store,
+                  definition,
+                  existing,
+                  handle,
+                  display_name,
+                  fields,
+                  input,
+                )
+              case conflict_errors {
+                [_, ..] -> #(None, identity, conflict_errors)
+                [] -> {
+                  let #(now, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  #(
+                    Some(
+                      MetaobjectRecord(
+                        ..existing,
+                        handle: handle,
+                        display_name: display_name,
+                        fields: fields,
+                        capabilities: build_metaobject_capabilities(
+                          input,
+                          definition,
+                          Some(existing.capabilities),
+                        ),
+                        updated_at: Some(now),
+                      ),
                     ),
-                    updated_at: Some(now),
-                  ),
-                ),
-                next_identity,
-                [],
-              )
+                    next_identity,
+                    [],
+                  )
+                }
+              }
             }
           }
         }
       }
     }
   }
+}
+
+fn metaobject_display_name_conflict_user_errors(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+  existing: MetaobjectRecord,
+  handle: String,
+  display_name: Option(String),
+  fields: List(MetaobjectFieldRecord),
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case
+    metaobject_display_name_change_field(
+      definition,
+      existing,
+      handle,
+      fields,
+      input,
+    ),
+    display_name
+  {
+    Some(field), Some(name) ->
+      case
+        effective_display_name_for_conflict(definition, existing) == Some(name)
+      {
+        True -> []
+        False ->
+          case
+            display_name_conflicts_with_linked_product_option(
+              store,
+              definition,
+              existing.id,
+              name,
+            )
+          {
+            True -> [
+              UserError(
+                Some(field),
+                "Display name has already been taken",
+                "DISPLAY_NAME_CONFLICT",
+                None,
+                None,
+              ),
+            ]
+            False -> []
+          }
+      }
+    _, _ -> []
+  }
+}
+
+fn metaobject_display_name_change_field(
+  definition: MetaobjectDefinitionRecord,
+  existing: MetaobjectRecord,
+  handle: String,
+  fields: List(MetaobjectFieldRecord),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(List(String)) {
+  case definition.display_name_key {
+    Some(display_key) ->
+      case
+        should_recompute_metaobject_display_name(
+          definition,
+          existing.fields,
+          fields,
+          input,
+        ),
+        input_field_index(input, display_key)
+      {
+        True, Some(index) -> Some(["fields", int.to_string(index)])
+        _, _ -> None
+      }
+    None ->
+      case existing.handle != handle {
+        True -> Some(["handle"])
+        False -> None
+      }
+  }
+}
+
+fn input_field_index(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Int) {
+  read_list(input, "fields")
+  |> enumerate_values()
+  |> list.find_map(fn(pair) {
+    let #(index, value) = pair
+    case value {
+      root_field.ObjectVal(raw_field) ->
+        case read_string(raw_field, "key") == Some(key) {
+          True -> Ok(index)
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn display_name_conflicts_with_linked_product_option(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+  existing_id: String,
+  display_name: String,
+) -> Bool {
+  list_effective_metaobjects_by_type(store, definition.type_)
+  |> list.any(fn(candidate) {
+    candidate.id != existing_id
+    && effective_display_name_for_conflict(definition, candidate)
+    == Some(display_name)
+    && metaobject_is_referenced_by_linked_product_option(
+      store,
+      definition,
+      candidate.id,
+    )
+  })
+}
+
+fn effective_display_name_for_conflict(
+  definition: MetaobjectDefinitionRecord,
+  metaobject: MetaobjectRecord,
+) -> Option(String) {
+  case metaobject.display_name {
+    Some(name) -> Some(name)
+    None ->
+      case definition.display_name_key {
+        None -> Some(metaobject_handle_display_name(metaobject.handle))
+        Some(_) ->
+          metaobject_display_name(
+            definition,
+            metaobject.fields,
+            Some(metaobject.handle),
+          )
+      }
+  }
+}
+
+fn metaobject_is_referenced_by_linked_product_option(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+  metaobject_id: String,
+) -> Bool {
+  definition.linked_metafields
+  |> list.any(fn(linked_metafield) {
+    case
+      get_effective_product_option_by_id(
+        store,
+        linked_metafield.product_option_id,
+      )
+    {
+      Some(option) ->
+        option.option_values
+        |> list.any(fn(value) {
+          value.linked_metafield_value == Some(metaobject_id)
+        })
+      None -> False
+    }
+  })
 }
 
 @internal
