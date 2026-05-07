@@ -2625,6 +2625,8 @@ pub fn validate_bxgy_input(
       bxgy_missing_discount_on_quantity_errors(input_name, input),
     )
   let errors =
+    list.append(errors, bxgy_numeric_validation_errors(input_name, input))
+  let errors =
     list.append(errors, bxgy_disallowed_subscription_errors(input_name, input))
   let errors = case title_is_blank(input) {
     True ->
@@ -2682,6 +2684,141 @@ pub fn bxgy_disallowed_value_errors(
       }
     }
     None -> []
+  }
+}
+
+@internal
+pub fn bxgy_numeric_validation_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  []
+  |> list.append(bxgy_uses_per_order_limit_errors(input_name, input))
+  |> list.append(bxgy_customer_buys_quantity_errors(input_name, input))
+  |> list.append(bxgy_customer_gets_quantity_errors(input_name, input))
+}
+
+@internal
+pub fn bxgy_uses_per_order_limit_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(input, "usesPerOrderLimit") {
+    Ok(value) ->
+      case resolved_integer(value) {
+        Some(limit) if limit == 0 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit cannot be zero",
+            "VALUE_OUTSIDE_RANGE",
+          ),
+        ]
+        Some(limit) if limit < 0 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit must be greater than 0",
+            "GREATER_THAN",
+          ),
+        ]
+        Some(limit) if limit > 2_147_483_647 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit must be less than or equal to 2147483647",
+            "LESS_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        _ -> []
+      }
+    Error(_) -> []
+  }
+}
+
+@internal
+pub fn bxgy_customer_buys_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_value(input, "customerBuys") {
+    root_field.ObjectVal(fields) ->
+      case discount_types.read_value(fields, "value") {
+        root_field.ObjectVal(value_fields) ->
+          validate_bxgy_quantity_value(
+            input_name,
+            ["customerBuys", "value", "quantity"],
+            "antecedent",
+            discount_types.read_value(value_fields, "quantity"),
+          )
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+@internal
+pub fn bxgy_customer_gets_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(value_fields) ->
+      case dict.get(value_fields, "discountOnQuantity") {
+        Ok(root_field.ObjectVal(quantity_fields)) ->
+          validate_bxgy_quantity_value(
+            input_name,
+            ["customerGets", "value", "discountOnQuantity", "quantity"],
+            "consequent",
+            discount_types.read_value(quantity_fields, "quantity"),
+          )
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_bxgy_quantity_value(
+  input_name: String,
+  field_tail: List(String),
+  role: String,
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case resolved_integer(value) {
+    Some(quantity) if quantity <= 0 -> [
+      discount_types.user_error(
+        [input_name, ..field_tail],
+        "Prerequisite to entitlement quantity ratio "
+          <> role
+          <> " must be greater than 0",
+        "GREATER_THAN",
+      ),
+    ]
+    Some(quantity) if quantity >= 100_000 -> [
+      discount_types.user_error(
+        [input_name, ..field_tail],
+        "Prerequisite to entitlement quantity ratio "
+          <> role
+          <> " must be less than 100000",
+        "LESS_THAN",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn resolved_integer(value: root_field.ResolvedValue) -> Option(Int) {
+  case value {
+    root_field.IntVal(value) -> Some(value)
+    root_field.StringVal(value) -> {
+      let value = string.trim(value)
+      case string.starts_with(value, "+") {
+        True -> string.drop_start(value, 1)
+        False -> value
+      }
+      |> int.parse
+      |> option.from_result
+    }
+    _ -> None
   }
 }
 

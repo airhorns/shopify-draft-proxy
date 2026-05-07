@@ -1,0 +1,13 @@
+mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {
+  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

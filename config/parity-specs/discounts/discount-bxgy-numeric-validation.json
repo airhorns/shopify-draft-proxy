@@ -1,0 +1,578 @@
+{
+  "scenarioId": "discount-bxgy-numeric-validation",
+  "operationNames": [
+    "discountCodeBxgyCreate",
+    "discountCodeBxgyUpdate",
+    "discountAutomaticBxgyCreate",
+    "discountAutomaticBxgyUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "graphql-coercion-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-bxgy-numeric-validation.json"
+  ],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+    "variablesCapturePath": "$.setup.codeCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-bxgy-setup",
+        "capturePath": "$.setup.codeCreate.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "automatic-bxgy-setup",
+        "capturePath": "$.setup.automaticCreate.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.setup.automaticCreate.variables"
+        }
+      },
+      {
+        "name": "code-create-uses-limit-zero",
+        "capturePath": "$.validation.codeCreateUsesLimitZero.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateUsesLimitZero.variables"
+        }
+      },
+      {
+        "name": "code-update-uses-limit-zero",
+        "capturePath": "$.validation.codeUpdateUsesLimitZero.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateUsesLimitZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-uses-limit-negative",
+        "capturePath": "$.validation.codeCreateUsesLimitNegative.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateUsesLimitNegative.variables"
+        }
+      },
+      {
+        "name": "code-update-uses-limit-negative",
+        "capturePath": "$.validation.codeUpdateUsesLimitNegative.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateUsesLimitNegative.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-uses-limit-too-large",
+        "capturePath": "$.validation.codeCreateUsesLimitTooLarge.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateUsesLimitTooLarge.variables"
+        }
+      },
+      {
+        "name": "code-update-uses-limit-too-large",
+        "capturePath": "$.validation.codeUpdateUsesLimitTooLarge.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateUsesLimitTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-buy-quantity-zero",
+        "capturePath": "$.validation.codeCreateBuyQuantityZero.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateBuyQuantityZero.variables"
+        }
+      },
+      {
+        "name": "code-update-buy-quantity-zero",
+        "capturePath": "$.validation.codeUpdateBuyQuantityZero.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateBuyQuantityZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-buy-quantity-too-large",
+        "capturePath": "$.validation.codeCreateBuyQuantityTooLarge.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateBuyQuantityTooLarge.variables"
+        }
+      },
+      {
+        "name": "code-update-buy-quantity-too-large",
+        "capturePath": "$.validation.codeUpdateBuyQuantityTooLarge.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateBuyQuantityTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-get-quantity-zero",
+        "capturePath": "$.validation.codeCreateGetQuantityZero.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateGetQuantityZero.variables"
+        }
+      },
+      {
+        "name": "code-update-get-quantity-zero",
+        "capturePath": "$.validation.codeUpdateGetQuantityZero.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateGetQuantityZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-get-quantity-too-large",
+        "capturePath": "$.validation.codeCreateGetQuantityTooLarge.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateGetQuantityTooLarge.variables"
+        }
+      },
+      {
+        "name": "code-update-get-quantity-too-large",
+        "capturePath": "$.validation.codeUpdateGetQuantityTooLarge.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateGetQuantityTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-uses-limit-zero",
+        "capturePath": "$.validation.automaticCreateUsesLimitZero.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateUsesLimitZero.variables"
+        }
+      },
+      {
+        "name": "automatic-update-uses-limit-zero",
+        "capturePath": "$.validation.automaticUpdateUsesLimitZero.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateUsesLimitZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-uses-limit-too-large",
+        "capturePath": "$.validation.automaticCreateUsesLimitTooLarge.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateUsesLimitTooLarge.variables"
+        }
+      },
+      {
+        "name": "automatic-update-uses-limit-too-large",
+        "capturePath": "$.validation.automaticUpdateUsesLimitTooLarge.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateUsesLimitTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-buy-quantity-zero",
+        "capturePath": "$.validation.automaticCreateBuyQuantityZero.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateBuyQuantityZero.variables"
+        }
+      },
+      {
+        "name": "automatic-update-buy-quantity-zero",
+        "capturePath": "$.validation.automaticUpdateBuyQuantityZero.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateBuyQuantityZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-buy-quantity-too-large",
+        "capturePath": "$.validation.automaticCreateBuyQuantityTooLarge.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateBuyQuantityTooLarge.variables"
+        }
+      },
+      {
+        "name": "automatic-update-buy-quantity-too-large",
+        "capturePath": "$.validation.automaticUpdateBuyQuantityTooLarge.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateBuyQuantityTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-get-quantity-zero",
+        "capturePath": "$.validation.automaticCreateGetQuantityZero.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateGetQuantityZero.variables"
+        }
+      },
+      {
+        "name": "automatic-update-get-quantity-zero",
+        "capturePath": "$.validation.automaticUpdateGetQuantityZero.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateGetQuantityZero.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-get-quantity-too-large",
+        "capturePath": "$.validation.automaticCreateGetQuantityTooLarge.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateGetQuantityTooLarge.variables"
+        }
+      },
+      {
+        "name": "automatic-update-get-quantity-too-large",
+        "capturePath": "$.validation.automaticUpdateGetQuantityTooLarge.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateGetQuantityTooLarge.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-uses-limit-float-string",
+        "capturePath": "$.validation.codeCreateUsesLimitFloatString.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateUsesLimitFloatString.variables"
+        }
+      },
+      {
+        "name": "code-update-uses-limit-float-string",
+        "capturePath": "$.validation.codeUpdateUsesLimitFloatString.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateUsesLimitFloatString.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-uses-limit-negative-variable",
+        "capturePath": "$.validation.automaticCreateUsesLimitNegative.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateUsesLimitNegative.variables"
+        }
+      },
+      {
+        "name": "automatic-update-uses-limit-negative-variable",
+        "capturePath": "$.validation.automaticUpdateUsesLimitNegative.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateUsesLimitNegative.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-buy-quantity-float-string",
+        "capturePath": "$.validation.codeCreateBuyQuantityFloatString.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateBuyQuantityFloatString.variables"
+        }
+      },
+      {
+        "name": "code-update-buy-quantity-float-string",
+        "capturePath": "$.validation.codeUpdateBuyQuantityFloatString.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateBuyQuantityFloatString.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-get-quantity-negative-variable",
+        "capturePath": "$.validation.automaticCreateGetQuantityNegative.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateGetQuantityNegative.variables"
+        }
+      },
+      {
+        "name": "automatic-update-get-quantity-negative-variable",
+        "capturePath": "$.validation.automaticUpdateGetQuantityNegative.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateGetQuantityNegative.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-create-ratio-accepted",
+        "capturePath": "$.validation.codeCreateRatioAccepted.payload.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreateRatioAccepted.variables"
+        }
+      },
+      {
+        "name": "code-update-ratio-accepted",
+        "capturePath": "$.validation.codeUpdateRatioAccepted.payload.data.discountCodeBxgyUpdate",
+        "proxyPath": "$.data.discountCodeBxgyUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdateRatioAccepted.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-create-ratio-accepted",
+        "capturePath": "$.validation.automaticCreateRatioAccepted.payload.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreateRatioAccepted.variables"
+        }
+      },
+      {
+        "name": "automatic-update-ratio-accepted",
+        "capturePath": "$.validation.automaticUpdateRatioAccepted.payload.data.discountAutomaticBxgyUpdate",
+        "proxyPath": "$.data.discountAutomaticBxgyUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-bxgy-setup",
+              "path": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdateRatioAccepted.variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence that code and automatic BXGY create/update reject zero, negative, non-integer, and over-bound numeric inputs with Shopify's current DiscountUserError or INVALID_VARIABLE shapes. Shopify accepted the captured 7:3 prerequisite-to-entitlement ratio for both code and automatic create/update, so the proxy preserves acceptance rather than adding a ratio rejection."
+}
