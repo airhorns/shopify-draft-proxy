@@ -23,3 +23,20 @@ pub fn read_requesting_api_client_id(
     Ok(value) -> Some(value)
   }
 }
+
+pub fn resolve_app_namespace(
+  namespace: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  case string.starts_with(namespace, "$app:") {
+    True ->
+      case requesting_api_client_id {
+        Some(api_client_id) -> {
+          let suffix = string.drop_start(namespace, string.length("$app:"))
+          "app--" <> api_client_id <> "--" <> suffix
+        }
+        None -> namespace
+      }
+    False -> namespace
+  }
+}

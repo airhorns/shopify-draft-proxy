@@ -365,7 +365,12 @@ fn handle_create(
           {
             Some(input_dict), [] -> {
               let #(record, identity_after) =
-                build_webhook_from_create_input(identity, topic, input_dict)
+                build_webhook_from_create_input(
+                  identity,
+                  topic,
+                  input_dict,
+                  requesting_api_client_id,
+                )
               let #(_, store_after) =
                 store.upsert_staged_webhook_subscription(store, record)
               #(Some(record), store_after, identity_after, [record.id])
@@ -484,7 +489,12 @@ fn handle_update(
       {
         Some(input_dict), Some(existing_record), [] -> {
           let #(record, identity_after) =
-            apply_webhook_update_input(identity, existing_record, input_dict)
+            apply_webhook_update_input(
+              identity,
+              existing_record,
+              input_dict,
+              requesting_api_client_id,
+            )
           let #(_, store_after) =
             store.upsert_staged_webhook_subscription(store, record)
           #(Some(record), store_after, identity_after, [record.id])
@@ -625,6 +635,7 @@ fn build_webhook_from_create_input(
   identity: SyntheticIdentityRegistry,
   topic: Option(String),
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(WebhookSubscriptionRecord, SyntheticIdentityRegistry) {
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -649,7 +660,7 @@ fn build_webhook_from_create_input(
         [],
       ),
       metafield_namespaces: option.unwrap(
-        read_optional_string_array(input, "metafieldNamespaces"),
+        read_resolved_metafield_namespaces(input, requesting_api_client_id),
         [],
       ),
       filter: read_optional_string(input, "filter"),
@@ -664,6 +675,7 @@ fn apply_webhook_update_input(
   identity: SyntheticIdentityRegistry,
   existing: WebhookSubscriptionRecord,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(WebhookSubscriptionRecord, SyntheticIdentityRegistry) {
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -697,7 +709,7 @@ fn apply_webhook_update_input(
         existing.include_fields,
       ),
       metafield_namespaces: option.unwrap(
-        read_optional_string_array(input, "metafieldNamespaces"),
+        read_resolved_metafield_namespaces(input, requesting_api_client_id),
         existing.metafield_namespaces,
       ),
       filter: case read_optional_string(input, "filter") {
@@ -708,6 +720,18 @@ fn apply_webhook_update_input(
       endpoint: new_endpoint,
     )
   #(record, identity_after_ts)
+}
+
+fn read_resolved_metafield_namespaces(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(List(String)) {
+  read_optional_string_array(input, "metafieldNamespaces")
+  |> option.map(fn(namespaces) {
+    list.map(namespaces, fn(namespace) {
+      app_identity.resolve_app_namespace(namespace, requesting_api_client_id)
+    })
+  })
 }
 
 // ---- Input readers --------------------------------------------------------

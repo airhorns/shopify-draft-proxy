@@ -1,0 +1,380 @@
+{
+  "capturedAt": "2026-05-07T11:39:31.155Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "requestingApiClientId": "347082227713",
+  "notes": [
+    "Captures webhookSubscriptionCreate/update metafieldNamespaces app-namespace resolution for API-created HTTP webhook subscriptions.",
+    "The create branch uses a mixed-case `$app:Settings...` shorthand plus non-app values; Shopify stores and returns the canonical app namespace while preserving non-app entries.",
+    "The update branch proves the same resolution path before downstream detail and filtered list reads.",
+    "The temporary subscription is deleted during cleanup and the script does not trigger webhook delivery."
+  ],
+  "expectedResolvedNamespaces": {
+    "create": ["app--347082227713--Settingsmoveyoc1", "custom", "app--999999999999--kept-moveyoc1"],
+    "update": ["app--347082227713--Billingmoveyoc1", "custom"]
+  },
+  "lifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "PRODUCTS_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-namespace-moveyoc1",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": ["$app:Settingsmoveyoc1", "custom", "app--999999999999--kept-moveyoc1"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929434071346",
+                "topic": "PRODUCTS_UPDATE",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [
+                  "app--347082227713--Settingsmoveyoc1",
+                  "custom",
+                  "app--999999999999--kept-moveyoc1"
+                ],
+                "filter": null,
+                "createdAt": "2026-05-07T11:39:30Z",
+                "updatedAt": "2026-05-07T11:39:30Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-namespace-moveyoc1"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929434071346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929434071346",
+              "topic": "PRODUCTS_UPDATE",
+              "format": "JSON",
+              "includeFields": ["id"],
+              "metafieldNamespaces": [
+                "app--347082227713--Settingsmoveyoc1",
+                "custom",
+                "app--999999999999--kept-moveyoc1"
+              ],
+              "filter": null,
+              "createdAt": "2026-05-07T11:39:30Z",
+              "updatedAt": "2026-05-07T11:39:30Z",
+              "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://example.com/hermes-webhook-namespace-moveyoc1"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafield-namespaces-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-namespace-moveyoc1"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1929434071346",
+                  "uri": "https://example.com/hermes-webhook-namespace-moveyoc1",
+                  "metafieldNamespaces": [
+                    "app--347082227713--Settingsmoveyoc1",
+                    "custom",
+                    "app--999999999999--kept-moveyoc1"
+                  ]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929434071346",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-namespace-moveyoc1-updated",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": ["$app:Billingmoveyoc1", "custom"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929434071346",
+                "topic": "PRODUCTS_UPDATE",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": ["app--347082227713--Billingmoveyoc1", "custom"],
+                "filter": null,
+                "createdAt": "2026-05-07T11:39:30Z",
+                "updatedAt": "2026-05-07T11:39:30Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-namespace-moveyoc1-updated"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929434071346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929434071346",
+              "topic": "PRODUCTS_UPDATE",
+              "format": "JSON",
+              "includeFields": ["id"],
+              "metafieldNamespaces": ["app--347082227713--Billingmoveyoc1", "custom"],
+              "filter": null,
+              "createdAt": "2026-05-07T11:39:30Z",
+              "updatedAt": "2026-05-07T11:39:30Z",
+              "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://example.com/hermes-webhook-namespace-moveyoc1-updated"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafield-namespaces-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-namespace-moveyoc1-updated"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1929434071346",
+                  "uri": "https://example.com/hermes-webhook-namespace-moveyoc1-updated",
+                  "metafieldNamespaces": ["app--347082227713--Billingmoveyoc1", "custom"]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929434071346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929434071346",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1929434071346"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929434071346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesShopBaselineHydrate",
+      "variables": {},
+      "query": "query StorePropertiesShopBaselineHydrate { shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } contactEmail email currencyCode enabledPresentmentCurrencies ianaTimezone timezoneAbbreviation timezoneOffset timezoneOffsetMinutes taxesIncluded taxShipping unitSystem weightUnit shopAddress { id address1 address2 city company coordinatesValidated country countryCodeV2 formatted formattedArea latitude longitude phone province provinceCode zip } plan { partnerDevelopment publicDisplayName shopifyPlus } resourceLimits { locationLimit maxProductOptions maxProductVariants redirectLimitReached } features { avalaraAvatax branding bundles { eligibleForBundles ineligibilityReason sellsBundles } captcha cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } dynamicRemarketing eligibleForSubscriptionMigration eligibleForSubscriptions giftCards harmonizedSystemCode legacySubscriptionGatewayEnabled liveView paypalExpressSubscriptionGatewayStatus reports sellsSubscriptions showMetrics storefront unifiedMarkets } paymentSettings { supportedDigitalWallets } shopPolicies { id title body type url createdAt updatedAt } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'shopAddress' doesn't exist on type 'Shop'",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 300
+                }
+              ],
+              "path": ["query StorePropertiesShopBaselineHydrate", "shop", "shopAddress"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Shop",
+                "fieldName": "shopAddress"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesShopBaselineHydrate",
+      "variables": {},
+      "query": "query StorePropertiesShopBaselineHydrate { shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } contactEmail email currencyCode enabledPresentmentCurrencies ianaTimezone timezoneAbbreviation timezoneOffset timezoneOffsetMinutes taxesIncluded taxShipping unitSystem weightUnit shopAddress { id address1 address2 city company coordinatesValidated country countryCodeV2 formatted formattedArea latitude longitude phone province provinceCode zip } plan { partnerDevelopment publicDisplayName shopifyPlus } resourceLimits { locationLimit maxProductOptions maxProductVariants redirectLimitReached } features { avalaraAvatax branding bundles { eligibleForBundles ineligibilityReason sellsBundles } captcha cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } dynamicRemarketing eligibleForSubscriptionMigration eligibleForSubscriptions giftCards harmonizedSystemCode legacySubscriptionGatewayEnabled liveView paypalExpressSubscriptionGatewayStatus reports sellsSubscriptions showMetrics storefront unifiedMarkets } paymentSettings { supportedDigitalWallets } shopPolicies { id title body type url createdAt updatedAt } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'shopAddress' doesn't exist on type 'Shop'",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 300
+                }
+              ],
+              "path": ["query StorePropertiesShopBaselineHydrate", "shop", "shopAddress"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Shop",
+                "fieldName": "shopAddress"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

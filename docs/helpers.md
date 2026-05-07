@@ -19,6 +19,7 @@ Shared helper for request-owned app identity.
 
 - reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
 - trims blank values to `None`
+- resolves `$app:<suffix>` namespace shorthands to `app--<api_client_id>--<suffix>` when a request-owned API client ID is available, preserving the suffix bytes captured for webhook subscription namespace allowlists
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 

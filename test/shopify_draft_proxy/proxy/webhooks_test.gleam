@@ -902,6 +902,37 @@ pub fn webhook_subscription_create_customer_id_filter_stages_record_test() {
     == [Some("customer_id:10586565673266")]
 }
 
+pub fn webhook_subscription_create_resolves_app_metafield_namespaces_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: PRODUCTS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/product\", metafieldNamespaces: [\"$app:Settings\", \"custom\", \"app--222--kept\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation_with_headers(
+      store.new(),
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", "999001")]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { metafieldNamespaces } webhookSubscriptions(first: 5) { nodes { metafieldNamespaces } } }",
+    )
+    == "{\"webhookSubscription\":{\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]},\"webhookSubscriptions\":{\"nodes\":[{\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]}]}}"
+}
+
+pub fn webhook_subscription_create_preserves_app_prefix_without_api_client_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: PRODUCTS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/product\", metafieldNamespaces: [\"$app:Settings\", \"custom\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"metafieldNamespaces\":[\"$app:Settings\",\"custom\"]},\"userErrors\":[]}}}"
+}
+
 pub fn webhook_subscription_create_invalid_filter_user_error_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"totally bogus syntax\" }) { webhookSubscription { id filter } userErrors { field message } } }"
@@ -1412,6 +1443,29 @@ pub fn webhook_subscription_update_customer_id_filter_sets_value_test() {
       "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
     )
     == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"}}"
+}
+
+pub fn webhook_subscription_update_resolves_app_metafield_namespaces_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { metafieldNamespaces: [\"$app:Billing\", \"custom\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation_with_headers(
+      seed_update_store(),
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", "999001")]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { metafieldNamespaces } webhookSubscriptions(first: 5) { nodes { metafieldNamespaces } } }",
+    )
+    == "{\"webhookSubscription\":{\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]},\"webhookSubscriptions\":{\"nodes\":[{\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]}]}}"
 }
 
 pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {

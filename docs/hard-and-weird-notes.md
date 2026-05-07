@@ -3444,3 +3444,26 @@ Practical rule:
 - when local Function metadata carries the resolver title, omitted and `null`
   validationCreate title input should fall back to that value; do not treat
   empty string as missing input
+
+## 82. Webhook `metafieldNamespaces` app prefixes preserve suffix casing
+
+Admin GraphQL 2026-04 live capture for `webhookSubscriptionCreate` and
+`webhookSubscriptionUpdate` against `harry-test-heelo.myshopify.com` recorded
+`metafieldNamespaces` app-prefix resolution.
+
+Observed behavior:
+
+- `$app:Settings<run>` persisted and read back as
+  `app--347082227713--Settings<run>`
+- `$app:Billing<run>` persisted and read back as
+  `app--347082227713--Billing<run>`
+- non-app values such as `custom` and canonical
+  `app--999999999999--...` entries passed through unchanged
+- create/update payloads, detail reads, and URI-filtered list reads all
+  projected the same resolved namespace arrays
+
+Practical rule:
+
+- for webhook subscription namespace allowlists, resolve only the `$app:`
+  prefix to the request API client ID; do not downcase the suffix unless newer
+  endpoint-specific live evidence proves Shopify does so for this field
