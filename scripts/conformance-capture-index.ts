@@ -3502,6 +3502,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-article-blog-not-found',
+    scriptPath: 'scripts/capture-online-store-article-blog-not-found-conformance.ts',
+    purpose:
+      'articleCreate and articleUpdate blogId existence validation for references to non-existent blogs, including no-update readback.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}article-create-update-blog-not-found.json`,
+      'config/parity-specs/online-store/article-create-update-blog-not-found.json',
+      'config/parity-requests/online-store/article-create-update-blog-not-found-read.graphql',
+      'config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql',
+      'config/parity-requests/online-store/online-store-article-update-validation-article-create.graphql',
+      'config/parity-requests/online-store/online-store-article-update-validation-article-update.graphql',
+      'config/parity-requests/online-store/online-store-article-update-validation-blog-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog and article setup record; unknown-blog create/update attempts should not mutate, and cleanup deletes the article then blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-delete-cascades',
     scriptPath: 'scripts/capture-online-store-delete-cascade-conformance.ts',
     purpose:

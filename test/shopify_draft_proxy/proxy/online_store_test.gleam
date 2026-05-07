@@ -1967,6 +1967,35 @@ pub fn article_create_validates_blog_and_author_before_staging_test() {
   assert ambiguous_blog_log.status == store_types.Failed
   assert ambiguous_blog_log.staged_resource_ids == []
 
+  let unknown_blog_query =
+    "mutation { articleCreate(article: { title: \"Unknown Blog\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/9999999999\", author: { name: \"HAR 557 Author\" } }) { article { id blog { id } } userErrors { field message code } } }"
+  let #(
+    Response(status: unknown_blog_status, body: unknown_blog_body, ..),
+    unknown_blog_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(unknown_blog_query),
+    )
+  assert unknown_blog_status == 200
+  assert json.to_string(unknown_blog_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Must reference an existing blog.\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert store.list_effective_online_store_content(
+      unknown_blog_proxy.store,
+      "article",
+    )
+    |> list.length
+    == 0
+  assert store.list_effective_online_store_content(
+      unknown_blog_proxy.store,
+      "blog",
+    )
+    |> list.length
+    == 0
+  let assert [unknown_blog_log] = store.get_log(unknown_blog_proxy.store)
+  assert unknown_blog_log.status == store_types.Failed
+  assert unknown_blog_log.staged_resource_ids == []
+
   let missing_author_query =
     "mutation { articleCreate(article: { title: \"Missing Author\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1\", author: {} }) { article { id } userErrors { field message code } } }"
   let #(
@@ -2045,6 +2074,29 @@ pub fn article_create_with_blog_id_and_author_name_still_stages_test() {
     == ["gid://shopify/Article/3?shopify-draft-proxy=synthetic"]
 }
 
+pub fn article_create_with_inline_blog_still_stages_test() {
+  let article_query =
+    "mutation { articleCreate(article: { title: \"Inline Blog Article\", body: \"<p>Body</p>\", author: { name: \"Inline Author\" } }, blog: { title: \"Inline Blog\" }) { article { id title blog { id title } } userErrors { field message code } } }"
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(article_query))
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/2?shopify-draft-proxy=synthetic\",\"title\":\"Inline Blog Article\",\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Inline Blog\"}},\"userErrors\":[]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 1
+  assert store.list_effective_online_store_content(proxy.store, "blog")
+    |> list.length
+    == 1
+  let assert [article_log] = store.get_log(proxy.store)
+  assert article_log.status == store_types.Staged
+  assert article_log.staged_resource_ids
+    == [
+      "gid://shopify/Blog/1?shopify-draft-proxy=synthetic",
+      "gid://shopify/Article/2?shopify-draft-proxy=synthetic",
+    ]
+}
+
 pub fn article_update_validates_author_blog_and_image_before_staging_test() {
   let proxy = proxy_with_basic_article()
   let ambiguous_author =
@@ -2065,6 +2117,12 @@ pub fn article_update_validates_author_blog_and_image_before_staging_test() {
   assert ambiguous_blog_body
     == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"blogId\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"},{\"field\":[\"article\",\"blog\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"}]}}}"
 
+  let unknown_blog =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { title: \"Should Not Apply\", blogId: \"gid://shopify/Blog/9999999999\" }) { article { id title blog { id } } userErrors { field message code } } }"
+  let #(unknown_blog_body, proxy) = run_graphql(proxy, unknown_blog)
+  assert unknown_blog_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Must reference an existing blog.\",\"code\":\"NOT_FOUND\"}]}}}"
+
   let missing_image_url =
     "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { image: { altText: \"Alt only\" } }) { article { id title image } userErrors { field message code } } }"
   let #(missing_image_url_body, proxy) = run_graphql(proxy, missing_image_url)
@@ -2074,10 +2132,27 @@ pub fn article_update_validates_author_blog_and_image_before_staging_test() {
   let #(article_body, _) =
     run_graphql(
       proxy,
-      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id title author { name } image } }",
+      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id title author { name } blog { id title } image } }",
     )
   assert article_body
-    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null}}}"
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation Blog\"},\"image\":null}}}"
+  let assert [
+    blog_log,
+    article_log,
+    ambiguous_author_log,
+    unknown_author_log,
+    ambiguous_blog_log,
+    unknown_blog_log,
+    missing_image_url_log,
+  ] = store.get_log(proxy.store)
+  assert blog_log.status == store_types.Staged
+  assert article_log.status == store_types.Staged
+  assert ambiguous_author_log.status == store_types.Failed
+  assert unknown_author_log.status == store_types.Failed
+  assert ambiguous_blog_log.status == store_types.Failed
+  assert unknown_blog_log.status == store_types.Failed
+  assert unknown_blog_log.staged_resource_ids == []
+  assert missing_image_url_log.status == store_types.Failed
 }
 
 pub fn article_update_validates_public_author_shape_before_staging_test() {
