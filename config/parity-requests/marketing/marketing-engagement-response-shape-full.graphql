@@ -1,0 +1,33 @@
+mutation MarketingEngagementResponseShapeFull($remoteId: String!) {
+  marketingEngagementCreate(
+    remoteId: $remoteId
+    marketingEngagement: {
+      occurredOn: "2026-04-01"
+      utcOffset: "-05:00"
+      isCumulative: true
+      impressionsCount: 7
+      clicksCount: 3
+      adSpend: { amount: "1.23", currencyCode: USD }
+      orders: "2.5"
+    }
+  ) {
+    marketingEngagement {
+      __typename
+      occurredOn
+      utcOffset
+      isCumulative
+      impressionsCount
+      clicksCount
+      adSpend {
+        amount
+        currencyCode
+      }
+      orders
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

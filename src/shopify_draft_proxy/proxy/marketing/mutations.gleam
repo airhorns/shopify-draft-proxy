@@ -2362,21 +2362,6 @@ fn build_marketing_engagement_record(
   let data =
     dict.from_list([
       #("__typename", MarketingString("MarketingEngagement")),
-      #("occurredOn", MarketingString(occurred_on)),
-      #(
-        "utcOffset",
-        MarketingString(option.unwrap(
-          serializers.read_value_string(input, "utcOffset"),
-          "+00:00",
-        )),
-      ),
-      #(
-        "isCumulative",
-        MarketingBool(option.unwrap(
-          serializers.read_value_bool(input, "isCumulative"),
-          False,
-        )),
-      ),
       #("channelHandle", serializers.optional_marketing_string(channel_handle)),
       #(
         "marketingActivity",
@@ -2385,6 +2370,18 @@ fn build_marketing_engagement_record(
         ),
       ),
     ])
+    |> serializers.overlay_marketing_data(optional_marketing_string_entry(
+      input,
+      "occurredOn",
+    ))
+    |> serializers.overlay_marketing_data(optional_marketing_string_entry(
+      input,
+      "utcOffset",
+    ))
+    |> serializers.overlay_marketing_data(optional_marketing_bool_entry(
+      input,
+      "isCumulative",
+    ))
     |> serializers.overlay_marketing_data(integer_engagement_entries(input))
     |> serializers.overlay_marketing_data(money_engagement_entries(input))
     |> serializers.overlay_marketing_data(decimal_engagement_entries(input))
@@ -2403,6 +2400,26 @@ fn build_marketing_engagement_record(
     occurred_on: occurred_on,
     data: data,
   )
+}
+
+fn optional_marketing_string_entry(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> List(#(String, MarketingValue)) {
+  case serializers.read_value_string(input, field) {
+    Some(value) -> [#(field, MarketingString(value))]
+    None -> []
+  }
+}
+
+fn optional_marketing_bool_entry(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> List(#(String, MarketingValue)) {
+  case serializers.read_value_bool(input, field) {
+    Some(value) -> [#(field, MarketingBool(value))]
+    None -> []
+  }
 }
 
 fn resolve_marketing_engagement_identifier(

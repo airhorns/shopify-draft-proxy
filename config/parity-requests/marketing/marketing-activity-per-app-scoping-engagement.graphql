@@ -1,7 +1,12 @@
 mutation MarketingActivityPerAppEngagement {
   engagementCreate: marketingEngagementCreate(
     remoteId: "campaign-1"
-    marketingEngagement: { occurredOn: "2026-05-06", adSpend: { amount: "10.00", currencyCode: EUR } }
+    marketingEngagement: {
+      occurredOn: "2026-05-06"
+      utcOffset: "+00:00"
+      isCumulative: false
+      adSpend: { amount: "10.00", currencyCode: EUR }
+    }
   ) {
     marketingEngagement {
       occurredOn

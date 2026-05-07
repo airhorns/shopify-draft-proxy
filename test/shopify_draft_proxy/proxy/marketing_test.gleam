@@ -1583,6 +1583,65 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
     == 1
 }
 
+pub fn engagement_create_response_echoes_supplied_fields_without_defaults_test() {
+  let created =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let sparse =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-02\", impressionsCount: 7 }) { marketingEngagement { __typename occurredOn utcOffset isCumulative impressionsCount } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let sparse_response = json.to_string(sparse.data)
+  assert string.contains(
+    sparse_response,
+    "\"__typename\":\"MarketingEngagement\"",
+  )
+  assert string.contains(sparse_response, "\"occurredOn\":\"2026-04-02\"")
+  assert string.contains(sparse_response, "\"impressionsCount\":7")
+  assert string.contains(sparse_response, "\"utcOffset\":null")
+  assert string.contains(sparse_response, "\"isCumulative\":null")
+  assert !string.contains(sparse_response, "\"utcOffset\":\"+00:00\"")
+  assert !string.contains(sparse_response, "\"isCumulative\":false")
+
+  let full =
+    marketing.process_mutation(
+      sparse.store,
+      sparse.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-01\", utcOffset: \"-05:00\", isCumulative: true, impressionsCount: 7, adSpend: { amount: \"1.23\", currencyCode: USD }, orders: \"2.5\" }) { marketingEngagement { __typename occurredOn utcOffset isCumulative impressionsCount adSpend { amount currencyCode } orders } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let full_response = json.to_string(full.data)
+  assert string.contains(full_response, "\"utcOffset\":\"-05:00\"")
+  assert string.contains(full_response, "\"isCumulative\":true")
+  assert string.contains(
+    full_response,
+    "\"adSpend\":{\"amount\":\"1.23\",\"currencyCode\":\"USD\"}",
+  )
+  assert string.contains(full_response, "\"orders\":\"2.5\"")
+
+  let downstream_activity =
+    run(
+      full.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { id adSpend { amount currencyCode } } }",
+    )
+  assert downstream_activity
+    == "{\"marketingActivity\":{\"id\":\"gid://shopify/MarketingActivity/1\",\"adSpend\":null}}"
+}
+
 pub fn engagement_create_rejects_mismatched_input_currencies_test() {
   let created =
     marketing.process_mutation(

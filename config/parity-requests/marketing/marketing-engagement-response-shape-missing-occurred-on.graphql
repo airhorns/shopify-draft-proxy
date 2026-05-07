@@ -1,0 +1,19 @@
+mutation MarketingEngagementResponseShapeMissingOccurredOn($remoteId: String!) {
+  marketingEngagementCreate(
+    remoteId: $remoteId
+    marketingEngagement: { utcOffset: "+00:00", isCumulative: false, impressionsCount: 1 }
+  ) {
+    marketingEngagement {
+      __typename
+      occurredOn
+      utcOffset
+      isCumulative
+      impressionsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

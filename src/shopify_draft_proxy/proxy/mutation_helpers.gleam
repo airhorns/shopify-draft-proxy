@@ -597,6 +597,17 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "marketingEngagementCreate" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "marketingEngagement",
+        "MarketingEngagementInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
     _ -> []
   }
 }
