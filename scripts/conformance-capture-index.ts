@@ -6148,6 +6148,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-dedicated-cloud-destinations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-dedicated-cloud-destinations-conformance.ts',
+    purpose:
+      'Dedicated Pub/Sub and EventBridge webhook subscription create/update lifecycle, downstream reads, and typed-input validation branches.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-dedicated-cloud-destinations.json`,
+      'config/parity-specs/webhooks/webhook-subscription-dedicated-cloud-destinations.json',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql',
+      'config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql',
+      'config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates temporary Pub/Sub and EventBridge SHOP_UPDATE subscriptions, records validation branches, then deletes the temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records deprecated dedicated roots that synthesize cloud destination addresses before delegating to the shared webhook subscription resolver path.',
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-metafield-namespaces-resolution',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-metafield-namespaces-resolution.ts',
