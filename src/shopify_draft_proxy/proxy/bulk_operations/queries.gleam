@@ -27,8 +27,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, serialize_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{respond_to_query}
+import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response,
+  type DraftProxy, type Request, type Response, LiveHybrid,
 }
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
@@ -73,17 +74,77 @@ pub fn process(
 @internal
 pub fn handle_query_request(
   proxy: DraftProxy,
-  _request: Request,
+  request: Request,
   parsed: parse_operation.ParsedOperation,
-  _primary_root_field: String,
+  primary_root_field: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  respond_to_query(
-    proxy,
-    process_with_operation_name(proxy.store, document, variables, parsed.name),
-    "Failed to handle bulk operations query",
-  )
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        document,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      respond_to_query(
+        proxy,
+        process_with_operation_name(
+          proxy.store,
+          document,
+          variables,
+          parsed.name,
+        ),
+        "Failed to handle bulk operations query",
+      )
+  }
+}
+
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "bulkOperations" ->
+      !store.has_bulk_operations(proxy.store)
+      && bulk_operations_request_has_public_sort_key(document, variables)
+    _, _ -> False
+  }
+}
+
+fn bulk_operations_request_has_public_sort_key(
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case root_field.get_root_fields(document) {
+    Ok(fields) ->
+      list.any(fields, fn(field) {
+        case field {
+          Field(name: name, ..) if name.value == "bulkOperations" -> {
+            let args = graphql_helpers.field_args(field, variables)
+            case graphql_helpers.read_arg_string_nonempty(args, "sortKey") {
+              Some(raw) -> {
+                let sort_key = string.uppercase(raw)
+                sort_key == "CREATED_AT" || sort_key == "COMPLETED_AT"
+              }
+              None -> False
+            }
+          }
+          _ -> False
+        }
+      })
+    Error(_) -> False
+  }
 }
 
 fn process_with_operation_name(
@@ -144,7 +205,12 @@ fn top_level_validation_error(
     Field(name: name, ..) ->
       case name.value {
         "bulkOperations" ->
-          bulk_operations_connection_error(field, document, variables)
+          bulk_operations_connection_error(
+            field,
+            document,
+            variables,
+            operation_name,
+          )
         "bulkOperation" ->
           bulk_operation_id_error(field, document, variables, operation_name)
         _ -> None
@@ -157,6 +223,7 @@ fn bulk_operations_connection_error(
   field: Selection,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
 ) -> Option(Json) {
   let args = graphql_helpers.field_args(field, variables)
   let first = graphql_helpers.read_arg_int(args, "first")
@@ -179,21 +246,58 @@ fn bulk_operations_connection_error(
         True,
       ))
     _, _ ->
-      case graphql_helpers.read_arg_string_nonempty(args, "query") {
-        Some(raw_query) ->
-          case created_at_validation_error(raw_query) {
-            True ->
-              Some(bad_request_error_envelope(
-                field,
-                document,
-                "Invalid timestamp for query filter `created_at`.",
-                ["bulkOperations"],
-                True,
-              ))
-            False -> None
+      case sort_key_validation_error(field, document, args, operation_name) {
+        Some(envelope) -> Some(envelope)
+        None ->
+          case graphql_helpers.read_arg_string_nonempty(args, "query") {
+            Some(raw_query) ->
+              case created_at_validation_error(raw_query) {
+                True ->
+                  Some(bad_request_error_envelope(
+                    field,
+                    document,
+                    "Invalid timestamp for query filter `created_at`.",
+                    ["bulkOperations"],
+                    True,
+                  ))
+                False -> None
+              }
+            None -> None
           }
-        None -> None
       }
+  }
+}
+
+fn sort_key_validation_error(
+  field: Selection,
+  document: String,
+  args: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
+) -> Option(Json) {
+  case graphql_helpers.read_arg_string_nonempty(args, "sortKey") {
+    Some(raw) -> {
+      let sort_key = string.uppercase(raw)
+      case sort_key {
+        "CREATED_AT" | "COMPLETED_AT" -> None
+        _ ->
+          Some(
+            json.object([
+              #(
+                "errors",
+                json.preprocessed_array([
+                  invalid_bulk_operations_sort_key_error(
+                    field,
+                    document,
+                    raw,
+                    operation_name,
+                  ),
+                ]),
+              ),
+            ]),
+          )
+      }
+    }
+    None -> None
   }
 }
 
@@ -513,6 +617,40 @@ fn invalid_global_id_literal_error(
   ])
 }
 
+fn invalid_bulk_operations_sort_key_error(
+  field: Selection,
+  document: String,
+  sort_key: String,
+  operation_name: Option(String),
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'sortKey' on Field 'bulkOperations' has an invalid value ("
+        <> sort_key
+        <> "). Expected type 'BulkOperationsSortKeys'.",
+      ),
+    ),
+    #("locations", field_locations_json(field, document)),
+    #(
+      "path",
+      json.array(
+        [operation_path(operation_name), "bulkOperations", "sortKey"],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("argumentLiteralsIncompatible")),
+        #("typeName", json.string("Field")),
+        #("argumentName", json.string("sortKey")),
+      ]),
+    ),
+  ])
+}
+
 fn operation_path(operation_name: Option(String)) -> String {
   case operation_name {
     Some(name) -> "query " <> name
@@ -696,7 +834,7 @@ fn sort_bulk_operations(
   let sorted =
     list.sort(operations, fn(left, right) {
       case string.uppercase(sort_key) {
-        "ID" -> string.compare(left.id, right.id)
+        "COMPLETED_AT" -> compare_completed_at_desc(left, right)
         _ -> {
           let date_order = string.compare(right.created_at, left.created_at)
           case date_order {
@@ -709,6 +847,36 @@ fn sort_bulk_operations(
   case reverse {
     True -> list.reverse(sorted)
     False -> sorted
+  }
+}
+
+fn compare_completed_at_desc(
+  left: BulkOperationRecord,
+  right: BulkOperationRecord,
+) -> order.Order {
+  case left.completed_at, right.completed_at {
+    Some(left_completed_at), Some(right_completed_at) -> {
+      let completed_order =
+        string.compare(right_completed_at, left_completed_at)
+      case completed_order {
+        order.Eq -> compare_created_at_desc(left, right)
+        _ -> completed_order
+      }
+    }
+    Some(_), None -> order.Lt
+    None, Some(_) -> order.Gt
+    None, None -> compare_created_at_desc(left, right)
+  }
+}
+
+fn compare_created_at_desc(
+  left: BulkOperationRecord,
+  right: BulkOperationRecord,
+) -> order.Order {
+  let created_order = string.compare(right.created_at, left.created_at)
+  case created_order {
+    order.Eq -> string.compare(right.id, left.id)
+    _ -> created_order
   }
 }
 
