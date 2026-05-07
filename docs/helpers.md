@@ -22,6 +22,17 @@ Shared helper for request-owned app identity.
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
+## `src/shopify_draft_proxy/proxy/phone_numbers.gleam`
+
+Shared helper for Shopify-like phone number normalization.
+
+- normalizes formatted international and national phone inputs to E.164 strings
+- accepts common separators such as spaces, parentheses, dashes, and dots
+- applies compatibility-style handling for full-width plus signs and digits
+- uses the effective shop country as the default territory, falling back to `US`
+
+Use this module when Admin API domain input accepts phone numbers and should stage or compare the normalized value instead of raw input text.
+
 ## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
 
 Shared helper for versioned Shopify Admin API route parsing.

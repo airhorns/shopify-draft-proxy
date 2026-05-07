@@ -928,6 +928,89 @@ pub fn customer_update_rejects_clearing_last_phone_identity_test() {
   )
 }
 
+pub fn customer_create_normalizes_formatted_phone_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+1 (613) 450-4538\" }) { customer { id phone defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(create_json, "\"phone\":\"+16134504538\"")
+  assert string.contains(
+    create_json,
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+16134504538\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { phone defaultPhoneNumber { phoneNumber } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"phone\":\"+16134504538\"",
+  )
+  assert string.contains(
+    json.to_string(read_body),
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+16134504538\"}",
+  )
+}
+
+pub fn customer_phone_validation_and_uniqueness_use_normalized_values_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+1-613-450-4538\" }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+16134504538\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  let duplicate_json = json.to_string(duplicate_body)
+  assert string.contains(duplicate_json, "\"customer\":null")
+  assert string.contains(
+    duplicate_json,
+    "\"userErrors\":[{\"field\":[\"phone\"],\"message\":\"Phone has already been taken\"",
+  )
+
+  let long_phone = "+" <> string.repeat("1", times: 255)
+  let #(Response(status: long_status, body: long_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \""
+        <> long_phone
+        <> "\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  let long_json = json.to_string(long_body)
+  assert string.contains(long_json, "\"customer\":null")
+  assert string.contains(
+    long_json,
+    "\"userErrors\":[{\"field\":[\"phone\"],\"message\":\"Phone is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"},{\"field\":[\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { email: \"phone-set-invalid@example.com\" }, input: { email: \"phone-set-invalid@example.com\", phone: \"+1234abcd\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert string.contains(
+    json.to_string(set_body),
+    "\"userErrors\":[{\"field\":[\"input\",\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"}]",
+  )
+}
+
 pub fn customer_update_rejects_clearing_last_name_identity_after_control_update_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =

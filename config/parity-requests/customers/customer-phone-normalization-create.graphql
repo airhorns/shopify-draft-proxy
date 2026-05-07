@@ -1,0 +1,17 @@
+mutation CustomerPhoneNormalizationCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      phone
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

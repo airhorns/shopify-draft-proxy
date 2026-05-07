@@ -5683,6 +5683,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-phone-normalization',
+    scriptPath: 'scripts/capture-customer-phone-normalization-conformance.mts',
+    purpose:
+      'Customer phone validation and normalization for formatted input, E.164 duplicate identity checks, invalid values, and length limits.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-phone-normalization.json`,
+      'config/parity-specs/customers/customer-phone-normalization.json',
+      'config/parity-requests/customers/customer-phone-normalization-create.graphql',
+      'config/parity-requests/customers/customer-phone-normalization-set.graphql',
+      'config/parity-requests/customers/customer-phone-normalization-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers for normalization and update branches; deletes remaining records after recording validation and duplicate probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-inline-consent',
     scriptPath: 'scripts/capture-customer-input-consent-conformance.ts',
     purpose: 'CustomerInput inline marketing consent create semantics and update rejection behavior.',
