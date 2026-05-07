@@ -1,0 +1,127 @@
+{
+  "scenarioId": "web-presence-subfolder-suffix-taken",
+  "operationNames": ["marketCreate", "marketUpdate", "webPresenceCreate", "webPresenceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging", "market-web-presence-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-suffix-market-create.graphql",
+    "variablesCapturePath": "$.cases[15].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-source-create",
+        "capturePath": "$.cases[16].response.payload.data.webPresenceCreate.userErrors",
+        "proxyPath": "$.data.webPresenceCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[16].variables"
+        }
+      },
+      {
+        "name": "duplicate-source-market-link",
+        "capturePath": "$.cases[17].response.payload.data.marketUpdate.userErrors",
+        "proxyPath": "$.data.marketUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-suffix-market-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.marketCreate.market.id"
+            },
+            "input": {
+              "webPresencesToAdd": [
+                {
+                  "fromProxyResponse": "duplicate-source-create",
+                  "path": "$.data.webPresenceCreate.webPresence.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-create-taken",
+        "capturePath": "$.cases[18].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[18].variables"
+        }
+      },
+      {
+        "name": "update-collision-market-create",
+        "capturePath": "$.cases[19].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-suffix-market-create.graphql",
+          "variablesCapturePath": "$.cases[19].variables"
+        }
+      },
+      {
+        "name": "update-collision-source-create",
+        "capturePath": "$.cases[20].response.payload.data.webPresenceCreate.userErrors",
+        "proxyPath": "$.data.webPresenceCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[20].variables"
+        }
+      },
+      {
+        "name": "update-collision-taken-create",
+        "capturePath": "$.cases[21].response.payload.data.webPresenceCreate.userErrors",
+        "proxyPath": "$.data.webPresenceCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[21].variables"
+        }
+      },
+      {
+        "name": "update-collision-market-link",
+        "capturePath": "$.cases[22].response.payload.data.marketUpdate.userErrors",
+        "proxyPath": "$.data.marketUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-suffix-market-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-collision-market-create",
+              "path": "$.data.marketCreate.market.id"
+            },
+            "input": {
+              "webPresencesToAdd": [
+                {
+                  "fromProxyResponse": "update-collision-taken-create",
+                  "path": "$.data.webPresenceCreate.webPresence.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "update-collision-taken",
+        "capturePath": "$.cases[23].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-collision-source-create",
+              "path": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[23].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves an effective MarketWebPresence linked to a Market makes a repeated webPresenceCreate with the same subfolderSuffix fail with field [\"input\", \"subfolderSuffix\"], message \"Subfolder suffix has already been taken\", and code TAKEN. The same error shape appears when webPresenceUpdate changes one web presence to another effective web presence's suffix. An unlinked matching web presence was observed during capture work to recover the existing orphan instead of returning TAKEN; the proxy documents that branch as unsupported rather than fabricating orphan state."
+}

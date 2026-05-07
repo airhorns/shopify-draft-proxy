@@ -559,6 +559,7 @@ fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
           | "quantityRulesAdd"
           | "quantityRulesDelete"
           | "webPresenceCreate"
+          | "webPresenceUpdate"
           | "marketLocalizationsRegister"
           | "marketLocalizationsRemove" -> True
           _ -> False

@@ -3023,7 +3023,7 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(existing) -> {
-          let errors = web_presence_update_errors(existing, input)
+          let errors = web_presence_update_errors(store, existing, input)
           case errors {
             [] -> {
               let data = web_presence_update_data(store, existing, input)
@@ -3345,6 +3345,7 @@ fn web_presence_create_errors(
 }
 
 fn web_presence_update_errors(
+  store: Store,
   existing: WebPresenceRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
@@ -3357,6 +3358,11 @@ fn web_presence_update_errors(
       combine_error_lists([
         web_presence_update_route_errors(existing, input),
         web_presence_subfolder_suffix_errors(input),
+        web_presence_subfolder_suffix_taken_errors(
+          store,
+          input,
+          Some(existing.id),
+        ),
       ])
     _ -> []
   }
@@ -3391,10 +3397,11 @@ fn web_presence_input_errors(
   let default_locale_errors = web_presence_default_locale_errors(input)
   let route_and_suffix_errors = case domain_errors, default_locale_errors {
     [], [] ->
-      list.append(
+      combine_error_lists([
         web_presence_route_errors(input, require_route),
         web_presence_subfolder_suffix_errors(input),
-      )
+        web_presence_subfolder_suffix_taken_errors(store, input, None),
+      ])
     _, _ -> []
   }
   [
@@ -3540,6 +3547,45 @@ fn web_presence_subfolder_suffix_errors(
     }
     None -> []
   }
+}
+
+fn web_presence_subfolder_suffix_taken_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  current_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix") {
+    Some(suffix) ->
+      case web_presence_subfolder_suffix_taken(store, suffix, current_id) {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix has already been taken",
+            "TAKEN",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn web_presence_subfolder_suffix_taken(
+  store: Store,
+  suffix: String,
+  current_id: Option(String),
+) -> Bool {
+  let normalized_suffix = string.lowercase(suffix)
+  store.list_effective_web_presences(store)
+  |> list.any(fn(record) {
+    current_id != Some(record.id)
+    && {
+      case existing_web_presence_subfolder_suffix(record) {
+        Some(existing) -> string.lowercase(existing) == normalized_suffix
+        None -> False
+      }
+    }
+  })
 }
 
 fn canonical_web_presence_locale(locale: String) -> Option(String) {
