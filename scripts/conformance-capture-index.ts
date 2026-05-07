@@ -4185,6 +4185,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-create-math-matrix',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-create-math-matrix-conformance.ts',
+    purpose:
+      'orderCreate subtotal, shipping, tax, discount, payment state, capturable, and presentment MoneyBag math against disposable orders.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-create-math-matrix.json`,
+      'config/parity-specs/orders/orderCreate-math-matrix.json',
+      'config/parity-requests/orders/orderCreate-math-matrix.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders for each math branch, then records best-effort orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-update-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
