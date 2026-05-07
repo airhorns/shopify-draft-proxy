@@ -9,18 +9,11 @@
     "inventoryItem"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "user-errors-parity",
-    "payload-shape",
-    "read-after-write"
-  ],
+  "assertionKinds": ["user-errors-parity", "payload-shape", "read-after-write"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
   ],
-  "runtimeTestFiles": [
-    "test/parity_test.gleam",
-    "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"
-  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventory-reason-validation-setup.graphql",
     "apiVersion": "2026-04",

@@ -753,10 +753,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "reason"
-                ],
+                "field": ["input", "reason"],
                 "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
                 "code": "INVALID_REASON"
               }
@@ -800,10 +797,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "reason"
-                ],
+                "field": ["input", "reason"],
                 "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
                 "code": "INVALID_REASON"
               }
@@ -847,10 +841,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "reason"
-                ],
+                "field": ["input", "reason"],
                 "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
                 "code": "INVALID_REASON"
               }
@@ -902,10 +893,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "reason"
-                ],
+                "field": ["input", "reason"],
                 "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
                 "code": "INVALID_REASON"
               }
@@ -948,10 +936,7 @@
             "inventoryAdjustmentGroup": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "reason"
-                ],
+                "field": ["input", "reason"],
                 "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
                 "code": "INVALID_REASON"
               }
