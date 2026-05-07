@@ -1,0 +1,14 @@
+mutation MediaFileUserErrorAggregationCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      __typename
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1247,6 +1247,39 @@ pub fn definition_update_validates_field_definition_input_test() {
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
+pub fn definition_update_field_operation_conflicts_match_shopify_user_errors_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query("codex_field_conflicts", "title"),
+    )
+
+  let conflicts =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [
+              { create: { key: \"title\", name: \"Title again\", type: \"single_line_text_field\" } },
+              { update: { key: \"missing_update\", name: \"Missing update\" } },
+              { delete: { key: \"missing_delete\" } }
+            ]
+          }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+
+  assert json.to_string(conflicts.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"create\",\"key\"],\"message\":\"Field definition \\\"title\\\" is already taken\",\"code\":\"OBJECT_FIELD_TAKEN\",\"elementKey\":\"title\",\"elementIndex\":null},{\"field\":[\"definition\",\"fieldDefinitions\",\"1\",\"update\",\"key\"],\"message\":\"Field definition \\\"missing_update\\\" does not exist\",\"code\":\"UNDEFINED_OBJECT_FIELD\",\"elementKey\":\"missing_update\",\"elementIndex\":null},{\"field\":[\"definition\",\"fieldDefinitions\",\"2\",\"delete\",\"key\"],\"message\":\"Field definition \\\"missing_delete\\\" does not exist\",\"code\":\"UNDEFINED_OBJECT_FIELD\",\"elementKey\":\"missing_delete\",\"elementIndex\":null}]}}}"
+}
+
 pub fn definition_update_rejects_capability_disables_atomically_test() {
   let created =
     run_mutation(

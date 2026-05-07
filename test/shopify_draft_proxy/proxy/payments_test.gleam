@@ -744,20 +744,17 @@ pub fn payment_customization_metafields_and_function_handle_readback_test() {
   assert !string.contains(read_json, "\"value\":\"baz\"")
 }
 
-pub fn payment_customization_create_requires_metafields_test() {
+pub fn payment_customization_create_allows_missing_metafields_test() {
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Missing metafields\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id } userErrors { field code message } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     graphql(draft_proxy.new(), create_query)
   assert create_status == 200
   let create_json = json.to_string(create_body)
-  assert string.contains(create_json, "\"paymentCustomization\":null")
-  assert string.contains(
-    create_json,
-    "\"field\":[\"paymentCustomization\",\"metafields\"]",
-  )
-  assert string.contains(create_json, "\"code\":\"REQUIRED_INPUT_FIELD\"")
-  assert list.is_empty(store.list_effective_payment_customizations(proxy.store))
+  assert string.contains(create_json, "\"paymentCustomization\":{\"id\"")
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert list.length(store.list_effective_payment_customizations(proxy.store))
+    == 1
 }
 
 pub fn payment_customization_create_rejects_multiple_function_identifiers_test() {
@@ -811,9 +808,9 @@ pub fn payment_customization_create_allows_empty_metafields_test() {
     == 1
 }
 
-pub fn payment_customization_create_enforces_active_limit_test() {
+pub fn payment_customization_create_allows_six_enabled_customizations_test() {
   let proxy =
-    ["1", "2", "3", "4", "5"]
+    ["1", "2", "3", "4", "5", "6"]
     |> list.fold(draft_proxy.new(), fn(proxy, suffix) {
       let #(Response(status: create_status, body: create_body, ..), proxy) =
         graphql(proxy, valid_payment_customization_create_query(suffix))
@@ -823,24 +820,8 @@ pub fn payment_customization_create_enforces_active_limit_test() {
     })
 
   assert list.length(store.list_effective_payment_customizations(proxy.store))
-    == 5
-
-  let #(Response(status: create_status, body: create_body, ..), proxy) =
-    graphql(proxy, valid_payment_customization_create_query("6"))
-  assert create_status == 200
-  let create_json = json.to_string(create_body)
-  assert string.contains(create_json, "\"paymentCustomization\":null")
-  assert string.contains(
-    create_json,
-    "\"field\":[\"paymentCustomization\",\"enabled\"]",
-  )
-  assert string.contains(
-    create_json,
-    "\"code\":\"MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS\"",
-  )
-  assert list.length(store.list_effective_payment_customizations(proxy.store))
-    == 5
-  assert !string.contains(meta_state_json(proxy), "Payment customization 6")
+    == 6
+  assert string.contains(meta_state_json(proxy), "Payment customization 6")
 }
 
 fn valid_payment_customization_create_query(suffix: String) -> String {
@@ -1151,6 +1132,72 @@ pub fn payment_terms_create_rejects_multiple_schedules_with_shopify_code_test() 
     body,
     "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
   )
+}
+
+pub fn payment_terms_create_unknown_order_uses_null_field_reference_not_found_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/123\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\",
+          paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot find the specific Order with id 123.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(body, "\"field\":[\"referenceId\"]")
+  assert !string.contains(body, "Reference does not exist")
+}
+
+pub fn payment_terms_create_unknown_draft_order_uses_null_field_reference_not_found_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/DraftOrder/999999\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\",
+          paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot find the specific Draft order with id 999999.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(body, "\"field\":[\"referenceId\"]")
+  assert !string.contains(body, "Reference does not exist")
 }
 
 pub fn payment_terms_create_rejects_unknown_template_without_staging_test() {
@@ -1849,6 +1896,7 @@ fn payment_guard_shop() -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,

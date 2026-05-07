@@ -1,0 +1,16 @@
+mutation MarketingEngagementCreateValidationOrderMultipleChannelSelectors(
+  $channelHandle: String!
+  $remoteId: String!
+  $engagement: MarketingEngagementInput!
+) {
+  marketingEngagementCreate(channelHandle: $channelHandle, remoteId: $remoteId, marketingEngagement: $engagement) {
+    marketingEngagement {
+      occurredOn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

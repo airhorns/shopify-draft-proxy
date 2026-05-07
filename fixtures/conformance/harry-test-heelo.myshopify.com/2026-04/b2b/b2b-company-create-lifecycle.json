@@ -1,9 +1,10 @@
 {
-  "capturedAt": "2026-04-28T02:18:29.857Z",
+  "scenarioId": "b2b-company-create-lifecycle",
+  "capturedAt": "2026-05-06T23:22:55.538Z",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "setup": {
-    "plan": "companyCreate creates a disposable B2B company, records immediate downstream read, then deletes the company."
+    "plan": "Create a disposable B2B company, record immediate downstream read, then delete the company."
   },
   "companyCreate": {
     "request": {
@@ -11,8 +12,8 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-363 parity company 1777342709247",
-            "externalId": "har-363-parity-1777342709247"
+            "name": "Recorder B2B lifecycle 1778109774892",
+            "externalId": "recorder-b2b-lifecycle-1778109774892"
           }
         }
       }
@@ -21,9 +22,9 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5427822898",
-            "name": "HAR-363 parity company 1777342709247",
-            "externalId": "har-363-parity-1777342709247",
+            "id": "gid://shopify/Company/5443879218",
+            "name": "Recorder B2B lifecycle 1778109774892",
+            "externalId": "recorder-b2b-lifecycle-1778109774892",
             "contactsCount": {
               "count": 0
             },
@@ -33,19 +34,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8234697010",
-                  "name": "HAR-363 parity company 1777342709247"
+                  "id": "gid://shopify/CompanyLocation/8270905650",
+                  "name": "Recorder B2B lifecycle 1778109774892"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10647404850",
+                  "id": "gid://shopify/CompanyContactRole/10679058738",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10647437618",
+                  "id": "gid://shopify/CompanyContactRole/10679091506",
                   "name": "Ordering only"
                 }
               ]
@@ -60,7 +61,7 @@
           "actualQueryCost": 19,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1950,
             "restoreRate": 100
           }
         }
@@ -71,15 +72,15 @@
     "request": {
       "query": "query B2BCompanyCreateLifecycleRead($companyId: ID!) {\n  company(id: $companyId) {\n    id\n    name\n    externalId\n    contactsCount {\n      count\n    }\n    locationsCount {\n      count\n    }\n    locations(first: 5) {\n      nodes {\n        id\n        name\n      }\n    }\n    contactRoles(first: 5) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n}\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5427822898"
+        "companyId": "gid://shopify/Company/5443879218"
       }
     },
     "response": {
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5427822898",
-          "name": "HAR-363 parity company 1777342709247",
-          "externalId": "har-363-parity-1777342709247",
+          "id": "gid://shopify/Company/5443879218",
+          "name": "Recorder B2B lifecycle 1778109774892",
+          "externalId": "recorder-b2b-lifecycle-1778109774892",
           "contactsCount": {
             "count": 0
           },
@@ -89,19 +90,19 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8234697010",
-                "name": "HAR-363 parity company 1777342709247"
+                "id": "gid://shopify/CompanyLocation/8270905650",
+                "name": "Recorder B2B lifecycle 1778109774892"
               }
             ]
           },
           "contactRoles": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRole/10647404850",
+                "id": "gid://shopify/CompanyContactRole/10679058738",
                 "name": "Location admin"
               },
               {
-                "id": "gid://shopify/CompanyContactRole/10647437618",
+                "id": "gid://shopify/CompanyContactRole/10679091506",
                 "name": "Ordering only"
               }
             ]
@@ -114,7 +115,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1965,
             "restoreRate": 100
           }
         }
@@ -123,14 +124,15 @@
   },
   "cleanup": {
     "request": {
+      "query": "#graphql\n    mutation B2BCompanyCreateLifecycleCleanup($id: ID!) {\n      companyDelete(id: $id) { deletedCompanyId userErrors { field message code } }\n    }\n  ",
       "variables": {
-        "id": "gid://shopify/Company/5427822898"
+        "id": "gid://shopify/Company/5443879218"
       }
     },
     "response": {
       "data": {
         "companyDelete": {
-          "deletedCompanyId": "gid://shopify/Company/5427822898",
+          "deletedCompanyId": "gid://shopify/Company/5443879218",
           "userErrors": []
         }
       },
@@ -140,7 +142,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1967,
             "restoreRate": 100
           }
         }

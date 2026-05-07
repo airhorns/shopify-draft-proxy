@@ -1,4 +1,8 @@
 {
+  "scenarioId": "metafield-definitions-product-read",
+  "capturedAt": "2026-05-06T23:22:53.859Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
   "variables": {
     "first": 10,
     "namespace": "test_data",
@@ -307,6 +311,91 @@
                 }
               ]
             }
+          },
+          {
+            "id": "gid://shopify/MetafieldDefinition/206789771570",
+            "name": "Color",
+            "namespace": "shopify",
+            "key": "color-pattern",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "list.metaobject_reference",
+              "category": "REFERENCE"
+            },
+            "description": "Defines the primary color or pattern, such as blue or striped",
+            "validations": [
+              {
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/17880285490"
+              }
+            ],
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": false,
+                "eligible": true,
+                "status": "NOT_FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": false
+              }
+            },
+            "constraints": {
+              "key": "category",
+              "values": {
+                "nodes": [
+                  {
+                    "value": "ap-2-1-1"
+                  },
+                  {
+                    "value": "ap-2-1-1-1"
+                  },
+                  {
+                    "value": "ap-2-1-1-2"
+                  },
+                  {
+                    "value": "ap-2-1-1-2-1"
+                  },
+                  {
+                    "value": "ap-2-1-1-2-2"
+                  },
+                  {
+                    "value": "ap-2-1-1-2-3"
+                  },
+                  {
+                    "value": "ap-2-1-2"
+                  },
+                  {
+                    "value": "ap-2-2-2"
+                  },
+                  {
+                    "value": "ap-2-2-2-1"
+                  },
+                  {
+                    "value": "ap-2-2-2-2"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDEyNzg2OTYwODI0MiwibGFzdF92YWx1ZSI6IjEwMTI3ODY5NjA4MjQyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDEyNzg2OTkwMzE1NCwibGFzdF92YWx1ZSI6IjEwMTI3ODY5OTAzMTU0In0="
+                }
+              }
+            },
+            "pinnedPosition": null,
+            "validationStatus": "ALL_VALID",
+            "metafields": {
+              "nodes": []
+            }
           }
         ]
       }
@@ -314,10 +403,10 @@
     "extensions": {
       "cost": {
         "requestedQueryCost": 138,
-        "actualQueryCost": 49,
+        "actualQueryCost": 55,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1951,
+          "currentlyAvailable": 1945,
           "restoreRate": 100
         }
       }
@@ -332,7 +421,7 @@
         "key": "snowboard_length",
         "missingNamespace": "har_144_missing"
       },
-      "query": "hand-synthesized-from-capture:metafield-definitions-product-read",
+      "query": "query MetafieldDefinitionsProductRead($first: Int!, $namespace: String!, $key: String!, $missingNamespace: String!) {\n  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      adminFilterable {\n        enabled\n        eligible\n        status\n      }\n      smartCollectionCondition {\n        enabled\n        eligible\n      }\n      uniqueValues {\n        enabled\n        eligible\n      }\n    }\n    constraints {\n      key\n      values(first: 10) {\n        nodes {\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pinnedPosition\n    validationStatus\n    metafieldsCount\n    metafields(first: 5) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missing: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $missingNamespace, key: \"missing\" }) {\n    id\n    name\n  }\n  metafieldDefinitions(ownerType: PRODUCT, first: $first, sortKey: PINNED_POSITION, pinnedStatus: PINNED) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      pinnedPosition\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  filteredByQuery: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 5\n    namespace: $namespace\n    query: \"key:binding_mount\"\n    sortKey: NAME\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      pinnedPosition\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  empty: metafieldDefinitions(ownerType: PRODUCT, first: 5, namespace: $missingNamespace) {\n    nodes {\n      id\n    }\n    edges {\n      cursor\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  seedCatalog: metafieldDefinitions(ownerType: PRODUCT, first: $first, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 10) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          ownerType\n          owner {\n            ... on Product {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -637,6 +726,91 @@
                       }
                     ]
                   }
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/206789771570",
+                  "name": "Color",
+                  "namespace": "shopify",
+                  "key": "color-pattern",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "list.metaobject_reference",
+                    "category": "REFERENCE"
+                  },
+                  "description": "Defines the primary color or pattern, such as blue or striped",
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": "gid://shopify/MetaobjectDefinition/17880285490"
+                    }
+                  ],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": "category",
+                    "values": {
+                      "nodes": [
+                        {
+                          "value": "ap-2-1-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-2"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-1"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-2"
+                        },
+                        {
+                          "value": "ap-2-1-1-2-3"
+                        },
+                        {
+                          "value": "ap-2-1-2"
+                        },
+                        {
+                          "value": "ap-2-2-2"
+                        },
+                        {
+                          "value": "ap-2-2-2-1"
+                        },
+                        {
+                          "value": "ap-2-2-2-2"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDEyNzg2OTYwODI0MiwibGFzdF92YWx1ZSI6IjEwMTI3ODY5NjA4MjQyIn0=",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDEyNzg2OTkwMzE1NCwibGFzdF92YWx1ZSI6IjEwMTI3ODY5OTAzMTU0In0="
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafields": {
+                    "nodes": []
+                  }
                 }
               ]
             }
@@ -644,10 +818,10 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 138,
-              "actualQueryCost": 49,
+              "actualQueryCost": 55,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1951,
+                "currentlyAvailable": 1945,
                 "restoreRate": 100
               }
             }

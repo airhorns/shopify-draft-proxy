@@ -12,7 +12,7 @@
             "id": "gid://shopify/Validation/2",
             "enable": false,
             "blockOnFailure": false,
-            "title": null
+            "title": "Validation Alpha"
           },
           "userErrors": []
         },

@@ -1,11 +1,12 @@
 {
   "first": 5,
-  "companyId": "gid://shopify/Company/2983166258",
-  "contactId": "gid://shopify/CompanyContact/3321004338",
-  "roleId": "gid://shopify/CompanyContactRole/5888540978",
-  "locationId": "gid://shopify/CompanyLocation/3926458674",
+  "companyId": "gid://shopify/Company/5443846450",
+  "contactId": "gid://shopify/CompanyContact/10163192114",
+  "roleId": "gid://shopify/CompanyContactRole/10678993202",
+  "locationId": "gid://shopify/CompanyLocation/8270872882",
   "unknownCompanyId": "gid://shopify/Company/999999999999",
   "unknownContactId": "gid://shopify/CompanyContact/999999999999",
   "unknownRoleId": "gid://shopify/CompanyContactRole/999999999999",
-  "unknownLocationId": "gid://shopify/CompanyLocation/999999999999"
+  "unknownLocationId": "gid://shopify/CompanyLocation/999999999999",
+  "companyQuery": "name:\"Recorder B2B roots 1778109772770\""
 }

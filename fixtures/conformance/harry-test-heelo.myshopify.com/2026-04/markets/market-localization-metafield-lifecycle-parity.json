@@ -1,16 +1,16 @@
 {
-  "capturedAt": "2026-04-29T11:47:45.755Z",
+  "capturedAt": "2026-05-06T18:23:23.710Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "disposableProductHandle": "har-market-localization-o49bpv0s",
-  "scope": "HAR-448 default product-metafield market localization validation parity",
+  "disposableProductHandle": "har-market-localization-fe87uhya",
+  "scope": "Default product-metafield market localization validation plus definition-backed money metafield successful remove parity",
   "data": {
     "markets": {
       "nodes": [
         {
-          "id": "gid://shopify/Market/92276719922",
-          "name": "Canada",
-          "handle": "ca",
+          "id": "gid://shopify/Market/92276785458",
+          "name": "International",
+          "handle": "international",
           "status": "ACTIVE",
           "type": "REGION"
         }
@@ -20,21 +20,21 @@
   "response": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10173649322290",
-        "handle": "har-market-localization-o49bpv0s",
-        "title": "HAR market localization o49bpv0s",
+        "id": "gid://shopify/Product/10178847015218",
+        "handle": "har-market-localization-fe87uhya",
+        "title": "HAR market localization fe87uhya",
         "status": "DRAFT",
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/42994289180978",
+              "id": "gid://shopify/Metafield/43114957832498",
               "namespace": "custom",
               "key": "market_material",
               "type": "single_line_text_field",
-              "value": "Maple o49bpv0s",
-              "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
-              "createdAt": "2026-04-29T11:47:44Z",
-              "updatedAt": "2026-04-29T11:47:44Z",
+              "value": "Maple fe87uhya",
+              "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+              "createdAt": "2026-05-06T18:23:20Z",
+              "updatedAt": "2026-05-06T18:23:20Z",
               "ownerType": "PRODUCT"
             }
           ]
@@ -47,15 +47,15 @@
       "query": "#graphql\n  mutation MarketLocalizationProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        handle\n        title\n        status\n        metafields(first: 5, namespace: \"custom\") {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            createdAt\n            updatedAt\n            ownerType\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "HAR market localization o49bpv0s",
-          "handle": "har-market-localization-o49bpv0s",
+          "title": "HAR market localization fe87uhya",
+          "handle": "har-market-localization-fe87uhya",
           "status": "DRAFT",
           "metafields": [
             {
               "namespace": "custom",
               "key": "market_material",
               "type": "single_line_text_field",
-              "value": "Maple o49bpv0s"
+              "value": "Maple fe87uhya"
             }
           ]
         }
@@ -66,21 +66,21 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10173649322290",
-                "handle": "har-market-localization-o49bpv0s",
-                "title": "HAR market localization o49bpv0s",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
                 "status": "DRAFT",
                 "metafields": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Metafield/42994289180978",
+                      "id": "gid://shopify/Metafield/43114957832498",
                       "namespace": "custom",
                       "key": "market_material",
                       "type": "single_line_text_field",
-                      "value": "Maple o49bpv0s",
-                      "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
-                      "createdAt": "2026-04-29T11:47:44Z",
-                      "updatedAt": "2026-04-29T11:47:44Z",
+                      "value": "Maple fe87uhya",
+                      "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+                      "createdAt": "2026-05-06T18:23:20Z",
+                      "updatedAt": "2026-05-06T18:23:20Z",
                       "ownerType": "PRODUCT"
                     }
                   ]
@@ -106,28 +106,167 @@
     "productRead": {
       "query": "#graphql\n  query MarketLocalizationProductRead($id: ID!) {\n    product(id: $id) {\n      id\n      handle\n      title\n      status\n      metafields(first: 5, namespace: \"custom\") {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Product/10173649322290"
+        "id": "gid://shopify/Product/10178847015218"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "product": {
-              "id": "gid://shopify/Product/10173649322290",
-              "handle": "har-market-localization-o49bpv0s",
-              "title": "HAR market localization o49bpv0s",
+              "id": "gid://shopify/Product/10178847015218",
+              "handle": "har-market-localization-fe87uhya",
+              "title": "HAR market localization fe87uhya",
               "status": "DRAFT",
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/42994289180978",
+                    "id": "gid://shopify/Metafield/43114957832498",
                     "namespace": "custom",
                     "key": "market_material",
                     "type": "single_line_text_field",
-                    "value": "Maple o49bpv0s",
-                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
-                    "createdAt": "2026-04-29T11:47:44Z",
-                    "updatedAt": "2026-04-29T11:47:44Z",
+                    "value": "Maple fe87uhya",
+                    "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+                    "createdAt": "2026-05-06T18:23:20Z",
+                    "updatedAt": "2026-05-06T18:23:20Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moneyDefinitionCreate": {
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        type {\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "definition": {
+          "name": "Market localization money",
+          "namespace": "har_market_money_fe87uhya",
+          "key": "localized_price",
+          "ownerType": "PRODUCT",
+          "type": "money"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/207011021106",
+                "namespace": "har_market_money_fe87uhya",
+                "key": "localized_price",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "money"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moneyMetafieldsSet": {
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n    metafieldsSet(metafields: $metafields) {\n      metafields {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        createdAt\n        updatedAt\n        ownerType\n        owner {\n          ... on Product {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10178847015218",
+            "namespace": "har_market_money_fe87uhya",
+            "key": "localized_price",
+            "type": "money",
+            "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "metafieldsSet": {
+              "metafields": [
+                {
+                  "id": "gid://shopify/Metafield/43114957963570",
+                  "namespace": "har_market_money_fe87uhya",
+                  "key": "localized_price",
+                  "type": "money",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                  "createdAt": "2026-05-06T18:23:22Z",
+                  "updatedAt": "2026-05-06T18:23:22Z",
+                  "ownerType": "PRODUCT",
+                  "owner": {
+                    "id": "gid://shopify/Product/10178847015218"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moneyProductRead": {
+      "query": "#graphql\n  query MarketLocalizationProductReadByNamespace($id: ID!, $namespace: String!) {\n    product(id: $id) {\n      id\n      handle\n      title\n      status\n      metafields(first: 5, namespace: $namespace) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Product/10178847015218",
+        "namespace": "har_market_money_fe87uhya"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10178847015218",
+              "handle": "har-market-localization-fe87uhya",
+              "title": "HAR market localization fe87uhya",
+              "status": "DRAFT",
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43114957963570",
+                    "namespace": "har_market_money_fe87uhya",
+                    "key": "localized_price",
+                    "type": "money",
+                    "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                    "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                    "createdAt": "2026-05-06T18:23:22Z",
+                    "updatedAt": "2026-05-06T18:23:22Z",
                     "ownerType": "PRODUCT"
                   }
                 ]
@@ -154,15 +293,15 @@
       "name": "marketLocalizableMetafieldReadBeforeRegister",
       "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
-        "marketId": "gid://shopify/Market/92276719922"
+        "resourceId": "gid://shopify/Metafield/43114957832498",
+        "marketId": "gid://shopify/Market/92276785458"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketLocalizableResource": {
-              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "resourceId": "gid://shopify/Metafield/43114957832498",
               "marketLocalizableContent": [],
               "marketLocalizations": []
             }
@@ -185,13 +324,13 @@
       "name": "marketLocalizationsRegisterDefaultMetafieldValidation",
       "query": "#graphql\n  mutation MarketLocalizationMetafieldRegister(\n    $resourceId: ID!\n    $marketLocalizations: [MarketLocalizationRegisterInput!]!\n  ) {\n    marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "resourceId": "gid://shopify/Metafield/43114957832498",
         "marketLocalizations": [
           {
             "key": "value",
-            "value": "Erable o49bpv0s",
-            "marketId": "gid://shopify/Market/92276719922",
-            "marketLocalizableContentDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af"
+            "value": "Erable fe87uhya",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2"
           }
         ]
       },
@@ -228,15 +367,15 @@
       "name": "marketLocalizableMetafieldReadAfterRejectedRegister",
       "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
-        "marketId": "gid://shopify/Market/92276719922"
+        "resourceId": "gid://shopify/Metafield/43114957832498",
+        "marketId": "gid://shopify/Market/92276785458"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketLocalizableResource": {
-              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "resourceId": "gid://shopify/Metafield/43114957832498",
               "marketLocalizableContent": [],
               "marketLocalizations": []
             }
@@ -259,9 +398,9 @@
       "name": "marketLocalizationsRemoveDefaultMetafieldValidation",
       "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "resourceId": "gid://shopify/Metafield/43114957832498",
         "keys": ["value"],
-        "marketIds": ["gid://shopify/Market/92276719922"]
+        "marketIds": ["gid://shopify/Market/92276785458"]
       },
       "response": {
         "status": 200,
@@ -290,15 +429,15 @@
       "name": "marketLocalizableMetafieldReadAfterEmptyRemove",
       "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
-        "marketId": "gid://shopify/Market/92276719922"
+        "resourceId": "gid://shopify/Metafield/43114957832498",
+        "marketId": "gid://shopify/Market/92276785458"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketLocalizableResource": {
-              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "resourceId": "gid://shopify/Metafield/43114957832498",
               "marketLocalizableContent": [],
               "marketLocalizations": []
             }
@@ -309,7 +448,280 @@
               "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizableMoneyMetafieldReadBeforeRegister",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketId": "gid://shopify/Market/92276785458"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRegisterMoneyMetafieldSuccess",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRegister(\n    $resourceId: ID!\n    $marketLocalizations: [MarketLocalizationRegisterInput!]!\n  ) {\n    marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRegister": {
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+                  "updatedAt": "2026-05-06T18:23:22Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizableMoneyMetafieldReadAfterRegister",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketId": "gid://shopify/Market/92276785458"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+                  "updatedAt": "2026-05-06T18:23:22Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
                 "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRemoveMoneyMetafieldUnknownMarket",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/999999999999"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRemoveMoneyMetafieldEmptyKeys",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": [],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRemoveMoneyMetafieldSuccess",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizableMoneyMetafieldReadAfterRemove",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketId": "gid://shopify/Market/92276785458"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }
@@ -319,11 +731,39 @@
     }
   ],
   "cleanup": {
+    "moneyDefinitionDelete": {
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldDefinitionDelete($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/207011021106"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207011021106",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "productDelete": {
       "query": "#graphql\n  mutation MarketLocalizationProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10173649322290"
+          "id": "gid://shopify/Product/10178847015218"
         }
       },
       "response": {
@@ -331,7 +771,7 @@
         "payload": {
           "data": {
             "productDelete": {
-              "deletedProductId": "gid://shopify/Product/10173649322290",
+              "deletedProductId": "gid://shopify/Product/10178847015218",
               "userErrors": []
             }
           },
@@ -354,16 +794,16 @@
     {
       "operationName": "MarketLocalizationMetafieldRead",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
-        "marketId": "gid://shopify/Market/92276719922"
+        "resourceId": "gid://shopify/Metafield/43114957832498",
+        "marketId": "gid://shopify/Market/92276785458"
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "marketLocalizableResource": {
-              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "resourceId": "gid://shopify/Metafield/43114957832498",
               "marketLocalizableContent": [],
               "marketLocalizations": []
             }
@@ -385,50 +825,171 @@
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "resourceId": "gid://shopify/Metafield/43114957832498",
         "marketLocalizations": [
           {
             "key": "value",
-            "value": "Erable o49bpv0s",
-            "marketId": "gid://shopify/Market/92276719922",
-            "marketLocalizableContentDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af"
+            "value": "Erable fe87uhya",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2"
           }
         ]
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "synthesized from live capture setup before disposable cleanup",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "product": {
-              "id": "gid://shopify/Product/10173649322290",
-              "handle": "har-market-localization-o49bpv0s",
-              "title": "HAR market localization o49bpv0s",
-              "status": "DRAFT",
-              "metafields": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/Metafield/42994289180978",
-                    "namespace": "custom",
-                    "key": "market_material",
-                    "type": "single_line_text_field",
-                    "value": "Maple o49bpv0s",
-                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
-                    "createdAt": "2026-04-29T11:47:44Z",
-                    "updatedAt": "2026-04-29T11:47:44Z",
-                    "ownerType": "PRODUCT"
-                  }
-                ]
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957832498",
+              "namespace": "custom",
+              "key": "market_material",
+              "type": "single_line_text_field",
+              "value": "Maple fe87uhya",
+              "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+              "createdAt": "2026-05-06T18:23:20Z",
+              "updatedAt": "2026-05-06T18:23:20Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957832498",
+                      "namespace": "custom",
+                      "key": "market_material",
+                      "type": "single_line_text_field",
+                      "value": "Maple fe87uhya",
+                      "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+                      "createdAt": "2026-05-06T18:23:20Z",
+                      "updatedAt": "2026-05-06T18:23:20Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
               }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957832498",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957832498",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "query": "synthesized from live capture setup before disposable cleanup",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957832498",
+              "namespace": "custom",
+              "key": "market_material",
+              "type": "single_line_text_field",
+              "value": "Maple fe87uhya",
+              "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+              "createdAt": "2026-05-06T18:23:20Z",
+              "updatedAt": "2026-05-06T18:23:20Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957832498",
+                      "namespace": "custom",
+                      "key": "market_material",
+                      "type": "single_line_text_field",
+                      "value": "Maple fe87uhya",
+                      "compareDigest": "f0ef1bb7d6457392f4d126db7163a3007638ea7c067f53000e5fed61d95f00c2",
+                      "createdAt": "2026-05-06T18:23:20Z",
+                      "updatedAt": "2026-05-06T18:23:20Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957832498",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketLocalizationMetafieldRead",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketId": "gid://shopify/Market/92276785458"
+      },
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }
@@ -439,46 +1000,292 @@
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/42994289180978",
-        "keys": ["value"],
-        "marketIds": ["gid://shopify/Market/92276719922"]
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+          }
+        ]
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "synthesized from live capture setup before disposable cleanup",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "product": {
-              "id": "gid://shopify/Product/10173649322290",
-              "handle": "har-market-localization-o49bpv0s",
-              "title": "HAR market localization o49bpv0s",
-              "status": "DRAFT",
-              "metafields": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/Metafield/42994289180978",
-                    "namespace": "custom",
-                    "key": "market_material",
-                    "type": "single_line_text_field",
-                    "value": "Maple o49bpv0s",
-                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
-                    "createdAt": "2026-04-29T11:47:44Z",
-                    "updatedAt": "2026-04-29T11:47:44Z",
-                    "ownerType": "PRODUCT"
-                  }
-                ]
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957963570",
+              "namespace": "har_market_money_fe87uhya",
+              "key": "localized_price",
+              "type": "money",
+              "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+              "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+              "createdAt": "2026-05-06T18:23:22Z",
+              "updatedAt": "2026-05-06T18:23:22Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957963570",
+                      "namespace": "har_market_money_fe87uhya",
+                      "key": "localized_price",
+                      "type": "money",
+                      "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                      "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                      "createdAt": "2026-05-06T18:23:22Z",
+                      "updatedAt": "2026-05-06T18:23:22Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
               }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
             }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 4,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
-                "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/999999999999"]
+      },
+      "query": "synthesized from live capture setup before disposable cleanup",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957963570",
+              "namespace": "har_market_money_fe87uhya",
+              "key": "localized_price",
+              "type": "money",
+              "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+              "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+              "createdAt": "2026-05-06T18:23:22Z",
+              "updatedAt": "2026-05-06T18:23:22Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957963570",
+                      "namespace": "har_market_money_fe87uhya",
+                      "key": "localized_price",
+                      "type": "money",
+                      "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                      "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                      "createdAt": "2026-05-06T18:23:22Z",
+                      "updatedAt": "2026-05-06T18:23:22Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
               }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": [],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "query": "synthesized from live capture setup before disposable cleanup",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957963570",
+              "namespace": "har_market_money_fe87uhya",
+              "key": "localized_price",
+              "type": "money",
+              "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+              "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+              "createdAt": "2026-05-06T18:23:22Z",
+              "updatedAt": "2026-05-06T18:23:22Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957963570",
+                      "namespace": "har_market_money_fe87uhya",
+                      "key": "localized_price",
+                      "type": "money",
+                      "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                      "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                      "createdAt": "2026-05-06T18:23:22Z",
+                      "updatedAt": "2026-05-06T18:23:22Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43114957963570",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "query": "synthesized from live capture setup before disposable cleanup",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "resource": {
+              "__typename": "Metafield",
+              "id": "gid://shopify/Metafield/43114957963570",
+              "namespace": "har_market_money_fe87uhya",
+              "key": "localized_price",
+              "type": "money",
+              "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+              "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+              "createdAt": "2026-05-06T18:23:22Z",
+              "updatedAt": "2026-05-06T18:23:22Z",
+              "ownerType": "PRODUCT",
+              "owner": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178847015218",
+                "handle": "har-market-localization-fe87uhya",
+                "title": "HAR market localization fe87uhya",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43114957963570",
+                      "namespace": "har_market_money_fe87uhya",
+                      "key": "localized_price",
+                      "type": "money",
+                      "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                      "compareDigest": "741d8b1bf7034db81f55eda0260f3f8056d196192467ff4b9a124a19a394662b",
+                      "createdAt": "2026-05-06T18:23:22Z",
+                      "updatedAt": "2026-05-06T18:23:22Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              }
+            },
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43114957963570",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}",
+                  "digest": "1fcdc39a15ea30913c809c833eb57dc18f893d7e9820c19983dc52f8a6825493"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
             }
           }
         }

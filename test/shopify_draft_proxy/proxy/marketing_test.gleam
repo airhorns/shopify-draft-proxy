@@ -538,6 +538,106 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
 }
 
+pub fn external_activity_url_scheme_validation_rejects_non_http_schemes_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let seed =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-url-scheme-seed\", remoteUrl: \"https://example.com/seed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-seed\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title marketingEvent { remoteId manageUrl previewUrl } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(json.to_string(seed.data), "\"userErrors\":[]")
+
+  let invalid_create =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad FTP\", remoteId: \"remote-url-scheme-ftp\", remoteUrl: \"ftp://example.com/bad\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-ftp\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_create.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_create.data),
+    "marketingActivityCreateExternal",
+  )
+  let read_after_invalid_create =
+    run(
+      invalid_create.store,
+      "{ marketingActivities(first: 5, remoteIds: [\"remote-url-scheme-ftp\"]) { nodes { id } } }",
+    )
+  assert read_after_invalid_create == "{\"marketingActivities\":{\"nodes\":[]}}"
+
+  let invalid_create_preview =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad preview\", remoteId: \"remote-url-scheme-file\", remoteUrl: \"https://example.com/ok\", remotePreviewImageUrl: \"file://example.com/preview.png\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-file\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_create_preview.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_create_preview.data),
+    "marketingActivityCreateExternal",
+  )
+
+  let invalid_update =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-url-scheme-seed\", input: { title: \"Bad update\", remoteUrl: \"mailto:marketing@example.com\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_update.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_update.data),
+    "marketingActivityUpdateExternal",
+  )
+  let read_after_invalid_update =
+    run(
+      invalid_update.store,
+      "{ marketingActivities(first: 5, remoteIds: [\"remote-url-scheme-seed\"]) { nodes { title marketingEvent { manageUrl previewUrl } } } }",
+    )
+  assert string.contains(
+    read_after_invalid_update,
+    "\"manageUrl\":\"https://example.com/seed\"",
+  )
+  assert string.contains(read_after_invalid_update, "\"previewUrl\":null")
+
+  let invalid_upsert =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { title: \"Bad upsert\", remoteId: \"remote-url-scheme-upsert\", remoteUrl: \"file://example.com/upsert\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-upsert\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_upsert.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_upsert.data),
+    "marketingActivityUpsertExternal",
+  )
+}
+
+fn assert_url_scheme_error(response_json: String, root: String) {
+  assert string.contains(
+    response_json,
+    "\"message\":\"The URL scheme must be one of the following: https,http\"",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_FIELD_ARGUMENTS\"")
+  assert string.contains(response_json, "\"path\":[\"" <> root <> "\"]")
+  assert string.contains(response_json, "\"data\":{\"" <> root <> "\":null}")
+}
+
 pub fn external_activity_remote_id_uniqueness_is_app_scoped_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let app_a_create =
@@ -1607,6 +1707,114 @@ pub fn engagement_create_rejects_mismatched_input_currencies_test() {
   assert string.contains(response, "\"field\":[\"marketingEngagement\"]")
   assert string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
   assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_prioritizes_multiple_identifiers_before_input_currency_test() {
+  let created =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let engagement =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(marketingActivityId: \"gid://shopify/MarketingActivity/1\", remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"INVALID_MARKETING_ENGAGEMENT_ARGUMENTS\"",
+  )
+  assert !string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_prioritizes_channel_multiple_identifiers_before_input_currency_test() {
+  let engagement =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(channelHandle: \"email\", remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"INVALID_MARKETING_ENGAGEMENT_ARGUMENTS\"",
+  )
+  assert !string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_distinguishes_deleted_event_from_unknown_activity_test() {
+  let activity_id = "gid://shopify/MarketingActivity/901"
+  let event_id = "gid://shopify/MarketingEvent/901"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      activity(
+        activity_id,
+        "Deleted event activity",
+        "deleted-event-remote",
+        "2026-05-05T00:00:00Z",
+      ),
+    ])
+    |> store.upsert_base_marketing_events([
+      marketing_event(event_id, "deleted-event-remote"),
+    ])
+    |> store.stage_delete_marketing_event(event_id)
+
+  let deleted_event =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"deleted-event-remote\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let deleted_event_response = json.to_string(deleted_event.data)
+  assert string.contains(
+    deleted_event_response,
+    "\"code\":\"MARKETING_EVENT_DOES_NOT_EXIST\"",
+  )
+  assert !string.contains(
+    deleted_event_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let missing_activity =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"missing-activity\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_activity_response = json.to_string(missing_activity.data)
+  assert string.contains(
+    missing_activity_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+  assert !string.contains(
+    missing_activity_response,
+    "\"code\":\"MARKETING_EVENT_DOES_NOT_EXIST\"",
+  )
+  assert store.list_effective_marketing_engagements(deleted_event.store) == []
+  assert store.list_effective_marketing_engagements(missing_activity.store)
+    == []
 }
 
 pub fn engagement_create_rejects_activity_currency_mismatch_by_id_test() {

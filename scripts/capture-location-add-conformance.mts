@@ -28,7 +28,7 @@ type LocationAddData = {
   } | null;
 };
 
-const scenarioId = 'location-add-required-address-and-defaults';
+const scenarioId = 'location-add-validation-and-defaults';
 const apiVersion = '2026-04';
 const requestedConfig = readConformanceScriptConfig({
   defaultApiVersion: apiVersion,
@@ -122,6 +122,81 @@ const missingAddressMutation = `#graphql
   }
 `;
 
+const missingCountryCodeMutation = `#graphql
+  mutation LocationAddMissingCountryCode($input: LocationAddInput!) {
+    locationAdd(input: $input) {
+      location {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const inlineMissingCountryCodeMutation = `#graphql
+  mutation LocationAddInlineMissingCountryCode {
+    locationAdd(input: { name: "Bad", address: { address1: "1 Infinite Loop" } }) {
+      location {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const invalidCountryCodeMutation = `#graphql
+  mutation LocationAddInvalidCountryCode($input: LocationAddInput!) {
+    locationAdd(input: $input) {
+      location {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const capabilitiesVariableMutation = `#graphql
+  mutation LocationAddCapabilitiesVariable($input: LocationAddInput!) {
+    locationAdd(input: $input) {
+      location {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const inlineCapabilitiesMutation = `#graphql
+  mutation LocationAddInlineCapabilities {
+    locationAdd(input: { name: "Cap", address: { countryCode: CA }, capabilitiesToAdd: [PICKUP] }) {
+      location {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const locationDeactivateWithDirectiveMutation = `#graphql
   mutation LocationAddCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {
     locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
@@ -183,11 +258,17 @@ function readAddedLocationId(createCase: CaptureCase): string {
   return id;
 }
 
-async function cleanupLocation(locationId: string, cleanup: CaptureCase[], suffix: string): Promise<void> {
+async function cleanupLocation(
+  locationId: string,
+  cleanup: CaptureCase[],
+  suffix: string,
+  uniqueSuffix: string,
+): Promise<void> {
+  const locationToken = locationId.split('/').at(-1) ?? suffix;
   cleanup.push(
     await runCase(client, `cleanupDeactivate-${suffix}`, locationDeactivateWithDirectiveMutation, {
       locationId,
-      idempotencyKey: `${scenarioId}-cleanup-${suffix}`,
+      idempotencyKey: `${scenarioId}-cleanup-${suffix}-${uniqueSuffix}-${locationToken}`,
     }),
   );
   cleanup.push(await runCase(client, `cleanupDelete-${suffix}`, locationDeleteMutation, { locationId }));
@@ -203,7 +284,7 @@ const createdLocationIds: string[] = [];
 try {
   const defaultAdd = await runCase(client, 'defaultAdd', locationAddMutation, {
     input: {
-      name: `HAR-654 Main ${uniqueSuffix}`,
+      name: `Proxy Main ${uniqueSuffix}`,
       address: {
         address1: '1 Spadina',
         city: 'Toronto',
@@ -220,7 +301,7 @@ try {
 
   const explicitFalseAdd = await runCase(client, 'explicitFalseAdd', locationAddMutation, {
     input: {
-      name: `HAR-654 Sub ${uniqueSuffix}`,
+      name: `Proxy Sub ${uniqueSuffix}`,
       fulfillsOnlineOrders: false,
       address: {
         address1: '2 Spadina',
@@ -245,9 +326,38 @@ try {
     },
   });
   const missingAddress = await runCase(client, 'missingAddress', missingAddressMutation);
+  const missingCountryCode = await runCase(client, 'missingCountryCode', missingCountryCodeMutation, {
+    input: {
+      name: 'Missing Country',
+      address: {
+        address1: '1 Infinite Loop',
+      },
+    },
+  });
+  const inlineMissingCountryCode = await runCase(client, 'inlineMissingCountryCode', inlineMissingCountryCodeMutation);
+  const invalidCountryCode = await runCase(client, 'invalidCountryCode', invalidCountryCodeMutation, {
+    input: {
+      name: 'Invalid Country',
+      address: {
+        countryCode: 'QQ',
+      },
+    },
+  });
+  const capabilitiesVariable = await runCase(client, 'capabilitiesVariable', capabilitiesVariableMutation, {
+    input: {
+      name: 'Capabilities Variable',
+      address: {
+        countryCode: 'CA',
+      },
+      capabilities: {
+        pickupEnabled: true,
+      },
+    },
+  });
+  const inlineCapabilities = await runCase(client, 'inlineCapabilities', inlineCapabilitiesMutation);
 
-  await cleanupLocation(defaultLocationId, cleanup, 'default');
-  await cleanupLocation(explicitFalseLocationId, cleanup, 'explicitFalse');
+  await cleanupLocation(defaultLocationId, cleanup, 'default', uniqueSuffix);
+  await cleanupLocation(explicitFalseLocationId, cleanup, 'explicitFalse', uniqueSuffix);
 
   const capture = {
     capturedAt,
@@ -260,6 +370,11 @@ try {
       explicitFalseRead,
       blankName,
       missingAddress,
+      missingCountryCode,
+      inlineMissingCountryCode,
+      invalidCountryCode,
+      capabilitiesVariable,
+      inlineCapabilities,
     },
     cleanup,
     upstreamCalls: [],
@@ -281,7 +396,7 @@ try {
 } catch (error) {
   for (const [index, locationId] of createdLocationIds.entries()) {
     try {
-      await cleanupLocation(locationId, cleanup, `error-${index}`);
+      await cleanupLocation(locationId, cleanup, `error-${index}`, uniqueSuffix);
     } catch (cleanupError) {
       console.error(
         JSON.stringify(

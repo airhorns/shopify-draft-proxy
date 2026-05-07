@@ -2,7 +2,7 @@
   "scenarioId": "payment-customization-create-validation-gaps",
   "operationNames": ["paymentCustomizationCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "active-limit-validation", "no-upstream-passthrough"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "public-create-validation", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
   ],
@@ -17,6 +17,18 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "missing-metafields-public-create",
+        "capturePath": "$.response.payload.data.missingMetafields",
+        "proxyPath": "$.data.missingMetafields",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy generate independent payment customization IDs."
+          }
+        ]
+      },
+      {
         "name": "multiple-function-identifiers-validation",
         "capturePath": "$.response.payload.data.bothIdentifiers",
         "proxyPath": "$.data.bothIdentifiers",
@@ -26,8 +38,20 @@
         "name": "missing-function-identifier-validation",
         "capturePath": "$.response.payload.data.missingIdentifier",
         "proxyPath": "$.data.missingIdentifier"
+      },
+      {
+        "name": "sixth-enabled-public-create",
+        "capturePath": "$.response.payload.data.overflow",
+        "proxyPath": "$.data.overflow",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy generate independent payment customization IDs."
+          }
+        ]
       }
     ]
   },
-  "notes": "Executable parity coverage for paymentCustomizationCreate Function identifier validation. The live 2026-04 capture also records that public Shopify accepted missing metafields and more than five active customizations in this test shop; focused runtime tests cover the internal guardrails requested for those branches."
+  "notes": "Executable parity coverage for paymentCustomizationCreate public Shopify Admin 2026-04 behavior captured against harry-test-heelo.myshopify.com. Public Shopify accepted missing metafields and a sixth enabled customization in this test shop, while still returning Function identifier arbitration errors for both identifiers and missing identifiers."
 }

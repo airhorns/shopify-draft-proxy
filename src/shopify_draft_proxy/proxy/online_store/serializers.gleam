@@ -1436,10 +1436,22 @@ pub fn user_error_with_code(
   message: String,
   code: String,
 ) -> graphql_helpers.SourceValue {
+  user_error_with_optional_code(field, message, Some(code))
+}
+
+@internal
+pub fn user_error_with_optional_code(
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> graphql_helpers.SourceValue {
   src_object([
     #("field", SrcList(list.map(field, SrcString))),
     #("message", SrcString(message)),
-    #("code", SrcString(code)),
+    #("code", case code {
+      Some(code) -> SrcString(code)
+      None -> SrcNull
+    }),
   ])
 }
 

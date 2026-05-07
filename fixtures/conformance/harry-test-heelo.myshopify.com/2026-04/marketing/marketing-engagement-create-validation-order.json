@@ -1,0 +1,320 @@
+{
+  "capturedAt": "2026-05-07T00:55:26.129Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scopeEvidence": {
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "handle": "hermes-conformance-products",
+      "title": "hermes-conformance-products"
+    },
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
+  },
+  "operations": {
+    "createActivity": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderSetup(\n    $input: MarketingActivityCreateExternalInput!\n  ) {\n    marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Marketing engagement validation order mouryds7",
+            "remoteId": "marketing-engagement-validation-order-mouryds7",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-engagement-validation-order-mouryds7",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "budget": {
+              "budgetType": "DAILY",
+              "total": {
+                "amount": "100.00",
+                "currencyCode": "USD"
+              }
+            },
+            "utm": {
+              "campaign": "marketing-engagement-validation-order-mouryds7",
+              "source": "newsletter",
+              "medium": "email"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/197060657458"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multipleActivitySelectorsCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderMultipleActivitySelectors(\n    $activityId: ID!\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(\n      marketingActivityId: $activityId\n      remoteId: $remoteId\n      marketingEngagement: $engagement\n    ) {\n      marketingEngagement {\n        occurredOn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "activityId": "gid://shopify/MarketingActivity/197060657458",
+          "remoteId": "marketing-engagement-validation-order-mouryds7",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multipleChannelSelectorsCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderMultipleChannelSelectors(\n    $channelHandle: String!\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(\n      channelHandle: $channelHandle\n      remoteId: $remoteId\n      marketingEngagement: $engagement\n    ) {\n      marketingEngagement {\n        occurredOn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "channelHandle": "validation-order-channel-mouryds7",
+          "remoteId": "marketing-engagement-validation-order-mouryds7",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownChannelCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderUnknownChannelCurrency(\n    $channelHandle: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(\n      channelHandle: $channelHandle\n      marketingEngagement: $engagement\n    ) {\n      marketingEngagement {\n        occurredOn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "channelHandle": "validation-order-channel-mouryds7",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["channelHandle"],
+                "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                "code": "INVALID_CHANNEL_HANDLE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownRemoteCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderUnknownRemoteCurrency(\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(\n      remoteId: $remoteId\n      marketingEngagement: $engagement\n    ) {\n      marketingEngagement {\n        occurredOn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "remoteId": "marketing-engagement-validation-order-missing-mouryds7",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["marketingEngagement"],
+                "message": "Currency codes in the marketing engagement input do not match.",
+                "code": "CURRENCY_CODE_MISMATCH_INPUT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownRemote": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCreateValidationOrderUnknownRemote(\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(\n      remoteId: $remoteId\n      marketingEngagement: $engagement\n    ) {\n      marketingEngagement {\n        occurredOn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "remoteId": "marketing-engagement-validation-order-missing-mouryds7",
+          "engagement": {
+            "occurredOn": "2026-04-02",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "deleteActivity": {
+        "request": {
+          "query": "#graphql\n  mutation DeleteMarketingEngagementCreateValidationOrderActivity($remoteId: String) {\n    marketingActivityDeleteExternal(remoteId: $remoteId) {\n      deletedMarketingActivityId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "remoteId": "marketing-engagement-validation-order-mouryds7"
+          }
+        },
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197060657458",
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "blockers": {
+    "softDeletedMarketingEvent": {
+      "status": "not-recordable-through-public-admin-api",
+      "note": "The public Admin GraphQL API does not expose a safe setup path that soft-deletes a MarketingEvent while preserving its MarketingActivity for marketingEngagementCreate."
+    }
+  },
+  "notes": [
+    "Captured validation-order branches against a disposable external marketing activity and cleaned it up afterward.",
+    "Multiple-selector branches intentionally combine mismatched adSpend/sales currencies to prove selector-count validation wins first.",
+    "The unknown channel branch proves channel validation wins before input currency validation on the channel-handle path.",
+    "The unknown remote branch pair proves input currency validation wins before activity lookup for single remote-id selectors, and a valid-currency unknown remote ID returns MARKETING_ACTIVITY_DOES_NOT_EXIST."
+  ],
+  "upstreamCalls": []
+}

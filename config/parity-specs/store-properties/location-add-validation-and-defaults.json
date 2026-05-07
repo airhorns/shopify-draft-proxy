@@ -1,0 +1,183 @@
+{
+  "scenarioId": "location-add-validation-and-defaults",
+  "operationNames": ["locationAdd", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "user-errors-parity",
+    "schema-validation-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-validation-and-defaults.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-validation-and-defaults.graphql",
+    "variablesCapturePath": "$.cases.defaultAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Admin GraphQL 2026-04 locationAdd public-schema behavior against disposable locations. The live capture creates default-online and explicit-non-online locations, reads each immediately, then deactivates/deletes them in cleanup. It also records blank-name userErrors plus top-level schema validation for missing address, missing nested countryCode, invalid CountryCode, and capabilities fields that are not exposed by the public 2026-04 schema.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "default-add-payload",
+        "capturePath": "$.cases.defaultAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "default-read-after-add",
+        "capturePath": "$.cases.defaultRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-read-after-add.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.fulfillsOnlineOrders", "$.address"]
+      },
+      {
+        "name": "explicit-false-add-payload",
+        "capturePath": "$.cases.explicitFalseAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-validation-and-defaults.graphql",
+          "variablesCapturePath": "$.cases.explicitFalseAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "explicit-false-read-after-add",
+        "capturePath": "$.cases.explicitFalseRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-read-after-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "explicit-false-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.fulfillsOnlineOrders", "$.address"]
+      },
+      {
+        "name": "blank-name-user-error-code",
+        "capturePath": "$.cases.blankName.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-blank-name-code.graphql",
+          "variablesCapturePath": "$.cases.blankName.variables"
+        },
+        "selectedPaths": ["$.location", "$.userErrors[0].field", "$.userErrors[0].code"]
+      },
+      {
+        "name": "missing-address-top-level-error",
+        "capturePath": "$.cases.missingAddress.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-missing-address.graphql"
+        },
+        "selectedPaths": [
+          "$.errors[0].message",
+          "$.errors[0].path",
+          "$.errors[0].extensions.code",
+          "$.errors[0].extensions.argumentName",
+          "$.errors[0].extensions.argumentType",
+          "$.errors[0].extensions.inputObjectType"
+        ]
+      },
+      {
+        "name": "missing-country-code-variable-error",
+        "capturePath": "$.cases.missingCountryCode.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-missing-country-code.graphql",
+          "variablesCapturePath": "$.cases.missingCountryCode.variables"
+        },
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions.code", "$.errors[0].extensions.problems"]
+      },
+      {
+        "name": "missing-country-code-inline-error",
+        "capturePath": "$.cases.inlineMissingCountryCode.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-inline-missing-country-code.graphql"
+        },
+        "selectedPaths": [
+          "$.errors[0].message",
+          "$.errors[0].path",
+          "$.errors[0].extensions.code",
+          "$.errors[0].extensions.argumentName",
+          "$.errors[0].extensions.argumentType",
+          "$.errors[0].extensions.inputObjectType"
+        ]
+      },
+      {
+        "name": "invalid-country-code-variable-error",
+        "capturePath": "$.cases.invalidCountryCode.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-invalid-country-code.graphql",
+          "variablesCapturePath": "$.cases.invalidCountryCode.variables"
+        },
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions.code", "$.errors[0].extensions.problems"]
+      },
+      {
+        "name": "capabilities-variable-schema-error",
+        "capturePath": "$.cases.capabilitiesVariable.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-capabilities-variable.graphql",
+          "variablesCapturePath": "$.cases.capabilitiesVariable.variables"
+        },
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions.code", "$.errors[0].extensions.problems"]
+      },
+      {
+        "name": "capabilities-inline-schema-error",
+        "capturePath": "$.cases.inlineCapabilities.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-inline-capabilities.graphql"
+        },
+        "selectedPaths": [
+          "$.errors[0].message",
+          "$.errors[0].path",
+          "$.errors[0].extensions.code",
+          "$.errors[0].extensions.argumentName",
+          "$.errors[0].extensions.inputObjectType"
+        ]
+      }
+    ]
+  }
+}
