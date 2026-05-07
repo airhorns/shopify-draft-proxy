@@ -1,0 +1,14 @@
+mutation MediaFileUserErrorAggregationAcknowledge($fileIds: [ID!]!) {
+  fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+    files {
+      id
+      __typename
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

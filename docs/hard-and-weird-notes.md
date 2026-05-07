@@ -1988,6 +1988,13 @@ The HAR-375 `fileAcknowledgeUpdateFailed` capture added a few Files API quirks:
   `files`, not a singular `file`
 - unknown and deleted IDs return `files: null` with a `FILE_DOES_NOT_EXIST`
   `FilesUserError` on `["fileIds"]`
+- Admin GraphQL 2026-04 aggregates Files API validation ids inconsistently by
+  root: `fileDelete` uses comma-joined GIDs in `FILE_DOES_NOT_EXIST` messages,
+  while `fileUpdate` interpolates the missing id list as a quoted array string
+  even for the count-style plural message. `fileAcknowledgeUpdateFailed`
+  short-circuits on missing ids before reporting non-ready state errors for
+  other ids in the same request; all-existing non-ready ids aggregate into one
+  `NON_READY_STATE` message with comma-space-separated GIDs.
 - a bad-source `fileCreate` can produce a `FAILED` file, but acknowledgement of
   that failed-created file returns `NON_READY_STATE`; this root appears to be
   for failed updates to otherwise READY files, not generic FAILED media cleanup
