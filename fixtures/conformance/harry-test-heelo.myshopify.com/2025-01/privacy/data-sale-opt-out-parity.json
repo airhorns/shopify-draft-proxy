@@ -2,21 +2,21 @@
   "precondition": {
     "variables": {
       "input": {
-        "email": "hermes-data-sale-1778010066809@example.com",
+        "email": "hermes-data-sale-1778169079082@example.com",
         "firstName": "Hermes",
         "lastName": "DataSale",
-        "tags": ["parity", "data-sale-1778010066809"]
+        "tags": ["parity", "data-sale-1778169079082"]
       }
     },
     "response": {
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10582642524466",
-            "email": "hermes-data-sale-1778010066809@example.com",
+            "id": "gid://shopify/Customer/10588620325170",
+            "email": "hermes-data-sale-1778169079082@example.com",
             "dataSaleOptOut": false,
             "defaultEmailAddress": {
-              "emailAddress": "hermes-data-sale-1778010066809@example.com"
+              "emailAddress": "hermes-data-sale-1778169079082@example.com"
             }
           },
           "userErrors": []
@@ -37,12 +37,12 @@
   },
   "mutation": {
     "variables": {
-      "email": "hermes-data-sale-1778010066809@example.com"
+      "email": "hermes-data-sale-1778169079082@example.com"
     },
     "response": {
       "data": {
         "dataSaleOptOut": {
-          "customerId": "gid://shopify/Customer/10582642524466",
+          "customerId": "gid://shopify/Customer/10588620325170",
           "userErrors": []
         }
       },
@@ -61,29 +61,29 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Customer/10582642524466",
+      "id": "gid://shopify/Customer/10588620325170",
       "identifier": {
-        "id": "gid://shopify/Customer/10582642524466"
+        "id": "gid://shopify/Customer/10588620325170"
       },
-      "query": "email:hermes-data-sale-1778010066809@example.com",
+      "query": "email:hermes-data-sale-1778169079082@example.com",
       "first": 5
     },
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10582642524466",
-          "email": "hermes-data-sale-1778010066809@example.com",
+          "id": "gid://shopify/Customer/10588620325170",
+          "email": "hermes-data-sale-1778169079082@example.com",
           "dataSaleOptOut": true,
           "defaultEmailAddress": {
-            "emailAddress": "hermes-data-sale-1778010066809@example.com"
+            "emailAddress": "hermes-data-sale-1778169079082@example.com"
           }
         },
         "customerByIdentifier": {
-          "id": "gid://shopify/Customer/10582642524466",
-          "email": "hermes-data-sale-1778010066809@example.com",
+          "id": "gid://shopify/Customer/10588620325170",
+          "email": "hermes-data-sale-1778169079082@example.com",
           "dataSaleOptOut": true,
           "defaultEmailAddress": {
-            "emailAddress": "hermes-data-sale-1778010066809@example.com"
+            "emailAddress": "hermes-data-sale-1778169079082@example.com"
           }
         },
         "customers": {
@@ -110,12 +110,12 @@
   "validation": {
     "repeat": {
       "variables": {
-        "email": "hermes-data-sale-1778010066809@example.com"
+        "email": "hermes-data-sale-1778169079082@example.com"
       },
       "response": {
         "data": {
           "dataSaleOptOut": {
-            "customerId": "gid://shopify/Customer/10582642524466",
+            "customerId": "gid://shopify/Customer/10588620325170",
             "userErrors": []
           }
         },
@@ -164,12 +164,12 @@
     },
     "unknownEmailCreatesCustomer": {
       "variables": {
-        "email": "hermes-data-sale-new-1778010066809@example.com"
+        "email": "hermes-data-sale-new-1778169079082@example.com"
       },
       "response": {
         "data": {
           "dataSaleOptOut": {
-            "customerId": "gid://shopify/Customer/10582642590002",
+            "customerId": "gid://shopify/Customer/10588620423474",
             "userErrors": []
           }
         },
@@ -179,7 +179,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -187,29 +187,29 @@
       },
       "downstreamRead": {
         "variables": {
-          "id": "gid://shopify/Customer/10582642590002",
+          "id": "gid://shopify/Customer/10588620423474",
           "identifier": {
-            "id": "gid://shopify/Customer/10582642590002"
+            "id": "gid://shopify/Customer/10588620423474"
           },
-          "query": "email:hermes-data-sale-new-1778010066809@example.com",
+          "query": "email:hermes-data-sale-new-1778169079082@example.com",
           "first": 5
         },
         "response": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10582642590002",
-              "email": "hermes-data-sale-new-1778010066809@example.com",
+              "id": "gid://shopify/Customer/10588620423474",
+              "email": "hermes-data-sale-new-1778169079082@example.com",
               "dataSaleOptOut": true,
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-sale-new-1778010066809@example.com"
+                "emailAddress": "hermes-data-sale-new-1778169079082@example.com"
               }
             },
             "customerByIdentifier": {
-              "id": "gid://shopify/Customer/10582642590002",
-              "email": "hermes-data-sale-new-1778010066809@example.com",
+              "id": "gid://shopify/Customer/10588620423474",
+              "email": "hermes-data-sale-new-1778169079082@example.com",
               "dataSaleOptOut": true,
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-sale-new-1778010066809@example.com"
+                "emailAddress": "hermes-data-sale-new-1778169079082@example.com"
               }
             },
             "customers": {
@@ -240,7 +240,7 @@
       "response": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10582642524466",
+            "deletedCustomerId": "gid://shopify/Customer/10588620325170",
             "userErrors": []
           }
         },
@@ -261,7 +261,7 @@
       "response": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10582642590002",
+            "deletedCustomerId": "gid://shopify/Customer/10588620423474",
             "userErrors": []
           }
         },
@@ -284,7 +284,7 @@
       "operationName": "DataSaleOptOutCustomerLookup",
       "variables": {
         "identifier": {
-          "emailAddress": "hermes-data-sale-1778010066809@example.com"
+          "emailAddress": "hermes-data-sale-1778169079082@example.com"
         }
       },
       "query": "sha:hand-synthesized-from-precondition",
@@ -293,11 +293,11 @@
         "body": {
           "data": {
             "customerByIdentifier": {
-              "id": "gid://shopify/Customer/10582642524466",
-              "email": "hermes-data-sale-1778010066809@example.com",
+              "id": "gid://shopify/Customer/10588620325170",
+              "email": "hermes-data-sale-1778169079082@example.com",
               "dataSaleOptOut": false,
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-sale-1778010066809@example.com"
+                "emailAddress": "hermes-data-sale-1778169079082@example.com"
               }
             }
           }
