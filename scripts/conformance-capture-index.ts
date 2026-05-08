@@ -2212,6 +2212,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-customer-account-access',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-customer-account-access-conformance.ts',
+    purpose:
+      'Metaobject definition access.customerAccount READ/NONE create/update persistence, read-after-write projection, and invalid enum coercion.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-customer-account-access.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-customer-account-access.json',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable READ and NONE access definitions, captures update/readback branches, captures invalid enum validation-only branches, then deletes created definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-name-type-description-length',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',

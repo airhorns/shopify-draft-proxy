@@ -188,6 +188,7 @@ pub fn default_definition_access() -> Dict(String, Option(String)) {
   dict.from_list([
     #("admin", Some("PUBLIC_READ_WRITE")),
     #("storefront", Some("NONE")),
+    #("customerAccount", Some("NONE")),
   ])
 }
 

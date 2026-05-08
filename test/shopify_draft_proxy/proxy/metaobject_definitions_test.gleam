@@ -884,6 +884,161 @@ pub fn definition_create_rejects_admin_access_for_non_app_type_test() {
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"access\",\"admin\"],\"message\":\"Admin access can only be specified on metaobject definitions that have an app-reserved type.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
+pub fn definition_access_defaults_customer_account_to_none_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(created, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_customer_account_default\",
+          name: \"Customer Account Default\",
+          displayNameKey: \"title\",
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+          ]
+        }) {
+          metaobjectDefinition { id type access { admin storefront customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert created
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_default\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}},\"userErrors\":[]}}}"
+
+  let #(read_back, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "{ metaobjectDefinitionByType(type: \"codex_customer_account_default\") { id type access { admin storefront customerAccount } } }",
+    )
+  assert read_back
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_default\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}}}}"
+
+  let #(proxy_state.Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_state_request())
+  assert state_status == 200
+  assert string.contains(
+    json.to_string(state_body),
+    "\"customerAccount\":\"NONE\"",
+  )
+}
+
+pub fn definition_access_persists_customer_account_create_and_update_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(created, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_customer_account_lifecycle\",
+          name: \"Customer Account Lifecycle\",
+          displayNameKey: \"title\",
+          access: { customerAccount: READ },
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+          ]
+        }) {
+          metaobjectDefinition { id type access { customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert created
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_lifecycle\",\"access\":{\"customerAccount\":\"READ\"}},\"userErrors\":[]}}}"
+
+  let #(updated, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { access: { customerAccount: NONE } }
+        ) {
+          metaobjectDefinition { id type access { admin storefront customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert updated
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_lifecycle\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}},\"userErrors\":[]}}}"
+
+  let #(read_back, _) =
+    run_graphql_proxy(
+      proxy,
+      "{ metaobjectDefinitionByType(type: \"codex_customer_account_lifecycle\") { id access { customerAccount } } }",
+    )
+  assert read_back
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"access\":{\"customerAccount\":\"NONE\"}}}}"
+}
+
+pub fn definition_access_rejects_invalid_customer_account_enum_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let invalid_create =
+    "mutation {
+      metaobjectDefinitionCreate(definition: {
+        type: \"codex_customer_account_invalid_create\",
+        name: \"Invalid Customer Account Create\",
+        displayNameKey: \"title\",
+        access: { customerAccount: BANANA },
+        fieldDefinitions: [
+          { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+        ]
+      }) {
+        metaobjectDefinition { id access { customerAccount } }
+        userErrors { field message code }
+      }
+    }"
+  let #(
+    proxy_state.Response(status: create_status, body: create_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(invalid_create))
+  let serialized_create = json.to_string(create_body)
+  assert create_status == 200
+  assert string.contains(serialized_create, "\"errors\":[")
+  assert string.contains(
+    serialized_create,
+    "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+  )
+  assert string.contains(
+    serialized_create,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(
+    serialized_create,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"customerAccount\"",
+  )
+
+  let #(_, proxy) =
+    run_graphql_proxy(proxy, create_definition_query("codex_invalid_update"))
+  let invalid_update =
+    "mutation {
+      metaobjectDefinitionUpdate(
+        id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+        definition: { access: { customerAccount: BANANA } }
+      ) {
+        metaobjectDefinition { id access { customerAccount } }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: update_status, body: update_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  let serialized_update = json.to_string(update_body)
+  assert update_status == 200
+  assert string.contains(serialized_update, "\"errors\":[")
+  assert string.contains(
+    serialized_update,
+    "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+  )
+  assert string.contains(
+    serialized_update,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(
+    serialized_update,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"customerAccount\"",
+  )
+}
+
 pub fn definition_create_downcases_type_before_uniqueness_test() {
   let first =
     run_mutation(
