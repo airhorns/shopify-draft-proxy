@@ -1081,7 +1081,7 @@ pub fn flow_validation_branches_do_not_stage_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation { badSig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") { signature userErrors { field message } } badReceive: flowTriggerReceive(handle: \"har-374-missing\", payload: \"{}\") { userErrors { field message } } }",
+      "mutation { badSig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") { signature userErrors { field message } } badReceive: flowTriggerReceive(handle: \"missing-flow-trigger-handle\", payload: \"{}\") { userErrors { field message } } }",
       empty_vars(),
       empty_upstream_context(),
     )
@@ -1089,7 +1089,7 @@ pub fn flow_validation_branches_do_not_stage_test() {
   let body = json.to_string(outcome.data)
   assert string.contains(body, "\"badSig\":null")
   assert string.contains(body, "\"Invalid id: gid://shopify/FlowTrigger/0\"")
-  assert string.contains(body, "Invalid handle 'har-374-missing'.")
+  assert string.contains(body, "Invalid handle 'missing-flow-trigger-handle'.")
   assert outcome.staged_resource_ids == []
   assert store.get_log(outcome.store) == []
 }
@@ -1473,6 +1473,58 @@ pub fn flow_trigger_receive_accepts_non_local_handle_test() {
   assert list.length(staged.admin_platform_flow_trigger_order) == 1
 }
 
+pub fn flow_trigger_receive_body_size_uses_properties_subtree_test() {
+  let document =
+    "mutation FlowTriggerReceive($body: String) { flowTriggerReceive(body: $body) { userErrors { field message } } }"
+  let bloated_resources_body =
+    "{\"trigger_id\":\"abc\",\"resources\":[{\"url\":\"https://example.com/"
+    <> string.repeat("x", times: 60_000)
+    <> "\",\"name\":\"resource\"}],\"properties\":{\"a\":1}}"
+  let bloated_resources =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([#("body", root_field.StringVal(bloated_resources_body))]),
+      empty_upstream_context(),
+    )
+  let bloated_resources_json = json.to_string(bloated_resources.data)
+  assert string.contains(bloated_resources_json, "Invalid trigger_id 'abc'.")
+  assert !string.contains(
+    bloated_resources_json,
+    "Properties size exceeds the limit of 50000 bytes.",
+  )
+  assert bloated_resources.staged_resource_ids == []
+
+  let oversized_properties_body =
+    "{\"trigger_id\":\"abc\",\"properties\":{\"a\":\""
+    <> string.repeat("x", times: 50_001)
+    <> "\"}}"
+  let oversized_properties =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([
+        #("body", root_field.StringVal(oversized_properties_body)),
+      ]),
+      empty_upstream_context(),
+    )
+  let oversized_properties_json = json.to_string(oversized_properties.data)
+  assert string.contains(
+    oversized_properties_json,
+    "Properties size exceeds the limit of 50000 bytes.",
+  )
+  assert string.contains(oversized_properties_json, "\"field\":[\"body\"]")
+  assert !string.contains(
+    oversized_properties_json,
+    "Invalid trigger_id 'abc'.",
+  )
+  assert oversized_properties.staged_resource_ids == []
+}
+
 pub fn flow_trigger_receive_payload_size_uses_json_utf8_bytes_test() {
   let document =
     "mutation FlowTriggerReceive($payload: JSON) { flowTriggerReceive(handle: \"my-real-trigger-handle\", payload: $payload) { userErrors { field message } } }"
@@ -1506,6 +1558,51 @@ pub fn flow_trigger_receive_payload_size_uses_json_utf8_bytes_test() {
   let allowed_body = json.to_string(allowed.data)
   assert string.contains(allowed_body, "\"userErrors\":[]")
   assert list.length(allowed.staged_resource_ids) == 1
+}
+
+pub fn flow_trigger_receive_payload_size_uses_compact_object_json_test() {
+  let document =
+    "mutation FlowTriggerReceive($payload: JSON) { flowTriggerReceive(handle: \"my-real-trigger-handle\", payload: $payload) { userErrors { field message } } }"
+  let allowed_payload =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("a", root_field.StringVal(string.repeat("x", times: 49_992))),
+      ]),
+    )
+  let allowed =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([#("payload", allowed_payload)]),
+      empty_upstream_context(),
+    )
+  let allowed_body = json.to_string(allowed.data)
+  assert string.contains(allowed_body, "\"userErrors\":[]")
+  assert list.length(allowed.staged_resource_ids) == 1
+
+  let too_large_payload =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("a", root_field.StringVal(string.repeat("x", times: 49_993))),
+      ]),
+    )
+  let too_large =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([#("payload", too_large_payload)]),
+      empty_upstream_context(),
+    )
+  let too_large_body = json.to_string(too_large.data)
+  assert string.contains(
+    too_large_body,
+    "Properties size exceeds the limit of 50000 bytes.",
+  )
+  assert too_large.staged_resource_ids == []
 }
 
 pub fn draft_proxy_routes_admin_platform_reads_and_mutations_test() {
