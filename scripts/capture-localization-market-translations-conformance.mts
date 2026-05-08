@@ -119,7 +119,12 @@ const marketsReadQuery = `#graphql
 `;
 
 const marketScopedReadQuery = `#graphql
-  query LocalizationTranslationsMarketScopedRead($resourceId: ID!, $marketId: ID!) {
+  query LocalizationTranslationsMarketScopedRead(
+    $resourceId: ID!
+    $marketId: ID!
+    $resourceIds: [ID!]!
+    $marketsFirst: Int!
+  ) {
     translatableResource(resourceId: $resourceId) {
       resourceId
       translatableContent {
@@ -140,6 +145,27 @@ const marketScopedReadQuery = `#graphql
         }
       }
     }
+    byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {
+      nodes {
+        resourceId
+        translatableContent {
+          key
+          value
+          digest
+          locale
+          type
+        }
+      }
+    }
+    markets(first: $marketsFirst) {
+      nodes {
+        id
+        name
+        handle
+        status
+        type
+      }
+    }
     allShopLocales: shopLocales {
       locale
       name
@@ -148,6 +174,23 @@ const marketScopedReadQuery = `#graphql
       marketWebPresences {
         id
         subfolderSuffix
+      }
+    }
+  }
+`;
+
+const packingSlipResourceQuery = `#graphql
+  query LocalizationTranslationsPackingSlipResourceRead {
+    resources: translatableResources(first: 1, resourceType: PACKING_SLIP_TEMPLATE) {
+      nodes {
+        resourceId
+        translatableContent {
+          key
+          value
+          digest
+          locale
+          type
+        }
       }
     }
   }
@@ -307,6 +350,39 @@ function productTitleDigest(payload: JsonRecord): string {
   throw new Error('Could not find product title digest in market-scoped localization read.');
 }
 
+function resourceNodeFromConnection(payload: JsonRecord, fieldName: string): JsonRecord {
+  const connection = dataObject(payload)[fieldName];
+  if (!isRecord(connection) || !Array.isArray(connection['nodes'])) {
+    throw new Error(`Expected ${fieldName}.nodes in response: ${JSON.stringify(payload)}`);
+  }
+  for (const node of connection['nodes']) {
+    if (isRecord(node) && typeof node['resourceId'] === 'string') {
+      return node;
+    }
+  }
+  throw new Error(`Expected at least one resource node in ${fieldName}: ${JSON.stringify(payload)}`);
+}
+
+function contentDigest(payload: JsonRecord, key: string): string {
+  const content = payload['translatableContent'];
+  if (!Array.isArray(content)) {
+    throw new Error(`Expected translatableContent array: ${JSON.stringify(payload)}`);
+  }
+  for (const item of content) {
+    if (isRecord(item) && item['key'] === key && typeof item['digest'] === 'string') {
+      return item['digest'];
+    }
+  }
+  throw new Error(`Could not find ${key} digest in resource: ${JSON.stringify(payload)}`);
+}
+
+function assertTranslationUserErrorCode(field: JsonRecord, code: string, context: string): void {
+  const errors = userErrors(field);
+  if (!errors.some((error) => isRecord(error) && error['code'] === code)) {
+    throw new Error(`${context} did not return ${code}: ${JSON.stringify(errors)}`);
+  }
+}
+
 async function bestEffortCleanup(options: {
   createdProductId: string | null;
   resourceId: string | null;
@@ -351,8 +427,8 @@ async function bestEffortCleanup(options: {
 
 const captureToken = randomSuffix();
 const productInput = {
-  title: `HAR-709 market translation ${captureToken}`,
-  handle: `har-709-market-translation-${captureToken}`,
+  title: `Market translation fixture ${captureToken}`,
+  handle: `market-translation-fixture-${captureToken}`,
   status: 'DRAFT',
 };
 
@@ -391,11 +467,51 @@ try {
     market = firstMarket(await runGraphql(marketsReadQuery, { first: 10 }));
   }
   marketId = market['id'] as string;
+  const packingSlipResources = await runGraphql(packingSlipResourceQuery);
+  const packingSlipResource = resourceNodeFromConnection(packingSlipResources, 'resources');
+  const packingSlipResourceId = packingSlipResource['resourceId'] as string;
+  const packingSlipDigest = contentDigest(packingSlipResource, 'body');
+  const fabricatedMarketId = 'gid://shopify/Market/999999999999';
 
-  const readVariables = { resourceId, marketId };
+  const readVariables = {
+    resourceId,
+    marketId,
+    resourceIds: [resourceId, packingSlipResourceId],
+    marketsFirst: 10,
+  };
   const readBeforeRegister = await runGraphql(marketScopedReadQuery, readVariables);
   const digest = productTitleDigest(readBeforeRegister);
-  const translationValue = `Titulo HAR-709 ${captureToken}`;
+  const translationValue = `Titulo de mercado ${captureToken}`;
+  const unknownMarketRegisterVariables = {
+    resourceId,
+    translations: [
+      {
+        locale: 'es',
+        key: 'title',
+        value: `Mercado faltante ${captureToken}`,
+        marketId: fabricatedMarketId,
+        translatableContentDigest: digest,
+      },
+    ],
+  };
+  const unknownMarketRemoveVariables = {
+    resourceId,
+    keys: ['title'],
+    locales: ['es'],
+    marketIds: [fabricatedMarketId],
+  };
+  const nonCustomizableRegisterVariables = {
+    resourceId: packingSlipResourceId,
+    translations: [
+      {
+        locale: 'es',
+        key: 'body',
+        value: `Packing slip market fixture ${captureToken}`,
+        marketId,
+        translatableContentDigest: packingSlipDigest,
+      },
+    ],
+  };
   const registerVariables = {
     resourceId,
     translations: [
@@ -415,6 +531,20 @@ try {
     marketIds: [marketId],
   };
 
+  const unknownMarketRegister = await runGraphql(registerMutation, unknownMarketRegisterVariables);
+  assertTranslationUserErrorCode(
+    payloadField(unknownMarketRegister, 'translationsRegister'),
+    'MARKET_DOES_NOT_EXIST',
+    'unknown-market translationsRegister',
+  );
+  const unknownMarketRemove = await runGraphql(removeMutation, unknownMarketRemoveVariables);
+  assertNoUserErrors(payloadField(unknownMarketRemove, 'translationsRemove'), 'unknown-market translationsRemove');
+  const nonCustomizableRegister = await runGraphql(registerMutation, nonCustomizableRegisterVariables);
+  assertTranslationUserErrorCode(
+    payloadField(nonCustomizableRegister, 'translationsRegister'),
+    'RESOURCE_NOT_MARKET_CUSTOMIZABLE',
+    'non-customizable translationsRegister',
+  );
   const register = await runGraphql(registerMutation, registerVariables);
   assertNoUserErrors(payloadField(register, 'translationsRegister'), 'translationsRegister');
   const readAfterRegister = await runGraphql(marketScopedReadQuery, readVariables);
@@ -438,6 +568,7 @@ try {
       disposableProduct: product,
       market,
       marketSource,
+      packingSlipResource,
       localeWasInitiallyEnabled: !shouldDisableSpanishLocale,
     },
     marketScopedTranslationLifecycle: {
@@ -447,9 +578,18 @@ try {
       titleDigest: digest,
       translationValue,
       readRequest: { variables: readVariables },
+      fabricatedMarketId,
+      unknownMarketRegisterRequest: { variables: unknownMarketRegisterVariables },
+      unknownMarketRemoveRequest: { variables: unknownMarketRemoveVariables },
+      packingSlipResourceId,
+      packingSlipBodyDigest: packingSlipDigest,
+      nonCustomizableRegisterRequest: { variables: nonCustomizableRegisterVariables },
       registerRequest: { variables: registerVariables },
       removeRequest: { variables: removeVariables },
       readBeforeRegister,
+      unknownMarketRegister,
+      unknownMarketRemove,
+      nonCustomizableRegister,
       register,
       readAfterRegister,
       remove,

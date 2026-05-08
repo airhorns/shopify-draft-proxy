@@ -71,7 +71,9 @@ pub fn emitted_translation_mutation_error_codes() -> List(String) {
     translation_error_code_to_string(InvalidKeyForModel),
     translation_error_code_to_string(InvalidLocaleForShop),
     translation_error_code_to_string(InvalidTranslatableContent),
+    translation_error_code_to_string(MarketDoesNotExist),
     translation_error_code_to_string(ResourceNotFound),
+    translation_error_code_to_string(ResourceNotMarketCustomizable),
     translation_error_code_to_string(SameLocaleAsShopPrimary),
     translation_error_code_to_string(TooManyKeysForResource),
   ]
