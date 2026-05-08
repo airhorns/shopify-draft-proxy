@@ -1,0 +1,63 @@
+{
+  "scenarioId": "orderCancel-restock-refundMethod-live-parity",
+  "operationNames": ["orderCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "refund-parity", "fulfillment-order-restock-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCancel-restock-refundMethod-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCancel-restock-refundMethod-parity.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 orderCancel with restock true, refundMethod.originalPaymentMethodsRefund true, notifyCustomer false, and staffNote. Public 2026-04 exposes cancellation.staffNote but not the private retailAttributionInput argument; the local runtime preserves that private input in draft-proxy cancellation metadata under focused runtime coverage.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.orderCancel.orderCancelUserErrors",
+        "proxyPath": "$.data.orderCancel.orderCancelUserErrors"
+      },
+      {
+        "name": "downstream-cancel-state",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.closed",
+          "$.cancelReason",
+          "$.cancellation",
+          "$.displayFinancialStatus",
+          "$.totalOutstandingSet",
+          "$.currentTotalPriceSet",
+          "$.netPaymentSet",
+          "$.totalReceivedSet",
+          "$.totalRefundedSet",
+          "$.refunds[*].totalRefundedSet",
+          "$.refunds[*].transactions.nodes[*].kind",
+          "$.refunds[*].transactions.nodes[*].status",
+          "$.refunds[*].transactions.nodes[*].gateway",
+          "$.refunds[*].transactions.nodes[*].amountSet",
+          "$.transactions[*].kind",
+          "$.transactions[*].status",
+          "$.transactions[*].gateway",
+          "$.transactions[*].amountSet",
+          "$.fulfillmentOrders.nodes[*].status",
+          "$.fulfillmentOrders.nodes[*].requestStatus",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].totalQuantity",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].remainingQuantity",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].lineItem.quantity",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].lineItem.fulfillableQuantity"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-restock-refundMethod-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

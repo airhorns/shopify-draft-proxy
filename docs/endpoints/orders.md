@@ -95,6 +95,21 @@ High-risk paths with executable evidence:
   synthetic `Job` with `done: false`, exposes both `orderCancelUserErrors` and
   `userErrors`, and still stages `closed`, `closedAt`, `cancelledAt`, and
   `cancelReason` locally without upstream calls.
+- `orderCancel(restock: true, refundMethod: { originalPaymentMethodsRefund:
+true })` is covered by a 2026-04 live parity fixture. For an unfulfilled paid
+  order, the proxy stages the Shopify-observed cancellation state: the
+  fulfillment order closes with zero `totalQuantity` / `remainingQuantity`, the
+  nested line item has zero `fulfillableQuantity`, the order financial status
+  becomes `REFUNDED`, `currentTotalPriceSet` / `totalOutstandingSet` /
+  `netPaymentSet` are zeroed, and a manual refund record plus refund
+  transaction are appended. `staffNote` is exposed through
+  `Order.cancellation.staffNote`; `notifyCustomer`, the deprecated
+  `sendNotification`, private `refund`, and private `retailAttributionInput`
+  inputs are retained in draft-proxy cancellation metadata for local
+  read-after-write/state inspection. Public Admin GraphQL 2026-04 does not
+  expose `refund` or `retailAttributionInput` on `orderCancel`, so live parity
+  covers the public argument set and focused runtime tests cover the private
+  metadata preservation path.
 - `orderCapture`, `transactionVoid`, `orderCreateManualPayment`, and
   `orderCreateMandatePayment` remain local/synthetic payment models. They cover
   downstream order financial fields, transaction reads, idempotent mandate
