@@ -35,6 +35,12 @@ import shopify_draft_proxy/state/types.{
 @internal
 pub const discount_function_app_id: String = "347082227713"
 
+const int32_min: Int = -2_147_483_648
+
+const int32_max: Int = 2_147_483_647
+
+const price_rule_decimal_limit: String = "1000000000000000000"
+
 import shopify_draft_proxy/proxy/discounts/queries.{
   child_fields, discount_matches_positive_search_term, discount_record_timestamp,
 }
@@ -708,6 +714,8 @@ pub fn validate_discount_input(
       )
   }
   let errors =
+    list.append(errors, validate_price_rule_numeric_bounds(input_name, input))
+  let errors =
     list.append(
       errors,
       validate_subscription_fields(store, input_name, input, discount_type),
@@ -845,16 +853,18 @@ pub fn validate_discount_amount_value(
   input_name: String,
   value: root_field.ResolvedValue,
 ) -> List(SourceValue) {
-  case resolved_decimal_float(value) {
+  let path = [input_name, "customerGets", "value", "discountAmount", "amount"]
+  let errors = case resolved_decimal_float(value) {
     Some(amount) if amount <. 0.0 -> [
       discount_types.user_error(
-        [input_name, "customerGets", "value", "discountAmount", "amount"],
+        path,
         "Value must be less than or equal to 0",
         "LESS_THAN_OR_EQUAL_TO",
       ),
     ]
     _ -> []
   }
+  list.append(errors, validate_value_decimal_bounds(path, value))
 }
 
 @internal
@@ -870,6 +880,146 @@ pub fn resolved_decimal_float(
         Error(_) ->
           int.parse(value) |> result.map(int.to_float) |> option.from_result
       }
+    _ -> None
+  }
+}
+
+@internal
+pub fn validate_price_rule_numeric_bounds(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  []
+  |> list.append(validate_usage_limit_bounds(input_name, input))
+  |> list.append(validate_int32_field(
+    input_name,
+    input,
+    "recurringCycleLimit",
+    "Recurring cycle limit",
+  ))
+}
+
+@internal
+pub fn validate_usage_limit_bounds(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(input, "usageLimit") {
+    Ok(root_field.IntVal(value)) -> {
+      let path = [input_name, "usageLimit"]
+      let errors = case value <= 0 {
+        True -> [
+          discount_types.user_error(
+            path,
+            "Usage limit must be greater than 0",
+            "GREATER_THAN",
+          ),
+        ]
+        False -> []
+      }
+      let errors = case value < int32_min {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              "Usage limit must be greater than or equal to -2147483648",
+              "GREATER_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+      case value > int32_max {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              "Usage limit must be less than or equal to 2147483647",
+              "LESS_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    Ok(root_field.FloatVal(_)) -> [
+      discount_types.user_error(
+        [input_name, "usageLimit"],
+        "Usage limit must be an integer",
+        "NOT_AN_INTEGER",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_int32_field(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+  label: String,
+) -> List(SourceValue) {
+  case dict.get(input, field_name) {
+    Ok(root_field.IntVal(value)) -> {
+      let path = [input_name, field_name]
+      let errors = case value < int32_min {
+        True -> [
+          discount_types.user_error(
+            path,
+            label <> " must be greater than or equal to -2147483648",
+            "GREATER_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        False -> []
+      }
+      case value > int32_max {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              label <> " must be less than or equal to 2147483647",
+              "LESS_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    Ok(root_field.FloatVal(_)) -> [
+      discount_types.user_error(
+        [input_name, field_name],
+        label <> " must be an integer",
+        "NOT_AN_INTEGER",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_value_decimal_bounds(
+  path: List(String),
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case numeric_string(value) {
+    Some(raw) ->
+      case decimal_at_least(raw, price_rule_decimal_limit) {
+        True -> [
+          discount_types.user_error(
+            path,
+            "Value must be greater than -1000000000000000000",
+            "LESS_THAN",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn numeric_string(value: root_field.ResolvedValue) -> Option(String) {
+  case value {
+    root_field.StringVal(value) -> Some(value)
+    root_field.IntVal(value) -> Some(int.to_string(value))
+    root_field.FloatVal(value) -> Some(float.to_string(value))
     _ -> None
   }
 }

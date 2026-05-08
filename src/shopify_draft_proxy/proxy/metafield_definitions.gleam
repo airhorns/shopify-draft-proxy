@@ -5,11 +5,13 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
+import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/metafield_definitions/mutations
 import shopify_draft_proxy/proxy/metafield_definitions/queries
+import shopify_draft_proxy/proxy/metafield_definitions/serializers
 import shopify_draft_proxy/proxy/metafield_definitions/types as definition_types
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -105,6 +107,24 @@ pub fn process_mutation(
     variables,
     upstream,
   )
+}
+
+pub fn serialize_metafield_definition_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  case store.get_effective_metafield_definition_by_id(store, id) {
+    Some(record) ->
+      serializers.serialize_definition_selection_set(
+        store,
+        record,
+        selections,
+        variables,
+      )
+    None -> json.null()
+  }
 }
 
 fn map_query_error(
