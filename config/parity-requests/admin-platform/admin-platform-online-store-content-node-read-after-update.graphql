@@ -1,0 +1,46 @@
+query AdminPlatformOnlineStoreContentNodeReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+  blog: node(id: $blogId) {
+    __typename
+    id
+    ... on Blog {
+      title
+      articlesCount {
+        count
+        precision
+      }
+      articles(first: 5) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+  page: node(id: $pageId) {
+    __typename
+    id
+    ... on Page {
+      title
+      isPublished
+    }
+  }
+  article: node(id: $articleId) {
+    __typename
+    id
+    ... on Article {
+      title
+      isPublished
+      blog {
+        id
+        title
+      }
+    }
+  }
+}

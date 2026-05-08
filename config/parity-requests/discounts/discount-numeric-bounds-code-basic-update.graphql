@@ -1,0 +1,40 @@
+mutation DiscountNumericBoundsCodeBasicUpdate(
+  $id: ID!
+  $usageHigh: DiscountCodeBasicInput!
+  $recurringHigh: DiscountCodeBasicInput!
+  $amountHigh: DiscountCodeBasicInput!
+) {
+  usageHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $usageHigh) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  recurringHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $recurringHigh) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountHigh: discountCodeBasicUpdate(id: $id, basicCodeDiscount: $amountHigh) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

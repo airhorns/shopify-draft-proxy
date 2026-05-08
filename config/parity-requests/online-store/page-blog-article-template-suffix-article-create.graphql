@@ -1,0 +1,17 @@
+mutation OnlineStoreTemplateSuffixArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      templateSuffix
+      blog {
+        id
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

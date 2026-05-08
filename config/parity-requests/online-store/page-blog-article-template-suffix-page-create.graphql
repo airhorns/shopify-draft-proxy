@@ -1,0 +1,13 @@
+mutation OnlineStoreTemplateSuffixPageCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

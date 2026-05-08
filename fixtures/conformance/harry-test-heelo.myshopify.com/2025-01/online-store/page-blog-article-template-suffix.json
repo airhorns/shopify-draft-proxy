@@ -1,0 +1,358 @@
+{
+  "scenarioId": "online-store-page-blog-article-template-suffix",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-08T02:21:51.527Z",
+  "interactions": [
+    {
+      "name": "blog-create-with-template-suffix",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Online Store Template Suffix 20260508022150 Blog",
+            "templateSuffix": "blog_custom"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121006915890",
+              "title": "Online Store Template Suffix 20260508022150 Blog",
+              "templateSuffix": "blog_custom"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "page-create-with-template-suffix",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixPageCreate($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "page": {
+            "title": "Online Store Template Suffix 20260508022150 Page",
+            "templateSuffix": "page_custom"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159669059890",
+              "title": "Online Store Template Suffix 20260508022150 Page",
+              "templateSuffix": "page_custom"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "article-create-with-template-suffix",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      templateSuffix\n      blog {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121006915890",
+            "title": "Online Store Template Suffix 20260508022150 Article",
+            "body": "<p>Online store template suffix article body</p>",
+            "author": {
+              "name": "Online Store Template Author"
+            },
+            "templateSuffix": "article_custom"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683163615538",
+              "title": "Online Store Template Suffix 20260508022150 Article",
+              "templateSuffix": "article_custom",
+              "blog": {
+                "id": "gid://shopify/Blog/121006915890",
+                "title": "Online Store Template Suffix 20260508022150 Blog"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "page-blog-article-update-template-suffix",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixUpdate(\n  $blogId: ID!\n  $blog: BlogUpdateInput!\n  $pageId: ID!\n  $page: PageUpdateInput!\n  $articleId: ID!\n  $article: ArticleUpdateInput!\n) {\n  blogUpdate(id: $blogId, blog: $blog) {\n    blog {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageUpdate(id: $pageId, page: $page) {\n    page {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  articleUpdate(id: $articleId, article: $article) {\n    article {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121006915890",
+          "blog": {
+            "templateSuffix": "blog_updated"
+          },
+          "pageId": "gid://shopify/Page/159669059890",
+          "page": {
+            "templateSuffix": "page_updated"
+          },
+          "articleId": "gid://shopify/Article/683163615538",
+          "article": {
+            "templateSuffix": "article_updated"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121006915890",
+              "templateSuffix": "blog_updated"
+            },
+            "userErrors": []
+          },
+          "pageUpdate": {
+            "page": {
+              "id": "gid://shopify/Page/159669059890",
+              "templateSuffix": "page_updated"
+            },
+            "userErrors": []
+          },
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/683163615538",
+              "templateSuffix": "article_updated"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "read-after-template-suffix-update",
+      "request": {
+        "query": "query OnlineStoreTemplateSuffixRead($blogId: ID!, $pageId: ID!, $articleId: ID!) {\n  blog(id: $blogId) {\n    id\n    templateSuffix\n  }\n  page(id: $pageId) {\n    id\n    templateSuffix\n  }\n  article(id: $articleId) {\n    id\n    templateSuffix\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121006915890",
+          "pageId": "gid://shopify/Page/159669059890",
+          "articleId": "gid://shopify/Article/683163615538"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/121006915890",
+            "templateSuffix": "blog_updated"
+          },
+          "page": {
+            "id": "gid://shopify/Page/159669059890",
+            "templateSuffix": "page_updated"
+          },
+          "article": {
+            "id": "gid://shopify/Article/683163615538",
+            "templateSuffix": "article_updated"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "page-blog-article-clear-template-suffix",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixUpdate(\n  $blogId: ID!\n  $blog: BlogUpdateInput!\n  $pageId: ID!\n  $page: PageUpdateInput!\n  $articleId: ID!\n  $article: ArticleUpdateInput!\n) {\n  blogUpdate(id: $blogId, blog: $blog) {\n    blog {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageUpdate(id: $pageId, page: $page) {\n    page {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  articleUpdate(id: $articleId, article: $article) {\n    article {\n      id\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121006915890",
+          "blog": {
+            "templateSuffix": ""
+          },
+          "pageId": "gid://shopify/Page/159669059890",
+          "page": {
+            "templateSuffix": null
+          },
+          "articleId": "gid://shopify/Article/683163615538",
+          "article": {
+            "templateSuffix": ""
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121006915890",
+              "templateSuffix": ""
+            },
+            "userErrors": []
+          },
+          "pageUpdate": {
+            "page": {
+              "id": "gid://shopify/Page/159669059890",
+              "templateSuffix": null
+            },
+            "userErrors": []
+          },
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/683163615538",
+              "templateSuffix": ""
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "read-after-template-suffix-clear",
+      "request": {
+        "query": "query OnlineStoreTemplateSuffixRead($blogId: ID!, $pageId: ID!, $articleId: ID!) {\n  blog(id: $blogId) {\n    id\n    templateSuffix\n  }\n  page(id: $pageId) {\n    id\n    templateSuffix\n  }\n  article(id: $articleId) {\n    id\n    templateSuffix\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121006915890",
+          "pageId": "gid://shopify/Page/159669059890",
+          "articleId": "gid://shopify/Article/683163615538"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/121006915890",
+            "templateSuffix": ""
+          },
+          "page": {
+            "id": "gid://shopify/Page/159669059890",
+            "templateSuffix": null
+          },
+          "article": {
+            "id": "gid://shopify/Article/683163615538",
+            "templateSuffix": ""
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "content-delete-cleanup",
+      "request": {
+        "query": "mutation OnlineStoreTemplateSuffixDelete($articleId: ID!, $pageId: ID!, $blogId: ID!) {\n  articleDelete(id: $articleId) {\n    deletedArticleId\n    userErrors {\n      field\n      message\n    }\n  }\n  pageDelete(id: $pageId) {\n    deletedPageId\n    userErrors {\n      field\n      message\n    }\n  }\n  blogDelete(id: $blogId) {\n    deletedBlogId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "articleId": "gid://shopify/Article/683163615538",
+          "pageId": "gid://shopify/Page/159669059890",
+          "blogId": "gid://shopify/Blog/121006915890"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683163615538",
+            "userErrors": []
+          },
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159669059890",
+            "userErrors": []
+          },
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121006915890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [],
+  "upstreamCalls": []
+}

@@ -1251,6 +1251,14 @@ fn validate_literal_bound_args(
               path,
               source_body,
             )
+            |> list.append(collect_literal_scalar_value_errors(
+              value,
+              schema_arg.type_,
+              schema,
+              path,
+              source_body,
+              None,
+            ))
             |> list.append(collect_literal_enum_value_errors(
               value,
               schema_arg.type_,
@@ -1411,6 +1419,123 @@ fn collect_literal_unknown_field_errors(
           }
       }
   }
+}
+
+fn collect_literal_scalar_value_errors(
+  value: ast.Value,
+  schema_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+  path: List(PathSegment),
+  source_body: String,
+  input_context: Option(#(String, String)),
+) -> List(Json) {
+  case schema_type {
+    mutation_schema.NonNullType(of: inner) ->
+      collect_literal_scalar_value_errors(
+        value,
+        inner,
+        schema,
+        path,
+        source_body,
+        input_context,
+      )
+    mutation_schema.ListType(of: inner) ->
+      case value {
+        ListValue(values: values, ..) ->
+          list.index_map(values, fn(item, index) {
+            collect_literal_scalar_value_errors(
+              item,
+              inner,
+              schema,
+              list.append(path, [IntSegment(index)]),
+              source_body,
+              input_context,
+            )
+          })
+          |> list.flatten
+        _ -> []
+      }
+    mutation_schema.NamedType(name: "Int") ->
+      case value, input_context {
+        FloatValue(loc: loc, ..), Some(#(input_object_name, field_name)) -> [
+          build_invalid_literal_input_object_field_error(
+            input_object_name,
+            field_name,
+            "Int",
+            literal_value_preview(value),
+            path,
+            loc,
+            source_body,
+          ),
+        ]
+        _, _ -> []
+      }
+    mutation_schema.NamedType(name: type_name) ->
+      case mutation_schema_lookup.get_input_object(schema, type_name), value {
+        Some(io), ObjectValue(fields: fields, ..) ->
+          list.flat_map(fields, fn(object_field) {
+            let ast.ObjectField(name: field_name, value: child, ..) =
+              object_field
+            case find_schema_input_field(io.input_fields, field_name.value) {
+              Some(schema_field) ->
+                collect_literal_scalar_value_errors(
+                  child,
+                  schema_field.type_,
+                  schema,
+                  list.append(path, [StringSegment(field_name.value)]),
+                  source_body,
+                  Some(#(io.name, field_name.value)),
+                )
+              None -> []
+            }
+          })
+        _, _ -> []
+      }
+  }
+}
+
+fn build_invalid_literal_input_object_field_error(
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  value: String,
+  path: List(PathSegment),
+  loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> input_field_name
+        <> "' on InputObject '"
+        <> input_object_name
+        <> "' has an invalid value ("
+        <> value
+        <> "). Expected type '"
+        <> input_field_type
+        <> "'.",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", path_segments_to_json(path)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(input_field_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn collect_literal_enum_value_errors(
@@ -1821,8 +1946,8 @@ fn scalar_value_problems(
 ) -> List(ValueProblem) {
   case type_name {
     "Decimal" -> decimal_value_problems(resolved, path)
-    "ID" -> id_value_problems(resolved, path)
     "Int" -> int_value_problems(resolved, path)
+    "ID" -> id_value_problems(resolved, path)
     "UnsignedInt64" -> unsigned_int64_value_problems(resolved, path)
     "URL" -> url_value_problems(resolved, path)
     _ -> []

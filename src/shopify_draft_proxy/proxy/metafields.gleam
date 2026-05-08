@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   default_connection_window_options, get_field_response_key,
   get_selected_child_fields, paginate_connection_items, serialize_connection,
 }
+import shopify_draft_proxy/state/store.{type Store}
 
 /// Mirrors `MetafieldRecordCore`. Optional fields are present when the
 /// owning domain populates them (mutation-side); read paths from a
@@ -217,6 +218,38 @@ pub fn normalize_metafield_value(
           }
         None -> Some(raw)
       }
+  }
+}
+
+pub fn serialize_metafield_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+) -> Json {
+  let metafield =
+    list.append(
+      dict.values(store.base_state.product_metafields),
+      dict.values(store.staged_state.product_metafields),
+    )
+    |> list.find(fn(record) { record.id == id })
+  case metafield {
+    Ok(record) ->
+      serialize_metafield_selection_set(
+        MetafieldRecordCore(
+          id: record.id,
+          namespace: record.namespace,
+          key: record.key,
+          type_: record.type_,
+          value: record.value,
+          compare_digest: record.compare_digest,
+          json_value: record.json_value,
+          created_at: record.created_at,
+          updated_at: record.updated_at,
+          owner_type: record.owner_type,
+        ),
+        selections,
+      )
+    Error(_) -> json.null()
   }
 }
 

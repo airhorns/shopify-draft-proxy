@@ -129,6 +129,8 @@ fn graphql_request(query: String) -> Request {
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
   |> string.replace("\"", "\\\"")
 }
 
@@ -149,6 +151,64 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
     draft_proxy.process_request(proxy, graphql_request(query))
   assert status == 200
   #(json.to_string(body), proxy)
+}
+
+pub fn content_template_suffix_create_update_empty_string_and_null_test() {
+  let #(blog_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Template Blog\", templateSuffix: \"blog-custom\" }) { blog { id templateSuffix } userErrors { field message } } }",
+    )
+  assert blog_body
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"blog-custom\"},\"userErrors\":[]}}}"
+
+  let #(page_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { pageCreate(page: { title: \"Template Page\", templateSuffix: \"page-custom\" }) { page { id templateSuffix } userErrors { field message } } }",
+    )
+  assert page_body
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/3?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"page-custom\"},\"userErrors\":[]}}}"
+
+  let #(article_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Template Article\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Template Author\" }, templateSuffix: \"article-custom\" }) { article { id templateSuffix } userErrors { field message } } }",
+    )
+  assert article_body
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"article-custom\"},\"userErrors\":[]}}}"
+
+  let #(update_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { templateSuffix: \"blog-updated\" }) { blog { id templateSuffix } userErrors { field message } } pageUpdate(id: \"gid://shopify/Page/3?shopify-draft-proxy=synthetic\", page: { templateSuffix: \"page-updated\" }) { page { id templateSuffix } userErrors { field message } } articleUpdate(id: \"gid://shopify/Article/5?shopify-draft-proxy=synthetic\", article: { templateSuffix: \"article-updated\" }) { article { id templateSuffix } userErrors { field message } } }",
+    )
+  assert update_body
+    == "{\"data\":{\"blogUpdate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"blog-updated\"},\"userErrors\":[]},\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/3?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"page-updated\"},\"userErrors\":[]},\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"article-updated\"},\"userErrors\":[]}}}"
+
+  let #(read_body, proxy) =
+    run_graphql(
+      proxy,
+      "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id templateSuffix } page(id: \"gid://shopify/Page/3?shopify-draft-proxy=synthetic\") { id templateSuffix } article(id: \"gid://shopify/Article/5?shopify-draft-proxy=synthetic\") { id templateSuffix } }",
+    )
+  assert read_body
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"blog-updated\"},\"page\":{\"id\":\"gid://shopify/Page/3?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"page-updated\"},\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"article-updated\"}}}"
+
+  let #(empty_and_null_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { templateSuffix: \"\" }) { blog { id templateSuffix } userErrors { field message } } pageUpdate(id: \"gid://shopify/Page/3?shopify-draft-proxy=synthetic\", page: { templateSuffix: null }) { page { id templateSuffix } userErrors { field message } } articleUpdate(id: \"gid://shopify/Article/5?shopify-draft-proxy=synthetic\", article: { templateSuffix: \"\" }) { article { id templateSuffix } userErrors { field message } } }",
+    )
+  assert empty_and_null_body
+    == "{\"data\":{\"blogUpdate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"\"},\"userErrors\":[]},\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/3?shopify-draft-proxy=synthetic\",\"templateSuffix\":null},\"userErrors\":[]},\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"\"},\"userErrors\":[]}}}"
+
+  let #(read_after_empty_and_null, _) =
+    run_graphql(
+      proxy,
+      "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id templateSuffix } page(id: \"gid://shopify/Page/3?shopify-draft-proxy=synthetic\") { id templateSuffix } article(id: \"gid://shopify/Article/5?shopify-draft-proxy=synthetic\") { id templateSuffix } }",
+    )
+  assert read_after_empty_and_null
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"\"},\"page\":{\"id\":\"gid://shopify/Page/3?shopify-draft-proxy=synthetic\",\"templateSuffix\":null},\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\",\"templateSuffix\":\"\"}}}"
 }
 
 fn proxy_with_basic_article() -> DraftProxy {
@@ -1632,6 +1692,56 @@ pub fn page_update_omitted_title_preserves_existing_title_test() {
   assert record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
 }
 
+pub fn page_node_read_reflects_local_update_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { pageCreate(page: { title: \"Node Page\", body: \"<p>Old node body</p>\" }) { page { id title handle body } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Page\",\"handle\":\"node-page\",\"body\":\"<p>Old node body</p>\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { body: \"<p>Updated node body</p>\" }) { page { id title handle body bodySummary } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Page\",\"handle\":\"node-page\",\"body\":\"<p>Updated node body</p>\",\"bodySummary\":\"Updated node body\"},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query {
+      pageNode: node(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") {
+        __typename
+        id
+        ... on Page {
+          title
+          handle
+          body
+          bodySummary
+        }
+      }
+      pageNodes: nodes(ids: [
+        \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",
+        \"gid://shopify/Page/missing\"
+      ]) {
+        __typename
+        id
+        ... on Page {
+          title
+          handle
+          bodySummary
+        }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"pageNode\":{\"__typename\":\"Page\",\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Page\",\"handle\":\"node-page\",\"body\":\"<p>Updated node body</p>\",\"bodySummary\":\"Updated node body\"},\"pageNodes\":[{\"__typename\":\"Page\",\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Page\",\"handle\":\"node-page\",\"bodySummary\":\"Updated node body\"},null]}}"
+}
+
 pub fn page_body_html_is_preserved_on_create_update_and_read_test() {
   let proxy = draft_proxy.new()
   let create_query =
@@ -1700,6 +1810,68 @@ pub fn article_body_html_is_preserved_on_create_update_and_read_test() {
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\"}}}"
+}
+
+pub fn article_node_read_reflects_local_update_test() {
+  let proxy = draft_proxy.new()
+  let blog_query =
+    "mutation { blogCreate(blog: { title: \"Node Blog\" }) { blog { id title } userErrors { field message code } } }"
+  let #(Response(status: blog_status, body: blog_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(blog_query))
+  assert blog_status == 200
+  assert json.to_string(blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Blog\"},\"userErrors\":[]}}}"
+
+  let create_query =
+    "mutation { articleCreate(article: { title: \"Node Article\", body: \"<p>Old article body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Node Author\" } }) { article { id title body author { name } blog { id title } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Node Article\",\"body\":\"<p>Old article body</p>\",\"author\":{\"name\":\"Node Author\"},\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Blog\"}},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { title: \"Node Article Updated\", body: \"<p>Updated article body</p>\", author: { name: \"Node Author Updated\" } }) { article { id title body bodySummary author { name } } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Node Article Updated\",\"body\":\"<p>Updated article body</p>\",\"bodySummary\":\"Updated article body\",\"author\":{\"name\":\"Node Author Updated\"}},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query {
+      articleNode: node(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") {
+        __typename
+        id
+        ... on Article {
+          title
+          body
+          bodySummary
+          author { name }
+          blog { id title }
+        }
+      }
+      articleNodes: nodes(ids: [
+        \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",
+        \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",
+        \"gid://shopify/Article/missing\"
+      ]) {
+        __typename
+        id
+        ... on Article {
+          title
+          author { name }
+        }
+        ... on Blog {
+          title
+        }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"articleNode\":{\"__typename\":\"Article\",\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Node Article Updated\",\"body\":\"<p>Updated article body</p>\",\"bodySummary\":\"Updated article body\",\"author\":{\"name\":\"Node Author Updated\"},\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Blog\"}},\"articleNodes\":[{\"__typename\":\"Article\",\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Node Article Updated\",\"author\":{\"name\":\"Node Author Updated\"}},{\"__typename\":\"Blog\",\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Node Blog\"},null]}}"
 }
 
 pub fn page_handles_slugify_dedupe_and_reject_taken_updates_test() {

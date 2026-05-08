@@ -253,7 +253,7 @@ pub fn make_content(
             None -> SrcNull
           }
       }),
-      #("templateSuffix", source_field(prior, "templateSuffix", SrcNull)),
+      #("templateSuffix", template_suffix_source(input, prior)),
       #("createdAt", source_field(prior, "createdAt", SrcString(timestamp))),
       #("updatedAt", SrcString(timestamp)),
       #("blogId", case parent_id {
@@ -278,6 +278,18 @@ pub fn make_content(
     ),
     identity,
   )
+}
+
+fn template_suffix_source(
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> graphql_helpers.SourceValue {
+  case dict.get(input, "templateSuffix") {
+    Ok(root_field.NullVal) -> SrcNull
+    Ok(root_field.StringVal(value)) -> SrcString(value)
+    Ok(_) -> source_field(prior, "templateSuffix", SrcNull)
+    Error(_) -> source_field(prior, "templateSuffix", SrcNull)
+  }
 }
 
 @internal
