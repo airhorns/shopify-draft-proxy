@@ -1,0 +1,10 @@
+mutation LocationDeleteInventoryLocationDelete($locationId: ID!) {
+  locationDelete(locationId: $locationId) {
+    deletedLocationId
+    locationDeleteUserErrors {
+      field
+      message
+      code
+    }
+  }
+}
