@@ -2005,7 +2005,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-required-input-validation-conformance.ts',
     purpose:
-      'savedSearchCreate and savedSearchUpdate required input coercion plus explicit empty-query create success.',
+      'savedSearchCreate and savedSearchUpdate required input coercion, including variable-supplied create input, plus explicit empty-query create success.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-required-input-validation.json`,
@@ -2014,6 +2014,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql',
+      'config/parity-specs/saved-searches/saved-search-required-input-variable-validation.json',
     ],
     cleanupBehavior: 'Creates one disposable product saved search for the empty-query branch and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
