@@ -83,8 +83,12 @@ function checkParityInventory(errors: string[]): void {
     }
 
     const state = classifyParityScenarioState(scenario, paritySpec);
-    if (state !== 'ready-for-comparison') {
-      errors.push(`Parity scenario is not ready for strict proxy comparison: ${scenario.id} (${state})`);
+    if (state !== 'ready-for-comparison' && state !== 'enforced-by-fixture') {
+      errors.push(`Parity scenario is not ready for executable comparison: ${scenario.id} (${state})`);
+    }
+
+    if (state === 'enforced-by-fixture' && scenario.runtimeTestFiles.length === 0) {
+      errors.push(`Fixture-enforced parity scenario lacks runtime tests: ${scenario.id}`);
     }
   }
 }
@@ -149,7 +153,7 @@ function run(): void {
   process.stdout.write(
     [
       'Gleam port CI gate passed:',
-      `- ${listConformanceParitySpecPaths(repoRoot).length} parity specs discovered and all checked-in specs are strict executable comparisons`,
+      `- ${listConformanceParitySpecPaths(repoRoot).length} parity specs discovered and all checked-in specs are strict executable comparisons or runtime-test-backed fixtures`,
       '- Gleam parity runner discovers the full parity corpus and does not hardcode a spec allowlist',
       '- CI workflow and TypeScript capture-tooling checks are wired',
     ].join('\n') + '\n',

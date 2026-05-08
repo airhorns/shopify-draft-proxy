@@ -14,6 +14,7 @@ export interface ConformanceStatusDocument {
   generatedAt?: string | null;
   capturedScenarioIds?: unknown[] | null;
   strictComparisonScenarioIds?: unknown[] | null;
+  runtimeFixtureScenarioIds?: unknown[] | null;
   captureOnlyScenarioIds?: unknown[] | null;
   plannedScenarioIds?: unknown[] | null;
   coveredOperationNames?: unknown[] | null;
@@ -26,6 +27,8 @@ export interface ConformanceSummary {
   generatedAt: string | null;
   conformingScenarios: number;
   strictComparisonScenarios?: number;
+  runtimeFixtureScenarios?: number;
+  runtimeFixtureScenarioIds?: string[];
   totalScenarios: number;
   captureOnlyScenarios?: number;
   captureOnlyScenarioIds?: string[];
@@ -43,6 +46,7 @@ export interface ConformanceSummary {
 export interface ConformanceDelta {
   conformingScenarios: number;
   totalScenarios: number;
+  runtimeFixtureScenarios: number;
   captureOnlyScenarios: number;
   captureOnlyScenariosKnown: boolean;
   conformanceRatio: number;
@@ -176,9 +180,13 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
   const hasCaptureOnlyBreakdown = Array.isArray(status.captureOnlyScenarioIds);
   const captureOnlyScenarioIds = stringList(status.captureOnlyScenarioIds);
   const captureOnlyScenarioIdSet = new Set(captureOnlyScenarioIds);
+  const runtimeFixtureScenarioIds = stringList(status.runtimeFixtureScenarioIds);
+  const runtimeFixtureScenarioIdSet = new Set(runtimeFixtureScenarioIds);
   const strictComparisonScenarioIds = hasStrictComparisonBreakdown
     ? stringList(status.strictComparisonScenarioIds)
-    : capturedScenarioIds.filter((scenarioId) => !captureOnlyScenarioIdSet.has(scenarioId));
+    : capturedScenarioIds.filter((scenarioId) => {
+        return !captureOnlyScenarioIdSet.has(scenarioId) && !runtimeFixtureScenarioIdSet.has(scenarioId);
+      });
   const pendingScenarioIds = stringList(status.plannedScenarioIds);
   const coveredOperationNames = stringList(status.coveredOperationNames);
   const declaredGapOperationNames = Array.isArray(status.declaredGapOperationNames)
@@ -192,18 +200,21 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
       regrettableDivergenceScenarioIds.add(divergence['scenarioId']);
     }
   }
-  const totalScenarios = strictComparisonScenarioIds.length + captureOnlyScenarioIds.length + pendingScenarioIds.length;
+  const conformingScenarios = strictComparisonScenarioIds.length + runtimeFixtureScenarioIds.length;
+  const totalScenarios = conformingScenarios + captureOnlyScenarioIds.length + pendingScenarioIds.length;
 
   return {
     generatedAt: status.generatedAt ?? null,
-    conformingScenarios: strictComparisonScenarioIds.length,
+    conformingScenarios,
     strictComparisonScenarios: strictComparisonScenarioIds.length,
+    runtimeFixtureScenarios: runtimeFixtureScenarioIds.length,
+    runtimeFixtureScenarioIds,
     totalScenarios,
     captureOnlyScenarios: captureOnlyScenarioIds.length,
     captureOnlyScenarioIds,
     captureOnlyScenariosKnown: hasStrictComparisonBreakdown || hasCaptureOnlyBreakdown,
     pendingScenarios: pendingScenarioIds.length,
-    conformanceRatio: ratio(strictComparisonScenarioIds.length, totalScenarios),
+    conformanceRatio: ratio(conformingScenarios, totalScenarios),
     coveredOperations: coveredOperationNames.length,
     implementedOperations: implementedOperations.length,
     declaredGapOperations: declaredGapOperationNames.length,
@@ -233,6 +244,11 @@ function normalizeBaseline(
         typeof rawBaseline.strictComparisonScenarios === 'number'
           ? rawBaseline.strictComparisonScenarios
           : rawBaseline.conformingScenarios,
+      runtimeFixtureScenarios:
+        typeof rawBaseline.runtimeFixtureScenarios === 'number' ? rawBaseline.runtimeFixtureScenarios : 0,
+      runtimeFixtureScenarioIds: Array.isArray(rawBaseline.runtimeFixtureScenarioIds)
+        ? rawBaseline.runtimeFixtureScenarioIds
+        : [],
       captureOnlyScenarios: typeof rawBaseline.captureOnlyScenarios === 'number' ? rawBaseline.captureOnlyScenarios : 0,
       captureOnlyScenarioIds: Array.isArray(rawBaseline.captureOnlyScenarioIds)
         ? rawBaseline.captureOnlyScenarioIds
@@ -263,6 +279,7 @@ export function compareConformanceSummaries(
   return {
     conformingScenarios: current.conformingScenarios - baseline.conformingScenarios,
     totalScenarios: current.totalScenarios - baseline.totalScenarios,
+    runtimeFixtureScenarios: (current.runtimeFixtureScenarios ?? 0) - (baseline.runtimeFixtureScenarios ?? 0),
     captureOnlyScenarios: (current.captureOnlyScenarios ?? 0) - (baseline.captureOnlyScenarios ?? 0),
     captureOnlyScenariosKnown:
       current.captureOnlyScenariosKnown === true && baseline.captureOnlyScenariosKnown === true,
@@ -323,15 +340,32 @@ function renderCaptureOnlyDetails(current: ConformanceSummary): string[] {
   ];
 }
 
+function renderRuntimeFixtureLine(
+  current: ConformanceSummary,
+  baseline: ConformanceSummary | null,
+  delta: ConformanceDelta | null,
+): string {
+  const currentCount = current.runtimeFixtureScenarios ?? 0;
+  const prefix = `- Runtime-test-backed fixture scenarios: ${currentCount}`;
+
+  if (!baseline || !delta) {
+    return prefix;
+  }
+
+  return `${prefix} (main: ${baseline.runtimeFixtureScenarios ?? 0}, delta: ${formatSignedInteger(
+    delta.runtimeFixtureScenarios,
+  )})`;
+}
+
 export function renderConformanceComment(report: ConformanceReport): string {
   const baseline = report.baseline;
   const delta = report.delta;
   const current = report.conformance;
   const baselineLine = baseline
-    ? `- Main baseline: ${baseline.conformingScenarios} / ${baseline.totalScenarios} scenarios prove strict proxy parity (${formatPercent(baseline.conformanceRatio)})`
+    ? `- Main baseline: ${baseline.conformingScenarios} / ${baseline.totalScenarios} scenarios have executable conformance evidence (${formatPercent(baseline.conformanceRatio)})`
     : '- Main baseline: not found yet. The next successful push to `main` will publish one.';
   const improvementLine = delta
-    ? `- Improvement over main: ${formatSignedInteger(delta.conformingScenarios)} strict parity scenarios (${formatSignedPercentPoints(delta.conformanceRatio * 100)})`
+    ? `- Improvement over main: ${formatSignedInteger(delta.conformingScenarios)} conformance-evidenced scenarios (${formatSignedPercentPoints(delta.conformanceRatio * 100)})`
     : '- Improvement over main: unavailable until a main baseline artifact exists.';
   const regrettableDivergenceLine =
     baseline && delta
@@ -344,7 +378,9 @@ export function renderConformanceComment(report: ConformanceReport): string {
     commentMarker,
     '## Conformance status',
     '',
-    `- Current branch: ${current.conformingScenarios} / ${current.totalScenarios} scenarios prove strict proxy parity (${formatPercent(current.conformanceRatio)})`,
+    `- Current branch: ${current.conformingScenarios} / ${current.totalScenarios} scenarios have executable conformance evidence (${formatPercent(current.conformanceRatio)})`,
+    `- Strict proxy-vs-capture comparisons: ${current.strictComparisonScenarios ?? current.conformingScenarios}`,
+    renderRuntimeFixtureLine(current, baseline, delta),
     baselineLine,
     improvementLine,
     renderCaptureOnlyLine(current, baseline, delta),
@@ -405,12 +441,14 @@ export function writeConformanceReport({
   writeFileSync(outputMarkdownPath, markdown);
 
   writeLine(
-    `conformance status: ${report.conformance.conformingScenarios}/${report.conformance.totalScenarios} scenarios prove strict proxy parity`,
+    `conformance status: ${report.conformance.conformingScenarios}/${report.conformance.totalScenarios} scenarios have executable conformance evidence`,
   );
+  writeLine(`strict proxy-vs-capture comparisons: ${report.conformance.strictComparisonScenarios ?? 0}`);
+  writeLine(`runtime-test-backed fixture scenarios: ${report.conformance.runtimeFixtureScenarios ?? 0}`);
   writeLine(`capture-only scenarios: ${report.conformance.captureOnlyScenarios ?? 0}`);
   if (report.delta) {
     writeLine(
-      `improvement over main: ${formatSignedInteger(report.delta.conformingScenarios)} strict parity scenarios`,
+      `improvement over main: ${formatSignedInteger(report.delta.conformingScenarios)} conformance-evidenced scenarios`,
     );
   } else {
     writeLine('improvement over main: baseline unavailable');

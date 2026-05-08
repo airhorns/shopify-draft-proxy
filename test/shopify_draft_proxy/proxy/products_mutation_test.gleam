@@ -3142,6 +3142,7 @@ pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
     draft_proxy.with_config(Config(
       read_mode: Snapshot,
       unsupported_mutation_mode: PassthroughUnsupportedMutations,
+      bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
       port: 4000,
       shopify_admin_origin: "https://acme.myshopify.com",
       snapshot_path: None,

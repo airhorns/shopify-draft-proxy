@@ -229,6 +229,7 @@ fn build_proxy(
         draft_proxy.with_config(Config(
           read_mode: LiveHybrid,
           unsupported_mutation_mode: PassthroughUnsupportedMutations,
+          bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
           port: 4000,
           shopify_admin_origin: capture_shopify_admin_origin(capture),
           snapshot_path: None,

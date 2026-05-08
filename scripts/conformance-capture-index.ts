@@ -6700,6 +6700,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-oversized-upload',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-oversized-upload-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation INVALID_STAGED_UPLOAD_FILE response for a BULK_MUTATION_VARIABLES JSONL upload larger than 100 MiB.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-oversized-upload.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-oversized-upload.json',
+    ],
+    cleanupBehavior:
+      'Uploads one oversized JSONL file and submits one productCreate bulk mutation; Shopify rejects it before enqueuing a BulkOperation, so no objects are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-allowed-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',

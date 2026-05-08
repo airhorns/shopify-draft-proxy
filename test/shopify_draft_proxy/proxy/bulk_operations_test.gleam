@@ -9,6 +9,7 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, UpstreamContext, empty_upstream_context,
 }
@@ -1136,6 +1137,59 @@ pub fn run_mutation_returns_operation_in_progress_for_non_terminal_mutation_test
   assert json.to_string(outcome.data)
     == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/801.\",\"code\":\"OPERATION_IN_PROGRESS\"}]}}}"
   assert outcome.staged_resource_ids == []
+  assert store.list_effective_products(outcome.store) == []
+  let assert [_] = store.list_effective_bulk_operations(outcome.store)
+}
+
+pub fn run_mutation_rejects_oversized_staged_upload_before_import_or_throttle_test() {
+  let running =
+    bulk_operation(
+      "gid://shopify/BulkOperation/802",
+      "RUNNING",
+      "MUTATION",
+      "2026-04-27T00:00:04Z",
+    )
+  let upload_path = "/bulk/oversized-products.jsonl"
+  let source =
+    store.new()
+    |> store.stage_bulk_operation(running)
+    |> fn(pair) { pair.1 }
+    |> store.stage_staged_upload_content(
+      upload_path,
+      "{\"product\":{\"title\":\"Blocked Bulk Create\"}}\n"
+        <> string.repeat("x", times: 11),
+    )
+  let inner =
+    "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type } userErrors { field message code } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  let outcome =
+    bulk_operations.process_mutation_with_config(
+      proxy_state.Config(
+        read_mode: proxy_state.Snapshot,
+        unsupported_mutation_mode: proxy_state.PassthroughUnsupportedMutations,
+        bulk_operation_run_mutation_max_input_file_size_bytes: 10,
+        port: 4000,
+        shopify_admin_origin: "https://shopify.com",
+        snapshot_path: None,
+      ),
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"The input file size exceeds the maximum allowed size of 1 MB.\",\"code\":\"INVALID_STAGED_UPLOAD_FILE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
   assert store.list_effective_products(outcome.store) == []
   let assert [_] = store.list_effective_bulk_operations(outcome.store)
 }

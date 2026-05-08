@@ -46,7 +46,11 @@ describe('createDraftProxy', () => {
     const proxy = createDraftProxy(baseConfig);
     const snapshot = proxy.getConfig();
     expect(snapshot).toMatchObject({
-      runtime: { readMode: 'snapshot', unsupportedMutationMode: 'passthrough' },
+      runtime: {
+        readMode: 'snapshot',
+        unsupportedMutationMode: 'passthrough',
+        bulkOperationRunMutationMaxInputFileSizeBytes: 104857600,
+      },
       proxy: { port: 4000, shopifyAdminOrigin: 'https://shopify.com' },
       snapshot: { enabled: false, path: null },
     });
@@ -140,12 +144,14 @@ describe('public API server helpers', () => {
         SHOPIFY_ADMIN_ORIGIN: 'https://example.myshopify.com',
         SHOPIFY_DRAFT_PROXY_READ_MODE: 'live-hybrid',
         SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'reject',
+        SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: '2048',
       }),
     ).toEqual({
       port: 4111,
       shopifyAdminOrigin: 'https://example.myshopify.com',
       readMode: 'live-hybrid',
       unsupportedMutationMode: 'reject',
+      bulkOperationRunMutationMaxInputFileSizeBytes: 2048,
     });
   });
 });

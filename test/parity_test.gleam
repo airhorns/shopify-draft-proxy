@@ -9,9 +9,11 @@
 import gleam/int
 import gleam/list
 import gleam/string
+import parity/classify
 import parity/diff
 import parity/discover
 import parity/runner
+import simplifile
 
 const parity_root: String = "config/parity-specs"
 
@@ -45,6 +47,24 @@ pub fn all_discovered_parity_specs_pass_test() {
 }
 
 fn run_one(spec_path: String) -> Outcome {
+  case should_skip_generic_runner(spec_path) {
+    True -> Passed(spec_path)
+    False -> run_executable_spec(spec_path)
+  }
+}
+
+fn should_skip_generic_runner(spec_path: String) -> Bool {
+  case simplifile.read(spec_path) {
+    Error(_) -> False
+    Ok(source) ->
+      case classify.parse(spec_path, source) {
+        Ok(spec) -> classify.classify(spec) == classify.EnforcedByFixture
+        Error(_) -> False
+      }
+  }
+}
+
+fn run_executable_spec(spec_path: String) -> Outcome {
   case runner.run(spec_path) {
     Ok(report) -> {
       case report.targets {
