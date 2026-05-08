@@ -1,0 +1,20 @@
+mutation DiscountNumericBoundsRecurringFloatLiteral {
+  discountAutomaticBasicCreate(
+    automaticBasicDiscount: {
+      title: "Recurring float literal"
+      startsAt: "2026-04-25T00:00:00Z"
+      recurringCycleLimit: 1.5
+      customerGets: { value: { percentage: 0.1 }, items: { all: true } }
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -368,6 +368,108 @@ pub fn customer_gets_value_bounds_apply_to_update_and_automatic_basic_test() {
     == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"customerGets\",\"value\",\"percentage\"],\"message\":\"Value must be between 0.0 and 1.0\",\"code\":\"VALUE_OUTSIDE_RANGE\",\"extraInfo\":null}]}}}"
 }
 
+pub fn discount_numeric_bounds_match_captured_create_inputs_test() {
+  let usage =
+    run_mutation(
+      "mutation { usageHigh: discountCodeBasicCreate(basicCodeDiscount: { title: \"Usage high\", code: \"USAGEHIGH\", startsAt: \"2026-04-25T00:00:00Z\", usageLimit: 2147483648, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } usageLow: discountCodeBasicCreate(basicCodeDiscount: { title: \"Usage low\", code: \"USAGELOW\", startsAt: \"2026-04-25T00:00:00Z\", usageLimit: -2147483649, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } amountHigh: discountCodeBasicCreate(basicCodeDiscount: { title: \"Amount high\", code: \"AMOUNTHIGH\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { discountAmount: { amount: \"1000000000000000000\", appliesOnEachItem: false } }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let recurring =
+    run_mutation_from(
+      subscription_store(),
+      synthetic_identity.new(),
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Recurring high\", startsAt: \"2026-04-25T00:00:00Z\", recurringCycleLimit: 2147483648, customerGets: { appliesOnSubscription: true, appliesOnOneTimePurchase: false, value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let rendered = json.to_string(usage.data)
+
+  assert string.contains(
+    rendered,
+    "\"usageHigh\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"usageLimit\"],\"message\":\"Usage limit must be less than or equal to 2147483647\",\"code\":\"LESS_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}",
+  )
+  assert string.contains(
+    rendered,
+    "\"usageLow\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"usageLimit\"],\"message\":\"Usage limit must be greater than 0\",\"code\":\"GREATER_THAN\",\"extraInfo\":null},{\"field\":[\"basicCodeDiscount\",\"usageLimit\"],\"message\":\"Usage limit must be greater than or equal to -2147483648\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}",
+  )
+  assert string.contains(
+    rendered,
+    "\"amountHigh\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"value\",\"discountAmount\",\"amount\"],\"message\":\"Value must be greater than -1000000000000000000\",\"code\":\"LESS_THAN\",\"extraInfo\":null}]}",
+  )
+  assert json.to_string(recurring.data)
+    == "{\"data\":{\"discountAutomaticBasicCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"recurringCycleLimit\"],\"message\":\"Recurring cycle limit must be less than or equal to 2147483647\",\"code\":\"LESS_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}}}"
+}
+
+pub fn discount_numeric_bounds_match_captured_update_inputs_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Numeric update\", code: \"NUMERICUPDATE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let usage_update =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Numeric update\", code: \"NUMERICUPDATE\", startsAt: \"2026-04-25T00:00:00Z\", usageLimit: 2147483648, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let amount_update =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Numeric update\", code: \"NUMERICUPDATE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { discountAmount: { amount: \"1000000000000000000\", appliesOnEachItem: false } }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_created =
+    run_mutation_from(
+      subscription_store(),
+      synthetic_identity.new(),
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Recurring update\", startsAt: \"2026-04-25T00:00:00Z\", recurringCycleLimit: 2, customerGets: { appliesOnSubscription: true, appliesOnOneTimePurchase: false, value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let recurring_update =
+    run_mutation_from(
+      automatic_created.store,
+      automatic_created.identity,
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Recurring update\", startsAt: \"2026-04-25T00:00:00Z\", recurringCycleLimit: 2147483648, customerGets: { appliesOnSubscription: true, appliesOnOneTimePurchase: false, value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(usage_update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"usageLimit\"],\"message\":\"Usage limit must be less than or equal to 2147483647\",\"code\":\"LESS_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}}}"
+  assert json.to_string(amount_update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"value\",\"discountAmount\",\"amount\"],\"message\":\"Value must be greater than -1000000000000000000\",\"code\":\"LESS_THAN\",\"extraInfo\":null}]}}}"
+  assert json.to_string(recurring_update.data)
+    == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"recurringCycleLimit\"],\"message\":\"Recurring cycle limit must be less than or equal to 2147483647\",\"code\":\"LESS_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}}}"
+}
+
+pub fn int_input_float_variables_are_invalid_before_discount_handlers_test() {
+  let body =
+    "{\"query\":\"mutation RecurringCycleFloat($input: DiscountAutomaticBasicInput!) { discountAutomaticBasicCreate(automaticBasicDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }\",\"variables\":{\"input\":{\"title\":\"Recurring float\",\"startsAt\":\"2026-04-25T00:00:00Z\",\"recurringCycleLimit\":1.5,\"customerGets\":{\"value\":{\"percentage\":0.1},\"items\":{\"all\":true}}}}}"
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let rendered = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(rendered, "\"errors\":[")
+  assert string.contains(rendered, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    rendered,
+    "Variable $input of type DiscountAutomaticBasicInput! was provided invalid value for recurringCycleLimit (Could not coerce value 1.5 to Int)",
+  )
+  assert string.contains(rendered, "\"path\":[\"recurringCycleLimit\"]")
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn int_input_float_literals_are_invalid_before_discount_handlers_test() {
+  let body =
+    "{\"query\":\"mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \\\"Recurring float\\\", startsAt: \\\"2026-04-25T00:00:00Z\\\", recurringCycleLimit: 1.5, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }\"}"
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let rendered = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(rendered, "\"errors\":[")
+  assert string.contains(rendered, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(
+    rendered,
+    "Argument 'recurringCycleLimit' on InputObject 'DiscountAutomaticBasicInput' has an invalid value (1.5). Expected type 'Int'.",
+  )
+  assert store.get_log(next_proxy.store) == []
+}
+
 pub fn native_discount_titles_reject_blank_and_too_long_values_test() {
   let too_long = string.repeat("x", times: 256)
   let code_create =
