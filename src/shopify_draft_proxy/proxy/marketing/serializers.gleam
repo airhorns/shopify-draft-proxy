@@ -474,14 +474,85 @@ fn raw_status_label(status: String) -> String {
 pub fn source_and_medium(
   marketing_channel_type: String,
   tactic: String,
+  referring_domain: Option(String),
 ) -> String {
-  case marketing_channel_type, tactic {
-    "EMAIL", "NEWSLETTER" -> "Email newsletter"
-    _, _ ->
-      capitalize(string.lowercase(marketing_channel_type))
-      <> " "
-      <> string.replace(string.lowercase(tactic), "_", " ")
+  let event_type = string.lowercase(tactic)
+  let marketing_channel = string.lowercase(marketing_channel_type)
+  let referring_domain = present_string(referring_domain)
+
+  case event_type {
+    "abandoned_cart" -> "Abandoned cart email"
+    "affiliate" -> "Affiliate link"
+    "loyalty" -> "Loyalty program"
+    "retargeting" ->
+      case referring_domain {
+        Some(domain) -> aliased_referring_domain(domain) <> " retargeting ad"
+        None -> "Retargeting ad"
+      }
+    "message" ->
+      case referring_domain {
+        Some("facebook.com") -> "Message via Facebook Messenger"
+        Some(domain) -> aliased_referring_domain(domain) <> " message"
+        None -> " message"
+      }
+    _ ->
+      case referring_domain {
+        Some(domain) ->
+          aliased_referring_domain(domain) <> " " <> humanize(event_type)
+        None ->
+          case present_string(Some(marketing_channel)) {
+            Some(channel) -> titleize(channel) <> " " <> humanize(event_type)
+            None -> titleize(event_type)
+          }
+      }
   }
+}
+
+@internal
+pub fn present_string(value: Option(String)) -> Option(String) {
+  case value {
+    Some(raw) -> {
+      let trimmed = string.trim(raw)
+      case trimmed {
+        "" -> None
+        _ -> Some(trimmed)
+      }
+    }
+    None -> None
+  }
+}
+
+@internal
+pub fn aliased_referring_domain(domain: String) -> String {
+  case string.lowercase(domain) {
+    "facebook.com" -> "Facebook"
+    "instagram.com" -> "Instagram"
+    "twitter.com" -> "Twitter"
+    "x.com" -> "X"
+    "pinterest.com" -> "Pinterest"
+    "youtube.com" -> "YouTube"
+    "tiktok.com" -> "TikTok"
+    "snapchat.com" -> "Snapchat"
+    "google.com" -> "Google"
+    "bing.com" -> "Bing"
+    _ -> domain
+  }
+}
+
+@internal
+pub fn humanize(value: String) -> String {
+  value
+  |> string.replace("_", " ")
+}
+
+@internal
+pub fn titleize(value: String) -> String {
+  value
+  |> string.replace("_", " ")
+  |> string.split(" ")
+  |> list.filter(fn(part) { part != "" })
+  |> list.map(capitalize)
+  |> string.join(" ")
 }
 
 @internal
