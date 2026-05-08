@@ -265,20 +265,23 @@ pub fn validation_create_with_handle_stages_validation_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { validationCreate(validation: { functionHandle: \"checkout-validator\", title: \"My validator\" }) { validation { id title enable enabled blockOnFailure functionHandle shopifyFunction { id handle apiType } createdAt updatedAt } userErrors { field message code } } }",
+      "mutation { validationCreate(validation: { functionHandle: \"checkout-validator\", title: \"My validator\" }) { validation { id title enable enabled blockOnFailure functionId functionHandle shopifyFunction { id handle apiType } createdAt updatedAt } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   // Validation gid: synthetic #1. ShopifyFunction metadata is reused from state.
   // Timestamp: 2024-01-01T00:00:00.000Z (first synthetic timestamp).
   assert body
-    == "{\"data\":{\"validationCreate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"title\":\"My validator\",\"enable\":false,\"enabled\":false,\"blockOnFailure\":false,\"functionHandle\":\"checkout-validator\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"handle\":\"checkout-validator\",\"apiType\":\"VALIDATION\"},\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"title\":\"My validator\",\"enable\":false,\"enabled\":false,\"blockOnFailure\":false,\"functionId\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"functionHandle\":\"checkout-validator\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"handle\":\"checkout-validator\",\"apiType\":\"VALIDATION\"},\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == ["gid://shopify/Validation/1"]
   // The staged validation is visible and the referenced Function metadata is preserved.
-  let assert Some(_) =
+  let assert Some(created) =
     store.get_effective_validation_by_id(
       outcome.store,
       "gid://shopify/Validation/1",
     )
+  assert created.function_id == Some(fn_record.id)
+  assert created.function_handle == Some("checkout-validator")
+  assert created.shopify_function_id == Some(fn_record.id)
   let assert Some(_) =
     store.get_effective_shopify_function_by_id(
       outcome.store,
@@ -377,20 +380,20 @@ pub fn validation_create_title_falls_back_to_function_title_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { omitted: validationCreate(validation: { functionHandle: \"conformance-validation\" }) { validation { id title } userErrors { field } } explicitNull: validationCreate(validation: { functionHandle: \"conformance-validation\", title: null }) { validation { id title } userErrors { field } } emptyString: validationCreate(validation: { functionHandle: \"conformance-validation\", title: \"\" }) { validation { id title } userErrors { field } } }",
+      "mutation { omitted: validationCreate(validation: { functionHandle: \"conformance-validation\" }) { validation { id title functionId functionHandle } userErrors { field } } explicitNull: validationCreate(validation: { functionHandle: \"conformance-validation\", title: null }) { validation { id title functionId functionHandle } userErrors { field } } emptyString: validationCreate(validation: { functionHandle: \"conformance-validation\", title: \"\" }) { validation { id title functionId functionHandle } userErrors { field } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"omitted\":{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"explicitNull\":{\"validation\":{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"emptyString\":{\"validation\":{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"omitted\":{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]},\"explicitNull\":{\"validation\":{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]},\"emptyString\":{\"validation\":{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]}}}"
 
   let assert Ok(read_data) =
     functions.handle_function_query(
       outcome.store,
-      "{ validation(id: \"gid://shopify/Validation/2\") { id title } validations(first: 5) { nodes { id title } } }",
+      "{ validation(id: \"gid://shopify/Validation/2\") { id title functionId functionHandle } validations(first: 5) { nodes { id title functionId functionHandle } } }",
       dict.new(),
     )
   assert json.to_string(read_data)
-    == "{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"}]}}"
+    == "{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"}]}}"
 }
 
 pub fn validation_create_does_not_accept_enabled_alias_test() {
