@@ -937,6 +937,61 @@ pub fn web_presence_create_reports_combined_invalid_alternate_locales_test() {
   assert !string.contains(serialized, "\"alternateLocales\",\"3\"")
 }
 
+pub fn web_presence_create_rejects_default_locale_in_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"en\", \"fr\"], subfolderSuffix: \"dup\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Default locale The alternate languages already include en.\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Alternate locales Duplicates were found in the following languages: en, en, and fr\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"webPresences\":{\"nodes\":[]}}}"
+}
+
+pub fn web_presence_create_accepts_exact_duplicate_non_default_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"fr\", \"fr\"], subfolderSuffix: \"dup\" }) { webPresence { id alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(body)
+  let read_serialized = json.to_string(read_body)
+
+  assert status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+}
+
 pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
   let #(Response(status: mutex_status, body: mutex_body, ..), _) =
     graphql_with_proxy(
@@ -1102,6 +1157,85 @@ pub fn web_presence_update_preserves_absent_alternate_locales_test() {
   assert string.contains(
     serialized,
     "\"alternateLocales\":[{\"locale\":\"es\"}]",
+  )
+}
+
+pub fn web_presence_update_rejects_default_locale_already_in_alternate_locales_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"fr\"], subfolderSuffix: \"intl\" }) { webPresence { id defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { defaultLocale: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(update_body)
+  let read_serialized = json.to_string(read_body)
+
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Default locale The alternate languages already include fr.\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert !string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"]",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"defaultLocale\":{\"locale\":\"en\"},\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+}
+
+pub fn web_presence_update_rejects_alternate_locales_containing_existing_default_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"intl\" }) { webPresence { id defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { alternateLocales: [\"en\", \"en\"] }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(update_body)
+  let read_serialized = json.to_string(read_body)
+
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert !string.contains(serialized, "\"field\":[\"input\",\"defaultLocale\"]")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Alternate locales Duplicates were found in the following languages: en and en\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"defaultLocale\":{\"locale\":\"en\"},\"alternateLocales\":[]",
   )
 }
 
