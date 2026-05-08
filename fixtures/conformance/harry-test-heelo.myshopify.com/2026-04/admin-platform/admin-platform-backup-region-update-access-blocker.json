@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-05-08T02:54:30.345Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Captures backupRegionUpdate pre-resolve Markets access denial by issuing the mutation through a short-lived delegate token that only has read_products. The delegate token setup response is redacted and the cleanup response proves the token was destroyed after capture.",
+  "requests": {
+    "delegateSetup": "#graphql\n  mutation BackupRegionUpdateAccessBlockerDelegateSetup {\n    delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 300 }) {\n      delegateAccessToken {\n        accessToken\n        accessScopes\n        createdAt\n        expiresIn\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "backupRegionUpdate": "mutation BackupRegionUpdateIdempotent {\n  backupRegionUpdate(region: { countryCode: CA }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "delegateCleanup": "#graphql\n  mutation BackupRegionUpdateAccessBlockerDelegateCleanup($token: String!) {\n    delegateAccessTokenDestroy(accessToken: $token) {\n      status\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n"
+  },
+  "captures": {
+    "delegateSetup": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "delegateAccessTokenCreate": {
+            "delegateAccessToken": {
+              "accessToken": "[redacted-live-delegate-token]",
+              "accessScopes": ["read_products"],
+              "createdAt": "2026-05-08T02:54:30Z",
+              "expiresIn": 299
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "backupRegionUpdateAccessDenied": {
+      "query": "mutation BackupRegionUpdateIdempotent {\n  backupRegionUpdate(region: { countryCode: CA }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
+              },
+              "path": ["backupRegionUpdate"]
+            }
+          ],
+          "data": {
+            "backupRegionUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delegateCleanup": {
+      "query": "#graphql\n  mutation BackupRegionUpdateAccessBlockerDelegateCleanup($token: String!) {\n    delegateAccessTokenDestroy(accessToken: $token) {\n      status\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": true,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

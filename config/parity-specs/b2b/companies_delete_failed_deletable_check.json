@@ -1,0 +1,394 @@
+{
+  "scenarioId": "companies_delete_failed_deletable_check",
+  "operationNames": [
+    "companyCreate",
+    "draftOrderCreate",
+    "draftOrderComplete",
+    "storeCreditAccountCredit",
+    "companiesDelete",
+    "company"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "business-rule-precondition", "bulk-partial-success"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/company-delete-failed-deletable-check.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/company-delete-check-company-create.graphql",
+    "variablesCapturePath": "$.bulkOrderCompanyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Live Shopify 2026-04 evidence for companiesDelete partial success: order, draft-order, and store-credit blocked companies return indexed FAILED_TO_DELETE userErrors, the unblocked company is deleted, and an unknown ID returns indexed RESOURCE_NOT_FOUND.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-order-company-create",
+        "capturePath": "$.bulkOrderCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-order-draft-order-create",
+        "capturePath": "$.bulkOrderDraftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-draft-order-create.graphql",
+          "variables": {
+            "input": {
+              "purchasingEntity": {
+                "purchasingCompany": {
+                  "companyId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+                  },
+                  "companyContactId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+                  },
+                  "companyLocationId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                }
+              },
+              "email": {
+                "fromCapturePath": "$.bulkOrderDraftOrderCreate.request.variables.input.email"
+              },
+              "note": {
+                "fromCapturePath": "$.bulkOrderDraftOrderCreate.request.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.bulkOrderDraftOrderCreate.request.variables.input.tags"
+              },
+              "visibleToCustomer": {
+                "fromCapturePath": "$.bulkOrderDraftOrderCreate.request.variables.input.visibleToCustomer"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.bulkOrderDraftOrderCreate.request.variables.input.lineItems"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-order-draft-order-complete",
+        "capturePath": "$.bulkOrderDraftOrderComplete.response.data.draftOrderComplete",
+        "proxyPath": "$.data.draftOrderComplete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-draft-order-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "bulk-order-draft-order-create",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": {
+              "fromCapturePath": "$.bulkOrderDraftOrderComplete.request.variables.paymentPending"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and local staging allocate different completed order IDs."
+          },
+          {
+            "path": "$.draftOrder.order.name",
+            "matcher": "regex:^#",
+            "reason": "Live Shopify and local staging allocate different order names."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The local completed order references the locally staged company."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.contact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The local completed order references the locally staged company contact."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.location.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The local completed order references the locally staged company location."
+          }
+        ]
+      },
+      {
+        "name": "bulk-draft-order-company-create",
+        "capturePath": "$.bulkDraftOrderCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.bulkDraftOrderCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-draft-order-create",
+        "capturePath": "$.bulkDraftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-draft-order-create.graphql",
+          "variables": {
+            "input": {
+              "purchasingEntity": {
+                "purchasingCompany": {
+                  "companyId": {
+                    "fromProxyResponse": "bulk-draft-order-company-create",
+                    "path": "$.data.companyCreate.company.id"
+                  },
+                  "companyContactId": {
+                    "fromProxyResponse": "bulk-draft-order-company-create",
+                    "path": "$.data.companyCreate.company.mainContact.id"
+                  },
+                  "companyLocationId": {
+                    "fromProxyResponse": "bulk-draft-order-company-create",
+                    "path": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                }
+              },
+              "email": {
+                "fromCapturePath": "$.bulkDraftOrderCreate.request.variables.input.email"
+              },
+              "note": {
+                "fromCapturePath": "$.bulkDraftOrderCreate.request.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.bulkDraftOrderCreate.request.variables.input.tags"
+              },
+              "visibleToCustomer": {
+                "fromCapturePath": "$.bulkDraftOrderCreate.request.variables.input.visibleToCustomer"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.bulkDraftOrderCreate.request.variables.input.lineItems"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-store-credit-company-create",
+        "capturePath": "$.bulkStoreCreditCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.bulkStoreCreditCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-store-credit-account-credit",
+        "capturePath": "$.bulkStoreCreditAccountCredit.response.data.storeCreditAccountCredit",
+        "proxyPath": "$.data.storeCreditAccountCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-store-credit-credit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "bulk-store-credit-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.bulkStoreCreditAccountCredit.request.variables.creditInput"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "Live Shopify and local staging allocate different store credit account IDs."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The account owner references the proxy-created synthetic CompanyLocation GID."
+          }
+        ]
+      },
+      {
+        "name": "bulk-normal-company-create",
+        "capturePath": "$.bulkNormalCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.bulkNormalCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-companies-delete",
+        "capturePath": "$.bulkCompaniesDelete.response.data.companiesDelete",
+        "proxyPath": "$.data.companiesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-companies-delete.graphql",
+          "variables": {
+            "companyIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+              },
+              {
+                "fromProxyResponse": "bulk-draft-order-company-create",
+                "path": "$.data.companyCreate.company.id"
+              },
+              {
+                "fromProxyResponse": "bulk-store-credit-company-create",
+                "path": "$.data.companyCreate.company.id"
+              },
+              {
+                "fromProxyResponse": "bulk-normal-company-create",
+                "path": "$.data.companyCreate.company.id"
+              },
+              {
+                "fromCapturePath": "$.bulkCompaniesDelete.request.variables.companyIds[4]"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCompanyIds[*]",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy deletes the locally staged normal company ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-bulk-companies-delete",
+        "capturePath": "$.readAfterBulkCompaniesDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/company-delete-check-bulk-read.graphql",
+          "variables": {
+            "orderCompanyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "draftOrderCompanyId": {
+              "fromProxyResponse": "bulk-draft-order-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "storeCreditCompanyId": {
+              "fromProxyResponse": "bulk-store-credit-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "deletedCompanyId": {
+              "fromProxyResponse": "bulk-normal-company-create",
+              "path": "$.data.companyCreate.company.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.orderBlocked.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The blocked order-history company remains visible with the local synthetic ID."
+          },
+          {
+            "path": "$.draftOrderBlocked.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The blocked draft-order company remains visible with the local synthetic ID."
+          },
+          {
+            "path": "$.storeCreditBlocked.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The blocked store-credit company remains visible with the local synthetic ID."
+          }
+        ]
+      }
+    ]
+  }
+}

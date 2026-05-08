@@ -2420,15 +2420,17 @@ pub fn store_credit_adjustments_validate_currency_amount_expiry_and_limits_test(
     cad_json,
     "\"balanceAfterTransaction\":{\"amount\":\"2.0\",\"currencyCode\":\"CAD\"}",
   )
-  assert_store_credit_error(
+  assert_store_credit_error_message(
     proxy,
     "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"0.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
     "NEGATIVE_OR_ZERO_AMOUNT",
+    "A positive amount must be used to credit a store credit account",
   )
-  assert_store_credit_error(
+  assert_store_credit_error_message(
     proxy,
     "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"-1.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
     "NEGATIVE_OR_ZERO_AMOUNT",
+    "A positive amount must be used to debit a store credit account",
   )
   assert_store_credit_error(
     proxy,
@@ -2458,6 +2460,15 @@ fn assert_store_credit_error(proxy, query, code) {
   let body_json = json.to_string(body)
   assert string.contains(body_json, "\"storeCreditAccountTransaction\":null")
   assert string.contains(body_json, "\"code\":\"" <> code <> "\"")
+}
+
+fn assert_store_credit_error_message(proxy, query, code, message) {
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, query)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"storeCreditAccountTransaction\":null")
+  assert string.contains(body_json, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body_json, "\"message\":\"" <> message <> "\"")
 }
 
 pub fn email_marketing_consent_update_rejects_disallowed_states_test() {

@@ -1,0 +1,701 @@
+{
+  "scenarioId": "marketing-activity-source-and-medium",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-08T11:20:36.210Z",
+  "operations": {
+    "createSourceAndMedium": {
+      "query": "mutation MarketingActivitySourceAndMedium(\n  $abandonedCart: MarketingActivityCreateExternalInput!\n  $affiliate: MarketingActivityCreateExternalInput!\n  $loyalty: MarketingActivityCreateExternalInput!\n  $retargetingFacebook: MarketingActivityCreateExternalInput!\n  $retargetingNoDomain: MarketingActivityCreateExternalInput!\n  $messageFacebook: MarketingActivityCreateExternalInput!\n  $messageOther: MarketingActivityCreateExternalInput!\n  $adReferringDomain: MarketingActivityCreateExternalInput!\n  $adNoDomain: MarketingActivityCreateExternalInput!\n) {\n  abandonedCart: marketingActivityCreateExternal(input: $abandonedCart) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  affiliate: marketingActivityCreateExternal(input: $affiliate) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  loyalty: marketingActivityCreateExternal(input: $loyalty) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingFacebook: marketingActivityCreateExternal(input: $retargetingFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingNoDomain: marketingActivityCreateExternal(input: $retargetingNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageFacebook: marketingActivityCreateExternal(input: $messageFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageOther: marketingActivityCreateExternal(input: $messageOther) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adReferringDomain: marketingActivityCreateExternal(input: $adReferringDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adNoDomain: marketingActivityCreateExternal(input: $adNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "abandonedCart": {
+          "title": "Source medium abandoned cart",
+          "remoteId": "source-medium-abandoned-cart",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-abandoned-cart",
+          "tactic": "ABANDONED_CART",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "source-medium-abandoned-cart",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "affiliate": {
+          "title": "Source medium affiliate",
+          "remoteId": "source-medium-affiliate",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-affiliate",
+          "tactic": "AFFILIATE",
+          "marketingChannelType": "SEARCH",
+          "utm": {
+            "campaign": "source-medium-affiliate",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "loyalty": {
+          "title": "Source medium loyalty",
+          "remoteId": "source-medium-loyalty",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-loyalty",
+          "tactic": "LOYALTY",
+          "marketingChannelType": "DISPLAY",
+          "utm": {
+            "campaign": "source-medium-loyalty",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "retargetingFacebook": {
+          "title": "Source medium retargeting facebook",
+          "remoteId": "source-medium-retargeting-facebook",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-retargeting-facebook",
+          "tactic": "RETARGETING",
+          "marketingChannelType": "DISPLAY",
+          "referringDomain": "facebook.com",
+          "utm": {
+            "campaign": "source-medium-retargeting-facebook",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "retargetingNoDomain": {
+          "title": "Source medium retargeting no domain",
+          "remoteId": "source-medium-retargeting-none",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-retargeting-none",
+          "tactic": "RETARGETING",
+          "marketingChannelType": "DISPLAY",
+          "utm": {
+            "campaign": "source-medium-retargeting-none",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "messageFacebook": {
+          "title": "Source medium message facebook",
+          "remoteId": "source-medium-message-facebook",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-message-facebook",
+          "tactic": "MESSAGE",
+          "marketingChannelType": "SEARCH",
+          "referringDomain": "facebook.com",
+          "utm": {
+            "campaign": "source-medium-message-facebook",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "messageOther": {
+          "title": "Source medium message other",
+          "remoteId": "source-medium-message-twitter",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-message-twitter",
+          "tactic": "MESSAGE",
+          "marketingChannelType": "SEARCH",
+          "referringDomain": "twitter.com",
+          "utm": {
+            "campaign": "source-medium-message-twitter",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "adReferringDomain": {
+          "title": "Source medium ad referring domain",
+          "remoteId": "source-medium-ad-instagram",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-ad-instagram",
+          "tactic": "AD",
+          "marketingChannelType": "SEARCH",
+          "referringDomain": "instagram.com",
+          "utm": {
+            "campaign": "source-medium-ad-instagram",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "adNoDomain": {
+          "title": "Source medium ad no domain",
+          "remoteId": "source-medium-ad-none",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-ad-none",
+          "tactic": "AD",
+          "marketingChannelType": "SEARCH",
+          "utm": {
+            "campaign": "source-medium-ad-none",
+            "source": "marketing",
+            "medium": "test"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "abandonedCart": {
+              "marketingActivity": {
+                "sourceAndMedium": "Abandoned cart email",
+                "marketingEvent": {
+                  "sourceAndMedium": "Abandoned cart email"
+                }
+              },
+              "userErrors": []
+            },
+            "affiliate": {
+              "marketingActivity": {
+                "sourceAndMedium": "Affiliate link",
+                "marketingEvent": {
+                  "sourceAndMedium": "Affiliate link"
+                }
+              },
+              "userErrors": []
+            },
+            "loyalty": {
+              "marketingActivity": {
+                "sourceAndMedium": "Loyalty program",
+                "marketingEvent": {
+                  "sourceAndMedium": "Loyalty program"
+                }
+              },
+              "userErrors": []
+            },
+            "retargetingFacebook": {
+              "marketingActivity": {
+                "sourceAndMedium": "Facebook retargeting ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Facebook retargeting ad"
+                }
+              },
+              "userErrors": []
+            },
+            "retargetingNoDomain": {
+              "marketingActivity": {
+                "sourceAndMedium": "Retargeting ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Retargeting ad"
+                }
+              },
+              "userErrors": []
+            },
+            "messageFacebook": {
+              "marketingActivity": {
+                "sourceAndMedium": "Message via Facebook Messenger",
+                "marketingEvent": {
+                  "sourceAndMedium": "Message via Facebook Messenger"
+                }
+              },
+              "userErrors": []
+            },
+            "messageOther": {
+              "marketingActivity": {
+                "sourceAndMedium": "Twitter message",
+                "marketingEvent": {
+                  "sourceAndMedium": "Twitter message"
+                }
+              },
+              "userErrors": []
+            },
+            "adReferringDomain": {
+              "marketingActivity": {
+                "sourceAndMedium": "Instagram ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Instagram ad"
+                }
+              },
+              "userErrors": []
+            },
+            "adNoDomain": {
+              "marketingActivity": {
+                "sourceAndMedium": "Search ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Search ad"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 99,
+              "actualQueryCost": 99,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1901,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "capturedSourceAndMedium": {
+    "abandonedCart": "Abandoned cart email",
+    "affiliate": "Affiliate link",
+    "loyalty": "Loyalty program",
+    "retargetingFacebook": "Facebook retargeting ad",
+    "retargetingNoDomain": "Retargeting ad",
+    "messageFacebook": "Message via Facebook Messenger",
+    "messageOther": "Twitter message",
+    "adReferringDomain": "Instagram ad",
+    "adNoDomain": "Search ad"
+  },
+  "cleanup": {
+    "before": {
+      "source-medium-abandoned-cart": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-affiliate": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-loyalty": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-none": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-twitter": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-ad-instagram": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-ad-none": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "after": {
+      "source-medium-abandoned-cart": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091393842",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1957,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-affiliate": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091426610",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-loyalty": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091459378",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091492146",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-none": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091524914",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091557682",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-twitter": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091590450",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-ad-instagram": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091623218",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-ad-none": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091655986",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

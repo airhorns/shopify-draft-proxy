@@ -379,6 +379,11 @@ const caseInsensitiveSuffix = `har${randomLetters(10)}`;
 const duplicateCreateSuffix = `har${randomLetters(10)}`;
 const updateCollisionSourceSuffix = `har${randomLetters(10)}`;
 const updateCollisionTakenSuffix = `har${randomLetters(10)}`;
+const duplicateLanguageCreateDefaultSuffix = `har${randomLetters(10)}`;
+const duplicateLanguageCreateAlternateSuffix = `har${randomLetters(10)}`;
+const duplicateLanguageUpdateDefaultSuffix = `har${randomLetters(10)}`;
+const duplicateLanguageUpdateAlternateSuffix = `har${randomLetters(10)}`;
+const nonLetterUpdateSourceSuffix = `har${randomLetters(10)}`;
 const unique = Date.now().toString(36);
 let createdWebPresenceId: string | null = null;
 let multiLocaleWebPresenceId: string | null = null;
@@ -392,6 +397,12 @@ let duplicateCreateMarketId: string | null = null;
 let updateCollisionSourceWebPresenceId: string | null = null;
 let updateCollisionTakenWebPresenceId: string | null = null;
 let updateCollisionMarketId: string | null = null;
+let duplicateLanguageCreateDefaultUnexpectedWebPresenceId: string | null = null;
+let duplicateLanguageCreateAlternateUnexpectedWebPresenceId: string | null = null;
+let duplicateLanguageUpdateDefaultWebPresenceId: string | null = null;
+let duplicateLanguageUpdateAlternateWebPresenceId: string | null = null;
+let nonLetterUpdateSourceWebPresenceId: string | null = null;
+let nonLetterCreateValidUsWebPresenceId: string | null = null;
 let cleanupResponse: unknown = null;
 let multiLocaleCleanupResponse: unknown = null;
 let frenchCanadianCleanupResponse: unknown = null;
@@ -404,6 +415,12 @@ let duplicateCreateUnexpectedCleanupResponse: unknown = null;
 let updateCollisionMarketCleanupResponse: unknown = null;
 let updateCollisionSourceCleanupResponse: unknown = null;
 let updateCollisionTakenCleanupResponse: unknown = null;
+let duplicateLanguageCreateDefaultUnexpectedCleanupResponse: unknown = null;
+let duplicateLanguageCreateAlternateUnexpectedCleanupResponse: unknown = null;
+let duplicateLanguageUpdateDefaultCleanupResponse: unknown = null;
+let duplicateLanguageUpdateAlternateCleanupResponse: unknown = null;
+let nonLetterUpdateSourceCleanupResponse: unknown = null;
+let nonLetterCreateValidUsCleanupResponse: unknown = null;
 const localeRestoreActions: LocaleRestoreAction[] = [];
 let localeCleanupResponses: Record<string, unknown> = {};
 
@@ -731,6 +748,211 @@ try {
   };
   const partialUpdateResponse = await runGraphql(updateMutation, partialUpdateVariables);
   partialUpdateCleanupResponse = await runGraphql(deleteMutation, { id: partialUpdateWebPresenceId });
+
+  const nonLetterCreateUs2Variables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: 'us2',
+    },
+  };
+  const nonLetterCreateUs2Response = await runGraphql(createMutation, nonLetterCreateUs2Variables);
+  const nonLetterCreateEn1Variables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: 'en1',
+    },
+  };
+  const nonLetterCreateEn1Response = await runGraphql(createMutation, nonLetterCreateEn1Variables);
+  const nonLetterCreateUsEastVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: 'us-east',
+    },
+  };
+  const nonLetterCreateUsEastResponse = await runGraphql(createMutation, nonLetterCreateUsEastVariables);
+  const nonLetterCreateValidUsVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: 'us',
+    },
+  };
+  const nonLetterCreateValidUsResponse = await runGraphql(createMutation, nonLetterCreateValidUsVariables);
+  nonLetterCreateValidUsWebPresenceId = nonLetterCreateValidUsResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!nonLetterCreateValidUsWebPresenceId) {
+    throw new Error(
+      `non-letter valid-us webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        nonLetterCreateValidUsResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  nonLetterCreateValidUsCleanupResponse = await runGraphql(deleteMutation, { id: nonLetterCreateValidUsWebPresenceId });
+
+  const nonLetterUpdateSourceCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: nonLetterUpdateSourceSuffix,
+    },
+  };
+  const nonLetterUpdateSourceCreateResponse = await runGraphql(createMutation, nonLetterUpdateSourceCreateVariables);
+  nonLetterUpdateSourceWebPresenceId =
+    nonLetterUpdateSourceCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!nonLetterUpdateSourceWebPresenceId) {
+    throw new Error(
+      `non-letter update source webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        nonLetterUpdateSourceCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const nonLetterUpdateUs2Variables = {
+    id: nonLetterUpdateSourceWebPresenceId,
+    input: {
+      subfolderSuffix: 'us2',
+    },
+  };
+  const nonLetterUpdateUs2Response = await runGraphql(updateMutation, nonLetterUpdateUs2Variables);
+  const nonLetterUpdateEn1Variables = {
+    id: nonLetterUpdateSourceWebPresenceId,
+    input: {
+      subfolderSuffix: 'en1',
+    },
+  };
+  const nonLetterUpdateEn1Response = await runGraphql(updateMutation, nonLetterUpdateEn1Variables);
+  const nonLetterUpdateUsEastVariables = {
+    id: nonLetterUpdateSourceWebPresenceId,
+    input: {
+      subfolderSuffix: 'us-east',
+    },
+  };
+  const nonLetterUpdateUsEastResponse = await runGraphql(updateMutation, nonLetterUpdateUsEastVariables);
+  const nonLetterUpdateValidUsVariables = {
+    id: nonLetterUpdateSourceWebPresenceId,
+    input: {
+      subfolderSuffix: 'us',
+    },
+  };
+  const nonLetterUpdateValidUsResponse = await runGraphql(updateMutation, nonLetterUpdateValidUsVariables);
+  nonLetterUpdateSourceCleanupResponse = await runGraphql(deleteMutation, { id: nonLetterUpdateSourceWebPresenceId });
+
+  const duplicateLanguageCreateDefaultVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: ['en', 'fr'],
+      subfolderSuffix: duplicateLanguageCreateDefaultSuffix,
+    },
+  };
+  const duplicateLanguageCreateDefaultResponse = await runGraphql(
+    createMutation,
+    duplicateLanguageCreateDefaultVariables,
+  );
+  duplicateLanguageCreateDefaultUnexpectedWebPresenceId =
+    duplicateLanguageCreateDefaultResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+
+  const duplicateLanguageCreateAlternateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: ['en', 'en'],
+      subfolderSuffix: duplicateLanguageCreateAlternateSuffix,
+    },
+  };
+  const duplicateLanguageCreateAlternateResponse = await runGraphql(
+    createMutation,
+    duplicateLanguageCreateAlternateVariables,
+  );
+  duplicateLanguageCreateAlternateUnexpectedWebPresenceId =
+    duplicateLanguageCreateAlternateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+
+  const duplicateLanguageUpdateDefaultCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: ['fr'],
+      subfolderSuffix: duplicateLanguageUpdateDefaultSuffix,
+    },
+  };
+  const duplicateLanguageUpdateDefaultCreateResponse = await runGraphql(
+    createMutation,
+    duplicateLanguageUpdateDefaultCreateVariables,
+  );
+  duplicateLanguageUpdateDefaultWebPresenceId =
+    duplicateLanguageUpdateDefaultCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!duplicateLanguageUpdateDefaultWebPresenceId) {
+    throw new Error(
+      `duplicate-language update-default setup did not return a disposable web presence id: ${JSON.stringify(
+        duplicateLanguageUpdateDefaultCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const duplicateLanguageUpdateDefaultVariables = {
+    id: duplicateLanguageUpdateDefaultWebPresenceId,
+    input: {
+      defaultLocale: 'fr',
+    },
+  };
+  const duplicateLanguageUpdateDefaultResponse = await runGraphql(
+    updateMutation,
+    duplicateLanguageUpdateDefaultVariables,
+  );
+  duplicateLanguageUpdateDefaultCleanupResponse = await runGraphql(deleteMutation, {
+    id: duplicateLanguageUpdateDefaultWebPresenceId,
+  });
+
+  const duplicateLanguageUpdateAlternateCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: duplicateLanguageUpdateAlternateSuffix,
+    },
+  };
+  const duplicateLanguageUpdateAlternateCreateResponse = await runGraphql(
+    createMutation,
+    duplicateLanguageUpdateAlternateCreateVariables,
+  );
+  duplicateLanguageUpdateAlternateWebPresenceId =
+    duplicateLanguageUpdateAlternateCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!duplicateLanguageUpdateAlternateWebPresenceId) {
+    throw new Error(
+      `duplicate-language update-alternate setup did not return a disposable web presence id: ${JSON.stringify(
+        duplicateLanguageUpdateAlternateCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const duplicateLanguageUpdateAlternateVariables = {
+    id: duplicateLanguageUpdateAlternateWebPresenceId,
+    input: {
+      alternateLocales: ['en', 'en'],
+    },
+  };
+  const duplicateLanguageUpdateAlternateResponse = await runGraphql(
+    updateMutation,
+    duplicateLanguageUpdateAlternateVariables,
+  );
+  duplicateLanguageUpdateAlternateCleanupResponse = await runGraphql(deleteMutation, {
+    id: duplicateLanguageUpdateAlternateWebPresenceId,
+  });
+
+  if (duplicateLanguageCreateDefaultUnexpectedWebPresenceId) {
+    duplicateLanguageCreateDefaultUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageCreateDefaultUnexpectedWebPresenceId,
+    });
+  }
+  if (duplicateLanguageCreateAlternateUnexpectedWebPresenceId) {
+    duplicateLanguageCreateAlternateUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageCreateAlternateUnexpectedWebPresenceId,
+    });
+  }
+
   localeCleanupResponses = await restoreEnabledLocales();
 
   const fixture = {
@@ -748,9 +970,14 @@ try {
       duplicateCreate: duplicateCreateSuffix,
       updateCollisionSource: updateCollisionSourceSuffix,
       updateCollisionTaken: updateCollisionTakenSuffix,
+      duplicateLanguageCreateDefault: duplicateLanguageCreateDefaultSuffix,
+      duplicateLanguageCreateAlternate: duplicateLanguageCreateAlternateSuffix,
+      duplicateLanguageUpdateDefault: duplicateLanguageUpdateDefaultSuffix,
+      duplicateLanguageUpdateAlternate: duplicateLanguageUpdateAlternateSuffix,
+      nonLetterUpdateSource: nonLetterUpdateSourceSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, primary-domain delete guard parity, and duplicate subfolder suffix validation parity',
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, primary-domain delete guard parity, duplicate subfolder suffix validation parity, duplicate-language validation parity, and non-letter subfolder suffix validation parity',
     data: {
       shop: primarySetupRead.data?.shop,
       webPresences: baselineRead.data?.webPresences,
@@ -1023,6 +1250,141 @@ try {
           payload: updateCollisionResponse,
         },
       },
+      {
+        name: 'webPresenceCreateNonLetterUs2',
+        query: createMutation,
+        variables: nonLetterCreateUs2Variables,
+        response: {
+          status: 200,
+          payload: nonLetterCreateUs2Response,
+        },
+      },
+      {
+        name: 'webPresenceCreateNonLetterEn1',
+        query: createMutation,
+        variables: nonLetterCreateEn1Variables,
+        response: {
+          status: 200,
+          payload: nonLetterCreateEn1Response,
+        },
+      },
+      {
+        name: 'webPresenceCreateNonLetterUsEast',
+        query: createMutation,
+        variables: nonLetterCreateUsEastVariables,
+        response: {
+          status: 200,
+          payload: nonLetterCreateUsEastResponse,
+        },
+      },
+      {
+        name: 'webPresenceCreateValidUs',
+        query: createMutation,
+        variables: nonLetterCreateValidUsVariables,
+        response: {
+          status: 200,
+          payload: nonLetterCreateValidUsResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateNonLetterSourceCreate',
+        query: createMutation,
+        variables: nonLetterUpdateSourceCreateVariables,
+        response: {
+          status: 200,
+          payload: nonLetterUpdateSourceCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateNonLetterUs2',
+        query: updateMutation,
+        variables: nonLetterUpdateUs2Variables,
+        response: {
+          status: 200,
+          payload: nonLetterUpdateUs2Response,
+        },
+      },
+      {
+        name: 'webPresenceUpdateNonLetterEn1',
+        query: updateMutation,
+        variables: nonLetterUpdateEn1Variables,
+        response: {
+          status: 200,
+          payload: nonLetterUpdateEn1Response,
+        },
+      },
+      {
+        name: 'webPresenceUpdateNonLetterUsEast',
+        query: updateMutation,
+        variables: nonLetterUpdateUsEastVariables,
+        response: {
+          status: 200,
+          payload: nonLetterUpdateUsEastResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateValidUs',
+        query: updateMutation,
+        variables: nonLetterUpdateValidUsVariables,
+        response: {
+          status: 200,
+          payload: nonLetterUpdateValidUsResponse,
+        },
+      },
+      {
+        name: 'webPresenceCreateDuplicateDefaultLocaleInAlternateLocales',
+        query: createMutation,
+        variables: duplicateLanguageCreateDefaultVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageCreateDefaultResponse,
+        },
+      },
+      {
+        name: 'webPresenceCreateDuplicateDefaultInAlternateLocales',
+        query: createMutation,
+        variables: duplicateLanguageCreateAlternateVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageCreateAlternateResponse,
+        },
+      },
+      {
+        name: 'webPresenceDuplicateLanguageUpdateDefaultSetupCreate',
+        query: createMutation,
+        variables: duplicateLanguageUpdateDefaultCreateVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateDefaultCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateDefaultLocaleDuplicateLanguage',
+        query: updateMutation,
+        variables: duplicateLanguageUpdateDefaultVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateDefaultResponse,
+        },
+      },
+      {
+        name: 'webPresenceDuplicateLanguageUpdateAlternateSetupCreate',
+        query: createMutation,
+        variables: duplicateLanguageUpdateAlternateCreateVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateAlternateCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateAlternateLocalesDuplicateLanguage',
+        query: updateMutation,
+        variables: duplicateLanguageUpdateAlternateVariables,
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateAlternateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -1121,6 +1483,59 @@ try {
         response: {
           status: 200,
           payload: updateCollisionTakenCleanupResponse,
+        },
+      },
+      duplicateLanguageCreateDefaultUnexpectedWebPresenceDelete: duplicateLanguageCreateDefaultUnexpectedWebPresenceId
+        ? {
+            query: deleteMutation,
+            variables: { id: duplicateLanguageCreateDefaultUnexpectedWebPresenceId },
+            response: {
+              status: 200,
+              payload: duplicateLanguageCreateDefaultUnexpectedCleanupResponse,
+            },
+          }
+        : null,
+      duplicateLanguageCreateAlternateUnexpectedWebPresenceDelete:
+        duplicateLanguageCreateAlternateUnexpectedWebPresenceId
+          ? {
+              query: deleteMutation,
+              variables: { id: duplicateLanguageCreateAlternateUnexpectedWebPresenceId },
+              response: {
+                status: 200,
+                payload: duplicateLanguageCreateAlternateUnexpectedCleanupResponse,
+              },
+            }
+          : null,
+      duplicateLanguageUpdateDefaultWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: duplicateLanguageUpdateDefaultWebPresenceId },
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateDefaultCleanupResponse,
+        },
+      },
+      duplicateLanguageUpdateAlternateWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: duplicateLanguageUpdateAlternateWebPresenceId },
+        response: {
+          status: 200,
+          payload: duplicateLanguageUpdateAlternateCleanupResponse,
+        },
+      },
+      nonLetterUpdateSourceWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: nonLetterUpdateSourceWebPresenceId },
+        response: {
+          status: 200,
+          payload: nonLetterUpdateSourceCleanupResponse,
+        },
+      },
+      nonLetterCreateValidUsWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: nonLetterCreateValidUsWebPresenceId },
+        response: {
+          status: 200,
+          payload: nonLetterCreateValidUsCleanupResponse,
         },
       },
       enabledLocaleCleanup: localeCleanupResponses,
@@ -1317,6 +1732,201 @@ try {
           },
         },
       },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterCreateUs2Variables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterCreateEn1Variables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterCreateUsEastVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterCreateValidUsVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterUpdateSourceCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterUpdateUs2Variables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterUpdateEn1Variables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterUpdateUsEastVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: nonLetterUpdateValidUsVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageCreateDefaultVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageCreateAlternateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageUpdateDefaultCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageUpdateDefaultVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageUpdateAlternateCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateLanguageUpdateAlternateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
     ],
   };
 
@@ -1396,6 +2006,66 @@ try {
     updateCollisionMarketCleanupResponse = await runGraphql(marketDeleteMutation, { id: updateCollisionMarketId });
     console.error(
       JSON.stringify({ updateCollisionMarketCleanupAfterFailure: updateCollisionMarketCleanupResponse }, null, 2),
+    );
+  }
+  if (
+    duplicateLanguageCreateDefaultUnexpectedWebPresenceId &&
+    !duplicateLanguageCreateDefaultUnexpectedCleanupResponse
+  ) {
+    duplicateLanguageCreateDefaultUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageCreateDefaultUnexpectedWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        {
+          duplicateLanguageCreateDefaultUnexpectedCleanupAfterFailure:
+            duplicateLanguageCreateDefaultUnexpectedCleanupResponse,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  if (
+    duplicateLanguageCreateAlternateUnexpectedWebPresenceId &&
+    !duplicateLanguageCreateAlternateUnexpectedCleanupResponse
+  ) {
+    duplicateLanguageCreateAlternateUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageCreateAlternateUnexpectedWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        {
+          duplicateLanguageCreateAlternateUnexpectedCleanupAfterFailure:
+            duplicateLanguageCreateAlternateUnexpectedCleanupResponse,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  if (duplicateLanguageUpdateDefaultWebPresenceId && !duplicateLanguageUpdateDefaultCleanupResponse) {
+    duplicateLanguageUpdateDefaultCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageUpdateDefaultWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        { duplicateLanguageUpdateDefaultCleanupAfterFailure: duplicateLanguageUpdateDefaultCleanupResponse },
+        null,
+        2,
+      ),
+    );
+  }
+  if (duplicateLanguageUpdateAlternateWebPresenceId && !duplicateLanguageUpdateAlternateCleanupResponse) {
+    duplicateLanguageUpdateAlternateCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateLanguageUpdateAlternateWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        { duplicateLanguageUpdateAlternateCleanupAfterFailure: duplicateLanguageUpdateAlternateCleanupResponse },
+        null,
+        2,
+      ),
     );
   }
   if (localeRestoreActions.length > 0 && Object.keys(localeCleanupResponses).length === 0) {

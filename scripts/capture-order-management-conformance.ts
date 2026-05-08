@@ -213,6 +213,10 @@ const customerDeleteMutation = `#graphql
 
 const orderReadQuery = await readRequest('order-management-downstream-read.graphql');
 const orderCancelMutation = await readRequest('orderCancel-parity.graphql');
+const orderCancelRestockRefundMethodMutation = await readRequest('orderCancel-restock-refundMethod-parity.graphql');
+const orderCancelRestockRefundMethodReadQuery = await readRequest(
+  'orderCancel-restock-refundMethod-downstream-read.graphql',
+);
 const orderCloseMutation = await readRequest('orderClose-parity.graphql');
 const orderOpenMutation = await readRequest('orderOpen-parity.graphql');
 const orderCustomerSetMutation = await readRequest('orderCustomerSet-parity.graphql');
@@ -220,6 +224,51 @@ const orderCustomerRemoveMutation = await readRequest('orderCustomerRemove-parit
 const orderInvoiceSendMutation = await readRequest('orderInvoiceSend-parity.graphql');
 const orderCreateManualPaymentMutation = await readRequest('orderCreateManualPayment-access-denied-parity.graphql');
 const taxSummaryCreateMutation = await readRequest('taxSummaryCreate-access-denied-parity.graphql');
+
+const draftOrderCreateMutation = `#graphql
+  mutation OrderCancelEffectsDraftOrderCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder {
+        id
+        name
+        status
+        lineItems(first: 5) {
+          nodes {
+            id
+            title
+            quantity
+            custom
+            requiresShipping
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const draftOrderCompleteMutation = `#graphql
+  mutation OrderCancelEffectsDraftOrderComplete($id: ID!) {
+    draftOrderComplete(id: $id, paymentPending: false, sourceName: "shopify-draft-proxy") {
+      draftOrder {
+        id
+        status
+        completedAt
+        order {
+          id
+          name
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 function orderCreateVariables(label: string, stamp: number, amount: string, email?: string): JsonRecord {
   return {
@@ -253,6 +302,26 @@ function orderCreateVariables(label: string, stamp: number, amount: string, emai
   };
 }
 
+function orderCancelRestockRefundMethodDraftOrderVariables(stamp: number): JsonRecord {
+  return {
+    input: {
+      email: `sdp-order-cancel-effects-${stamp}@example.com`,
+      note: 'shopify-draft-proxy orderCancel restock refundMethod capture',
+      tags: ['shopify-draft-proxy', 'order-management', 'order-cancel-effects'],
+      lineItems: [
+        {
+          title: 'Order cancel restock/refundMethod item',
+          quantity: 2,
+          originalUnitPrice: '10.00',
+          requiresShipping: true,
+          taxable: false,
+          sku: `sdp-order-cancel-effects-${stamp}`,
+        },
+      ],
+    },
+  };
+}
+
 async function createOrder(label: string, stamp: number, amount: string, email?: string): Promise<CreatedOrder> {
   const variables = orderCreateVariables(label, stamp, amount, email);
   const createResult = await capture(orderCreateMutation, variables);
@@ -262,6 +331,30 @@ async function createOrder(label: string, stamp: number, amount: string, email?:
   const id = String(order['id'] ?? '');
   if (!id) {
     throw new Error(`${label} orderCreate did not return an order id`);
+  }
+  const createdOrder = { id, variables, create: createResult };
+  createdOrders.push(createdOrder);
+  return createdOrder;
+}
+
+async function createOrderCancelEffectsOrder(stamp: number): Promise<CreatedOrder> {
+  const variables = orderCancelRestockRefundMethodDraftOrderVariables(stamp);
+  const createResult = await capture(draftOrderCreateMutation, variables);
+  assertOk('orderCancel restock/refundMethod draftOrderCreate', createResult);
+  assertNoUserErrors('orderCancel restock/refundMethod draftOrderCreate', createResult, 'draftOrderCreate');
+  const draftOrder = asRecord(readRoot(createResult, 'draftOrderCreate')['draftOrder']);
+  const draftOrderId = String(draftOrder['id'] ?? '');
+  if (!draftOrderId) {
+    throw new Error('orderCancel restock/refundMethod draftOrderCreate did not return a draft order id');
+  }
+  const completeResult = await capture(draftOrderCompleteMutation, { id: draftOrderId });
+  assertOk('orderCancel restock/refundMethod draftOrderComplete', completeResult);
+  assertNoUserErrors('orderCancel restock/refundMethod draftOrderComplete', completeResult, 'draftOrderComplete');
+  const completedDraftOrder = asRecord(readRoot(completeResult, 'draftOrderComplete')['draftOrder']);
+  const order = asRecord(completedDraftOrder['order']);
+  const id = String(order['id'] ?? '');
+  if (!id) {
+    throw new Error('orderCancel restock/refundMethod draftOrderComplete did not return an order id');
   }
   const createdOrder = { id, variables, create: createResult };
   createdOrders.push(createdOrder);
@@ -296,6 +389,12 @@ async function readOrder(id: string): Promise<Capture> {
   return result;
 }
 
+async function readOrderCancelEffects(id: string): Promise<Capture> {
+  const result = await capture(orderCancelRestockRefundMethodReadQuery, { id });
+  assertOk('orderCancel restock/refundMethod downstream order read', result);
+  return result;
+}
+
 function orderFromRead(read: Capture): JsonRecord {
   return asRecord(asRecord(read.response.payload['data'])['order']);
 }
@@ -318,6 +417,24 @@ async function readOrderUntilCancelled(id: string): Promise<Capture> {
   }
   throw new Error(
     `orderCancel downstream read did not reach cancelled state: ${JSON.stringify(latest.response.payload)}`,
+  );
+}
+
+async function readOrderCancelEffectsUntilMaterialized(id: string): Promise<Capture> {
+  let latest = await readOrderCancelEffects(id);
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const order = orderFromRead(latest);
+    const refundedSet = asRecord(asRecord(order['totalRefundedSet'])['shopMoney']);
+    const refundedAmount = Number(refundedSet['amount'] ?? 0);
+    const refunds = order['refunds'];
+    if (order['closed'] === true && order['cancelReason'] !== null && refundedAmount > 0 && Array.isArray(refunds)) {
+      return latest;
+    }
+    await delay(1500);
+    latest = await readOrderCancelEffects(id);
+  }
+  throw new Error(
+    `orderCancel restock/refundMethod downstream read did not materialize cancellation/refund state: ${JSON.stringify(latest.response.payload)}`,
   );
 }
 
@@ -404,6 +521,30 @@ async function captureOrderCancel(stamp: number): Promise<void> {
   assertOk('orderCancel', mutation);
   const downstreamRead = await readOrderUntilCancelled(order.id);
   await writeFixture('orderCancel-parity.json', {
+    variables,
+    mutation: { response: mutation.response.payload },
+    downstreamRead: { variables: downstreamRead.variables, response: downstreamRead.response.payload },
+    upstreamCalls: [orderHydrateCall('OrdersOrderHydrate', before)],
+  });
+}
+
+async function captureOrderCancelRestockRefundMethod(stamp: number): Promise<void> {
+  const order = await createOrderCancelEffectsOrder(stamp);
+  const before = await readOrderCancelEffects(order.id);
+  const variables = {
+    orderId: order.id,
+    restock: true,
+    reason: 'OTHER',
+    notifyCustomer: false,
+    staffNote: 'shopify-draft-proxy order cancel restock refundMethod capture',
+    refundMethod: {
+      originalPaymentMethodsRefund: true,
+    },
+  };
+  const mutation = await capture(orderCancelRestockRefundMethodMutation, variables);
+  assertOk('orderCancel restock/refundMethod', mutation);
+  const downstreamRead = await readOrderCancelEffectsUntilMaterialized(order.id);
+  await writeFixture('orderCancel-restock-refundMethod-parity.json', {
     variables,
     mutation: { response: mutation.response.payload },
     downstreamRead: { variables: downstreamRead.variables, response: downstreamRead.response.payload },
@@ -535,18 +676,24 @@ async function cleanupCustomer(customerId: string): Promise<unknown> {
 }
 
 const stamp = Date.now();
+const captureOnly = process.env['SHOPIFY_ORDER_MANAGEMENT_CAPTURE_ONLY'] ?? '';
 
 try {
-  await captureOrderClose(stamp);
-  await captureOrderOpen(stamp);
-  await captureOrderCancel(stamp);
-  await captureOrderCustomer(stamp);
-  await captureOrderInvoiceSend(stamp);
-  const accessDeniedOrder = createdOrders[createdOrders.length - 1];
-  if (!accessDeniedOrder) {
-    throw new Error('No disposable order was available for access-denied probes');
+  if (captureOnly === 'orderCancelRestockRefundMethod') {
+    await captureOrderCancelRestockRefundMethod(stamp);
+  } else {
+    await captureOrderClose(stamp);
+    await captureOrderOpen(stamp);
+    await captureOrderCancel(stamp);
+    await captureOrderCancelRestockRefundMethod(stamp);
+    await captureOrderCustomer(stamp);
+    await captureOrderInvoiceSend(stamp);
+    const accessDeniedOrder = createdOrders[createdOrders.length - 1];
+    if (!accessDeniedOrder) {
+      throw new Error('No disposable order was available for access-denied probes');
+    }
+    await captureAccessDenied();
   }
-  await captureAccessDenied();
 } finally {
   for (const order of createdOrders) {
     try {

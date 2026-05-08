@@ -1,0 +1,266 @@
+{
+  "scenarioId": "location-delete-inventory-level-cascade",
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkUpdate",
+    "locationAdd",
+    "inventoryActivate",
+    "locationDeactivate",
+    "locationDelete",
+    "inventoryItem"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "state-machine-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-delete-inventory-level-cascade.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-delete-inventory-product-create.graphql",
+    "variablesCapturePath": "$.workflow.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create",
+        "capturePath": "$.workflow.productCreate.response.payload.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": [
+          "$.product.title",
+          "$.product.variants.nodes[0].inventoryItem.tracked",
+          "$.product.variants.nodes[0].inventoryItem.requiresShipping",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "target-location-add",
+        "capturePath": "$.workflow.targetLocationAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-location-add.graphql",
+          "variablesCapturePath": "$.workflow.targetLocationAdd.variables"
+        },
+        "selectedPaths": [
+          "$.location.name",
+          "$.location.isActive",
+          "$.location.hasActiveInventory",
+          "$.location.fulfillsOnlineOrders",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "destination-location-add",
+        "capturePath": "$.workflow.destinationLocationAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-location-add.graphql",
+          "variablesCapturePath": "$.workflow.destinationLocationAdd.variables"
+        },
+        "selectedPaths": [
+          "$.location.name",
+          "$.location.isActive",
+          "$.location.hasActiveInventory",
+          "$.location.fulfillsOnlineOrders",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "product-track",
+        "capturePath": "$.workflow.productTrack.response.payload.data.productVariantsBulkUpdate",
+        "proxyPath": "$.data.productVariantsBulkUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-product-track.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "inventoryItem": {
+                  "tracked": true
+                }
+              }
+            ]
+          }
+        },
+        "selectedPaths": [
+          "$.product.totalInventory",
+          "$.product.tracksInventory",
+          "$.productVariants[0].inventoryItem.tracked",
+          "$.productVariants[0].inventoryItem.requiresShipping",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "destination-inventory-activate",
+        "capturePath": "$.workflow.destinationInventoryActivate.response.payload.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-activate.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "available": {
+              "fromCapturePath": "$.workflow.destinationInventoryActivate.variables.available"
+            },
+            "idempotencyKey": {
+              "fromCapturePath": "$.workflow.destinationInventoryActivate.variables.idempotencyKey"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.inventoryLevel.location.name",
+          "$.inventoryLevel.quantities[0]",
+          "$.inventoryLevel.quantities[1]",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "target-inventory-activate",
+        "capturePath": "$.workflow.targetInventoryActivate.response.payload.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-activate.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromProxyResponse": "target-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "available": {
+              "fromCapturePath": "$.workflow.targetInventoryActivate.variables.available"
+            },
+            "idempotencyKey": {
+              "fromCapturePath": "$.workflow.targetInventoryActivate.variables.idempotencyKey"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.inventoryLevel.location.name",
+          "$.inventoryLevel.quantities[0]",
+          "$.inventoryLevel.quantities[1]",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "inventory-before-delete",
+        "capturePath": "$.workflow.inventoryBeforeDelete.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-read.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "deletedLocationId": {
+              "fromProxyResponse": "target-location-add",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.locationsCount",
+          "$.deletedLevel.location.name",
+          "$.inventoryLevels.nodes[0].location.name",
+          "$.inventoryLevels.nodes[1].location.name"
+        ]
+      },
+      {
+        "name": "target-deactivate",
+        "capturePath": "$.workflow.targetDeactivate.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-deactivate.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "target-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "destinationLocationId": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "idempotencyKey": {
+              "fromCapturePath": "$.workflow.targetDeactivate.variables.idempotencyKey"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.location.name",
+          "$.location.isActive",
+          "$.location.hasActiveInventory",
+          "$.location.deletable",
+          "$.locationDeactivateUserErrors"
+        ]
+      },
+      {
+        "name": "target-delete",
+        "capturePath": "$.workflow.targetDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-delete.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "target-location-add",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedLocationId",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy deletes the locally staged synthetic target location."
+          }
+        ]
+      },
+      {
+        "name": "inventory-after-delete",
+        "capturePath": "$.workflow.inventoryAfterDelete.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-inventory-read.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "deletedLocationId": {
+              "fromProxyResponse": "target-location-add",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.locationsCount",
+          "$.deletedLevel",
+          "$.inventoryLevels.nodes[0].location.name",
+          "$.inventoryLevels.nodes[1]"
+        ]
+      }
+    ]
+  },
+  "notes": "Records Admin API 2026-04 behavior for a successful locationDelete lifecycle with one inventory item stocked at two disposable merchant-managed locations. The public API requires locationDeactivate before locationDelete, so the scenario deactivates the target location with a destination, deletes it, then proves the deleted location no longer appears in inventoryItem.inventoryLevel(locationId:) or inventoryItem.inventoryLevels and locationsCount drops from two to one."
+}

@@ -1,0 +1,710 @@
+{
+  "capturedAt": "2026-05-08T02:30:13.453Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures Admin API 2026-04 inventory-level behavior across a successful locationDelete lifecycle: two disposable merchant-managed locations are stocked for one disposable product, the target location is deactivated with a destination, then deleted.",
+    "The before-delete read proves the inventory item had levels at two locations. The after-delete read proves Shopify no longer returns a level for the deleted location and locationsCount drops to one."
+  ],
+  "workflow": {
+    "targetLocationAdd": {
+      "name": "location-delete-inventory-level-cascade target 20260508023013LocationAdd",
+      "query": "mutation LocationDeleteInventoryLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "location-delete-inventory-level-cascade target 20260508023013",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "873 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112885203250",
+                "name": "location-delete-inventory-level-cascade target 20260508023013",
+                "isActive": true,
+                "hasActiveInventory": false,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "destinationLocationAdd": {
+      "name": "location-delete-inventory-level-cascade destination 20260508023013LocationAdd",
+      "query": "mutation LocationDeleteInventoryLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "location-delete-inventory-level-cascade destination 20260508023013",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "873 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112885236018",
+                "name": "location-delete-inventory-level-cascade destination 20260508023013",
+                "isActive": true,
+                "hasActiveInventory": false,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "name": "productCreate",
+      "query": "mutation LocationDeleteInventoryProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "product": {
+          "title": "location-delete-inventory-level-cascade product 20260508023013"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10180316365106",
+                "title": "location-delete-inventory-level-cascade product 20260508023013",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51137382842674",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53240620810546",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productTrack": {
+      "name": "productTrack",
+      "query": "mutation LocationDeleteInventoryProductTrack($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      product {\n        id\n        totalInventory\n        tracksInventory\n      }\n      productVariants {\n        id\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "productId": "gid://shopify/Product/10180316365106",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51137382842674",
+            "inventoryItem": {
+              "tracked": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10180316365106",
+                "totalInventory": 0,
+                "tracksInventory": true
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51137382842674",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53240620810546",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "destinationInventoryActivate": {
+      "name": "destinationInventoryActivate",
+      "query": "mutation LocationDeleteInventoryActivate(\n    $inventoryItemId: ID!\n    $locationId: ID!\n    $available: Int\n    $idempotencyKey: String!\n  ) {\n    inventoryActivate(\n      inventoryItemId: $inventoryItemId\n      locationId: $locationId\n      available: $available\n    ) @idempotent(key: $idempotencyKey) {\n      inventoryLevel {\n        id\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\"]) {\n          name\n          quantity\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53240620810546",
+        "locationId": "gid://shopify/Location/112885236018",
+        "available": 9,
+        "idempotencyKey": "location-delete-inventory-level-cascade-destination-20260508023013"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryActivate": {
+              "inventoryLevel": {
+                "id": "gid://shopify/InventoryLevel/150143107378?inventory_item_id=53240620810546",
+                "location": {
+                  "id": "gid://shopify/Location/112885236018",
+                  "name": "location-delete-inventory-level-cascade destination 20260508023013"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 9
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 9
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "defaultInventoryRead": {
+      "name": "defaultInventoryRead",
+      "query": "query LocationDeleteInventoryRead($inventoryItemId: ID!, $deletedLocationId: ID!) {\n    inventoryItem(id: $inventoryItemId) {\n      id\n      locationsCount {\n        count\n        precision\n      }\n      deletedLevel: inventoryLevel(locationId: $deletedLocationId) {\n        id\n        location {\n          id\n          name\n        }\n      }\n      inventoryLevels(first: 10) {\n        nodes {\n          id\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\"]) {\n            name\n            quantity\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53240620810546",
+        "deletedLocationId": "gid://shopify/Location/112885203250"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53240620810546",
+              "locationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "deletedLevel": null,
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53240620810546",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/150143107378?inventory_item_id=53240620810546",
+                    "location": {
+                      "id": "gid://shopify/Location/112885236018",
+                      "name": "location-delete-inventory-level-cascade destination 20260508023013"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 9
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 9
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "defaultInventoryDeactivations": [
+      {
+        "name": "defaultInventoryDeactivate",
+        "query": "mutation LocationDeleteInventoryDefaultDeactivate($inventoryLevelId: ID!, $idempotencyKey: String!) {\n    inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53240620810546",
+          "idempotencyKey": "location-delete-inventory-level-cascade-default-0-20260508023013"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "inventoryDeactivate": {
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "targetInventoryActivate": {
+      "name": "targetInventoryActivate",
+      "query": "mutation LocationDeleteInventoryActivate(\n    $inventoryItemId: ID!\n    $locationId: ID!\n    $available: Int\n    $idempotencyKey: String!\n  ) {\n    inventoryActivate(\n      inventoryItemId: $inventoryItemId\n      locationId: $locationId\n      available: $available\n    ) @idempotent(key: $idempotencyKey) {\n      inventoryLevel {\n        id\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\"]) {\n          name\n          quantity\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53240620810546",
+        "locationId": "gid://shopify/Location/112885203250",
+        "available": 5,
+        "idempotencyKey": "location-delete-inventory-level-cascade-target-20260508023013"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryActivate": {
+              "inventoryLevel": {
+                "id": "gid://shopify/InventoryLevel/150143074610?inventory_item_id=53240620810546",
+                "location": {
+                  "id": "gid://shopify/Location/112885203250",
+                  "name": "location-delete-inventory-level-cascade target 20260508023013"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 5
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 5
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inventoryBeforeDelete": {
+      "name": "inventoryBeforeDelete",
+      "query": "query LocationDeleteInventoryRead($inventoryItemId: ID!, $deletedLocationId: ID!) {\n    inventoryItem(id: $inventoryItemId) {\n      id\n      locationsCount {\n        count\n        precision\n      }\n      deletedLevel: inventoryLevel(locationId: $deletedLocationId) {\n        id\n        location {\n          id\n          name\n        }\n      }\n      inventoryLevels(first: 10) {\n        nodes {\n          id\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\"]) {\n            name\n            quantity\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53240620810546",
+        "deletedLocationId": "gid://shopify/Location/112885203250"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53240620810546",
+              "locationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "deletedLevel": {
+                "id": "gid://shopify/InventoryLevel/150143074610?inventory_item_id=53240620810546",
+                "location": {
+                  "id": "gid://shopify/Location/112885203250",
+                  "name": "location-delete-inventory-level-cascade target 20260508023013"
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/150143107378?inventory_item_id=53240620810546",
+                    "location": {
+                      "id": "gid://shopify/Location/112885236018",
+                      "name": "location-delete-inventory-level-cascade destination 20260508023013"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 9
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 9
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/150143074610?inventory_item_id=53240620810546",
+                    "location": {
+                      "id": "gid://shopify/Location/112885203250",
+                      "name": "location-delete-inventory-level-cascade target 20260508023013"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 5
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 5
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetDeactivate": {
+      "name": "targetDeactivate",
+      "query": "mutation LocationDeleteInventoryLocationDeactivate(\n    $locationId: ID!\n    $destinationLocationId: ID!\n    $idempotencyKey: String!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        deletable\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112885203250",
+        "destinationLocationId": "gid://shopify/Location/112885236018",
+        "idempotencyKey": "location-delete-inventory-level-cascade-deactivate-20260508023013"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112885203250",
+                "name": "location-delete-inventory-level-cascade target 20260508023013",
+                "isActive": false,
+                "hasActiveInventory": false,
+                "deletable": true
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetDelete": {
+      "name": "targetDelete",
+      "query": "mutation LocationDeleteInventoryLocationDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112885203250"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112885203250",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inventoryAfterDelete": {
+      "name": "inventoryAfterDelete",
+      "query": "query LocationDeleteInventoryRead($inventoryItemId: ID!, $deletedLocationId: ID!) {\n    inventoryItem(id: $inventoryItemId) {\n      id\n      locationsCount {\n        count\n        precision\n      }\n      deletedLevel: inventoryLevel(locationId: $deletedLocationId) {\n        id\n        location {\n          id\n          name\n        }\n      }\n      inventoryLevels(first: 10) {\n        nodes {\n          id\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\"]) {\n            name\n            quantity\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53240620810546",
+        "deletedLocationId": "gid://shopify/Location/112885203250"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53240620810546",
+              "locationsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "deletedLevel": null,
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/150143107378?inventory_item_id=53240620810546",
+                    "location": {
+                      "id": "gid://shopify/Location/112885236018",
+                      "name": "location-delete-inventory-level-cascade destination 20260508023013"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 14
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 14
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "productCleanup",
+      "query": "mutation LocationDeleteInventoryProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10180316365106"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10180316365106",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "destinationLocationCleanupDeactivate",
+      "query": "mutation LocationDeleteInventoryCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112885236018",
+        "idempotencyKey": "location-delete-inventory-level-cascade-destinationLocation-cleanup-20260508023013"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112885236018",
+                "isActive": true,
+                "hasActiveInventory": true
+              },
+              "locationDeactivateUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+                  "code": "HAS_ACTIVE_INVENTORY_ERROR"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "destinationLocationCleanupDelete",
+      "query": "mutation LocationDeleteInventoryLocationDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112885236018"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has inventory.",
+                  "code": "LOCATION_HAS_INVENTORY"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

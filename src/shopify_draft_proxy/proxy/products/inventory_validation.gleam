@@ -65,12 +65,13 @@ import shopify_draft_proxy/proxy/products/products_core.{
   apply_product_set_level_quantities, enumerate_items,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  bool_string, connection_page_info_source, dedupe_preserving_order,
-  input_list_has_object_missing_field, missing_idempotency_key_error,
-  nullable_field_user_errors_source, read_arg_string_list, read_bool_field,
-  read_include_inactive_argument, read_int_field, read_non_empty_string_field,
-  read_numeric_field, read_object_field, read_object_list_field,
-  read_string_argument, read_string_field, resource_id_matches,
+  bool_string, connection_page_info_source, count_source,
+  dedupe_preserving_order, input_list_has_object_missing_field,
+  missing_idempotency_key_error, nullable_field_user_errors_source,
+  read_arg_string_list, read_bool_field, read_include_inactive_argument,
+  read_int_field, read_non_empty_string_field, read_numeric_field,
+  read_object_field, read_object_list_field, read_string_argument,
+  read_string_field, resource_id_matches,
 }
 import shopify_draft_proxy/proxy/products/shared_money.{has_idempotency_key}
 import shopify_draft_proxy/proxy/products/variants_helpers.{
@@ -811,6 +812,10 @@ pub fn inventory_item_source_with_variant(
       inventory_levels_connection_source(active_inventory_levels(
         item.inventory_levels,
       )),
+    ),
+    #(
+      "locationsCount",
+      count_source(list.length(active_inventory_levels(item.inventory_levels))),
     ),
     #("variant", variant),
   ])
