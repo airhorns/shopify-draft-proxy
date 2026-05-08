@@ -19,10 +19,11 @@ import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type MetaobjectDefinitionRecord,
   type ProductMediaRecord, type ProductRecord, type ProductVariantRecord,
-  type SellingPlanGroupRecord, type ShopRecord, CapturedArray, CapturedObject,
-  CapturedString, ChannelRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, CustomerRecord, DraftOrderRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
+  type SellingPlanGroupRecord, type ShopRecord, type StorePropertyRecord,
+  CapturedArray, CapturedObject, CapturedString, ChannelRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerRecord,
+  DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryQuantityRecord,
   InventoryTransferLineItemRecord, InventoryTransferRecord, LocationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
@@ -37,7 +38,8 @@ import shopify_draft_proxy/state/types.{
   ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
-  ShopResourceLimitsRecord,
+  ShopResourceLimitsRecord, StorePropertyBool, StorePropertyRecord,
+  StorePropertyString,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -5400,6 +5402,59 @@ pub fn inventory_activate_rejects_negative_quantities_test() {
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"onHand\"],\"message\":\"On hand must be greater than or equal to 0\",\"code\":\"NEGATIVE\"}]}}}"
 }
 
+pub fn location_delete_cascades_inventory_item_levels_test() {
+  let delete_location_id = "gid://shopify/Location/1"
+  let retained_location_id = "gid://shopify/Location/2"
+  let delete_query =
+    "mutation { locationDelete(locationId: \\\""
+    <> delete_location_id
+    <> "\\\") { deletedLocationId locationDeleteUserErrors { field code message } } }"
+  let read_query =
+    "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { locationsCount { count precision } inventoryLevel(locationId: \\\""
+    <> delete_location_id
+    <> "\\\") { id location { id name } } inventoryLevels(first: 10) { nodes { id location { id name } quantities(names: [\\\"available\\\"]) { name quantity } } } } }"
+  let tracked_level = tracked_inventory_level()
+  let retained_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/retained?inventory_item_id=tracked",
+      retained_location_id,
+      "Destination location",
+      True,
+      [
+        inventory_quantity("available", 9),
+        inventory_quantity("on_hand", 9),
+      ],
+    )
+  let delete_location =
+    make_store_property_location(delete_location_id, "Shop location", False)
+  let retained_location =
+    make_store_property_location(
+      retained_location_id,
+      "Destination location",
+      True,
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([tracked_level, retained_level])
+        |> store.upsert_base_store_property_location(delete_location)
+        |> store.upsert_base_store_property_location(retained_location),
+    )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_query))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"locationDelete\":{\"deletedLocationId\":\"gid://shopify/Location/1\",\"locationDeleteUserErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"locationsCount\":{\"count\":1,\"precision\":\"EXACT\"},\"inventoryLevel\":null,\"inventoryLevels\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryLevel/retained?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Destination location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":9}]}]}}}}"
+}
+
 pub fn inventory_activate_duplicate_staged_activation_returns_taken_test() {
   let proxy = draft_proxy.new()
   let proxy =
@@ -5471,6 +5526,39 @@ pub fn inventory_activate_available_conflict_requires_active_level_test() {
   assert inactive_status == 200
   assert json.to_string(inactive_body)
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[]}}}"
+}
+
+pub fn inventory_activate_reactivates_without_resetting_quantities_test() {
+  let inactive_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      False,
+      [
+        inventory_quantity("available", 7),
+        inventory_quantity("on_hand", 12),
+        inventory_quantity("incoming", 3),
+      ],
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+        tracked_inventory_level(),
+        inactive_level,
+      ]),
+    )
+  let query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\") { inventoryLevel { id isActive quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"incoming\\\"]) { name quantity } item { variant { inventoryQuantity } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true,\"quantities\":[{\"name\":\"available\",\"quantity\":7},{\"name\":\"on_hand\",\"quantity\":12},{\"name\":\"incoming\",\"quantity\":3}],\"item\":{\"variant\":{\"inventoryQuantity\":8}}},\"userErrors\":[]}}}"
 }
 
 pub fn inventory_bulk_toggle_unknown_location_returns_not_found_test() {
@@ -6302,6 +6390,28 @@ fn tracked_inventory_level() -> InventoryLevelRecord {
 
 fn location_record(id: String, name: String) -> LocationRecord {
   LocationRecord(id: id, name: name, is_active: Some(True), cursor: None)
+}
+
+fn make_store_property_location(
+  id: String,
+  name: String,
+  is_active: Bool,
+) -> StorePropertyRecord {
+  StorePropertyRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", StorePropertyString("Location")),
+      #("name", StorePropertyString(name)),
+      #("isActive", StorePropertyBool(is_active)),
+      #("activatable", StorePropertyBool(!is_active)),
+      #("deactivatable", StorePropertyBool(is_active)),
+      #("deletable", StorePropertyBool(!is_active)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #("hasActiveInventory", StorePropertyBool(False)),
+      #("shipsInventory", StorePropertyBool(is_active)),
+    ]),
+  )
 }
 
 fn tracked_inventory_store() -> store.Store {

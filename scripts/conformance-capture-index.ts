@@ -4454,6 +4454,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-delete-inventory-level-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-delete-inventory-level-cascade-conformance.mts',
+    purpose:
+      'locationDelete downstream inventoryItem inventoryLevels and locationsCount cascade parity after deleting a stocked disposable location.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-delete-inventory-level-cascade.json`,
+      'config/parity-specs/store-properties/location-delete-inventory-level-cascade.json',
+      'config/parity-requests/store-properties/location-delete-inventory-product-create.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-product-track.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-location-add.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-activate.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-deactivate.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-delete.graphql',
+      'config/parity-requests/store-properties/location-delete-inventory-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable merchant-managed locations and one disposable tracked product, stocks the product at both locations, deactivates/deletes the target location, deletes the product, and removes any remaining disposable locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
