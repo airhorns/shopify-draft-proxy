@@ -1,0 +1,191 @@
+{
+  "scenarioId": "online-store-page-blog-article-template-suffix",
+  "operationNames": [
+    "blog",
+    "blogCreate",
+    "blogUpdate",
+    "blogDelete",
+    "page",
+    "pageCreate",
+    "pageUpdate",
+    "pageDelete",
+    "article",
+    "articleCreate",
+    "articleUpdate",
+    "articleDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/page-blog-article-template-suffix.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture records page/blog/article create with explicit templateSuffix values, update to new suffixes, downstream read-after-update, empty-string preservation, explicit-null clearing, downstream read-after-empty/null handling, and cleanup deletion. The executable parity replay builds state only through the replayed create/update/read requests and compares the stable templateSuffix payload/readback fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate persists templateSuffix",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate persists templateSuffix",
+        "capturePath": "$.interactions[1].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.page.title", "$.page.templateSuffix", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-page-create.graphql",
+          "variablesCapturePath": "$.interactions[1].request.variables"
+        }
+      },
+      {
+        "name": "articleCreate persists templateSuffix",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.article.title", "$.article.templateSuffix", "$.article.blog.title", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-article-create.graphql",
+          "variables": {
+            "article": {
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "title": { "fromCapturePath": "$.interactions[2].request.variables.article.title" },
+              "body": { "fromCapturePath": "$.interactions[2].request.variables.article.body" },
+              "author": { "fromCapturePath": "$.interactions[2].request.variables.article.author" },
+              "templateSuffix": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.templateSuffix"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "page blog article update persists templateSuffix",
+        "capturePath": "$.interactions[3].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blogUpdate.blog.templateSuffix",
+          "$.blogUpdate.userErrors",
+          "$.pageUpdate.page.templateSuffix",
+          "$.pageUpdate.userErrors",
+          "$.articleUpdate.article.templateSuffix",
+          "$.articleUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-update.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "blog": { "fromCapturePath": "$.interactions[3].request.variables.blog" },
+            "pageId": {
+              "fromProxyResponse": "pageCreate persists templateSuffix",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "page": { "fromCapturePath": "$.interactions[3].request.variables.page" },
+            "articleId": {
+              "fromProxyResponse": "articleCreate persists templateSuffix",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": { "fromCapturePath": "$.interactions[3].request.variables.article" }
+          }
+        }
+      },
+      {
+        "name": "downstream reads return updated templateSuffix values",
+        "capturePath": "$.interactions[4].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.blog.templateSuffix", "$.page.templateSuffix", "$.article.templateSuffix"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-read.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "pageId": {
+              "fromProxyResponse": "pageCreate persists templateSuffix",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "articleId": {
+              "fromProxyResponse": "articleCreate persists templateSuffix",
+              "path": "$.data.articleCreate.article.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "empty string is preserved and null clears templateSuffix",
+        "capturePath": "$.interactions[5].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blogUpdate.blog.templateSuffix",
+          "$.blogUpdate.userErrors",
+          "$.pageUpdate.page.templateSuffix",
+          "$.pageUpdate.userErrors",
+          "$.articleUpdate.article.templateSuffix",
+          "$.articleUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-update.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "blog": { "fromCapturePath": "$.interactions[5].request.variables.blog" },
+            "pageId": {
+              "fromProxyResponse": "pageCreate persists templateSuffix",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "page": { "fromCapturePath": "$.interactions[5].request.variables.page" },
+            "articleId": {
+              "fromProxyResponse": "articleCreate persists templateSuffix",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": { "fromCapturePath": "$.interactions[5].request.variables.article" }
+          }
+        }
+      },
+      {
+        "name": "downstream reads return empty-string and null templateSuffix values",
+        "capturePath": "$.interactions[6].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.blog.templateSuffix", "$.page.templateSuffix", "$.article.templateSuffix"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-read.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "pageId": {
+              "fromProxyResponse": "pageCreate persists templateSuffix",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "articleId": {
+              "fromProxyResponse": "articleCreate persists templateSuffix",
+              "path": "$.data.articleCreate.article.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "cleanup deletes staged content without user errors",
+        "capturePath": "$.interactions[7].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.articleDelete.userErrors", "$.pageDelete.userErrors", "$.blogDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/page-blog-article-template-suffix-delete.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "pageId": {
+              "fromProxyResponse": "pageCreate persists templateSuffix",
+              "path": "$.data.pageCreate.page.id"
+            },
+            "articleId": {
+              "fromProxyResponse": "articleCreate persists templateSuffix",
+              "path": "$.data.articleCreate.article.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
