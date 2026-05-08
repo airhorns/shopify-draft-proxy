@@ -35,6 +35,12 @@ import shopify_draft_proxy/state/types.{
 @internal
 pub const discount_function_app_id: String = "347082227713"
 
+const int32_min: Int = -2_147_483_648
+
+const int32_max: Int = 2_147_483_647
+
+const price_rule_decimal_limit: String = "1000000000000000000"
+
 import shopify_draft_proxy/proxy/discounts/queries.{
   child_fields, discount_matches_positive_search_term, discount_record_timestamp,
 }
@@ -656,6 +662,7 @@ pub fn validate_discount_input(
       code_errors,
       validate_context_customer_selection_conflict(input_name, input),
     )
+    |> append_title_validation_errors(input_name, input, discount_type)
   let errors = case discount_type {
     "app" ->
       list.append(
@@ -707,6 +714,8 @@ pub fn validate_discount_input(
       )
   }
   let errors =
+    list.append(errors, validate_price_rule_numeric_bounds(input_name, input))
+  let errors =
     list.append(
       errors,
       validate_subscription_fields(store, input_name, input, discount_type),
@@ -740,7 +749,7 @@ pub fn validate_discount_input(
           ])
         False -> errors
       }
-      |> append_blank_title_error(input_name, input)
+      |> append_free_shipping_blank_title_error(input_name, input)
     }
     _ -> errors
   }
@@ -844,16 +853,18 @@ pub fn validate_discount_amount_value(
   input_name: String,
   value: root_field.ResolvedValue,
 ) -> List(SourceValue) {
-  case resolved_decimal_float(value) {
+  let path = [input_name, "customerGets", "value", "discountAmount", "amount"]
+  let errors = case resolved_decimal_float(value) {
     Some(amount) if amount <. 0.0 -> [
       discount_types.user_error(
-        [input_name, "customerGets", "value", "discountAmount", "amount"],
+        path,
         "Value must be less than or equal to 0",
         "LESS_THAN_OR_EQUAL_TO",
       ),
     ]
     _ -> []
   }
+  list.append(errors, validate_value_decimal_bounds(path, value))
 }
 
 @internal
@@ -874,21 +885,152 @@ pub fn resolved_decimal_float(
 }
 
 @internal
+pub fn validate_price_rule_numeric_bounds(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  []
+  |> list.append(validate_usage_limit_bounds(input_name, input))
+  |> list.append(validate_int32_field(
+    input_name,
+    input,
+    "recurringCycleLimit",
+    "Recurring cycle limit",
+  ))
+}
+
+@internal
+pub fn validate_usage_limit_bounds(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(input, "usageLimit") {
+    Ok(root_field.IntVal(value)) -> {
+      let path = [input_name, "usageLimit"]
+      let errors = case value <= 0 {
+        True -> [
+          discount_types.user_error(
+            path,
+            "Usage limit must be greater than 0",
+            "GREATER_THAN",
+          ),
+        ]
+        False -> []
+      }
+      let errors = case value < int32_min {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              "Usage limit must be greater than or equal to -2147483648",
+              "GREATER_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+      case value > int32_max {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              "Usage limit must be less than or equal to 2147483647",
+              "LESS_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    Ok(root_field.FloatVal(_)) -> [
+      discount_types.user_error(
+        [input_name, "usageLimit"],
+        "Usage limit must be an integer",
+        "NOT_AN_INTEGER",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_int32_field(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+  label: String,
+) -> List(SourceValue) {
+  case dict.get(input, field_name) {
+    Ok(root_field.IntVal(value)) -> {
+      let path = [input_name, field_name]
+      let errors = case value < int32_min {
+        True -> [
+          discount_types.user_error(
+            path,
+            label <> " must be greater than or equal to -2147483648",
+            "GREATER_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        False -> []
+      }
+      case value > int32_max {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              path,
+              label <> " must be less than or equal to 2147483647",
+              "LESS_THAN_OR_EQUAL_TO",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    Ok(root_field.FloatVal(_)) -> [
+      discount_types.user_error(
+        [input_name, field_name],
+        label <> " must be an integer",
+        "NOT_AN_INTEGER",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_value_decimal_bounds(
+  path: List(String),
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case numeric_string(value) {
+    Some(raw) ->
+      case decimal_at_least(raw, price_rule_decimal_limit) {
+        True -> [
+          discount_types.user_error(
+            path,
+            "Value must be greater than -1000000000000000000",
+            "LESS_THAN",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn numeric_string(value: root_field.ResolvedValue) -> Option(String) {
+  case value {
+    root_field.StringVal(value) -> Some(value)
+    root_field.IntVal(value) -> Some(int.to_string(value))
+    root_field.FloatVal(value) -> Some(float.to_string(value))
+    _ -> None
+  }
+}
+
+@internal
 pub fn validate_app_discount_create_input(
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
   is_create: Bool,
 ) -> List(SourceValue) {
-  let errors = case input_name, title_is_blank(input) {
-    "automaticAppDiscount", True -> [
-      discount_types.user_error(
-        [input_name, "title"],
-        "Title can't be blank.",
-        "INVALID",
-      ),
-    ]
-    _, _ -> []
-  }
+  let errors = []
   let errors = case is_create, input_value_is_present(input, "startsAt") {
     True, False ->
       list.append(errors, [
@@ -2579,7 +2721,7 @@ pub fn append_blank_title_error(
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(SourceValue) {
-  case input_name == "freeShippingCodeDiscount" && title_is_blank(input) {
+  case title_is_blank(input) {
     True ->
       list.append(errors, [
         discount_types.user_error(
@@ -2589,6 +2731,129 @@ pub fn append_blank_title_error(
         ),
       ])
     False -> errors
+  }
+}
+
+@internal
+pub fn append_title_validation_errors(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(SourceValue) {
+  case discount_type {
+    "app" ->
+      errors
+      |> append_app_blank_title_error(input_name, input)
+      |> append_app_too_long_title_error(input_name, input)
+    _ ->
+      case
+        native_discount_uses_shared_blank_title_validation(
+          discount_type,
+          input_name,
+        )
+      {
+        True ->
+          errors
+          |> append_blank_title_error(input_name, input)
+          |> append_too_long_title_error(input_name, input)
+        False -> append_too_long_title_error(errors, input_name, input)
+      }
+  }
+}
+
+@internal
+pub fn native_discount_uses_shared_blank_title_validation(
+  discount_type: String,
+  _input_name: String,
+) -> Bool {
+  case discount_type {
+    "basic" -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn append_free_shipping_blank_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case input_name {
+    "freeShippingCodeDiscount" ->
+      append_blank_title_error(errors, input_name, input)
+    "freeShippingAutomaticDiscount" ->
+      case invalid_free_shipping_combines(input) {
+        False -> append_blank_title_error(errors, input_name, input)
+        True -> errors
+      }
+    _ -> errors
+  }
+}
+
+@internal
+pub fn append_app_blank_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case title_is_blank(input) {
+    True -> {
+      let message = case input_name {
+        "codeAppDiscount" -> "can't be blank"
+        _ -> "Title can't be blank."
+      }
+      list.append(errors, [
+        discount_types.user_error([input_name, "title"], message, "INVALID"),
+      ])
+    }
+    False -> errors
+  }
+}
+
+@internal
+pub fn append_app_too_long_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_string(input, "title") {
+    Some(title) ->
+      case string.length(title) > 255 {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              [input_name, "title"],
+              "is too long (maximum is 255 characters)",
+              "INVALID",
+            ),
+          ])
+        False -> errors
+      }
+    _ -> errors
+  }
+}
+
+@internal
+pub fn append_too_long_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_string(input, "title") {
+    Some(title) ->
+      case string.length(title) > 255 {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              [input_name, "title"],
+              "Title is too long (maximum is 255 characters)",
+              "TOO_LONG",
+            ),
+          ])
+        False -> errors
+      }
+    _ -> errors
   }
 }
 
@@ -2624,6 +2889,8 @@ pub fn validate_bxgy_input(
       errors,
       bxgy_missing_discount_on_quantity_errors(input_name, input),
     )
+  let errors =
+    list.append(errors, bxgy_numeric_validation_errors(input_name, input))
   let errors =
     list.append(errors, bxgy_disallowed_subscription_errors(input_name, input))
   let errors = case title_is_blank(input) {
@@ -2682,6 +2949,141 @@ pub fn bxgy_disallowed_value_errors(
       }
     }
     None -> []
+  }
+}
+
+@internal
+pub fn bxgy_numeric_validation_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  []
+  |> list.append(bxgy_uses_per_order_limit_errors(input_name, input))
+  |> list.append(bxgy_customer_buys_quantity_errors(input_name, input))
+  |> list.append(bxgy_customer_gets_quantity_errors(input_name, input))
+}
+
+@internal
+pub fn bxgy_uses_per_order_limit_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(input, "usesPerOrderLimit") {
+    Ok(value) ->
+      case resolved_integer(value) {
+        Some(limit) if limit == 0 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit cannot be zero",
+            "VALUE_OUTSIDE_RANGE",
+          ),
+        ]
+        Some(limit) if limit < 0 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit must be greater than 0",
+            "GREATER_THAN",
+          ),
+        ]
+        Some(limit) if limit > 2_147_483_647 -> [
+          discount_types.user_error(
+            [input_name, "usesPerOrderLimit"],
+            "Allocation limit must be less than or equal to 2147483647",
+            "LESS_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        _ -> []
+      }
+    Error(_) -> []
+  }
+}
+
+@internal
+pub fn bxgy_customer_buys_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_value(input, "customerBuys") {
+    root_field.ObjectVal(fields) ->
+      case discount_types.read_value(fields, "value") {
+        root_field.ObjectVal(value_fields) ->
+          validate_bxgy_quantity_value(
+            input_name,
+            ["customerBuys", "value", "quantity"],
+            "antecedent",
+            discount_types.read_value(value_fields, "quantity"),
+          )
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+@internal
+pub fn bxgy_customer_gets_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(value_fields) ->
+      case dict.get(value_fields, "discountOnQuantity") {
+        Ok(root_field.ObjectVal(quantity_fields)) ->
+          validate_bxgy_quantity_value(
+            input_name,
+            ["customerGets", "value", "discountOnQuantity", "quantity"],
+            "consequent",
+            discount_types.read_value(quantity_fields, "quantity"),
+          )
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_bxgy_quantity_value(
+  input_name: String,
+  field_tail: List(String),
+  role: String,
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case resolved_integer(value) {
+    Some(quantity) if quantity <= 0 -> [
+      discount_types.user_error(
+        [input_name, ..field_tail],
+        "Prerequisite to entitlement quantity ratio "
+          <> role
+          <> " must be greater than 0",
+        "GREATER_THAN",
+      ),
+    ]
+    Some(quantity) if quantity >= 100_000 -> [
+      discount_types.user_error(
+        [input_name, ..field_tail],
+        "Prerequisite to entitlement quantity ratio "
+          <> role
+          <> " must be less than 100000",
+        "LESS_THAN",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn resolved_integer(value: root_field.ResolvedValue) -> Option(Int) {
+  case value {
+    root_field.IntVal(value) -> Some(value)
+    root_field.StringVal(value) -> {
+      let value = string.trim(value)
+      case string.starts_with(value, "+") {
+        True -> string.drop_start(value, 1)
+        False -> value
+      }
+      |> int.parse
+      |> option.from_result
+    }
+    _ -> None
   }
 }
 

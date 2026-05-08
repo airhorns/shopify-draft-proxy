@@ -1,0 +1,224 @@
+mutation DiscountTitleValidationUpdate(
+  $codeBasicId: ID!
+  $codeBxgyId: ID!
+  $codeFreeShippingId: ID!
+  $automaticBasicId: ID!
+  $automaticBxgyId: ID!
+  $automaticFreeShippingId: ID!
+  $codeAppId: ID!
+  $automaticAppId: ID!
+  $codeBasicBlank: DiscountCodeBasicInput!
+  $codeBasicTooLong: DiscountCodeBasicInput!
+  $codeBxgyBlank: DiscountCodeBxgyInput!
+  $codeBxgyTooLong: DiscountCodeBxgyInput!
+  $codeFreeShippingBlank: DiscountCodeFreeShippingInput!
+  $codeFreeShippingTooLong: DiscountCodeFreeShippingInput!
+  $automaticBasicBlank: DiscountAutomaticBasicInput!
+  $automaticBasicTooLong: DiscountAutomaticBasicInput!
+  $automaticBxgyBlank: DiscountAutomaticBxgyInput!
+  $automaticBxgyTooLong: DiscountAutomaticBxgyInput!
+  $automaticFreeShippingBlank: DiscountAutomaticFreeShippingInput!
+  $automaticFreeShippingTooLong: DiscountAutomaticFreeShippingInput!
+  $codeAppBlank: DiscountCodeAppInput!
+  $codeAppTooLong: DiscountCodeAppInput!
+  $automaticAppBlank: DiscountAutomaticAppInput!
+  $automaticAppTooLong: DiscountAutomaticAppInput!
+) {
+  codeBasicBlank: discountCodeBasicUpdate(id: $codeBasicId, basicCodeDiscount: $codeBasicBlank) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBasicTooLong: discountCodeBasicUpdate(id: $codeBasicId, basicCodeDiscount: $codeBasicTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBxgyBlank: discountCodeBxgyUpdate(id: $codeBxgyId, bxgyCodeDiscount: $codeBxgyBlank) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBxgyTooLong: discountCodeBxgyUpdate(id: $codeBxgyId, bxgyCodeDiscount: $codeBxgyTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeFreeShippingBlank: discountCodeFreeShippingUpdate(
+    id: $codeFreeShippingId
+    freeShippingCodeDiscount: $codeFreeShippingBlank
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeFreeShippingTooLong: discountCodeFreeShippingUpdate(
+    id: $codeFreeShippingId
+    freeShippingCodeDiscount: $codeFreeShippingTooLong
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicBlank: discountAutomaticBasicUpdate(
+    id: $automaticBasicId
+    automaticBasicDiscount: $automaticBasicBlank
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicTooLong: discountAutomaticBasicUpdate(
+    id: $automaticBasicId
+    automaticBasicDiscount: $automaticBasicTooLong
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgyBlank: discountAutomaticBxgyUpdate(id: $automaticBxgyId, automaticBxgyDiscount: $automaticBxgyBlank) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgyTooLong: discountAutomaticBxgyUpdate(
+    id: $automaticBxgyId
+    automaticBxgyDiscount: $automaticBxgyTooLong
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShippingBlank: discountAutomaticFreeShippingUpdate(
+    id: $automaticFreeShippingId
+    freeShippingAutomaticDiscount: $automaticFreeShippingBlank
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShippingTooLong: discountAutomaticFreeShippingUpdate(
+    id: $automaticFreeShippingId
+    freeShippingAutomaticDiscount: $automaticFreeShippingTooLong
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeAppBlank: discountCodeAppUpdate(id: $codeAppId, codeAppDiscount: $codeAppBlank) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeAppTooLong: discountCodeAppUpdate(id: $codeAppId, codeAppDiscount: $codeAppTooLong) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticAppBlank: discountAutomaticAppUpdate(id: $automaticAppId, automaticAppDiscount: $automaticAppBlank) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticAppTooLong: discountAutomaticAppUpdate(id: $automaticAppId, automaticAppDiscount: $automaticAppTooLong) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

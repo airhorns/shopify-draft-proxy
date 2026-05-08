@@ -5,21 +5,32 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/list
+import gleam/option.{None, Some}
+import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue,
+  type FragmentMap, type SourceValue, SrcObject, SrcString,
+  project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/products/collections_core as collections
 import shopify_draft_proxy/proxy/products/hydration
+import shopify_draft_proxy/proxy/products/inventory_handlers
+import shopify_draft_proxy/proxy/products/inventory_shipments_handlers
+import shopify_draft_proxy/proxy/products/inventory_transfers
+import shopify_draft_proxy/proxy/products/media_core
 import shopify_draft_proxy/proxy/products/mutations
 import shopify_draft_proxy/proxy/products/product_types
 import shopify_draft_proxy/proxy/products/products_handlers as product_serializers
 import shopify_draft_proxy/proxy/products/products_records as product_sources
+import shopify_draft_proxy/proxy/products/publications_core
+import shopify_draft_proxy/proxy/products/publications_publishable
 import shopify_draft_proxy/proxy/products/queries
 import shopify_draft_proxy/proxy/products/selling_plans_core as selling_plans
+import shopify_draft_proxy/proxy/products/selling_plans_handlers
 import shopify_draft_proxy/proxy/products/variants_options as options
 import shopify_draft_proxy/proxy/products/variants_options_core as option_values
 import shopify_draft_proxy/proxy/products/variants_sources as variants
@@ -32,7 +43,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductRecord, type ProductVariantRecord,
+  type ChannelRecord, type InventoryLevelRecord, type InventoryShipmentRecord,
+  type InventoryTransferRecord, type ProductFeedRecord, type ProductMediaRecord,
+  type ProductRecord, type ProductVariantRecord, type PublicationRecord,
+  type SellingPlanGroupRecord,
 }
 
 pub type ProductsError =
@@ -186,6 +200,70 @@ pub fn serialize_selling_plan_node_by_id(
   )
 }
 
+pub fn inventory_item_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  inventory_handlers.inventory_item_source(store, variant)
+}
+
+pub fn inventory_level_source_with_item(
+  store: Store,
+  variant: ProductVariantRecord,
+  level: InventoryLevelRecord,
+) -> SourceValue {
+  inventory_handlers.inventory_level_source_with_item(store, variant, level)
+}
+
+pub fn inventory_transfer_source(
+  store: Store,
+  transfer: InventoryTransferRecord,
+) -> SourceValue {
+  inventory_transfers.inventory_transfer_source(store, transfer)
+}
+
+pub fn inventory_shipment_source(
+  store: Store,
+  shipment: InventoryShipmentRecord,
+) -> SourceValue {
+  inventory_shipments_handlers.inventory_shipment_source(store, shipment)
+}
+
+pub fn product_feed_source(feed: ProductFeedRecord) -> SourceValue {
+  publications_core.product_feed_source(feed)
+}
+
+pub fn publication_source(
+  store: Store,
+  publication: PublicationRecord,
+) -> SourceValue {
+  publications_publishable.publication_source(store, publication)
+}
+
+pub fn channel_source(store: Store, channel: ChannelRecord) -> SourceValue {
+  publications_core.channel_source(store, channel)
+}
+
+pub fn product_media_source(media: ProductMediaRecord) -> SourceValue {
+  media_core.product_media_source(media)
+}
+
+pub fn serialize_selling_plan_group_node(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  selection: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  selling_plans_handlers.serialize_selling_plan_group_object(
+    store,
+    group,
+    selection,
+    variables,
+    fragments,
+  )
+}
+
 pub fn product_source(product: ProductRecord) -> SourceValue {
   product_sources.product_source(product)
 }
@@ -195,6 +273,234 @@ pub fn product_variant_source(
   variant: ProductVariantRecord,
 ) -> SourceValue {
   variants.product_variant_source(store, variant)
+}
+
+pub fn serialize_product_variant_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_variant_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        product_variant_source(store, record),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_item_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.find_effective_variant_by_inventory_item_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_item_source(store, record),
+        "InventoryItem",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_level_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case find_inventory_level_node_target(store, id) {
+    Some(target) -> {
+      let #(variant, level) = target
+      project_node_source(
+        inventory_level_source_with_item(store, variant, level),
+        "InventoryLevel",
+        selections,
+        fragments,
+      )
+    }
+    None -> json.null()
+  }
+}
+
+fn find_inventory_level_node_target(store: Store, id: String) {
+  store
+  |> store.list_effective_product_variants
+  |> list.filter_map(fn(variant) {
+    case variant.inventory_item {
+      Some(item) ->
+        item.inventory_levels
+        |> list.find(fn(level) { level.id == id })
+        |> result.map(fn(level) { #(variant, level) })
+      None -> Error(Nil)
+    }
+  })
+  |> list.first
+  |> option.from_result
+}
+
+pub fn serialize_inventory_transfer_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_inventory_transfer_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_transfer_source(store, record),
+        "InventoryTransfer",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_shipment_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_inventory_shipment_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_shipment_source(store, record),
+        "InventoryShipment",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_product_feed_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_feed_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        product_feed_source(record),
+        "ProductFeed",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_publication_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_publication_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        publication_source(store, record),
+        "Publication",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_channel_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_channel_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        channel_source(store, record),
+        "Channel",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_selling_plan_group_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_selling_plan_group_by_id(store, id) {
+    Some(record) ->
+      serialize_selling_plan_group_node(
+        store,
+        record,
+        selections,
+        variables,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_product_media_node_by_id(
+  store: Store,
+  id: String,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case find_product_media_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        product_media_source(record),
+        typename,
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn find_product_media_by_id(store: Store, id: String) {
+  store
+  |> store.list_effective_product_media
+  |> list.find(fn(media) { media.id == Some(id) })
+  |> option.from_result
+}
+
+fn project_node_source(
+  source: SourceValue,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    source_with_typename(source, typename),
+    selections,
+    fragments,
+  )
+}
+
+fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
+  case source {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    _ -> source
+  }
 }
 
 pub fn process_mutation(

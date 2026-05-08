@@ -1,0 +1,3750 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "products": [
+      {
+        "id": "gid://shopify/Product/10180236017970",
+        "title": "Conformance BXGY numeric buy product 1778195290726"
+      },
+      {
+        "id": "gid://shopify/Product/10180236083506",
+        "title": "Conformance BXGY numeric get product 1778195290726"
+      }
+    ],
+    "codeCreate": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640810610994"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreate": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640810643762"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "codeCreateUsesLimitZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907261",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 0
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit cannot be zero",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateUsesLimitZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 0
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit cannot be zero",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateUsesLimitNegative": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907262",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": -1
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateUsesLimitNegative": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": -1
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateUsesLimitTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907263",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 2147483648
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be less than or equal to 2147483647",
+                "code": "LESS_THAN_OR_EQUAL_TO",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateUsesLimitTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 2147483648
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be less than or equal to 2147483647",
+                "code": "LESS_THAN_OR_EQUAL_TO",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateBuyQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907264",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "0"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateBuyQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "0"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateBuyQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907265",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2147483648"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateBuyQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2147483648"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateGetQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907266",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "0",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateGetQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "0",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateGetQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNV17781952907267",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "2147483648",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateGetQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "2147483648",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateUsesLimitZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 1",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "0"
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit cannot be zero",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateUsesLimitZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "0"
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit cannot be zero",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateUsesLimitTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 2",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "2147483648"
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be less than or equal to 2147483647",
+                "code": "LESS_THAN_OR_EQUAL_TO",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateUsesLimitTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "2147483648"
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "usesPerOrderLimit"],
+                "message": "Allocation limit must be less than or equal to 2147483647",
+                "code": "LESS_THAN_OR_EQUAL_TO",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateBuyQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 3",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "0"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateBuyQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "0"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateBuyQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 4",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2147483648"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateBuyQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2147483648"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerBuys", "value", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateGetQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 5",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "0",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateGetQuantityZero": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "0",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
+                "code": "GREATER_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateGetQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic validation 1778195290726 6",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "2147483648",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateGetQuantityTooLarge": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "2147483648",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+                "message": "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
+                "code": "LESS_THAN",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateUsesLimitFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1.5"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBxgyInput! was provided invalid value for usesPerOrderLimit (Could not coerce value \"1.5\" to Int)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 50
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY code SETUP 1778195290726",
+                "code": "BXGYNSETUP1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "1.5"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "Could not coerce value \"1.5\" to Int"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "codeUpdateUsesLimitFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1.5"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBxgyInput! was provided invalid value for usesPerOrderLimit (Could not coerce value \"1.5\" to Int)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 60
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY code SETUP 1778195290726",
+                "code": "BXGYNSETUP1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "1.5"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "Could not coerce value \"1.5\" to Int"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateUsesLimitNegative": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "-1"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for usesPerOrderLimit (UnsignedInt64 '-1' is out of range)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 55
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "-1"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "UnsignedInt64 '-1' is out of range",
+                  "message": "UnsignedInt64 '-1' is out of range"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticUpdateUsesLimitNegative": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "-1"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for usesPerOrderLimit (UnsignedInt64 '-1' is out of range)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 65
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "-1"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "UnsignedInt64 '-1' is out of range",
+                  "message": "UnsignedInt64 '-1' is out of range"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateUsesLimitFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1.5"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for usesPerOrderLimit (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 55
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "1.5"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticUpdateUsesLimitFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1.5"
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for usesPerOrderLimit (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 65
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                },
+                "usesPerOrderLimit": "1.5"
+              },
+              "problems": [
+                {
+                  "path": ["usesPerOrderLimit"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "codeCreateBuyQuantityFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1.5"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBxgyInput! was provided invalid value for customerBuys.value.quantity (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 50
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY code SETUP 1778195290726",
+                "code": "BXGYNSETUP1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1.5"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerBuys", "value", "quantity"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "codeUpdateBuyQuantityFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code SETUP 1778195290726",
+          "code": "BXGYNSETUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1.5"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBxgyInput! was provided invalid value for customerBuys.value.quantity (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 60
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY code SETUP 1778195290726",
+                "code": "BXGYNSETUP1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1.5"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerBuys", "value", "quantity"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateGetQuantityNegative": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "-3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for customerGets.value.discountOnQuantity.quantity (UnsignedInt64 '-3' is out of range)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 55
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "-3",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountOnQuantity", "quantity"],
+                  "explanation": "UnsignedInt64 '-3' is out of range",
+                  "message": "UnsignedInt64 '-3' is out of range"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticUpdateGetQuantityNegative": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "-3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for customerGets.value.discountOnQuantity.quantity (UnsignedInt64 '-3' is out of range)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 65
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "-3",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountOnQuantity", "quantity"],
+                  "explanation": "UnsignedInt64 '-3' is out of range",
+                  "message": "UnsignedInt64 '-3' is out of range"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateGetQuantityFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1.5",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for customerGets.value.discountOnQuantity.quantity (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 55
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1.5",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountOnQuantity", "quantity"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticUpdateGetQuantityFloatString": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic SETUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1.5",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticBxgyInput! was provided invalid value for customerGets.value.discountOnQuantity.quantity (UnsignedInt64 invalid value '1.5')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 65
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance BXGY automatic SETUP 1778195290726",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236017970"]
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "discountOnQuantity": {
+                      "quantity": "1.5",
+                      "effect": {
+                        "percentage": 0.5
+                      }
+                    }
+                  },
+                  "items": {
+                    "products": {
+                      "productsToAdd": ["gid://shopify/Product/10180236083506"]
+                    }
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountOnQuantity", "quantity"],
+                  "explanation": "UnsignedInt64 invalid value '1.5'",
+                  "message": "UnsignedInt64 invalid value '1.5'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "codeCreateRatioAccepted": {
+      "query": "mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY code RATIO 1778195290726",
+          "code": "BXGYNRATIO1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "7"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640810676530"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateRatioAccepted": {
+      "query": "mutation DiscountBxgyNumericValidationCodeUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640810610994",
+        "input": {
+          "title": "Conformance BXGY code RATIOUP 1778195290726",
+          "code": "BXGYNRATIOUP1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "7"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640810610994"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateRatioAccepted": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticCreate($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Conformance BXGY automatic RATIO 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "7"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640810709298"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateRatioAccepted": {
+      "query": "mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1640810643762",
+        "input": {
+          "title": "Conformance BXGY automatic RATIOUP 1778195290726",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "7"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236017970"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "3",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10180236083506"]
+              }
+            }
+          }
+        }
+      },
+      "payload": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1640810643762"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "discountAutomaticDelete ratio update",
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1640810643762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "discountAutomaticDelete ratio create",
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1640810709298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "discountCodeDelete ratio update",
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640810610994",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "discountCodeDelete ratio create",
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640810676530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "discountAutomaticDelete setup",
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Automatic discount does not exist.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "discountCodeDelete setup",
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Code discount does not exist.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "get productDelete",
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10180236083506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "buy productDelete",
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10180236017970",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

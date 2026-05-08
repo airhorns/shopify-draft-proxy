@@ -4972,6 +4972,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-numeric-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-numeric-bounds-conformance.ts',
+    purpose:
+      'Discount usageLimit, recurringCycleLimit, and fixed amount numeric bounds for basic code/automatic create and update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-numeric-bounds.json`,
+      'config/parity-specs/discounts/discount-numeric-bounds.json',
+      'config/parity-requests/discounts/discount-numeric-bounds-setup.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-variable.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-literal.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code and automatic basic discounts for update validation, captures rejected validation branches, then deletes setup discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-buyer-context',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
@@ -5001,6 +5024,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-disallowed-value-shapes.json`],
     cleanupBehavior: 'Deletes temporary products after capturing rejected discount mutations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-bxgy-numeric-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-bxgy-numeric-validation-conformance.ts',
+    purpose:
+      'Buy-X-get-Y usesPerOrderLimit and quantity numeric validation for code and automatic create/update, plus captured ratio acceptance.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-bxgy-numeric-validation.json`,
+      'config/parity-specs/discounts/discount-bxgy-numeric-validation.json',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql',
+    ],
+    cleanupBehavior: 'Creates temporary products and setup BXGY discounts, then deletes captured discounts/products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5227,6 +5269,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable app-managed code and automatic discounts, captures validation failures plus a combinesWith acceptance probe, and deletes all created discounts in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-title-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-title-validation-conformance.ts',
+    purpose:
+      'Discount title blank and overlong userErrors across code, automatic, and app-managed create/update roots.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released discount Shopify Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-title-validation.json`,
+      'config/parity-specs/discounts/discount-title-validation.json',
+      'config/parity-requests/discounts/discount-title-validation-setup.graphql',
+      'config/parity-requests/discounts/discount-title-validation-create.graphql',
+      'config/parity-requests/discounts/discount-title-validation-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code, automatic, and app-managed discounts for update IDs, captures blank-title and 256-character title validation failures, and deletes every created discount in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

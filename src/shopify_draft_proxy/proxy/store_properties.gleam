@@ -5,13 +5,13 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue,
+  type FragmentMap, type SourceValue, project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -130,6 +130,19 @@ pub fn serialize_shop_policy_node_by_id(
   fragments: FragmentMap,
 ) -> Json {
   serializers.serialize_shop_policy_node_by_id(store, id, selections, fragments)
+}
+
+pub fn serialize_domain_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case primary_domain_for_id(store, id) {
+    Some(domain) ->
+      project_graphql_value(shop_domain_source(domain), selections, fragments)
+    None -> json.null()
+  }
 }
 
 pub fn primary_domain_for_id(

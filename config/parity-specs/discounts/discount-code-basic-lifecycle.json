@@ -9,7 +9,8 @@
     "discountNode",
     "codeDiscountNodeByCode",
     "discountNodes",
-    "discountNodesCount"
+    "discountNodesCount",
+    "node"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "mutation-lifecycle"],
@@ -85,6 +86,28 @@
             },
             "code": {
               "fromCapturePath": "$.variables.updatedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-basic-admin-node-read-after-update",
+        "capturePath": "$.update.payload.data.discountCodeBasicUpdate.codeDiscountNode",
+        "proxyPath": "$.data.codeDiscountNode",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.codeDiscount.__typename",
+          "$.codeDiscount.title",
+          "$.codeDiscount.asyncUsageCount",
+          "$.codeDiscount.discountClasses",
+          "$.codeDiscount.codes.nodes[0].code",
+          "$.codeDiscount.codes.nodes[0].asyncUsageCount"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-discount-code-node-read-after-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             }
           }
         }
@@ -216,5 +239,5 @@
       }
     ]
   },
-  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 native DiscountCodeBasic create, successful update to fixed amount, deactivate, activate, delete cleanup, and downstream reads after each transition. The code-basic fixture was re-recorded with Shopify's current `discountAmount` input field. Targets compare deterministic lifecycle fields and read-after-write state while leaving live IDs, timestamps, money currency defaults, generated summaries, and opaque cursors out of the contract."
+  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 native DiscountCodeBasic create, successful update to fixed amount, generic node(id:) readback after update, deactivate, activate, delete cleanup, and downstream reads after each transition. The code-basic fixture was re-recorded with Shopify's current `discountAmount` input field. Targets compare deterministic lifecycle fields and read-after-write state while leaving live IDs, timestamps, money currency defaults, generated summaries, and opaque cursors out of the contract."
 }
