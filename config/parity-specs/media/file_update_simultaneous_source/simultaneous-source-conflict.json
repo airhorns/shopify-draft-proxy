@@ -1,0 +1,37 @@
+{
+  "scenarioId": "media-file-update-simultaneous-source-conflict",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-simultaneous-source-conflict.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/file_update_simultaneous_source/update.graphql",
+    "variablesCapturePath": "$.cases.oneInput.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 fileUpdate validation when originalSource and previewImageSource are both supplied. Shopify returns two INVALID userErrors per offending input, one at previewImageSource and one at originalSource, with the same message for both fields; it returns files: [] and does not apply a file update.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "one-input-conflict",
+        "capturePath": "$.cases.oneInput.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate"
+      },
+      {
+        "name": "two-input-conflict",
+        "capturePath": "$.cases.twoInput.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_simultaneous_source/update.graphql",
+          "variablesCapturePath": "$.cases.twoInput.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "abandonedCart": {
+    "title": "Source medium abandoned cart",
+    "remoteId": "source-medium-abandoned-cart",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-abandoned-cart",
+    "tactic": "ABANDONED_CART",
+    "marketingChannelType": "EMAIL",
+    "utm": {
+      "campaign": "source-medium-abandoned-cart",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "affiliate": {
+    "title": "Source medium affiliate",
+    "remoteId": "source-medium-affiliate",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-affiliate",
+    "tactic": "AFFILIATE",
+    "marketingChannelType": "SEARCH",
+    "utm": {
+      "campaign": "source-medium-affiliate",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "loyalty": {
+    "title": "Source medium loyalty",
+    "remoteId": "source-medium-loyalty",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-loyalty",
+    "tactic": "LOYALTY",
+    "marketingChannelType": "DISPLAY",
+    "utm": {
+      "campaign": "source-medium-loyalty",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "retargetingFacebook": {
+    "title": "Source medium retargeting facebook",
+    "remoteId": "source-medium-retargeting-facebook",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-retargeting-facebook",
+    "tactic": "RETARGETING",
+    "marketingChannelType": "DISPLAY",
+    "referringDomain": "facebook.com",
+    "utm": {
+      "campaign": "source-medium-retargeting-facebook",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "retargetingNoDomain": {
+    "title": "Source medium retargeting no domain",
+    "remoteId": "source-medium-retargeting-none",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-retargeting-none",
+    "tactic": "RETARGETING",
+    "marketingChannelType": "DISPLAY",
+    "utm": {
+      "campaign": "source-medium-retargeting-none",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "messageFacebook": {
+    "title": "Source medium message facebook",
+    "remoteId": "source-medium-message-facebook",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-message-facebook",
+    "tactic": "MESSAGE",
+    "marketingChannelType": "SEARCH",
+    "referringDomain": "facebook.com",
+    "utm": {
+      "campaign": "source-medium-message-facebook",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "messageOther": {
+    "title": "Source medium message other",
+    "remoteId": "source-medium-message-twitter",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-message-twitter",
+    "tactic": "MESSAGE",
+    "marketingChannelType": "SEARCH",
+    "referringDomain": "twitter.com",
+    "utm": {
+      "campaign": "source-medium-message-twitter",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "adReferringDomain": {
+    "title": "Source medium ad referring domain",
+    "remoteId": "source-medium-ad-instagram",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-ad-instagram",
+    "tactic": "AD",
+    "marketingChannelType": "SEARCH",
+    "referringDomain": "instagram.com",
+    "utm": {
+      "campaign": "source-medium-ad-instagram",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "adNoDomain": {
+    "title": "Source medium ad no domain",
+    "remoteId": "source-medium-ad-none",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-ad-none",
+    "tactic": "AD",
+    "marketingChannelType": "SEARCH",
+    "utm": {
+      "campaign": "source-medium-ad-none",
+      "source": "marketing",
+      "medium": "test"
+    }
+  }
+}

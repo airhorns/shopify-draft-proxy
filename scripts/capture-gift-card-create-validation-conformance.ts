@@ -133,6 +133,19 @@ const validationMutation = `#graphql
         message
       }
     }
+    shortCodeMissingCustomer: giftCardCreate(
+      input: { initialValue: "10", code: "abc", customerId: $missingCustomerId }
+    ) {
+      giftCard {
+        id
+      }
+      giftCardCode
+      userErrors {
+        field
+        code
+        message
+      }
+    }
     missingCustomer: giftCardCreate(
       input: { initialValue: "10", customerId: $missingCustomerId }
     ) {
@@ -231,7 +244,7 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-692 captures giftCardCreate validation userErrors for initial value, code length/format/uniqueness, and missing customer handling.',
+        'Captures giftCardCreate validation userErrors for initial value, code length/format/uniqueness, missing customer handling, and combined invalid-code plus missing-customer precedence.',
         'The duplicate-code branch is captured by issuing the same run-unique valid code twice in one GraphQL mutation, avoiding permanent collisions from prior disposable gift-card captures.',
         'Successful gift cards created for validation evidence are deactivated during cleanup; Shopify gift-card code uniqueness remains shop-scoped, so the recorded valid code is intentionally run-unique.',
       ],

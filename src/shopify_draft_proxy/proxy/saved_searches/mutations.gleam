@@ -824,6 +824,7 @@ fn reserved_names_for_resource_type(resource_type: String) -> List(String) {
     "DRAFT_ORDER" -> ["All Drafts"]
     "FILE" -> ["All Files"]
     "CUSTOMER" -> ["All Customers"]
+    "DISCOUNT_REDEEM_CODE" -> ["All codes"]
     _ -> []
   }
 }

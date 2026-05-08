@@ -707,6 +707,35 @@ pub fn file_update_rejects_source_and_revert_version_conflict_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
 }
 
+pub fn file_update_rejects_original_and_preview_source_conflict_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/v2.jpg\", previewImageSource: \"https://cdn.example.com/preview-v2.jpg\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn file_update_rejects_multiple_original_and_preview_source_conflicts_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_image(),
+      FileRecord(..ready_image(), id: "gid://shopify/MediaImage/2"),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/first.jpg\", previewImageSource: \"https://cdn.example.com/first-preview.jpg\" }, { id: \"gid://shopify/MediaImage/2\", originalSource: \"https://cdn.example.com/second.jpg\", previewImageSource: \"https://cdn.example.com/second-preview.jpg\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"}]}}}"
+}
+
 pub fn file_update_rejects_unknown_revert_version_id_test() {
   let transport =
     upstream_client.SyncTransport(send: fn(_req) {

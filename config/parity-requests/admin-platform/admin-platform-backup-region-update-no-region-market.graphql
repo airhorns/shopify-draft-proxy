@@ -1,0 +1,18 @@
+mutation BackupRegionUpdateNoRegionMarket {
+  backupRegionUpdate(region: { countryCode: AT }) {
+    backupRegion {
+      __typename
+      id
+      name
+      ... on MarketRegionCountry {
+        code
+      }
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

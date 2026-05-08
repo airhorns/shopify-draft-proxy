@@ -507,7 +507,7 @@ pub fn hydrate_mutation_prerequisites(
   case root_name {
     "fulfillmentServiceCreate" | "fulfillmentServiceUpdate" ->
       maybe_hydrate_fulfillment_services_catalog(store_in, upstream)
-    "deliveryProfileCreate" -> {
+    "deliveryProfileCreate" | "deliveryProfileUpdate" -> {
       // Pattern 2: delivery profiles project `profileItems` with
       // product/variant titles, which are upstream product-domain data.
       // Hydrate only the associated variants first; Snapshot mode and
@@ -862,10 +862,12 @@ pub fn maybe_hydrate_delivery_profile_locations(
 pub fn delivery_profile_create_location_ids(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(String) {
-  list.append(
+  [
     read_object_array(input, "profileLocationGroups"),
     read_object_array(input, "locationGroupsToCreate"),
-  )
+    read_object_array(input, "locationGroupsToUpdate"),
+  ]
+  |> list.flatten
   |> list.flat_map(fn(group) {
     list.append(
       read_string_array(group, "locations"),

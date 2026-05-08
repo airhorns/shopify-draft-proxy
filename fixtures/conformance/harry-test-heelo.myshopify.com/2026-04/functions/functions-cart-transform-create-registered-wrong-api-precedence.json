@@ -1,0 +1,275 @@
+{
+  "scenarioId": "functions-cart-transform-create-registered-wrong-api-precedence",
+  "capturedAt": "2026-05-08T05:33:05.328Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "cartTransformCreate precedence when a validation Function is already registered on the shop.",
+  "functionRead": {
+    "query": "query ReadCartTransformRegisteredWrongApiFunctions {\n  shopifyFunctions(first: 50) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationCreateSetup": {
+    "query": "mutation FunctionsCartTransformRegisteredWrongApiValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "validation": {
+        "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+        "title": "Registered wrong API precedence 1778218384851",
+        "enable": false,
+        "blockOnFailure": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationCreate": {
+            "validation": {
+              "id": "gid://shopify/Validation/89096498",
+              "title": "Registered wrong API precedence 1778218384851"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateRegisteredWrongApiById": {
+    "query": "mutation FunctionsCartTransformRegisteredWrongApiById($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+      "blockOnFailure": false
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["functionId"],
+                "message": "Could not enable cart transform because it is already registered",
+                "code": "FUNCTION_ALREADY_REGISTERED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateRegisteredWrongApiByHandle": {
+    "query": "mutation FunctionsCartTransformRegisteredWrongApiByHandle($functionHandle: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionHandle: $functionHandle, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionHandle": "conformance-validation",
+      "blockOnFailure": false
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["functionHandle"],
+                "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+                "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation DeleteRegisteredWrongApiValidation($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/89096498"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationDelete": {
+            "deletedId": "gid://shopify/Validation/89096498",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": {
+    "functionIdPrecedence": "After validationCreate registers the validation Function on the shop, Shopify returns FUNCTION_ALREADY_REGISTERED for cartTransformCreate(functionId) before the cart-transform API mismatch.",
+    "functionHandlePrecedence": "For the same registered validation Function, Shopify still returns FUNCTION_DOES_NOT_IMPLEMENT for cartTransformCreate(functionHandle) from the handle/API resolution path.",
+    "cleanup": "The disposable Validation created for setup was deleted before the fixture was written."
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "019dd44b-127f-7061-a930-422cbd4a751f"
+      },
+      "query": "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "title": "conformance-validation",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation",
+              "description": "conformance-validation",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

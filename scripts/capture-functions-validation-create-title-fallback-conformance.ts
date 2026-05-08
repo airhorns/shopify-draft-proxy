@@ -110,6 +110,15 @@ function assertTitle(value: unknown, expected: string, context: string): void {
   }
 }
 
+function assertFunctionReference(value: JsonRecord, expectedId: string, expectedHandle: string, context: string): void {
+  const shopifyFunction = readRecord(value['shopifyFunction']);
+  if (!shopifyFunction || shopifyFunction['id'] !== expectedId || shopifyFunction['handle'] !== expectedHandle) {
+    throw new Error(
+      `${context} Function reference mismatch: expected ${JSON.stringify({ id: expectedId, handle: expectedHandle })}, got ${JSON.stringify(shopifyFunction)}`,
+    );
+  }
+}
+
 const functionLookupDocument = `#graphql
   query ValidationCreateTitleFallbackFunctionLookup {
     shopifyFunctions(first: 20) {
@@ -155,6 +164,10 @@ const validationCreateDocument = `#graphql
       validation {
         id
         title
+        shopifyFunction {
+          id
+          handle
+        }
       }
       userErrors {
         field
@@ -166,6 +179,10 @@ const validationCreateDocument = `#graphql
       validation {
         id
         title
+        shopifyFunction {
+          id
+          handle
+        }
       }
       userErrors {
         field
@@ -177,6 +194,10 @@ const validationCreateDocument = `#graphql
       validation {
         id
         title
+        shopifyFunction {
+          id
+          handle
+        }
       }
       userErrors {
         field
@@ -192,6 +213,10 @@ const validationReadDocument = `#graphql
     validation(id: $id) {
       id
       title
+      shopifyFunction {
+        id
+        handle
+      }
     }
   }
 `;
@@ -201,6 +226,10 @@ const validationsReadDocument = `#graphql
     validations(first: 3) {
       nodes {
         title
+        shopifyFunction {
+          id
+          handle
+        }
       }
     }
   }
@@ -263,6 +292,7 @@ if (!validationFunction) {
   throw new Error(`Missing released validation Function handle ${validationFunctionHandle}`);
 }
 readString(validationFunction['title'], 'validation Function title');
+const validationFunctionId = readString(validationFunction['id'], 'validation Function id');
 
 const preCleanup = await cleanupExistingValidations();
 let createdValidationIds: string[] = [];
@@ -287,6 +317,14 @@ try {
   const observedFallbackTitle = readString(omitted['title'], 'omitted validationCreate title');
   assertTitle(explicitNull['title'], observedFallbackTitle, 'explicitNull validationCreate');
   assertTitle(emptyString['title'], '', 'emptyString validationCreate');
+  assertFunctionReference(omitted, validationFunctionId, validationFunctionHandle, 'omitted validationCreate');
+  assertFunctionReference(
+    explicitNull,
+    validationFunctionId,
+    validationFunctionHandle,
+    'explicitNull validationCreate',
+  );
+  assertFunctionReference(emptyString, validationFunctionId, validationFunctionHandle, 'emptyString validationCreate');
 
   const postCreateValidationRead = await capture(validationReadDocument, {
     id: createdValidationIds[0],
@@ -297,6 +335,18 @@ try {
     observedFallbackTitle,
     'post-create validation(id:) read',
   );
+  const postCreateValidation = readRecord(readPath(postCreateValidationRead.response.payload, ['data', 'validation']));
+  if (!postCreateValidation) {
+    throw new Error(
+      `post-create validation(id:) read missing validation: ${JSON.stringify(postCreateValidationRead.response, null, 2)}`,
+    );
+  }
+  assertFunctionReference(
+    postCreateValidation,
+    validationFunctionId,
+    validationFunctionHandle,
+    'post-create validation(id:) read',
+  );
 
   const postCreateValidationsRead = await capture(validationsReadDocument);
   assertNoTopLevelErrors(postCreateValidationsRead, 'post-create validations read');
@@ -305,6 +355,14 @@ try {
   if (JSON.stringify(connectionTitles) !== JSON.stringify(expectedTitles)) {
     throw new Error(
       `post-create validations(first: 3) titles mismatch: expected ${JSON.stringify(expectedTitles)}, got ${JSON.stringify(connectionTitles)}`,
+    );
+  }
+  for (const [index, node] of validationNodes(postCreateValidationsRead).entries()) {
+    assertFunctionReference(
+      node,
+      validationFunctionId,
+      validationFunctionHandle,
+      `post-create validations(first: 3) node ${index}`,
     );
   }
 
@@ -360,6 +418,8 @@ try {
         'The script deletes disposable validations before capture, creates omitted-title/null-title/empty-string-title validations, verifies mutation payload titles and downstream reads, then deletes the created validations.',
       titleFallback:
         'Shopify persisted the same Function-derived fallback for omitted and explicit null title input. The current conformance extension stores raw name t:name while shopifyFunctions.title returns the localized name, so the cassette title uses the mutation-observed fallback for local replay. An explicit empty string stayed empty.',
+      functionReference:
+        'Shopify persisted the resolved Function reference for handle-only validationCreate input and read it back through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields.',
     },
   };
 
