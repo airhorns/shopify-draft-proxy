@@ -4653,6 +4653,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'fulfillment-multi-tracking-info',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-multi-tracking-conformance.ts',
+    purpose:
+      'fulfillmentCreate and fulfillmentTrackingInfoUpdate multi-package tracking numbers/urls behavior and downstream order fulfillment visibility.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-multi-tracking-info.json`,
+      'config/parity-specs/orders/fulfillment-multi-tracking-info.json',
+      'config/parity-requests/orders/fulfillmentCreate-multi-tracking.graphql',
+      'config/parity-requests/orders/fulfillmentTrackingInfoUpdate-multi-tracking.graphql',
+      'config/parity-requests/orders/fulfillment-multi-tracking-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable paid test order, captures fulfillment create and tracking update behavior, then cancels/deletes the order where Shopify permits cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin schema for the configured API exposes FulfillmentTrackingInput numbers/urls fields; trackingDetails/trackingCompany are not accepted by Shopify for this root.',
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-lifecycle-user-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',

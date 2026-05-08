@@ -8,6 +8,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/orders/common as orders_common
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -3188,6 +3189,130 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6834528944361\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"CANCELLED\",\"displayStatus\":\"CANCELED\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]}]}}}"
 }
 
+pub fn orders_fulfillment_tracking_info_update_tracking_details_test() {
+  let order_id = "gid://shopify/Order/6834528944361"
+  let fulfillment_id = "gid://shopify/Fulfillment/6189151518953"
+  let seeded =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "SUCCESS",
+      "FULFILLED",
+    )
+  let mutation =
+    "
+    mutation FulfillmentTrackingInfoUpdate(
+      $fulfillmentId: ID!
+      $trackingInfoInput: FulfillmentTrackingInput!
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: $fulfillmentId
+        trackingInfoInput: $trackingInfoInput
+      ) {
+        fulfillment {
+          id
+          status
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(True)),
+            #("trackingCompany", root_field.StringVal("UPS")),
+            #(
+              "trackingDetails",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("number", root_field.StringVal("MULTI-UPDATE-1")),
+                    #(
+                      "url",
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-UPDATE-1",
+                      ),
+                    ),
+                  ]),
+                ),
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("number", root_field.StringVal("MULTI-UPDATE-2")),
+                    #(
+                      "url",
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-UPDATE-2",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"MULTI-UPDATE-1\",\"url\":\"https://example.com/track/MULTI-UPDATE-1\",\"company\":\"UPS\"},{\"number\":\"MULTI-UPDATE-2\",\"url\":\"https://example.com/track/MULTI-UPDATE-2\",\"company\":\"UPS\"}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query OrderFulfillmentTrackingRead($id: ID!) {
+      order(id: $id) {
+        id
+        fulfillments(first: 5) {
+          id
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) =
+    orders.process(
+      outcome.store,
+      read_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6834528944361\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"trackingInfo\":[{\"number\":\"MULTI-UPDATE-1\",\"url\":\"https://example.com/track/MULTI-UPDATE-1\",\"company\":\"UPS\"},{\"number\":\"MULTI-UPDATE-2\",\"url\":\"https://example.com/track/MULTI-UPDATE-2\",\"company\":\"UPS\"}]}]}}}"
+
+  let order = store.get_order_by_id(outcome.store, order_id)
+  let assert Some(record) = order
+  let assert [fulfillment] = orders_common.order_fulfillments(record.data)
+  assert orders_common.captured_bool_field(
+      fulfillment,
+      "__draftProxyNotifyCustomer",
+    )
+    == Some(True)
+}
+
 pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
   let mutation =
     "
@@ -3834,6 +3959,182 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
     orders.process(event_outcome.store, detail_query, detail_variables)
   assert json.to_string(detail)
     == "{\"data\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"inTransitAt\":\"2026-04-25T22:25:00Z\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832}]}},\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create\",\"displayFulfillmentStatus\":\"PARTIALLY_FULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\"}]}}],\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create\",\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-unrequested\",\"remainingQuantity\":5}]}},{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create-second\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-second\",\"remainingQuantity\":1}]}}]}}}}"
+}
+
+pub fn orders_fulfillment_create_tracks_numbers_and_urls_arrays_test() {
+  let order_id = "gid://shopify/Order/fulfillment-create-arrays"
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-arrays"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-arrays"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-create-arrays"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#FULFILL-CREATE-ARRAYS")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("fulfillments", types.CapturedArray([])),
+          #(
+            "fulfillmentOrders",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_order_id)),
+                #("status", types.CapturedString("OPEN")),
+                #("requestStatus", types.CapturedString("UNSUBMITTED")),
+                #(
+                  "lineItems",
+                  types.CapturedArray([
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(fulfillment_order_line_item_id),
+                      ),
+                      #(
+                        "lineItem",
+                        types.CapturedObject([
+                          #("id", types.CapturedString(line_item_id)),
+                          #("title", types.CapturedString("Array item")),
+                        ]),
+                      ),
+                      #("totalQuantity", types.CapturedInt(2)),
+                      #("remainingQuantity", types.CapturedInt(2)),
+                    ]),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let create_mutation =
+    "
+    mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
+      fulfillmentCreate(fulfillment: $fulfillment) {
+        fulfillment {
+          id
+          status
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let create_variables =
+    dict.from_list([
+      #(
+        "fulfillment",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(True)),
+            #(
+              "trackingInfo",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "numbers",
+                    root_field.ListVal([
+                      root_field.StringVal("MULTI-CREATE-1"),
+                      root_field.StringVal("MULTI-CREATE-2"),
+                      root_field.StringVal("MULTI-CREATE-3"),
+                    ]),
+                  ),
+                  #(
+                    "urls",
+                    root_field.ListVal([
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-CREATE-1",
+                      ),
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-CREATE-2",
+                      ),
+                    ]),
+                  ),
+                  #("company", root_field.StringVal("Hermes")),
+                ]),
+              ),
+            ),
+            #(
+              "lineItemsByFulfillmentOrder",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "fulfillmentOrderId",
+                      root_field.StringVal(fulfillment_order_id),
+                    ),
+                    #(
+                      "fulfillmentOrderLineItems",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "id",
+                              root_field.StringVal(
+                                fulfillment_order_line_item_id,
+                              ),
+                            ),
+                            #("quantity", root_field.IntVal(1)),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let create_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      create_mutation,
+      create_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"MULTI-CREATE-1\",\"url\":\"https://example.com/track/MULTI-CREATE-1\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-2\",\"url\":\"https://example.com/track/MULTI-CREATE-2\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-3\",\"url\":null,\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query OrderFulfillmentCreateArrayRead($id: ID!) {
+      order(id: $id) {
+        id
+        fulfillments(first: 5) {
+          id
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) =
+    orders.process(
+      create_outcome.store,
+      read_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create-arrays\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"trackingInfo\":[{\"number\":\"MULTI-CREATE-1\",\"url\":\"https://example.com/track/MULTI-CREATE-1\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-2\",\"url\":\"https://example.com/track/MULTI-CREATE-2\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-3\",\"url\":null,\"company\":\"Hermes\"}]}]}}}"
 }
 
 pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
