@@ -3748,6 +3748,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-page-blog-article-template-suffix',
+    scriptPath: 'scripts/capture-online-store-template-suffix-conformance.ts',
+    purpose:
+      'Online store page/blog/article create and update templateSuffix persistence, empty-string preservation, explicit-null clearing, and downstream read-after-write behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}page-blog-article-template-suffix.json`,
+      'config/parity-specs/online-store/page-blog-article-template-suffix.json',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-article-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-blog-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-delete.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-page-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-read.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article, updates their template suffixes, records empty-string/null handling and downstream reads, then deletes all created content during the scenario and retries cleanup if needed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-article-media-navigation-follow-through',
     scriptPath: 'scripts/capture-online-store-article-media-navigation-follow-through-conformance.ts',
     purpose:
