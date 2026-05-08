@@ -1281,6 +1281,114 @@ pub fn b2b_location_create_rejects_name_and_note_validation_test() {
   assert string.contains(location_json, "\"code\":\"TOO_LONG\"")
 }
 
+pub fn b2b_company_and_location_name_presence_matches_blank_contract_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"HQ\" } }) { company { id name locations(first: 1) { nodes { id name } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { id name locations(first: 10) { nodes { id name } } } }"
+  let #(Response(status: before_status, body: before_body, ..), proxy) =
+    graphql(proxy, read)
+  assert before_status == 200
+  let before_json = json.to_string(before_body)
+
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"   \" }) { company { id name } userErrors { field message code } } }",
+    )
+  assert company_status == 200
+  assert_error_payload(
+    json.to_string(company_body),
+    "company",
+    "\"field\":[\"input\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { name: \"   \" }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert location_status == 200
+  assert_error_payload(
+    json.to_string(location_body),
+    "companyLocation",
+    "\"field\":[\"input\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+
+  let #(Response(status: after_status, body: after_body, ..), proxy) =
+    graphql(proxy, read)
+  assert after_status == 200
+  assert json.to_string(after_body) == before_json
+
+  let #(
+    Response(status: location_create_status, body: location_create_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"\" }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert location_create_status == 200
+  let location_create_json = json.to_string(location_create_body)
+  assert string.contains(location_create_json, "\"userErrors\":[]")
+  assert string.contains(location_create_json, "\"name\":\"Acme\"")
+
+  let #(Response(status: fallback_status, body: fallback_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert fallback_status == 200
+  let fallback_json = json.to_string(fallback_body)
+  assert string.contains(fallback_json, "\"userErrors\":[]")
+  assert string.contains(fallback_json, "\"name\":\"Acme\"")
+
+  let #(
+    Response(status: nested_company_status, body: nested_company_body, ..),
+    _,
+  ) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"\" }, companyLocation: { name: \"HQ\" } }) { company { id name } companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert nested_company_status == 200
+  assert_error_payload(
+    json.to_string(nested_company_body),
+    "company",
+    "\"field\":[\"input\",\"company\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+  assert string.contains(
+    json.to_string(nested_company_body),
+    "\"companyLocation\":null",
+  )
+
+  let #(
+    Response(status: nested_location_status, body: nested_location_body, ..),
+    _,
+  ) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"\" } }) { company { id name } companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert nested_location_status == 200
+  let nested_location_json = json.to_string(nested_location_body)
+  assert string.contains(nested_location_json, "\"userErrors\":[]")
+  assert string.contains(nested_location_json, "\"company\":{\"id\":")
+  assert string.contains(nested_location_json, "\"companyLocation\":{\"id\":")
+  assert string.contains(nested_location_json, "\"name\":\"Acme\"")
+}
+
 pub fn b2b_location_create_rejects_invalid_address_inputs_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
