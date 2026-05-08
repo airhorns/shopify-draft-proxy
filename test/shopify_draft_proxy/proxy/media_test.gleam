@@ -427,18 +427,20 @@ pub fn file_create_rejects_shopify_validation_branches_test() {
 }
 
 pub fn file_create_validates_length_and_duplicate_modes_test() {
-  let #(Response(status: empty_status, body: empty_body, ..), _) =
+  let #(Response(status: empty_status, body: empty_body, ..), empty_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \"\" }]) { files { id } userErrors { field message code } } }",
     )
   assert empty_status == 200
   assert json.to_string(empty_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too short (minimum is 1)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too short (minimum is 1)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(empty_proxy))
+    == "{\"entries\":[]}"
 
   let long_source =
     "https://cdn.example.com/" <> string.repeat("a", times: 2050) <> ".png"
-  let #(Response(status: long_status, body: long_body, ..), _) =
+  let #(Response(status: long_status, body: long_body, ..), long_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \""
@@ -447,7 +449,9 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
     )
   assert long_status == 200
   assert json.to_string(long_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too long (maximum is 2048)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too long (maximum is 2048)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(long_proxy))
+    == "{\"entries\":[]}"
 
   let #(Response(status: mode_status, body: mode_body, ..), _) =
     graphql(
@@ -466,6 +470,48 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
   assert replace_status == 200
   assert json.to_string(replace_body)
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Missing filename argument when attempting to use REPLACE duplicate mode.\",\"code\":\"MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE\"}]}}}"
+}
+
+pub fn file_create_missing_original_source_is_top_level_validation_test() {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ contentType: IMAGE }]) { files { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"data\":{\"fileCreate\":null}")
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn file_create_variable_missing_original_source_stays_schema_error_test() {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"mutation Missing($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id } userErrors { field message code } } }\",\"variables\":{\"files\":[{\"contentType\":\"IMAGE\"}]}}",
+    )
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(registry_proxy(), request)
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "0.originalSource")
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn file_create_accepts_long_alt_and_valid_duplicate_mode_test() {

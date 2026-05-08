@@ -140,7 +140,7 @@ pub fn process_mutation(
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
-      case file_update_top_level_errors(fields, variables) {
+      case file_input_top_level_errors(fields, variables) {
         #(errors, data_entries) if errors != [] ->
           MutationOutcome(
             data: json.object([
@@ -168,7 +168,7 @@ pub fn process_mutation(
   }
 }
 
-fn file_update_top_level_errors(
+fn file_input_top_level_errors(
   fields: List(Selection),
   variables: Dict(String, ResolvedValue),
 ) -> #(List(json.Json), List(#(String, json.Json))) {
@@ -203,6 +203,42 @@ fn file_update_top_level_errors(
           )
         }
       }
+      Field(name: name, ..) if name.value == "fileCreate" -> {
+        let key = get_field_response_key(field)
+        let inputs =
+          graphql_helpers.field_args(field, variables)
+          |> read_object_list_arg("files")
+        let input_errors =
+          inputs
+          |> enumerate_objects
+          |> list.filter_map(fn(entry) {
+            let #(input, index) = entry
+            case read_string_field(input, "originalSource") {
+              Some("") ->
+                Ok(file_create_invalid_field_arguments_error(
+                  key,
+                  "originalSource is too short (minimum is 1)",
+                ))
+              Some(value) ->
+                case string.length(value) > 2048 {
+                  True ->
+                    Ok(file_create_invalid_field_arguments_error(
+                      key,
+                      "originalSource is too long (maximum is 2048)",
+                    ))
+                  False -> Error(Nil)
+                }
+              None -> Ok(file_create_missing_original_source_error(key, index))
+            }
+          })
+        case input_errors {
+          [] -> acc
+          _ -> #(
+            list.append(errors, input_errors),
+            list.append(data_entries, [#(key, json.null())]),
+          )
+        }
+      }
       _ -> acc
     }
   })
@@ -216,6 +252,50 @@ fn file_update_invalid_field_arguments_error(root_key: String) -> json.Json {
       json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
     ),
     #("path", json.array([root_key], json.string)),
+  ])
+}
+
+fn file_create_invalid_field_arguments_error(
+  root_key: String,
+  message: String,
+) -> json.Json {
+  json.object([
+    #("message", json.string(message)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+    ),
+    #("path", json.array([root_key], json.string)),
+  ])
+}
+
+fn file_create_missing_original_source_error(
+  root_key: String,
+  index: Int,
+) -> json.Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'originalSource' on InputObject 'FileCreateInput' is required. Expected type String!",
+      ),
+    ),
+    #(
+      "path",
+      json.array(
+        [root_key, "files", int.to_string(index), "originalSource"],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("missingRequiredInputObjectAttribute")),
+        #("argumentName", json.string("originalSource")),
+        #("argumentType", json.string("String!")),
+        #("inputObjectType", json.string("FileCreateInput")),
+      ]),
+    ),
   ])
 }
 
@@ -684,45 +764,13 @@ fn validate_file_input(
 ) -> List(media_types.FilesUserError) {
   let original_source = read_string_field(input, "originalSource")
   let source_errors = case original_source {
-    Some(value) -> validate_original_source(value, index)
-    None -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "originalSource"],
-        "Original source is required",
-        "REQUIRED",
-      ),
-    ]
+    Some(value) -> validate_original_source_url(value, index)
+    None -> []
   }
   source_errors
   |> list.append(validate_references_to_add(input, index))
   |> list.append(validate_create_filename_extension(input, index))
   |> list.append(validate_duplicate_resolution_mode(input, index))
-}
-
-fn validate_original_source(
-  value: String,
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  case value {
-    "" -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "originalSource"],
-        "originalSource is too short (minimum is 1)",
-        "INVALID",
-      ),
-    ]
-    _ ->
-      case string.length(value) > 2048 {
-        True -> [
-          media_types.FilesUserError(
-            ["files", int.to_string(index), "originalSource"],
-            "originalSource is too long (maximum is 2048)",
-            "INVALID",
-          ),
-        ]
-        False -> validate_original_source_url(value, index)
-      }
-  }
 }
 
 fn validate_original_source_url(
