@@ -693,10 +693,14 @@ fn validate_file_input(
       ),
     ]
   }
-  source_errors
-  |> list.append(validate_references_to_add(input, index))
-  |> list.append(validate_create_filename_extension(input, index))
-  |> list.append(validate_duplicate_resolution_mode(input, index))
+  case source_errors {
+    [] ->
+      case validate_create_filename_extension(input, index) {
+        [] -> validate_duplicate_resolution_mode(input, index)
+        filename_errors -> filename_errors
+      }
+    _ -> source_errors
+  }
 }
 
 fn validate_original_source(
@@ -741,22 +745,6 @@ fn validate_original_source_url(
         },
       ),
     ]
-  }
-}
-
-fn validate_references_to_add(
-  input: Dict(String, ResolvedValue),
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  case list.length(read_string_list_field(input, "referencesToAdd")) > 1 {
-    True -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "referencesToAdd"],
-        "Too many product ids specified.",
-        "TOO_MANY_PRODUCT_IDS_SPECIFIED",
-      ),
-    ]
-    False -> []
   }
 }
 

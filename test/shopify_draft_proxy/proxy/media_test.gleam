@@ -398,15 +398,6 @@ pub fn file_acknowledge_update_failed_after_rejected_update_keeps_state_test() {
 }
 
 pub fn file_create_rejects_shopify_validation_branches_test() {
-  let #(Response(status: references_status, body: references_body, ..), _) =
-    graphql(
-      registry_proxy(),
-      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", referencesToAdd: [\"gid://shopify/Product/1\", \"gid://shopify/Product/2\"] }]) { files { id } userErrors { field message code } } }",
-    )
-  assert references_status == 200
-  assert json.to_string(references_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"referencesToAdd\"],\"message\":\"Too many product ids specified.\",\"code\":\"TOO_MANY_PRODUCT_IDS_SPECIFIED\"}]}}}"
-
   let #(Response(status: data_status, body: data_body, ..), _) =
     graphql(
       registry_proxy(),
@@ -424,6 +415,39 @@ pub fn file_create_rejects_shopify_validation_branches_test() {
   assert extension_status == 200
   assert json.to_string(extension_body)
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
+}
+
+pub fn file_create_uses_shopify_validation_precedence_test() {
+  let #(Response(status: url_status, body: url_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"data:image/jpeg;base64,abc\", filename: \"source.png\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert url_status == 200
+  assert json.to_string(url_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"File URL is invalid\",\"code\":\"INVALID_IMAGE_SOURCE_URL\"}]}}}"
+
+  let #(Response(status: mismatch_status, body: mismatch_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/source.png\", filename: \"source.gif\", contentType: VIDEO, duplicateResolutionMode: REPLACE }]) { files { id } userErrors { field message code } } }",
+    )
+  assert mismatch_status == 200
+  assert json.to_string(mismatch_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
+}
+
+pub fn file_create_does_not_apply_per_input_references_to_add_validation_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", contentType: IMAGE, referencesToAdd: [\"gid://shopify/Product/1\", \"gid://shopify/Product/2\"] }]) { files { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert !string.contains(body_json, "TOO_MANY_PRODUCT_IDS_SPECIFIED")
 }
 
 pub fn file_create_validates_length_and_duplicate_modes_test() {
