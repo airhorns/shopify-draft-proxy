@@ -5208,6 +5208,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-title-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-title-validation-conformance.ts',
+    purpose:
+      'Discount title blank and overlong userErrors across code, automatic, and app-managed create/update roots.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released discount Shopify Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-title-validation.json`,
+      'config/parity-specs/discounts/discount-title-validation.json',
+      'config/parity-requests/discounts/discount-title-validation-setup.graphql',
+      'config/parity-requests/discounts/discount-title-validation-create.graphql',
+      'config/parity-requests/discounts/discount-title-validation-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code, automatic, and app-managed discounts for update IDs, captures blank-title and 256-character title validation failures, and deletes every created discount in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-context-customer-selection-conflict',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',

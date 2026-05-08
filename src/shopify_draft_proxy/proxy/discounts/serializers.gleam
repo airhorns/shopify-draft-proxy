@@ -656,6 +656,7 @@ pub fn validate_discount_input(
       code_errors,
       validate_context_customer_selection_conflict(input_name, input),
     )
+    |> append_title_validation_errors(input_name, input, discount_type)
   let errors = case discount_type {
     "app" ->
       list.append(
@@ -740,7 +741,7 @@ pub fn validate_discount_input(
           ])
         False -> errors
       }
-      |> append_blank_title_error(input_name, input)
+      |> append_free_shipping_blank_title_error(input_name, input)
     }
     _ -> errors
   }
@@ -879,16 +880,7 @@ pub fn validate_app_discount_create_input(
   input: Dict(String, root_field.ResolvedValue),
   is_create: Bool,
 ) -> List(SourceValue) {
-  let errors = case input_name, title_is_blank(input) {
-    "automaticAppDiscount", True -> [
-      discount_types.user_error(
-        [input_name, "title"],
-        "Title can't be blank.",
-        "INVALID",
-      ),
-    ]
-    _, _ -> []
-  }
+  let errors = []
   let errors = case is_create, input_value_is_present(input, "startsAt") {
     True, False ->
       list.append(errors, [
@@ -2579,7 +2571,7 @@ pub fn append_blank_title_error(
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(SourceValue) {
-  case input_name == "freeShippingCodeDiscount" && title_is_blank(input) {
+  case title_is_blank(input) {
     True ->
       list.append(errors, [
         discount_types.user_error(
@@ -2589,6 +2581,129 @@ pub fn append_blank_title_error(
         ),
       ])
     False -> errors
+  }
+}
+
+@internal
+pub fn append_title_validation_errors(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(SourceValue) {
+  case discount_type {
+    "app" ->
+      errors
+      |> append_app_blank_title_error(input_name, input)
+      |> append_app_too_long_title_error(input_name, input)
+    _ ->
+      case
+        native_discount_uses_shared_blank_title_validation(
+          discount_type,
+          input_name,
+        )
+      {
+        True ->
+          errors
+          |> append_blank_title_error(input_name, input)
+          |> append_too_long_title_error(input_name, input)
+        False -> append_too_long_title_error(errors, input_name, input)
+      }
+  }
+}
+
+@internal
+pub fn native_discount_uses_shared_blank_title_validation(
+  discount_type: String,
+  _input_name: String,
+) -> Bool {
+  case discount_type {
+    "basic" -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn append_free_shipping_blank_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case input_name {
+    "freeShippingCodeDiscount" ->
+      append_blank_title_error(errors, input_name, input)
+    "freeShippingAutomaticDiscount" ->
+      case invalid_free_shipping_combines(input) {
+        False -> append_blank_title_error(errors, input_name, input)
+        True -> errors
+      }
+    _ -> errors
+  }
+}
+
+@internal
+pub fn append_app_blank_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case title_is_blank(input) {
+    True -> {
+      let message = case input_name {
+        "codeAppDiscount" -> "can't be blank"
+        _ -> "Title can't be blank."
+      }
+      list.append(errors, [
+        discount_types.user_error([input_name, "title"], message, "INVALID"),
+      ])
+    }
+    False -> errors
+  }
+}
+
+@internal
+pub fn append_app_too_long_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_string(input, "title") {
+    Some(title) ->
+      case string.length(title) > 255 {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              [input_name, "title"],
+              "is too long (maximum is 255 characters)",
+              "INVALID",
+            ),
+          ])
+        False -> errors
+      }
+    _ -> errors
+  }
+}
+
+@internal
+pub fn append_too_long_title_error(
+  errors: List(SourceValue),
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case discount_types.read_string(input, "title") {
+    Some(title) ->
+      case string.length(title) > 255 {
+        True ->
+          list.append(errors, [
+            discount_types.user_error(
+              [input_name, "title"],
+              "Title is too long (maximum is 255 characters)",
+              "TOO_LONG",
+            ),
+          ])
+        False -> errors
+      }
+    _ -> errors
   }
 }
 
