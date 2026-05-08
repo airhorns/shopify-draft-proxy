@@ -1668,6 +1668,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafields-set-delete-app-namespace-resolution',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafields-set-delete-app-namespace-resolution-conformance.mts',
+    purpose:
+      'metafieldsSet and metafieldsDelete app namespace resolution for value mutations, omitted namespace defaulting, and cross-app access denial.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-set-delete-app-namespace-resolution.json`,
+      'config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json',
+      'config/parity-requests/metafield-definitions/metafields-set-app-namespace-resolution.graphql',
+      'config/parity-requests/metafield-definitions/metafields-delete-app-namespace-resolution.graphql',
+      'config/parity-requests/metafield-definitions/metafields-app-namespace-product-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, writes app-owned metafields, deletes the product-owned app-prefixed metafield through metafieldsDelete, and deletes the product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
