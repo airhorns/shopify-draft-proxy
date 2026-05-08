@@ -1,0 +1,435 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "capturedAt": "2026-05-08T02:22:29.262Z",
+    "stamp": 1778206948410
+  },
+  "scenarios": {
+    "firstNameOnly": {
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "HermesFirst1778206948410"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10590268391730",
+                "firstName": "HermesFirst1778206948410",
+                "lastName": null,
+                "displayName": "HermesFirst1778206948410",
+                "email": null,
+                "phone": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": null,
+                "createdAt": "2026-05-08T02:22:28Z",
+                "updatedAt": "2026-05-08T02:22:28Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10590268391730",
+          "identifier": {
+            "id": "gid://shopify/Customer/10590268391730"
+          },
+          "query": "",
+          "first": 5
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10590268391730",
+              "firstName": "HermesFirst1778206948410",
+              "lastName": null,
+              "displayName": "HermesFirst1778206948410",
+              "email": null,
+              "phone": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-05-08T02:22:28Z",
+              "updatedAt": "2026-05-08T02:22:28Z"
+            },
+            "customerByIdentifier": {
+              "id": "gid://shopify/Customer/10590268391730",
+              "firstName": "HermesFirst1778206948410",
+              "lastName": null,
+              "displayName": "HermesFirst1778206948410",
+              "email": null,
+              "phone": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-05-08T02:22:28Z",
+              "updatedAt": "2026-05-08T02:22:28Z"
+            },
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10590268391730",
+                  "firstName": "HermesFirst1778206948410",
+                  "lastName": null,
+                  "displayName": "HermesFirst1778206948410",
+                  "email": null,
+                  "phone": null,
+                  "defaultEmailAddress": null,
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-08T02:22:28Z",
+                  "updatedAt": "2026-05-08T02:22:28Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588981854514",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-1778175129207@example.com",
+                  "email": "order-update-localization-1778175129207@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-1778175129207@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:32:09Z",
+                  "updatedAt": "2026-05-08T02:19:45Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588978872626",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-1778175077804@example.com",
+                  "email": "order-update-localization-1778175077804@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-1778175077804@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:31:17Z",
+                  "updatedAt": "2026-05-07T17:31:17Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588961571122",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-combo-1778174856023@example.com",
+                  "email": "order-update-localization-combo-1778174856023@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-combo-1778174856023@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:27:36Z",
+                  "updatedAt": "2026-05-07T17:27:36Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588958982450",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-1778174826224@example.com",
+                  "email": "order-update-localization-1778174826224@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-1778174826224@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:27:06Z",
+                  "updatedAt": "2026-05-07T17:27:06Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDU5MDI2ODM5MTczMCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDggMDI6MjI6MjguMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU4ODk1ODk4MjQ1MCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDcgMTc6Mjc6MDYuMDAwMDAwIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "lastNameOnly": {
+      "create": {
+        "variables": {
+          "input": {
+            "lastName": "HermesLast1778206948410"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10590268424498",
+                "firstName": null,
+                "lastName": "HermesLast1778206948410",
+                "displayName": "HermesLast1778206948410",
+                "email": null,
+                "phone": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": null,
+                "createdAt": "2026-05-08T02:22:28Z",
+                "updatedAt": "2026-05-08T02:22:28Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10590268424498",
+          "identifier": {
+            "id": "gid://shopify/Customer/10590268424498"
+          },
+          "query": "",
+          "first": 5
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10590268424498",
+              "firstName": null,
+              "lastName": "HermesLast1778206948410",
+              "displayName": "HermesLast1778206948410",
+              "email": null,
+              "phone": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-05-08T02:22:28Z",
+              "updatedAt": "2026-05-08T02:22:28Z"
+            },
+            "customerByIdentifier": {
+              "id": "gid://shopify/Customer/10590268424498",
+              "firstName": null,
+              "lastName": "HermesLast1778206948410",
+              "displayName": "HermesLast1778206948410",
+              "email": null,
+              "phone": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-05-08T02:22:28Z",
+              "updatedAt": "2026-05-08T02:22:28Z"
+            },
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10590268424498",
+                  "firstName": null,
+                  "lastName": "HermesLast1778206948410",
+                  "displayName": "HermesLast1778206948410",
+                  "email": null,
+                  "phone": null,
+                  "defaultEmailAddress": null,
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-08T02:22:28Z",
+                  "updatedAt": "2026-05-08T02:22:28Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10590268391730",
+                  "firstName": "HermesFirst1778206948410",
+                  "lastName": null,
+                  "displayName": "HermesFirst1778206948410",
+                  "email": null,
+                  "phone": null,
+                  "defaultEmailAddress": null,
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-08T02:22:28Z",
+                  "updatedAt": "2026-05-08T02:22:28Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588981854514",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-1778175129207@example.com",
+                  "email": "order-update-localization-1778175129207@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-1778175129207@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:32:09Z",
+                  "updatedAt": "2026-05-08T02:19:45Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588978872626",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-1778175077804@example.com",
+                  "email": "order-update-localization-1778175077804@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-1778175077804@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:31:17Z",
+                  "updatedAt": "2026-05-07T17:31:17Z"
+                },
+                {
+                  "id": "gid://shopify/Customer/10588961571122",
+                  "firstName": null,
+                  "lastName": null,
+                  "displayName": "order-update-localization-combo-1778174856023@example.com",
+                  "email": "order-update-localization-combo-1778174856023@example.com",
+                  "phone": null,
+                  "defaultEmailAddress": {
+                    "emailAddress": "order-update-localization-combo-1778174856023@example.com"
+                  },
+                  "defaultPhoneNumber": null,
+                  "createdAt": "2026-05-07T17:27:36Z",
+                  "updatedAt": "2026-05-07T17:27:36Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDU5MDI2ODQyNDQ5OCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDggMDI6MjI6MjguMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU4ODk2MTU3MTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDcgMTc6Mjc6MzYuMDAwMDAwIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "blankInput": {
+      "create": {
+        "variables": {
+          "input": {}
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "A name, phone number, or email address must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10590268424498"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10590268424498",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10590268391730"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10590268391730",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
