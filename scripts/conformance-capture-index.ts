@@ -6053,6 +6053,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-platform-backup-region-update-no-region-market',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-backup-region-update-no-region-market.mts',
+    purpose:
+      'backupRegionUpdate REGION_NOT_FOUND when the country exists but no active non-legacy region market covers it.',
+    requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-backup-region-update-no-region-market.json`,
+      'config/parity-specs/admin-platform/admin-platform-backup-region-update-no-region-market.json',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-no-region-market.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily removes AT from a multi-country active region market, records backupRegionUpdate REGION_NOT_FOUND, then restores AT to the market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform-flow-generate-signature-required-args',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-flow-generate-signature-required-args-conformance.mts',

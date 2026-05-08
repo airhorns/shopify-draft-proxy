@@ -815,24 +815,50 @@ fn handle_backup_region_update_to_country(
 ) -> MutationFieldResult {
   case markets.backup_region_for_country(store, shop_origin, code) {
     None -> backup_region_not_found_result(store, identity, field, fragments)
-    Some(region) -> {
-      let #(_, next_store) = store.stage_backup_region(store, region)
-      MutationFieldResult(
-        queries.project_selection(
-          backup_region_update_source(Some(region), []),
-          field,
-          fragments,
-        ),
-        [],
-        next_store,
-        identity,
-        [region.id],
-        [
-          "Staged the shop backup region locally; no market or regional setting was changed upstream.",
-        ],
-      )
-    }
+    Some(region) ->
+      case
+        markets.backup_region_country_has_region_market(
+          store,
+          shop_origin,
+          code,
+        )
+      {
+        False ->
+          backup_region_not_found_result(store, identity, field, fragments)
+        True ->
+          stage_backup_region_update_result(
+            store,
+            identity,
+            field,
+            fragments,
+            region,
+          )
+      }
   }
+}
+
+fn stage_backup_region_update_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  region: BackupRegionRecord,
+) -> MutationFieldResult {
+  let #(_, next_store) = store.stage_backup_region(store, region)
+  MutationFieldResult(
+    queries.project_selection(
+      backup_region_update_source(Some(region), []),
+      field,
+      fragments,
+    ),
+    [],
+    next_store,
+    identity,
+    [region.id],
+    [
+      "Staged the shop backup region locally; no market or regional setting was changed upstream.",
+    ],
+  )
 }
 
 fn backup_region_not_found_result(
