@@ -7226,6 +7226,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-create-name-identity',
+    scriptPath: 'scripts/capture-customer-create-name-identity-conformance.ts',
+    purpose:
+      'customerCreate firstName-only, lastName-only, and blank-input identity precondition behavior with downstream reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-create-name-identity.json`,
+      'config/parity-specs/customers/customer_create_name_identity.json',
+      'config/parity-requests/customers/customer_create_name_identity.graphql',
+      'config/parity-requests/customers/customer_create_name_identity_read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable firstName-only and lastName-only customers, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-email-normalization',
     scriptPath: 'scripts/capture-customer-email-normalization-conformance.ts',
     purpose:
