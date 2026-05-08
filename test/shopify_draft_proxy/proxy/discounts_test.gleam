@@ -239,6 +239,23 @@ fn graphql_request_body(body: String) -> Request {
   )
 }
 
+fn graphql_request(query: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2026-04/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\"" <> escape(query) <> "\"}",
+  )
+}
+
+fn escape(value: String) -> String {
+  value
+  |> string.replace("\\", "\\\\")
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
+  |> string.replace("\"", "\\\"")
+}
+
 fn price_rule_saved_search(id: String) -> SavedSearchRecord {
   price_rule_saved_search_with_query(id, "status:active")
 }
@@ -847,6 +864,63 @@ pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
 
   assert json.to_string(data)
     == "{\"codeDiscountNode\":{\"codeDiscount\":{\"title\":\"First Updated\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},\"discountNodes\":{\"nodes\":[{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"First Updated\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},{\"id\":\"gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"Second\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"}}]}}"
+}
+
+pub fn code_basic_node_read_reflects_local_update_test() {
+  let create_query =
+    "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Node Basic\", code: \"NODE-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title } } } userErrors { message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Node Basic\"}},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Node Basic Updated\", code: \"NODE-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title } } } userErrors { message } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Node Basic Updated\"}},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query {
+      codeNode: node(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") {
+        __typename
+        id
+        ... on DiscountCodeNode {
+          codeDiscount {
+            __typename
+            ... on DiscountCodeBasic {
+              title
+            }
+          }
+        }
+      }
+      codeNodes: nodes(ids: [
+        \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",
+        \"gid://shopify/DiscountCodeNode/missing\"
+      ]) {
+        __typename
+        id
+        ... on DiscountCodeNode {
+          codeDiscount {
+            __typename
+            ... on DiscountCodeBasic {
+              title
+            }
+          }
+        }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"codeNode\":{\"__typename\":\"DiscountCodeNode\",\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Node Basic Updated\"}},\"codeNodes\":[{\"__typename\":\"DiscountCodeNode\",\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Node Basic Updated\"}},null]}}"
 }
 
 pub fn redeem_code_bulk_mutations_bump_discount_updated_at_test() {

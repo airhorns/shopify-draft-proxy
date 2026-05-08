@@ -8,15 +8,25 @@
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
+import gleam/option.{None, Some}
+import shopify_draft_proxy/graphql/ast.{
+  type Selection, Field, Name, SelectionSet,
+}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, type SourceValue, SrcObject, SrcString,
+  project_graphql_value,
+}
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/orders/mutations
 import shopify_draft_proxy/proxy/orders/order_types
 import shopify_draft_proxy/proxy/orders/queries
+import shopify_draft_proxy/proxy/orders/serializers as order_serializers
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/shipping_fulfillments/sources as shipping_sources
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -172,5 +182,88 @@ pub fn process_mutation(
     document,
     variables,
     upstream,
+  )
+}
+
+pub fn serialize_order_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  case store.get_order_by_id(store, id) {
+    Some(record) ->
+      order_serializers.serialize_order_node(
+        Some(store),
+        synthetic_node_field("Order", selections),
+        record,
+        fragments,
+        variables,
+      )
+    None ->
+      case store.get_effective_shipping_order_by_id(store, id) {
+        Some(record) ->
+          project_node_source(
+            shipping_sources.shipping_order_source(store, record),
+            "Order",
+            selections,
+            fragments,
+          )
+        None -> json.null()
+      }
+  }
+}
+
+pub fn serialize_draft_order_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_draft_order_by_id(store, id) {
+    Some(record) ->
+      order_serializers.serialize_draft_order_node(
+        Some(store),
+        synthetic_node_field("DraftOrder", selections),
+        record,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn project_node_source(
+  source: SourceValue,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    source_with_typename(source, typename),
+    selections,
+    fragments,
+  )
+}
+
+fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
+  case source {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    _ -> source
+  }
+}
+
+fn synthetic_node_field(
+  name: String,
+  selections: List(Selection),
+) -> Selection {
+  Field(
+    alias: None,
+    name: Name(value: name, loc: None),
+    arguments: [],
+    directives: [],
+    selection_set: Some(SelectionSet(selections: selections, loc: None)),
+    loc: None,
   )
 }
