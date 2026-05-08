@@ -240,10 +240,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/10180320788786",
-          "gid://shopify/ProductVariant/51137398112562"
-        ]
+        "ids": ["gid://shopify/Product/10180320788786", "gid://shopify/ProductVariant/51137398112562"]
       },
       "query": "recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration",
       "response": {
