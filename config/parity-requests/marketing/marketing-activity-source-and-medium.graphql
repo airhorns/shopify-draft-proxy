@@ -1,0 +1,129 @@
+mutation MarketingActivitySourceAndMedium(
+  $abandonedCart: MarketingActivityCreateExternalInput!
+  $affiliate: MarketingActivityCreateExternalInput!
+  $loyalty: MarketingActivityCreateExternalInput!
+  $retargetingFacebook: MarketingActivityCreateExternalInput!
+  $retargetingNoDomain: MarketingActivityCreateExternalInput!
+  $messageFacebook: MarketingActivityCreateExternalInput!
+  $messageOther: MarketingActivityCreateExternalInput!
+  $adReferringDomain: MarketingActivityCreateExternalInput!
+  $adNoDomain: MarketingActivityCreateExternalInput!
+) {
+  abandonedCart: marketingActivityCreateExternal(input: $abandonedCart) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  affiliate: marketingActivityCreateExternal(input: $affiliate) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  loyalty: marketingActivityCreateExternal(input: $loyalty) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  retargetingFacebook: marketingActivityCreateExternal(input: $retargetingFacebook) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  retargetingNoDomain: marketingActivityCreateExternal(input: $retargetingNoDomain) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  messageFacebook: marketingActivityCreateExternal(input: $messageFacebook) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  messageOther: marketingActivityCreateExternal(input: $messageOther) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  adReferringDomain: marketingActivityCreateExternal(input: $adReferringDomain) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  adNoDomain: marketingActivityCreateExternal(input: $adNoDomain) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

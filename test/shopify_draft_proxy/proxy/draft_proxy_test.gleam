@@ -810,6 +810,29 @@ pub fn graphql_saved_search_create_empty_query_allowed_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Empty query\",\"query\":\"\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
 }
 
+pub fn graphql_saved_search_create_rejects_discount_redeem_code_reserved_name_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"All codes\\\", query: \\\"\\\", resourceType: DISCOUNT_REDEEM_CODE }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ discountRedeemCodeSavedSearches(first: 1) { nodes { name } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"discountRedeemCodeSavedSearches\":{\"nodes\":[]}}}"
+}
+
 pub fn graphql_saved_search_create_blank_name_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -1761,6 +1784,75 @@ pub fn graphql_saved_search_create_with_variables_test() {
   assert status == 200
   assert json.to_string(response_body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_saved_search_create_variable_missing_resource_type_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"name\":\"Variable missing resource type\",\"query\":\"tag:variable\"}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"resourceType\"]")
+}
+
+pub fn graphql_saved_search_create_variable_missing_name_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"query\":\"tag:variable\",\"resourceType\":\"PRODUCT\"}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"name\"]")
+}
+
+pub fn graphql_saved_search_create_variable_null_resource_type_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"name\":\"Variable null resource type\",\"query\":\"tag:variable\",\"resourceType\":null}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"resourceType\"]")
+  assert string.contains(serialized, "\"resourceType\":null")
+}
+
+pub fn graphql_saved_search_delete_variable_missing_id_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Delete($input: SavedSearchDeleteInput!) { savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } } }\",\"variables\":{\"input\":{}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"id\"]")
 }
 
 pub fn graphql_saved_search_query_with_variables_test() {

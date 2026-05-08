@@ -724,39 +724,22 @@ fn handle_gift_card_create(
     normalize_money_value(dict_get(input, "initialValue"), "CAD")
   let initial_amount =
     parse_decimal_amount(root_field.StringVal(initial_value.amount))
-  case initial_amount <=. 0.0 {
-    True -> {
-      let payload =
-        empty_payload([
-          gift_card_types.UserError(
-            field: ["input", "initialValue"],
-            code: Some("GREATER_THAN"),
-            message: "must be greater than 0",
-          ),
-        ])
-      let json_payload =
-        gift_card_payload_json(
-          payload,
-          "GiftCardCreatePayload",
-          field,
-          fragments,
-          variables,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [],
-        ),
+  let raw_code = graphql_helpers.read_arg_string(input, "code")
+  let customer_id =
+    graphql_helpers.read_arg_string_nonempty(input, "customerId")
+  case gift_card_trial_assignment_user_error(store, input) {
+    Some(error) ->
+      gift_card_create_error_result(
+        key,
+        field,
+        fragments,
+        variables,
         store,
         identity_after_id,
+        error,
       )
-    }
-    False -> {
-      let raw_code = graphql_helpers.read_arg_string(input, "code")
-      let customer_id =
-        graphql_helpers.read_arg_string_nonempty(input, "customerId")
-      case gift_card_trial_assignment_user_error(store, input) {
+    None -> {
+      case gift_card_create_customer_user_error(store, customer_id) {
         Some(error) ->
           gift_card_create_error_result(
             key,
@@ -768,20 +751,37 @@ fn handle_gift_card_create(
             error,
           )
         None -> {
-          case validate_gift_card_create_code(store, raw_code, gid) {
-            Error(error) ->
-              gift_card_create_error_result(
-                key,
-                field,
-                fragments,
-                variables,
+          case initial_amount <=. 0.0 {
+            True -> {
+              let payload =
+                empty_payload([
+                  gift_card_types.UserError(
+                    field: ["input", "initialValue"],
+                    code: Some("GREATER_THAN"),
+                    message: "must be greater than 0",
+                  ),
+                ])
+              let json_payload =
+                gift_card_payload_json(
+                  payload,
+                  "GiftCardCreatePayload",
+                  field,
+                  fragments,
+                  variables,
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: json_payload,
+                  staged_resource_ids: [],
+                ),
                 store,
                 identity_after_id,
-                error,
               )
-            Ok(code) -> {
-              case gift_card_create_customer_user_error(store, customer_id) {
-                Some(error) ->
+            }
+            False -> {
+              case validate_gift_card_create_code(store, raw_code, gid) {
+                Error(error) ->
                   gift_card_create_error_result(
                     key,
                     field,
@@ -791,7 +791,7 @@ fn handle_gift_card_create(
                     identity_after_id,
                     error,
                   )
-                None -> {
+                Ok(code) -> {
                   let store =
                     maybe_hydrate_gift_card_configuration_for_create(
                       store,

@@ -1,0 +1,12 @@
+query B2BStringValidationCompanyRead($id: ID!) {
+  company(id: $id) {
+    id
+    name
+    locations(first: 10) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}

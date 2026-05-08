@@ -1,0 +1,14 @@
+mutation B2BStringValidationCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  companyUpdate(companyId: $companyId, input: $input) {
+    company {
+      id
+      name
+      note
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

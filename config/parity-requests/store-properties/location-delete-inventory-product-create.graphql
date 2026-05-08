@@ -1,0 +1,22 @@
+mutation LocationDeleteInventoryProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      variants(first: 1) {
+        nodes {
+          id
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

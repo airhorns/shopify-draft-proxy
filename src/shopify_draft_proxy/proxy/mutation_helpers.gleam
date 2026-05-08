@@ -1803,6 +1803,9 @@ fn top_level_required_input_field_strict_types() -> List(String) {
     "CatalogCreateInput",
     "PriceListCreateInput",
     "PubSubWebhookSubscriptionInput",
+    "SavedSearchCreateInput",
+    "SavedSearchDeleteInput",
+    "SavedSearchUpdateInput",
     "ShopPolicyInput",
   ]
 }

@@ -8,6 +8,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/orders/common as orders_common
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -3188,6 +3189,130 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6834528944361\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"CANCELLED\",\"displayStatus\":\"CANCELED\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]}]}}}"
 }
 
+pub fn orders_fulfillment_tracking_info_update_tracking_details_test() {
+  let order_id = "gid://shopify/Order/6834528944361"
+  let fulfillment_id = "gid://shopify/Fulfillment/6189151518953"
+  let seeded =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "SUCCESS",
+      "FULFILLED",
+    )
+  let mutation =
+    "
+    mutation FulfillmentTrackingInfoUpdate(
+      $fulfillmentId: ID!
+      $trackingInfoInput: FulfillmentTrackingInput!
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: $fulfillmentId
+        trackingInfoInput: $trackingInfoInput
+      ) {
+        fulfillment {
+          id
+          status
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(True)),
+            #("trackingCompany", root_field.StringVal("UPS")),
+            #(
+              "trackingDetails",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("number", root_field.StringVal("MULTI-UPDATE-1")),
+                    #(
+                      "url",
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-UPDATE-1",
+                      ),
+                    ),
+                  ]),
+                ),
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("number", root_field.StringVal("MULTI-UPDATE-2")),
+                    #(
+                      "url",
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-UPDATE-2",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"MULTI-UPDATE-1\",\"url\":\"https://example.com/track/MULTI-UPDATE-1\",\"company\":\"UPS\"},{\"number\":\"MULTI-UPDATE-2\",\"url\":\"https://example.com/track/MULTI-UPDATE-2\",\"company\":\"UPS\"}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query OrderFulfillmentTrackingRead($id: ID!) {
+      order(id: $id) {
+        id
+        fulfillments(first: 5) {
+          id
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) =
+    orders.process(
+      outcome.store,
+      read_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6834528944361\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"trackingInfo\":[{\"number\":\"MULTI-UPDATE-1\",\"url\":\"https://example.com/track/MULTI-UPDATE-1\",\"company\":\"UPS\"},{\"number\":\"MULTI-UPDATE-2\",\"url\":\"https://example.com/track/MULTI-UPDATE-2\",\"company\":\"UPS\"}]}]}}}"
+
+  let order = store.get_order_by_id(outcome.store, order_id)
+  let assert Some(record) = order
+  let assert [fulfillment] = orders_common.order_fulfillments(record.data)
+  assert orders_common.captured_bool_field(
+      fulfillment,
+      "__draftProxyNotifyCustomer",
+    )
+    == Some(True)
+}
+
 pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
   let mutation =
     "
@@ -3834,6 +3959,182 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
     orders.process(event_outcome.store, detail_query, detail_variables)
   assert json.to_string(detail)
     == "{\"data\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"inTransitAt\":\"2026-04-25T22:25:00Z\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832}]}},\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create\",\"displayFulfillmentStatus\":\"PARTIALLY_FULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\"}]}}],\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create\",\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-unrequested\",\"remainingQuantity\":5}]}},{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create-second\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-second\",\"remainingQuantity\":1}]}}]}}}}"
+}
+
+pub fn orders_fulfillment_create_tracks_numbers_and_urls_arrays_test() {
+  let order_id = "gid://shopify/Order/fulfillment-create-arrays"
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-arrays"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-arrays"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-create-arrays"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#FULFILL-CREATE-ARRAYS")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("fulfillments", types.CapturedArray([])),
+          #(
+            "fulfillmentOrders",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_order_id)),
+                #("status", types.CapturedString("OPEN")),
+                #("requestStatus", types.CapturedString("UNSUBMITTED")),
+                #(
+                  "lineItems",
+                  types.CapturedArray([
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(fulfillment_order_line_item_id),
+                      ),
+                      #(
+                        "lineItem",
+                        types.CapturedObject([
+                          #("id", types.CapturedString(line_item_id)),
+                          #("title", types.CapturedString("Array item")),
+                        ]),
+                      ),
+                      #("totalQuantity", types.CapturedInt(2)),
+                      #("remainingQuantity", types.CapturedInt(2)),
+                    ]),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let create_mutation =
+    "
+    mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
+      fulfillmentCreate(fulfillment: $fulfillment) {
+        fulfillment {
+          id
+          status
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let create_variables =
+    dict.from_list([
+      #(
+        "fulfillment",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(True)),
+            #(
+              "trackingInfo",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "numbers",
+                    root_field.ListVal([
+                      root_field.StringVal("MULTI-CREATE-1"),
+                      root_field.StringVal("MULTI-CREATE-2"),
+                      root_field.StringVal("MULTI-CREATE-3"),
+                    ]),
+                  ),
+                  #(
+                    "urls",
+                    root_field.ListVal([
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-CREATE-1",
+                      ),
+                      root_field.StringVal(
+                        "https://example.com/track/MULTI-CREATE-2",
+                      ),
+                    ]),
+                  ),
+                  #("company", root_field.StringVal("Hermes")),
+                ]),
+              ),
+            ),
+            #(
+              "lineItemsByFulfillmentOrder",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "fulfillmentOrderId",
+                      root_field.StringVal(fulfillment_order_id),
+                    ),
+                    #(
+                      "fulfillmentOrderLineItems",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "id",
+                              root_field.StringVal(
+                                fulfillment_order_line_item_id,
+                              ),
+                            ),
+                            #("quantity", root_field.IntVal(1)),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let create_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      create_mutation,
+      create_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"MULTI-CREATE-1\",\"url\":\"https://example.com/track/MULTI-CREATE-1\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-2\",\"url\":\"https://example.com/track/MULTI-CREATE-2\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-3\",\"url\":null,\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query OrderFulfillmentCreateArrayRead($id: ID!) {
+      order(id: $id) {
+        id
+        fulfillments(first: 5) {
+          id
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) =
+    orders.process(
+      create_outcome.store,
+      read_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create-arrays\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"trackingInfo\":[{\"number\":\"MULTI-CREATE-1\",\"url\":\"https://example.com/track/MULTI-CREATE-1\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-2\",\"url\":\"https://example.com/track/MULTI-CREATE-2\",\"company\":\"Hermes\"},{\"number\":\"MULTI-CREATE-3\",\"url\":null,\"company\":\"Hermes\"}]}]}}}"
 }
 
 pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
@@ -7898,6 +8199,240 @@ pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Inventory-backed line\",\"quantity\":2}]}}}}"
 }
 
+pub fn orders_order_create_preserves_expanded_line_item_fields_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountsSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              title
+              quantity
+              sku
+              customAttributes {
+                key
+                value
+              }
+              requiresShipping
+              taxable
+              giftCard
+              vendor
+              product {
+                id
+              }
+              fulfillmentService {
+                serviceName
+              }
+              fulfillmentStatus
+              weight {
+                value
+                unit
+              }
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              discountAllocations {
+                allocatedAmountSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("USD")),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Expanded line")),
+                    #("quantity", root_field.IntVal(2)),
+                    #("sku", root_field.StringVal("expanded-line-sku")),
+                    #("vendor", root_field.StringVal("Hermes Vendor")),
+                    #(
+                      "productId",
+                      root_field.StringVal("gid://shopify/Product/777"),
+                    ),
+                    #("requiresShipping", root_field.BoolVal(False)),
+                    #("taxable", root_field.BoolVal(False)),
+                    #("giftCard", root_field.BoolVal(True)),
+                    #(
+                      "fulfillmentService",
+                      root_field.StringVal("manual-service"),
+                    ),
+                    #("fulfillmentStatus", root_field.StringVal("FULFILLED")),
+                    #(
+                      "properties",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("name", root_field.StringVal("engraving")),
+                            #("value", root_field.StringVal("Ada")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                    #(
+                      "weight",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("value", root_field.FloatVal(1.5)),
+                          #("unit", root_field.StringVal("KILOGRAMS")),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("12.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "appliedDiscounts",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("title", root_field.StringVal("Line credit")),
+                            #(
+                              "description",
+                              root_field.StringVal("line-level discount"),
+                            ),
+                            #("valueType", root_field.StringVal("FIXED_AMOUNT")),
+                            #("value", root_field.FloatVal(3.0)),
+                            #("amount", root_field.StringVal("3.00")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"24.0\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"21.0\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Expanded line\",\"quantity\":2,\"sku\":\"expanded-line-sku\",\"customAttributes\":[{\"key\":\"engraving\",\"value\":\"Ada\"}],\"requiresShipping\":false,\"taxable\":false,\"giftCard\":true,\"vendor\":\"Hermes Vendor\",\"product\":{\"id\":\"gid://shopify/Product/777\"},\"fulfillmentService\":{\"serviceName\":\"manual-service\"},\"fulfillmentStatus\":\"FULFILLED\",\"weight\":{\"value\":1.5,\"unit\":\"KILOGRAMS\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"USD\"}},\"discountAllocations\":[{\"allocatedAmountSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}}}]}]}},\"userErrors\":[]}}}"
+
+  let query =
+    "
+    query Read($id: ID!) {
+      order(id: $id) {
+        subtotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalDiscountsSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems(first: 5) {
+          nodes {
+            title
+            customAttributes {
+              key
+              value
+            }
+            requiresShipping
+            taxable
+            giftCard
+            vendor
+            product {
+              id
+            }
+            fulfillmentService {
+              serviceName
+            }
+            fulfillmentStatus
+            weight {
+              value
+              unit
+            }
+            discountAllocations {
+              allocatedAmountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(
+      outcome.store,
+      query,
+      dict.from_list([#("id", root_field.StringVal("gid://shopify/Order/1"))]),
+    )
+  assert json.to_string(read_result)
+    == "{\"data\":{\"order\":{\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"24.0\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Expanded line\",\"customAttributes\":[{\"key\":\"engraving\",\"value\":\"Ada\"}],\"requiresShipping\":false,\"taxable\":false,\"giftCard\":true,\"vendor\":\"Hermes Vendor\",\"product\":{\"id\":\"gid://shopify/Product/777\"},\"fulfillmentService\":{\"serviceName\":\"manual-service\"},\"fulfillmentStatus\":\"FULFILLED\",\"weight\":{\"value\":1.5,\"unit\":\"KILOGRAMS\"},\"discountAllocations\":[{\"allocatedAmountSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}}}]}]}}}}"
+}
+
 pub fn orders_order_create_money_bags_default_presentment_money_test() {
   let mutation =
     "
@@ -9662,6 +10197,137 @@ pub fn orders_order_cancel_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
 }
 
+pub fn orders_order_cancel_restock_refund_and_metadata_read_after_write_test() {
+  let order_id = "gid://shopify/Order/cancel-effects"
+  let seeded = order_cancel_effects_test_store(order_id)
+  let mutation =
+    "
+    mutation {
+      orderCancel(
+        orderId: \"gid://shopify/Order/cancel-effects\"
+        restock: true
+        reason: OTHER
+        refund: true
+        notifyCustomer: false
+        staffNote: \"customer changed their mind\"
+        retailAttributionInput: {
+          deviceId: \"gid://shopify/Device/1\"
+          staffMemberId: \"gid://shopify/StaffMember/1\"
+          transactionGroupId: \"gid://shopify/TransactionGroup/1\"
+        }
+      ) {
+        orderCancelUserErrors { field message code }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"orderCancelUserErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/cancel-effects\") {
+        closed
+        cancelledAt
+        cancelReason
+        cancellation { staffNote }
+        displayFinancialStatus
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        totalOutstandingSet { shopMoney { amount currencyCode } }
+        netPaymentSet { shopMoney { amount currencyCode } }
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refunds {
+          note
+          totalRefundedSet { shopMoney { amount currencyCode } }
+          transactions(first: 5) {
+            nodes {
+              kind
+              status
+              gateway
+              amountSet { shopMoney { amount currencyCode } }
+            }
+          }
+        }
+        transactions {
+          kind
+          status
+          gateway
+          amountSet { shopMoney { amount currencyCode } }
+        }
+        fulfillmentOrders(first: 5) {
+          nodes {
+            lineItems(first: 5) {
+              nodes {
+                totalQuantity
+                remainingQuantity
+                lineItem { quantity fulfillableQuantity }
+              }
+            }
+          }
+        }
+        __draftProxyOrderCancel {
+          restock
+          refund
+          notifyCustomer
+          staffNote
+          retailAttributionInput {
+            deviceId
+            staffMemberId
+            transactionGroupId
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"closed\":true,\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\",\"cancellation\":{\"staffNote\":\"customer changed their mind\"},\"displayFinancialStatus\":\"REFUNDED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"netPaymentSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"refunds\":[{\"note\":\"Order cancellation refund\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"transactions\":{\"nodes\":[{\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}]}}],\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}},{\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}],\"fulfillmentOrders\":{\"nodes\":[{\"lineItems\":{\"nodes\":[{\"totalQuantity\":0,\"remainingQuantity\":0,\"lineItem\":{\"quantity\":2,\"fulfillableQuantity\":0}}]}}]},\"__draftProxyOrderCancel\":{\"restock\":true,\"refund\":true,\"notifyCustomer\":false,\"staffNote\":\"customer changed their mind\",\"retailAttributionInput\":{\"deviceId\":\"gid://shopify/Device/1\",\"staffMemberId\":\"gid://shopify/StaffMember/1\",\"transactionGroupId\":\"gid://shopify/TransactionGroup/1\"}}}}}"
+}
+
+pub fn orders_order_cancel_refund_method_stages_refund_test() {
+  let order_id = "gid://shopify/Order/cancel-refund-method"
+  let seeded = order_cancel_effects_test_store(order_id)
+  let outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", refundMethod: { originalPaymentMethodsRefund: true }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"orderCancelUserErrors\":[],\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/cancel-refund-method\") {
+        displayFinancialStatus
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refunds { totalRefundedSet { shopMoney { amount currencyCode } } }
+        __draftProxyOrderCancel {
+          refund
+          refundMethod { originalPaymentMethodsRefund }
+        }
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"displayFinancialStatus\":\"REFUNDED\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"refunds\":[{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}],\"__draftProxyOrderCancel\":{\"refund\":true,\"refundMethod\":{\"originalPaymentMethodsRefund\":true}}}}}"
+}
+
 pub fn orders_order_cancel_rejects_uncancellable_states_test() {
   let cancelled_id = "gid://shopify/Order/6830646329578"
   let refunded_id = "gid://shopify/Order/6830646329579"
@@ -9974,6 +10640,125 @@ fn order_cancel_test_order(
       #("returns", types.CapturedArray(returns)),
     ]),
   )
+}
+
+fn order_cancel_effects_test_store(order_id: String) -> store.Store {
+  let line_item_id = "gid://shopify/LineItem/cancel-effects"
+  let transaction_id = "gid://shopify/OrderTransaction/cancel-effects-sale"
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#CANCEL-EFFECTS")),
+        #("closed", types.CapturedBool(False)),
+        #("closedAt", types.CapturedNull),
+        #("cancelledAt", types.CapturedNull),
+        #("cancelReason", types.CapturedNull),
+        #("displayFinancialStatus", types.CapturedString("PAID")),
+        #(
+          "totalPriceSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("20.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalReceivedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("20.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalRefundedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("0.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "transactions",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(transaction_id)),
+              #("kind", types.CapturedString("SALE")),
+              #("status", types.CapturedString("SUCCESS")),
+              #("gateway", types.CapturedString("manual")),
+              #(
+                "amountSet",
+                types.CapturedObject([
+                  #(
+                    "shopMoney",
+                    types.CapturedObject([
+                      #("amount", types.CapturedString("20.0")),
+                      #("currencyCode", types.CapturedString("CAD")),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+        #("refunds", types.CapturedArray([])),
+        #(
+          "fulfillmentOrders",
+          types.CapturedArray([
+            types.CapturedObject([
+              #(
+                "id",
+                types.CapturedString(
+                  "gid://shopify/FulfillmentOrder/cancel-effects",
+                ),
+              ),
+              #("status", types.CapturedString("OPEN")),
+              #("requestStatus", types.CapturedString("UNSUBMITTED")),
+              #(
+                "lineItems",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(
+                        "gid://shopify/FulfillmentOrderLineItem/cancel-effects",
+                      ),
+                    ),
+                    #("totalQuantity", types.CapturedInt(2)),
+                    #("remainingQuantity", types.CapturedInt(0)),
+                    #(
+                      "lineItem",
+                      types.CapturedObject([
+                        #("id", types.CapturedString(line_item_id)),
+                        #("quantity", types.CapturedInt(2)),
+                        #("fulfillableQuantity", types.CapturedInt(0)),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn run_order_cancel(seed seed: store.Store, order_id order_id: String) {

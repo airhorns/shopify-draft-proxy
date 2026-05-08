@@ -28,6 +28,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_bool_field, captured_int_field, captured_object_field,
   captured_string_field, captured_supported_actions,
+  captured_tracking_info_from_input,
   computed_fulfillment_order_supported_actions, connection_nodes,
   field_arguments, find_captured_replacement, find_order_with_fulfillment,
   find_order_with_fulfillment_order, fulfillment_hold_handle_max_length,
@@ -35,7 +36,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   fulfillment_source_line_item_title, max_fulfillment_holds_per_api_client,
   nullable_user_error, optional_captured_number, optional_captured_string,
   order_fulfillment_holds, order_fulfillment_orders, order_fulfillments,
-  read_object, read_object_list, read_optional_int, read_string,
+  read_bool, read_object, read_object_list, read_optional_int, read_string,
   replace_captured_object_fields, selection_children,
   serialize_captured_selection, serialize_user_error, upsert_captured_fields,
   user_error,
@@ -602,6 +603,10 @@ pub fn build_fulfillment_from_order(
       #("updatedAt", CapturedString(timestamp)),
       #("trackingInfo", fulfillment_tracking_info_from_input(input)),
       #(
+        "__draftProxyNotifyCustomer",
+        CapturedBool(read_bool(input, "notifyCustomer", False)),
+      ),
+      #(
         "fulfillmentLineItems",
         CapturedObject([#("nodes", CapturedArray(line_items))]),
       ),
@@ -960,17 +965,7 @@ pub fn fulfillment_tracking_info_from_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> CapturedJsonValue {
   case read_object(input, "trackingInfo") {
-    Some(tracking) ->
-      CapturedArray([
-        CapturedObject([
-          #("number", optional_captured_string(read_string(tracking, "number"))),
-          #("url", optional_captured_string(read_string(tracking, "url"))),
-          #(
-            "company",
-            optional_captured_string(read_string(tracking, "company")),
-          ),
-        ]),
-      ])
+    Some(tracking) -> captured_tracking_info_from_input(tracking, None)
     None -> CapturedArray([])
   }
 }
