@@ -1527,15 +1527,33 @@ pub fn handle_company_delete(
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_b2b_company_by_id(store, id) {
-        Some(_) -> {
-          let #(store, ids) = delete_company_tree(store, id)
-          b2b_types.RootResult(
-            b2b_types.Payload(..empty_payload([]), deleted_company_id: Some(id)),
-            store,
-            identity,
-            ids,
-          )
-        }
+        Some(company) ->
+          case company_delete_blocker(store, company) {
+            Some(blocker) ->
+              b2b_types.RootResult(
+                b2b_types.Payload(
+                  ..empty_payload([
+                    company_delete_error(["id"], company, blocker),
+                  ]),
+                  deleted_company_id: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            None -> {
+              let #(store, ids) = delete_company_tree(store, id)
+              b2b_types.RootResult(
+                b2b_types.Payload(
+                  ..empty_payload([]),
+                  deleted_company_id: Some(id),
+                ),
+                store,
+                identity,
+                ids,
+              )
+            }
+          }
         None ->
           b2b_types.RootResult(
             b2b_types.Payload(
@@ -1592,15 +1610,30 @@ pub fn handle_companies_delete_under_limit(
       let #(id, index) = entry
       let #(current_store, deleted, staged, errors) = acc
       case store.get_effective_b2b_company_by_id(current_store, id) {
-        Some(_) -> {
-          let #(next_store, ids) = delete_company_tree(current_store, id)
-          #(
-            next_store,
-            list.append(deleted, [id]),
-            list.append(staged, ids),
-            errors,
-          )
-        }
+        Some(company) ->
+          case company_delete_blocker(current_store, company) {
+            Some(blocker) -> #(
+              current_store,
+              deleted,
+              staged,
+              list.append(errors, [
+                company_bulk_delete_error(
+                  indexed_field_path("companyIds", index),
+                  company,
+                  blocker,
+                ),
+              ]),
+            )
+            None -> {
+              let #(next_store, ids) = delete_company_tree(current_store, id)
+              #(
+                next_store,
+                list.append(deleted, [id]),
+                list.append(staged, ids),
+                errors,
+              )
+            }
+          }
         None -> #(
           current_store,
           deleted,
@@ -1617,6 +1650,107 @@ pub fn handle_companies_delete_under_limit(
     identity,
     staged,
   )
+}
+
+@internal
+pub type CompanyDeleteBlocker {
+  CompanyHasOrders
+  CompanyHasStoreCredit
+}
+
+@internal
+pub fn company_delete_blocker(
+  store: Store,
+  company: B2BCompanyRecord,
+) -> Option(CompanyDeleteBlocker) {
+  case company_has_associated_orders(store, company) {
+    True -> Some(CompanyHasOrders)
+    False ->
+      case company_locations_have_non_zero_store_credit(store, company) {
+        True -> Some(CompanyHasStoreCredit)
+        False -> None
+      }
+  }
+}
+
+@internal
+pub fn company_delete_error(
+  field: List(String),
+  company: B2BCompanyRecord,
+  blocker: CompanyDeleteBlocker,
+) -> b2b_types.UserError {
+  let _ = company
+  let _ = blocker
+  user_error(
+    Some(field),
+    "Failed to delete the company.",
+    user_error_code.failed_to_delete,
+  )
+}
+
+@internal
+pub fn company_bulk_delete_error(
+  field: List(String),
+  company: B2BCompanyRecord,
+  blocker: CompanyDeleteBlocker,
+) -> b2b_types.UserError {
+  let _ = company
+  let _ = blocker
+  user_error(
+    Some(field),
+    "Failed to delete the company.",
+    user_error_code.failed_to_delete,
+  )
+}
+
+@internal
+pub fn company_has_associated_orders(
+  store: Store,
+  company: B2BCompanyRecord,
+) -> Bool {
+  company_has_associated_order_marker(company)
+  || list.any(company_locations(store, company), fn(location) {
+    location_has_associated_orders(store, location)
+  })
+}
+
+@internal
+pub fn company_has_associated_order_marker(company: B2BCompanyRecord) -> Bool {
+  case data_get(company.data, "ordersCount") {
+    SrcInt(count) if count > 0 -> True
+    _ ->
+      case data_get(company.data, "associatedOrdersCount") {
+        SrcInt(count) if count > 0 -> True
+        _ ->
+          case data_get(company.data, "hasAssociatedOrders") {
+            SrcBool(True) -> True
+            _ ->
+              case data_get(company.data, "orders") {
+                SrcList([_, ..]) -> True
+                _ -> False
+              }
+          }
+      }
+  }
+}
+
+@internal
+pub fn company_locations_have_non_zero_store_credit(
+  store: Store,
+  company: B2BCompanyRecord,
+) -> Bool {
+  company_locations(store, company)
+  |> list.any(fn(location) {
+    location_has_non_zero_store_credit(store, location)
+  })
+}
+
+fn company_locations(
+  store: Store,
+  company: B2BCompanyRecord,
+) -> List(B2BCompanyLocationRecord) {
+  store.list_effective_b2b_company_locations(store)
+  |> list.filter(fn(location) { location.company_id == company.id })
 }
 
 @internal

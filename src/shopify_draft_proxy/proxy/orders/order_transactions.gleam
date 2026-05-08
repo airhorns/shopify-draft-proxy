@@ -28,19 +28,24 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_bool_field, captured_money_amount, captured_money_presentment_amount,
   captured_object_field, captured_string_field, field_arguments,
-  inferred_user_error, max_float, money_set, money_set_with_presentment,
-  mutation_user_error, nonzero_float, optional_captured_string,
-  order_currency_code, order_money_set, order_money_set_from_input,
-  order_mutation_user_error, order_payment_amount_set,
-  order_presentment_currency_code, order_transactions, read_bool, read_number,
-  read_object, read_string, read_string_arg, replace_captured_object_fields,
-  selection_children, serialize_captured_selection, serialize_job,
-  serialize_order_mutation_user_error, serialize_user_error, user_error,
-  valid_email_address,
+  fulfillment_order_line_items, inferred_user_error, max_float, money_set,
+  money_set_with_presentment, mutation_user_error, nonzero_float,
+  optional_captured_string, order_currency_code, order_fulfillment_orders,
+  order_money_set, order_money_set_from_input, order_mutation_user_error,
+  order_payment_amount_set, order_presentment_currency_code, order_transactions,
+  read_bool, read_number, read_object, read_string, read_string_arg,
+  replace_captured_object_fields, selection_children,
+  serialize_captured_selection, serialize_job,
+  serialize_order_mutation_user_error, serialize_user_error,
+  upsert_captured_fields, user_error, valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
   type OrderMutationUserError, UserErrorField,
+}
+import shopify_draft_proxy/proxy/orders/order_update_refund.{
+  apply_refund_to_order, build_refund_from_input,
+  order_refundable_payment_amount,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{
   order_returns, serialize_order_mutation_payload, serialize_order_node,
@@ -57,7 +62,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type OrderRecord, CapturedArray, CapturedBool,
-  CapturedNull, CapturedObject, CapturedString, OrderRecord,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  OrderRecord,
 }
 
 @internal
@@ -319,13 +325,25 @@ pub fn handle_order_cancel_mutation(
                       let reason =
                         read_string_arg(args, "reason")
                         |> option.unwrap("OTHER")
-                      let #(updated_order, next_identity) =
-                        apply_order_cancel_update(order, identity, reason)
+                      let #(cancelled_order, next_identity) =
+                        apply_order_cancel_update(order, identity, args, reason)
+                      let restocked_order = case
+                        read_bool(args, "restock", False)
+                      {
+                        True -> apply_order_cancel_restock(cancelled_order)
+                        False -> cancelled_order
+                      }
+                      let #(updated_order, identity_after_refund) =
+                        apply_order_cancel_refund(
+                          restocked_order,
+                          args,
+                          next_identity,
+                        )
                       let next_store =
                         store.stage_order(hydrated_store, updated_order)
                       let #(job_id, identity_after_job) =
                         synthetic_identity.make_synthetic_gid(
-                          next_identity,
+                          identity_after_refund,
                           "Job",
                         )
                       let payload =
@@ -497,10 +515,12 @@ pub fn order_cancel_user_error(
 pub fn apply_order_cancel_update(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
   reason: String,
 ) -> #(OrderRecord, SyntheticIdentityRegistry) {
   let #(timestamp, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity)
+  let staff_note = read_string(args, "staffNote")
   let updated_data =
     order.data
     |> replace_captured_object_fields([
@@ -508,9 +528,275 @@ pub fn apply_order_cancel_update(
       #("closedAt", CapturedString(timestamp)),
       #("cancelledAt", CapturedString(timestamp)),
       #("cancelReason", CapturedString(reason)),
+      #(
+        "cancellation",
+        CapturedObject([
+          #("staffNote", optional_captured_string(staff_note)),
+        ]),
+      ),
+      #("__draftProxyOrderCancel", order_cancel_metadata(args, reason)),
       #("updatedAt", CapturedString(timestamp)),
     ])
   #(OrderRecord(..order, data: updated_data), next_identity)
+}
+
+@internal
+pub fn apply_order_cancel_refund(
+  order: OrderRecord,
+  args: Dict(String, root_field.ResolvedValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  case order_cancel_refund_requested(args) {
+    False -> #(order, identity)
+    True -> {
+      let refund_amount = order_refundable_payment_amount(order)
+      case refund_amount >. 0.0 {
+        False -> #(order, identity)
+        True -> {
+          let refund_input =
+            order_cancel_refund_input(order, args, refund_amount)
+          let #(refund, refund_transaction, next_identity) =
+            build_refund_from_input(order, refund_input, identity)
+          #(
+            apply_refund_to_order(order, refund, refund_transaction)
+              |> apply_order_cancel_refund_money_state,
+            next_identity,
+          )
+        }
+      }
+    }
+  }
+}
+
+@internal
+pub fn apply_order_cancel_refund_money_state(
+  order: OrderRecord,
+) -> OrderRecord {
+  let zero = order_money_set(order, 0.0)
+  OrderRecord(
+    ..order,
+    data: replace_captured_object_fields(order.data, [
+      #("currentTotalPriceSet", zero),
+      #("totalOutstandingSet", zero),
+      #("netPaymentSet", zero),
+    ]),
+  )
+}
+
+@internal
+pub fn order_cancel_refund_requested(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  read_bool(args, "refund", False)
+  || case read_object(args, "refundMethod") {
+    Some(method) ->
+      read_bool(method, "originalPaymentMethodsRefund", False)
+      || has_non_null_arg(method, "storeCreditRefund")
+    None -> False
+  }
+}
+
+@internal
+pub fn order_cancel_refund_input(
+  order: OrderRecord,
+  args: Dict(String, root_field.ResolvedValue),
+  refund_amount: Float,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #("orderId", root_field.StringVal(order.id)),
+    #("note", root_field.StringVal("Order cancellation refund")),
+    #(
+      "transactions",
+      root_field.ListVal([
+        root_field.ObjectVal(order_cancel_refund_transaction_input(
+          order,
+          args,
+          refund_amount,
+        )),
+      ]),
+    ),
+  ])
+}
+
+@internal
+pub fn order_cancel_refund_transaction_input(
+  order: OrderRecord,
+  args: Dict(String, root_field.ResolvedValue),
+  refund_amount: Float,
+) -> Dict(String, root_field.ResolvedValue) {
+  let parent = order_cancel_parent_transaction(order)
+  let gateway = case order_cancel_refund_to_store_credit(args) {
+    True -> "store_credit"
+    False ->
+      parent
+      |> option.then(fn(transaction) {
+        captured_string_field(transaction, "gateway")
+      })
+      |> option.unwrap("manual")
+  }
+  let base =
+    dict.from_list([
+      #("amount", root_field.FloatVal(refund_amount)),
+      #("kind", root_field.StringVal("REFUND")),
+      #("gateway", root_field.StringVal(gateway)),
+      #("orderId", root_field.StringVal(order.id)),
+    ])
+  case
+    parent
+    |> option.then(fn(transaction) { captured_string_field(transaction, "id") })
+  {
+    Some(parent_id) ->
+      dict.insert(base, "parentId", root_field.StringVal(parent_id))
+    None -> base
+  }
+}
+
+@internal
+pub fn order_cancel_parent_transaction(
+  order: OrderRecord,
+) -> Option(CapturedJsonValue) {
+  order_transactions(order)
+  |> list.find(fn(transaction) {
+    case captured_string_field(transaction, "kind") {
+      Some("SALE") | Some("CAPTURE") | Some("AUTHORIZATION") -> True
+      _ -> False
+    }
+  })
+  |> option.from_result
+}
+
+@internal
+pub fn order_cancel_refund_to_store_credit(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  read_object(args, "refundMethod")
+  |> option.map(fn(method) { has_non_null_arg(method, "storeCreditRefund") })
+  |> option.unwrap(False)
+}
+
+@internal
+pub fn apply_order_cancel_restock(order: OrderRecord) -> OrderRecord {
+  let fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.map(restock_fulfillment_order)
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields([
+      #("fulfillmentOrders", CapturedArray(fulfillment_orders)),
+    ])
+  OrderRecord(..order, data: updated_data)
+}
+
+@internal
+pub fn restock_fulfillment_order(
+  fulfillment_order: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let line_items =
+    fulfillment_order_line_items(fulfillment_order)
+    |> list.map(restock_fulfillment_order_line_item)
+  replace_captured_object_fields(fulfillment_order, [
+    #("status", CapturedString("CLOSED")),
+    #(
+      "lineItems",
+      replace_connection_nodes_or_array(
+        captured_object_field(fulfillment_order, "lineItems"),
+        line_items,
+      ),
+    ),
+  ])
+}
+
+@internal
+pub fn restock_fulfillment_order_line_item(
+  line_item: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let replacements = [
+    #("totalQuantity", CapturedInt(0)),
+    #("remainingQuantity", CapturedInt(0)),
+  ]
+  let replacements = case captured_object_field(line_item, "lineItem") {
+    Some(value) -> [
+      #(
+        "lineItem",
+        replace_captured_object_fields(value, [
+          #("fulfillableQuantity", CapturedInt(0)),
+        ]),
+      ),
+      ..replacements
+    ]
+    None -> replacements
+  }
+  replace_captured_object_fields(line_item, replacements)
+}
+
+@internal
+pub fn replace_connection_nodes_or_array(
+  value: Option(CapturedJsonValue),
+  nodes: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case value {
+    Some(CapturedObject(fields)) ->
+      CapturedObject(
+        upsert_captured_fields(fields, [
+          #("nodes", CapturedArray(nodes)),
+        ]),
+      )
+    _ -> CapturedArray(nodes)
+  }
+}
+
+@internal
+pub fn order_cancel_metadata(
+  args: Dict(String, root_field.ResolvedValue),
+  reason: String,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("reason", CapturedString(reason)),
+    #("restock", CapturedBool(read_bool(args, "restock", False))),
+    #("refund", CapturedBool(order_cancel_refund_requested(args))),
+    #("notifyCustomer", optional_captured_arg(args, "notifyCustomer")),
+    #("sendNotification", optional_captured_arg(args, "sendNotification")),
+    #("staffNote", optional_captured_string(read_string(args, "staffNote"))),
+    #("refundMethod", optional_captured_arg(args, "refundMethod")),
+    #(
+      "retailAttributionInput",
+      optional_captured_arg(args, "retailAttributionInput"),
+    ),
+  ])
+}
+
+@internal
+pub fn optional_captured_arg(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> CapturedJsonValue {
+  case dict.get(args, name) {
+    Ok(value) -> root_value_to_captured(value)
+    Error(_) -> CapturedNull
+  }
+}
+
+@internal
+pub fn root_value_to_captured(
+  value: root_field.ResolvedValue,
+) -> CapturedJsonValue {
+  case value {
+    root_field.NullVal -> CapturedNull
+    root_field.StringVal(value) -> CapturedString(value)
+    root_field.BoolVal(value) -> CapturedBool(value)
+    root_field.IntVal(value) -> CapturedInt(value)
+    root_field.FloatVal(value) -> CapturedFloat(value)
+    root_field.ListVal(items) ->
+      CapturedArray(list.map(items, root_value_to_captured))
+    root_field.ObjectVal(fields) ->
+      CapturedObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, root_value_to_captured(item))
+        }),
+      )
+  }
 }
 
 @internal

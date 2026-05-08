@@ -1,0 +1,129 @@
+{
+  "scenarioId": "marketing-activity-source-and-medium",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "derived-field-parity", "local-staging"],
+  "operationNames": ["marketingActivityCreateExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-source-and-medium.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-source-and-medium.graphql",
+    "variablesPath": "config/parity-requests/marketing/marketing-activity-source-and-medium.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured external marketing activity create responses for Shopify sourceAndMedium derivation across abandoned_cart, affiliate, loyalty, retargeting with facebook.com, retargeting without a domain, message via facebook.com, message via twitter.com, ad with instagram.com, and ad without a referring domain. The capture script deletes every disposable remoteId before and after recording.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "abandoned-cart-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.abandonedCart.marketingActivity",
+        "proxyPath": "$.data.abandonedCart.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "abandoned-cart-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.abandonedCart.userErrors",
+        "proxyPath": "$.data.abandonedCart.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "affiliate-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.affiliate.marketingActivity",
+        "proxyPath": "$.data.affiliate.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "affiliate-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.affiliate.userErrors",
+        "proxyPath": "$.data.affiliate.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "loyalty-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.loyalty.marketingActivity",
+        "proxyPath": "$.data.loyalty.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "loyalty-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.loyalty.userErrors",
+        "proxyPath": "$.data.loyalty.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "retargeting-facebook-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.retargetingFacebook.marketingActivity",
+        "proxyPath": "$.data.retargetingFacebook.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "retargeting-facebook-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.retargetingFacebook.userErrors",
+        "proxyPath": "$.data.retargetingFacebook.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "retargeting-no-domain-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.retargetingNoDomain.marketingActivity",
+        "proxyPath": "$.data.retargetingNoDomain.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "retargeting-no-domain-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.retargetingNoDomain.userErrors",
+        "proxyPath": "$.data.retargetingNoDomain.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "message-facebook-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.messageFacebook.marketingActivity",
+        "proxyPath": "$.data.messageFacebook.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "message-facebook-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.messageFacebook.userErrors",
+        "proxyPath": "$.data.messageFacebook.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "message-other-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.messageOther.marketingActivity",
+        "proxyPath": "$.data.messageOther.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "message-other-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.messageOther.userErrors",
+        "proxyPath": "$.data.messageOther.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "ad-referring-domain-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.adReferringDomain.marketingActivity",
+        "proxyPath": "$.data.adReferringDomain.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "ad-referring-domain-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.adReferringDomain.userErrors",
+        "proxyPath": "$.data.adReferringDomain.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "ad-no-domain-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.adNoDomain.marketingActivity",
+        "proxyPath": "$.data.adNoDomain.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "ad-no-domain-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.adNoDomain.userErrors",
+        "proxyPath": "$.data.adNoDomain.userErrors",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

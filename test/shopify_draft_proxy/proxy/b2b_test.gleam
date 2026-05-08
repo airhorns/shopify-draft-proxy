@@ -14,8 +14,8 @@ import shopify_draft_proxy/state/types.{
   type CustomerRecord, type StorePropertyValue, AdminPlatformGenericNodeRecord,
   B2BCompanyRecord, CapturedObject, CapturedString, CustomerRecord,
   DraftOrderRecord, Money, OrderRecord, ShopLocaleRecord,
-  StoreCreditAccountRecord, StorePropertyList, StorePropertyObject,
-  StorePropertyString,
+  StoreCreditAccountRecord, StorePropertyInt, StorePropertyList,
+  StorePropertyObject, StorePropertyString,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -1281,6 +1281,114 @@ pub fn b2b_location_create_rejects_name_and_note_validation_test() {
   assert string.contains(location_json, "\"code\":\"TOO_LONG\"")
 }
 
+pub fn b2b_company_and_location_name_presence_matches_blank_contract_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"HQ\" } }) { company { id name locations(first: 1) { nodes { id name } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { id name locations(first: 10) { nodes { id name } } } }"
+  let #(Response(status: before_status, body: before_body, ..), proxy) =
+    graphql(proxy, read)
+  assert before_status == 200
+  let before_json = json.to_string(before_body)
+
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"   \" }) { company { id name } userErrors { field message code } } }",
+    )
+  assert company_status == 200
+  assert_error_payload(
+    json.to_string(company_body),
+    "company",
+    "\"field\":[\"input\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { name: \"   \" }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert location_status == 200
+  assert_error_payload(
+    json.to_string(location_body),
+    "companyLocation",
+    "\"field\":[\"input\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+
+  let #(Response(status: after_status, body: after_body, ..), proxy) =
+    graphql(proxy, read)
+  assert after_status == 200
+  assert json.to_string(after_body) == before_json
+
+  let #(
+    Response(status: location_create_status, body: location_create_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"\" }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert location_create_status == 200
+  let location_create_json = json.to_string(location_create_body)
+  assert string.contains(location_create_json, "\"userErrors\":[]")
+  assert string.contains(location_create_json, "\"name\":\"Acme\"")
+
+  let #(Response(status: fallback_status, body: fallback_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert fallback_status == 200
+  let fallback_json = json.to_string(fallback_body)
+  assert string.contains(fallback_json, "\"userErrors\":[]")
+  assert string.contains(fallback_json, "\"name\":\"Acme\"")
+
+  let #(
+    Response(status: nested_company_status, body: nested_company_body, ..),
+    _,
+  ) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"\" }, companyLocation: { name: \"HQ\" } }) { company { id name } companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert nested_company_status == 200
+  assert_error_payload(
+    json.to_string(nested_company_body),
+    "company",
+    "\"field\":[\"input\",\"company\",\"name\"]",
+    "Name can't be blank",
+    "BLANK",
+  )
+  assert string.contains(
+    json.to_string(nested_company_body),
+    "\"companyLocation\":null",
+  )
+
+  let #(
+    Response(status: nested_location_status, body: nested_location_body, ..),
+    _,
+  ) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"\" } }) { company { id name } companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert nested_location_status == 200
+  let nested_location_json = json.to_string(nested_location_body)
+  assert string.contains(nested_location_json, "\"userErrors\":[]")
+  assert string.contains(nested_location_json, "\"company\":{\"id\":")
+  assert string.contains(nested_location_json, "\"companyLocation\":{\"id\":")
+  assert string.contains(nested_location_json, "\"name\":\"Acme\"")
+}
+
 pub fn b2b_location_create_rejects_invalid_address_inputs_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
@@ -2412,6 +2520,313 @@ pub fn b2b_location_delete_rejects_locations_with_store_credit_test() {
   assert string.contains(delete_json, "\"field\":[\"companyLocationId\"]")
   assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
   assert string.contains(delete_json, "Failed to delete the company location.")
+}
+
+pub fn b2b_company_delete_rejects_companies_with_order_markers_test() {
+  let company_id = "gid://shopify/Company/1?shopify-draft-proxy=synthetic"
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "Order Marker Company",
+      "order-marker-company@example.com",
+    )
+  let assert Some(company) =
+    store.get_effective_b2b_company_by_id(proxy.store, company_id)
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company(
+      proxy.store,
+      B2BCompanyRecord(
+        ..company,
+        data: dict.insert(company.data, "ordersCount", StorePropertyInt(1)),
+      ),
+    )
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyDelete(id: \""
+        <> company_id
+        <> "\") { deletedCompanyId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"deletedCompanyId\":null")
+  assert string.contains(delete_json, "\"field\":[\"id\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(delete_json, "Failed to delete the company.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \""
+        <> company_id
+        <> "\") { id locations(first: 5) { nodes { id } } contacts(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"company\":{\"id\":\"" <> company_id)
+  assert string.contains(
+    read_json,
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic",
+  )
+  assert string.contains(
+    read_json,
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic",
+  )
+}
+
+pub fn b2b_company_delete_rejects_companies_with_staged_orders_test() {
+  let company_id = "gid://shopify/Company/1?shopify-draft-proxy=synthetic"
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "Order Company",
+      "order-company@example.com",
+    )
+  let order =
+    OrderRecord(
+      id: "gid://shopify/Order/company-block",
+      cursor: None,
+      data: CapturedObject([
+        #("id", CapturedString("gid://shopify/Order/company-block")),
+        #(
+          "purchasingEntity",
+          CapturedObject([
+            #("__typename", CapturedString("PurchasingCompany")),
+            #(
+              "location",
+              CapturedObject([#("id", CapturedString(location_id))]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.stage_order(proxy.store, order),
+    )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyDelete(id: \""
+        <> company_id
+        <> "\") { deletedCompanyId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"deletedCompanyId\":null")
+  assert string.contains(delete_json, "\"field\":[\"id\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(delete_json, "Failed to delete the company.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \""
+        <> company_id
+        <> "\") { id } companyLocation(id: \""
+        <> location_id
+        <> "\") { id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"company\":{\"id\":\"" <> company_id)
+  assert string.contains(
+    read_json,
+    "\"companyLocation\":{\"id\":\"" <> location_id,
+  )
+}
+
+pub fn b2b_company_delete_rejects_companies_with_draft_orders_test() {
+  let company_id = "gid://shopify/Company/1?shopify-draft-proxy=synthetic"
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "Draft Order Company",
+      "draft-order-company@example.com",
+    )
+  let draft_order =
+    DraftOrderRecord(
+      id: "gid://shopify/DraftOrder/company-block",
+      cursor: None,
+      data: CapturedObject([
+        #("id", CapturedString("gid://shopify/DraftOrder/company-block")),
+        #("status", CapturedString("OPEN")),
+        #(
+          "purchasingEntity",
+          CapturedObject([
+            #("__typename", CapturedString("PurchasingCompany")),
+            #(
+              "location",
+              CapturedObject([#("id", CapturedString(location_id))]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.stage_draft_order(proxy.store, draft_order),
+    )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyDelete(id: \""
+        <> company_id
+        <> "\") { deletedCompanyId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"deletedCompanyId\":null")
+  assert string.contains(delete_json, "\"field\":[\"id\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(delete_json, "Failed to delete the company.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { company(id: \"" <> company_id <> "\") { id } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"company\":{\"id\":\"")
+}
+
+pub fn b2b_company_delete_rejects_companies_with_store_credit_test() {
+  let company_id = "gid://shopify/Company/1?shopify-draft-proxy=synthetic"
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "Store Credit Company",
+      "store-credit-company@example.com",
+    )
+  let account =
+    StoreCreditAccountRecord(
+      id: "gid://shopify/StoreCreditAccount/company-block",
+      customer_id: location_id,
+      cursor: None,
+      balance: Money(amount: "10.0", currency_code: "USD"),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.stage_store_credit_account(proxy.store, account),
+    )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyDelete(id: \""
+        <> company_id
+        <> "\") { deletedCompanyId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"deletedCompanyId\":null")
+  assert string.contains(delete_json, "\"field\":[\"id\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(delete_json, "Failed to delete the company.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \""
+        <> company_id
+        <> "\") { id } companyLocation(id: \""
+        <> location_id
+        <> "\") { id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"company\":{\"id\":\"" <> company_id)
+  assert string.contains(
+    read_json,
+    "\"companyLocation\":{\"id\":\"" <> location_id,
+  )
+}
+
+pub fn b2b_companies_delete_partially_succeeds_with_failed_deletable_check_test() {
+  let blocked_location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "Blocked Company",
+      "blocked-company@example.com",
+    )
+  let proxy =
+    seed_company_with_contact_and_location(
+      proxy,
+      "Deletable Company",
+      "deletable-company@example.com",
+    )
+  let assert [blocked_company, deletable_company] =
+    store.list_effective_b2b_companies(proxy.store)
+  let blocked_id = blocked_company.id
+  let deletable_id = deletable_company.id
+  let account =
+    StoreCreditAccountRecord(
+      id: "gid://shopify/StoreCreditAccount/bulk-company-block",
+      customer_id: blocked_location_id,
+      cursor: None,
+      balance: Money(amount: "5.0", currency_code: "USD"),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.stage_store_credit_account(proxy.store, account),
+    )
+
+  let missing_id = "gid://shopify/Company/missing"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companiesDelete(companyIds: [\""
+        <> blocked_id
+        <> "\", \""
+        <> deletable_id
+        <> "\", \""
+        <> missing_id
+        <> "\"]) { deletedCompanyIds userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(
+    delete_json,
+    "\"deletedCompanyIds\":[\"" <> deletable_id <> "\"]",
+  )
+  assert string.contains(delete_json, "\"field\":[\"companyIds\",\"0\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(delete_json, "Failed to delete the company.")
+  assert string.contains(delete_json, "\"field\":[\"companyIds\",\"2\"]")
+  assert string.contains(delete_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { blocked: company(id: \""
+        <> blocked_id
+        <> "\") { id } deleted: company(id: \""
+        <> deletable_id
+        <> "\") { id } blockedLocation: companyLocation(id: \""
+        <> blocked_location_id
+        <> "\") { id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"blocked\":{\"id\":\"" <> blocked_id)
+  assert string.contains(read_json, "\"deleted\":null")
+  assert string.contains(
+    read_json,
+    "\"blockedLocation\":{\"id\":\"" <> blocked_location_id,
+  )
 }
 
 pub fn b2b_locations_delete_partially_succeeds_with_failed_deletable_check_test() {

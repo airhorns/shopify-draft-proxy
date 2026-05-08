@@ -961,8 +961,13 @@ fn validate_file_update_input_fields(
   {
     Some(original), Some(preview) if original != "" && preview != "" -> [
       media_types.FilesUserError(
-        ["files", int.to_string(index)],
-        "Specify either originalSource or previewImageSource, not both.",
+        ["files", int.to_string(index), "previewImageSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
+        "INVALID",
+      ),
+      media_types.FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
         "INVALID",
       ),
     ]

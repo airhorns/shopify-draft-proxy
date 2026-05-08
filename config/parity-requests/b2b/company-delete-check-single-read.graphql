@@ -1,0 +1,12 @@
+query B2BCompanyDeleteCheckSingleRead($companyId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    locations(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}

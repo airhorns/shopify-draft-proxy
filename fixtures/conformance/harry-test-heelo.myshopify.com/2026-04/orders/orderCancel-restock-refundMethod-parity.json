@@ -1,0 +1,277 @@
+{
+  "variables": {
+    "orderId": "gid://shopify/Order/8735479398706",
+    "restock": true,
+    "reason": "OTHER",
+    "notifyCustomer": false,
+    "staffNote": "shopify-draft-proxy order cancel restock refundMethod capture",
+    "refundMethod": {
+      "originalPaymentMethodsRefund": true
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCancel": {
+          "orderCancelUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8735479398706"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8735479398706",
+          "name": "#1390",
+          "closed": true,
+          "closedAt": "2026-05-08T02:34:17Z",
+          "cancelledAt": "2026-05-08T02:34:17Z",
+          "cancelReason": "OTHER",
+          "cancellation": {
+            "staffNote": "shopify-draft-proxy order cancel restock refundMethod capture"
+          },
+          "displayFinancialStatus": "REFUNDED",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "paymentGatewayNames": ["manual"],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "netPaymentSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalReceivedSet": {
+            "shopMoney": {
+              "amount": "20.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalRefundedSet": {
+            "shopMoney": {
+              "amount": "20.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "refunds": [
+            {
+              "id": "gid://shopify/Refund/1024353632562",
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": {
+                "nodes": [
+                  {
+                    "kind": "REFUND",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            {
+              "kind": "REFUND",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/9659302248754",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19461847580978",
+                      "totalQuantity": 0,
+                      "remainingQuantity": 0,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19312619651378",
+                        "title": "Order cancel restock/refundMethod item",
+                        "quantity": 2,
+                        "fulfillableQuantity": 0
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 38,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8735479398706"
+      },
+      "query": "query OrderCancelRestockRefundMethodDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    cancellation {\n      staffNote\n    }\n    displayFinancialStatus\n    displayFulfillmentStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalRefundedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    refunds {\n      id\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      transactions(first: 5) {\n        nodes {\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8735479398706",
+              "name": "#1390",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "cancellation": null,
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "refunds": [],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9659302248754",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19461847580978",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19312619651378",
+                            "title": "Order cancel restock/refundMethod item",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 38,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

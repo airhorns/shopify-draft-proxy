@@ -53,6 +53,7 @@ const companyUpdateDocument = `#graphql
     companyUpdate(companyId: $companyId, input: $input) {
       company {
         id
+        name
         note
       }
       userErrors {
@@ -92,6 +93,38 @@ const locationCreateDocument = `#graphql
         field
         message
         code
+      }
+    }
+  }
+`;
+
+const locationUpdateDocument = `#graphql
+  mutation B2BStringValidationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+      companyLocation {
+        id
+        name
+        note
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const companyReadDocument = `#graphql
+  query B2BStringValidationCompanyRead($id: ID!) {
+    company(id: $id) {
+      id
+      name
+      locations(first: 10) {
+        nodes {
+          id
+          name
+        }
       }
     }
   }
@@ -174,7 +207,7 @@ try {
   const companyCreateLongNote = await runOperation(companyCreateDocument, {
     input: {
       company: {
-        name: `HAR-625 long note ${timestamp}`,
+        name: `B2B long note ${timestamp}`,
         note: longNote,
       },
     },
@@ -184,17 +217,41 @@ try {
   const companyCreateHtmlNote = await runOperation(companyCreateDocument, {
     input: {
       company: {
-        name: `HAR-625 HTML note ${timestamp}`,
+        name: `B2B HTML note ${timestamp}`,
         note: '<b>merchant note</b>',
       },
     },
   });
   rememberCreatedCompany(companyCreateHtmlNote);
 
+  const companyCreateBlankName = await runOperation(companyCreateDocument, {
+    input: {
+      company: {
+        name: '',
+      },
+    },
+  });
+  rememberCreatedCompany(companyCreateBlankName);
+
+  const companyCreateBlankLocationName = await runOperation(companyCreateDocument, {
+    input: {
+      company: {
+        name: `B2B blank location setup ${timestamp}`,
+      },
+      companyLocation: {
+        name: '',
+      },
+    },
+  });
+  const blankLocationCompanyId = rememberCreatedCompany(companyCreateBlankLocationName);
+  const companyCreateBlankLocationRead = blankLocationCompanyId
+    ? await runOperation(companyReadDocument, { id: blankLocationCompanyId })
+    : null;
+
   const setupCompany = await runOperation(companyCreateDocument, {
     input: {
       company: {
-        name: `HAR-625 validation setup ${timestamp}`,
+        name: `B2B validation setup ${timestamp}`,
       },
     },
   });
@@ -202,6 +259,13 @@ try {
   if (!setupCompanyId) {
     throw new Error(`Unable to create setup company: ${JSON.stringify(setupCompany.response, null, 2)}`);
   }
+
+  const companyUpdateBlankName = await runOperation(companyUpdateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      name: '',
+    },
+  });
 
   const companyUpdateHtmlAndTooLongNote = await runOperation(companyUpdateDocument, {
     companyId: setupCompanyId,
@@ -213,7 +277,7 @@ try {
   const contactCreateLongTitle = await runOperation(contactCreateDocument, {
     companyId: setupCompanyId,
     input: {
-      email: `har-625-long-title-${timestamp}@example.com`,
+      email: `b2b-long-title-${timestamp}@example.com`,
       title: longTitle,
     },
   });
@@ -221,7 +285,7 @@ try {
   const contactCreateHtmlTitle = await runOperation(contactCreateDocument, {
     companyId: setupCompanyId,
     input: {
-      email: `har-625-html-title-${timestamp}@example.com`,
+      email: `b2b-html-title-${timestamp}@example.com`,
       title: '<b>VP</b>',
     },
   });
@@ -233,10 +297,42 @@ try {
     },
   });
 
+  const locationCreateBlankName = await runOperation(locationCreateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      name: '',
+    },
+  });
+
+  const locationCreateForUpdate = await runOperation(locationCreateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      name: `B2B update setup ${timestamp}`,
+    },
+  });
+  const updateLocationId = readStringAtPath(locationCreateForUpdate.response, [
+    'data',
+    'companyLocationCreate',
+    'companyLocation',
+    'id',
+  ]);
+  if (!updateLocationId) {
+    throw new Error(
+      `Unable to create update setup location: ${JSON.stringify(locationCreateForUpdate.response, null, 2)}`,
+    );
+  }
+
+  const locationUpdateBlankName = await runOperation(locationUpdateDocument, {
+    companyLocationId: updateLocationId,
+    input: {
+      name: '',
+    },
+  });
+
   const locationCreateHtmlAndTooLongNote = await runOperation(locationCreateDocument, {
     companyId: setupCompanyId,
     input: {
-      name: `HAR-625 note location ${timestamp}`,
+      name: `B2B note location ${timestamp}`,
       note: htmlLongNote,
     },
   });
@@ -252,17 +348,23 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      ticket: 'HAR-625',
-      plan: 'Record B2B string length and HTML validation branches that the current live Admin API target reproduces, plus live mismatch probes for HTML branches that currently succeed.',
+      plan: 'Record B2B string length, blank-name, and HTML validation branches that the current live Admin API target reproduces, plus live mismatch probes for HTML branches that currently succeed.',
     },
     companyCreateLongName,
     companyCreateLongNote,
     companyCreateHtmlNote,
+    companyCreateBlankName,
+    companyCreateBlankLocationName,
+    companyCreateBlankLocationRead,
     setupCompany,
+    companyUpdateBlankName,
     companyUpdateHtmlAndTooLongNote,
     contactCreateLongTitle,
     contactCreateHtmlTitle,
     locationCreateLongName,
+    locationCreateBlankName,
+    locationCreateForUpdate,
+    locationUpdateBlankName,
     locationCreateHtmlAndTooLongNote,
     cleanup,
     upstreamCalls: [],
