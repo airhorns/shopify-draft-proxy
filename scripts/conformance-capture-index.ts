@@ -3431,6 +3431,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-source-and-medium',
+    scriptPath: 'scripts/capture-marketing-activity-source-and-medium-conformance.mts',
+    purpose:
+      'External marketing activity sourceAndMedium derivation for tactic-specific labels, referring-domain aliases, and default channel fallback.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-source-and-medium.json`,
+      'config/parity-specs/marketing/marketing-activity-source-and-medium.json',
+      'config/parity-requests/marketing/marketing-activity-source-and-medium.graphql',
+      'config/parity-requests/marketing/marketing-activity-source-and-medium.variables.json',
+    ],
+    cleanupBehavior:
+      'Deletes every deterministic disposable remote ID before and after recording the sourceAndMedium create matrix.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-update-external-multi-selector',
     scriptPath: 'scripts/capture-marketing-activity-update-external-multi-selector-conformance.mts',
     purpose:

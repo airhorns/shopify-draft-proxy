@@ -2050,7 +2050,9 @@ fn build_marketing_records_from_create_input(
       serializers.read_value_string(input, "marketingChannelType"),
       "EMAIL",
     )
-  let source_medium = serializers.source_and_medium(channel_type, tactic)
+  let referring_domain = serializers.read_value_string(input, "referringDomain")
+  let source_medium =
+    serializers.source_and_medium(channel_type, tactic, referring_domain)
   let utm = serializers.read_utm(input)
   let started_at =
     option.unwrap(
@@ -2114,6 +2116,10 @@ fn build_marketing_records_from_create_input(
       ),
       #("description", MarketingString(title)),
       #("marketingChannelType", MarketingString(channel_type)),
+      #(
+        "referringDomain",
+        serializers.optional_marketing_string(referring_domain),
+      ),
       #("sourceAndMedium", MarketingString(source_medium)),
       #(
         "channelHandle",
@@ -2134,6 +2140,10 @@ fn build_marketing_records_from_create_input(
       #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
       #("marketingChannelType", MarketingString(channel_type)),
+      #(
+        "referringDomain",
+        serializers.optional_marketing_string(referring_domain),
+      ),
       #("sourceAndMedium", MarketingString(source_medium)),
       #("isExternal", MarketingBool(True)),
       #("inMainWorkflowVersion", MarketingBool(False)),
@@ -2214,7 +2224,7 @@ fn build_native_marketing_activity_from_create_input(
       serializers.read_value_string(input, "marketingChannelType"),
       "EMAIL",
     )
-  let source_medium = serializers.source_and_medium(channel_type, tactic)
+  let source_medium = serializers.source_and_medium(channel_type, tactic, None)
   let data =
     dict.from_list([
       #("__typename", MarketingString("MarketingActivity")),
@@ -2334,7 +2344,7 @@ fn apply_native_marketing_activity_update(
         |> option.or(serializers.read_marketing_string(record.data, "title")),
       "Marketing activity",
     )
-  let source_medium = serializers.source_and_medium(channel_type, tactic)
+  let source_medium = serializers.source_and_medium(channel_type, tactic, None)
   let data =
     serializers.overlay_marketing_data(record.data, [
       #("title", MarketingString(title)),
@@ -2440,7 +2450,18 @@ fn apply_external_activity_update(
         |> option.or(serializers.read_marketing_string(record.data, "title")),
       "",
     )
-  let source_medium = serializers.source_and_medium(channel_type, tactic)
+  let referring_domain =
+    serializers.read_value_string(input, "referringDomain")
+    |> option.or(serializers.read_marketing_string(
+      record.data,
+      "referringDomain",
+    ))
+    |> option.or(serializers.read_marketing_object_string(
+      Some(existing_event),
+      "referringDomain",
+    ))
+  let source_medium =
+    serializers.source_and_medium(channel_type, tactic, referring_domain)
   let existing_utm =
     serializers.read_marketing_object(record.data, "utmParameters")
   let ended_at =
@@ -2539,6 +2560,10 @@ fn apply_external_activity_update(
       ),
       #("description", MarketingString(title)),
       #("marketingChannelType", MarketingString(channel_type)),
+      #(
+        "referringDomain",
+        serializers.optional_marketing_string(referring_domain),
+      ),
       #("sourceAndMedium", MarketingString(source_medium)),
     ])
   let activity_data =
@@ -2549,6 +2574,10 @@ fn apply_external_activity_update(
       #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
       #("marketingChannelType", MarketingString(channel_type)),
+      #(
+        "referringDomain",
+        serializers.optional_marketing_string(referring_domain),
+      ),
       #("sourceAndMedium", MarketingString(source_medium)),
       #(
         "currencyCode",
