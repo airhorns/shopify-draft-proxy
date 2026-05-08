@@ -37,6 +37,12 @@ Before live capture, always confirm the effective store and credential:
 corepack pnpm conformance:probe
 ```
 
+New recordings should use Admin GraphQL `2026-04` by default. The shared
+conformance helpers already default to `2026-04`; set
+`SHOPIFY_CONFORMANCE_API_VERSION` only when a scenario deliberately preserves an
+older fixture contract or needs to prove version-specific behavior, and record
+that reason in the fixture/spec notes.
+
 After a fixture or parity metadata change, run the checks named by the index entry. Most promoted fixtures should pass:
 
 ```bash

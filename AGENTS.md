@@ -246,6 +246,10 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   live capture, verify the effective store with `corepack pnpm conformance:probe`
   and inspect the resolved `SHOPIFY_CONFORMANCE_STORE_DOMAIN` /
   `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN` when the probe target is surprising.
+- Prefer Admin GraphQL `2026-04` for new conformance recordings and parity
+  specs. Pin an older API version only when preserving existing fixture evidence
+  or intentionally proving a version-specific Shopify contract, and document
+  that reason in the capture/spec notes.
 - New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.
 - If a task requires recording or re-recording conformance evidence and
   `getValidConformanceAccessToken(...)` / `corepack pnpm conformance:probe`

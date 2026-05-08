@@ -224,6 +224,12 @@ Once the vars are present:
 corepack pnpm conformance:probe
 ```
 
+For new conformance recordings and parity specs, prefer Admin GraphQL
+`2026-04`. The repo's shared conformance helper defaults to `2026-04`; only
+override `SHOPIFY_CONFORMANCE_API_VERSION` for existing fixture refreshes or
+intentional version-specific behavior, and document the reason in the
+scenario notes.
+
 This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong. Internally it resolves the token via `getValidConformanceAccessToken(...)`, which probes the stored token, refreshes it when possible, and reports a clear error when the home-folder credential is missing or dead.
 
 If `conformance:probe` fails and the current task needs fresh live recordings,
