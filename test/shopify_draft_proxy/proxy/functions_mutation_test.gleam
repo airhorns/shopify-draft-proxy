@@ -1041,6 +1041,138 @@ pub fn cart_transform_create_rejects_duplicate_function_id_test() {
   assert list.is_empty(store.get_log(outcome.store))
 }
 
+pub fn cart_transform_create_duplicate_wrong_api_function_id_precedes_api_mismatch_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let existing =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/existing",
+      title: Some("Existing"),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
+  let assert [_] = store.list_effective_cart_transforms(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_duplicate_wrong_api_function_handle_keeps_api_mismatch_first_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let existing =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/existing",
+      title: Some("Existing"),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionHandle: \"checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  let assert [_] = store.list_effective_cart_transforms(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_validation_registered_wrong_api_function_id_precedes_api_mismatch_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let validation =
+    ValidationRecord(
+      id: "gid://shopify/Validation/existing",
+      title: Some("Existing"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(validation)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
+  let assert [_] = store.list_effective_validations(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_validation_registered_wrong_api_function_handle_keeps_api_mismatch_first_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let validation =
+    ValidationRecord(
+      id: "gid://shopify/Validation/existing",
+      title: Some("Existing"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(validation)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionHandle: \"checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  let assert [_] = store.list_effective_validations(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
 pub fn cart_transform_create_persists_metafields_for_downstream_reads_test() {
   let fn_record =
     shopify_fn(

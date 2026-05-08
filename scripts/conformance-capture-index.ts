@@ -5568,6 +5568,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-cart-transform-registered-wrong-api-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-cart-transform-registered-wrong-api-precedence-conformance.ts',
+    purpose:
+      'cartTransformCreate userError precedence when a validation Function is already registered on the shop before the cart-transform API mismatch check.',
+    requiredAuthScopes: [
+      'shopifyFunctions read access',
+      'write_validations for disposable validation setup and cleanup',
+      'read_cart_transforms',
+      'write_cart_transforms for cartTransformCreate userError probes',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-cart-transform-create-registered-wrong-api-precedence.json`,
+      'config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json',
+      'config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-validation-setup.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-by-id.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-by-handle.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable Validation from the validation Function, captures cartTransformCreate functionId/functionHandle probes against that registered wrong-API Function, then deletes the disposable Validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-cart-transform-create-metafields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-cart-transform-metafields-conformance.ts',
