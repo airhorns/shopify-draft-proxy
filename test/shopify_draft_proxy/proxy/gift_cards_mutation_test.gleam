@@ -511,6 +511,31 @@ pub fn gift_card_create_rejects_missing_customer_test() {
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
 }
 
+pub fn gift_card_create_missing_customer_wins_over_code_validation_test() {
+  let seeded =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { giftCardCreate(input: { initialValue: \"10\", code: \"validcode123\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  let body =
+    run_mutation(
+      seeded.store,
+      "mutation { shortCodeMissingCustomer: giftCardCreate(input: { initialValue: \"10\", code: \"abc\", customerId: \"gid://shopify/Customer/9999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } invalidCodeMissingCustomer: giftCardCreate(input: { initialValue: \"10\", code: \"BAD-CODE!@#\", customerId: \"gid://shopify/Customer/9999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } duplicateCodeMissingCustomer: giftCardCreate(input: { initialValue: \"10\", code: \"valid code-123\", customerId: \"gid://shopify/Customer/9999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"shortCodeMissingCustomer\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]},\"invalidCodeMissingCustomer\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]},\"duplicateCodeMissingCustomer\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
+pub fn gift_card_create_missing_customer_wins_over_initial_value_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { giftCardCreate(input: { initialValue: \"0\", customerId: \"gid://shopify/Customer/9999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
 pub fn gift_card_create_missing_recipient_attribute_id_is_schema_error_test() {
   let #(Response(status: status, body: body, ..), proxy_after) =
     run_proxy_graphql(

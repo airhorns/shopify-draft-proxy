@@ -191,6 +191,13 @@ const collectionVariables = {
     query: 'title:Sale',
   },
 };
+const discountRedeemCodeVariables = {
+  input: {
+    resourceType: 'DISCOUNT_REDEEM_CODE',
+    name: 'All codes',
+    query: '',
+  },
+};
 const positiveControlVariables = {
   input: {
     resourceType: 'PRODUCT',
@@ -205,6 +212,7 @@ let orderReservedCreate: ConformanceGraphqlResult | null = null;
 let draftOrderReservedCreate: ConformanceGraphqlResult | null = null;
 let fileReservedCreate: ConformanceGraphqlResult | null = null;
 let collectionReservedCreate: ConformanceGraphqlResult | null = null;
+let discountRedeemCodeReservedCreate: ConformanceGraphqlResult | null = null;
 let productPositiveControlCreate: ConformanceGraphqlResult | null = null;
 let productReservedUpdate: ConformanceGraphqlResult | null = null;
 
@@ -259,6 +267,25 @@ try {
     expectNullSavedSearch: true,
   });
 
+  discountRedeemCodeReservedCreate = await client.runGraphqlRequest(createDocument, discountRedeemCodeVariables);
+  assertNoTopLevelErrors(
+    discountRedeemCodeReservedCreate,
+    'saved-search reserved-name discount-redeem-code create capture',
+  );
+  const unexpectedDiscountRedeemCodeId = readOptionalSavedSearchId(
+    discountRedeemCodeReservedCreate.payload,
+    'savedSearchCreate',
+  );
+  if (unexpectedDiscountRedeemCodeId) cleanupIds.push(unexpectedDiscountRedeemCodeId);
+  assertReservedNameUserError(
+    discountRedeemCodeReservedCreate.payload,
+    'savedSearchCreate',
+    'discount-redeem-code-create',
+    {
+      expectNullSavedSearch: true,
+    },
+  );
+
   productPositiveControlCreate = await client.runGraphqlRequest(createDocument, positiveControlVariables);
   assertNoTopLevelErrors(productPositiveControlCreate, 'saved-search reserved-name positive-control create capture');
   assertCreateSucceeded(productPositiveControlCreate.payload, 'positive-control create');
@@ -286,7 +313,7 @@ try {
     apiVersion,
     notes: [
       'Live Shopify evidence for SavedSearch per-resource reserved-name validation.',
-      'PRODUCT, ORDER, DRAFT_ORDER, FILE, and COLLECTION reserved names are rejected on create with userErrors[{ field: ["input", "name"], message: "Name has already been taken" }].',
+      'PRODUCT, ORDER, DRAFT_ORDER, FILE, COLLECTION, and DISCOUNT_REDEEM_CODE reserved names are rejected on create with userErrors[{ field: ["input", "name"], message: "Name has already been taken" }].',
       'PRODUCT reserved-name matching is case-insensitive: "ALL PRODUCTS" is rejected the same way as "All products".',
       'PRODUCT "All products v2" is a positive control proving reserved-name prefixes are not rejected unless they exactly match case-insensitively.',
       'A PRODUCT saved search renamed to "All products" is rejected on update with a non-null savedSearch payload and is deleted during cleanup.',
@@ -322,6 +349,11 @@ try {
       documentPath: 'config/parity-requests/saved-searches/saved-search-local-staging-create.graphql',
       variables: collectionVariables,
       payload: collectionReservedCreate.payload,
+    },
+    discountRedeemCodeReservedCreate: {
+      documentPath: 'config/parity-requests/saved-searches/saved-search-local-staging-create.graphql',
+      variables: discountRedeemCodeVariables,
+      payload: discountRedeemCodeReservedCreate.payload,
     },
     productPositiveControlCreate: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-local-staging-create.graphql',

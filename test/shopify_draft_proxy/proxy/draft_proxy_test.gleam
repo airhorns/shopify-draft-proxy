@@ -766,6 +766,29 @@ pub fn graphql_saved_search_create_empty_query_allowed_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Empty query\",\"query\":\"\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
 }
 
+pub fn graphql_saved_search_create_rejects_discount_redeem_code_reserved_name_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"All codes\\\", query: \\\"\\\", resourceType: DISCOUNT_REDEEM_CODE }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ discountRedeemCodeSavedSearches(first: 1) { nodes { name } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"discountRedeemCodeSavedSearches\":{\"nodes\":[]}}}"
+}
+
 pub fn graphql_saved_search_create_blank_name_test() {
   let proxy = draft_proxy.new()
   let request =

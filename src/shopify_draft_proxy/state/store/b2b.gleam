@@ -4,6 +4,7 @@ import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import shopify_draft_proxy/state/store/products
 import shopify_draft_proxy/state/store/shared.{
   type EffectiveSlice, EffectiveSlice, append_unique_id, append_unique_ids,
   dict_has, effective_get, effective_list, effective_list_ordered,
@@ -14,7 +15,8 @@ import shopify_draft_proxy/state/store/types.{
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord,
-  type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
+  type ProductVariantRecord, type StorePropertyMutationPayloadRecord,
+  type StorePropertyRecord, InventoryItemRecord, ProductVariantRecord,
 } as _
 
 // ---------------------------------------------------------------------------
@@ -536,6 +538,60 @@ pub fn delete_staged_store_property_location(
         True,
       ),
     ),
+  )
+  |> remove_inventory_levels_for_location(id)
+}
+
+fn remove_inventory_levels_for_location(
+  store: Store,
+  location_id: String,
+) -> Store {
+  let affected_product_ids =
+    products.list_effective_product_variants(store)
+    |> list.filter(fn(variant) {
+      variant_has_inventory_level_for_location(variant, location_id)
+    })
+    |> list.fold([], fn(ids, variant) {
+      append_unique_id(ids, variant.product_id)
+    })
+
+  list.fold(affected_product_ids, store, fn(current, product_id) {
+    let variants =
+      products.get_effective_variants_by_product_id(current, product_id)
+      |> list.map(fn(variant) {
+        remove_variant_inventory_levels_for_location(variant, location_id)
+      })
+    products.replace_staged_variants_for_product(current, product_id, variants)
+  })
+}
+
+fn variant_has_inventory_level_for_location(
+  variant: ProductVariantRecord,
+  location_id: String,
+) -> Bool {
+  case variant.inventory_item {
+    Some(item) ->
+      list.any(item.inventory_levels, fn(level) {
+        level.location.id == location_id
+      })
+    None -> False
+  }
+}
+
+fn remove_variant_inventory_levels_for_location(
+  variant: ProductVariantRecord,
+  location_id: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    ..variant,
+    inventory_item: option.map(variant.inventory_item, fn(item) {
+      InventoryItemRecord(
+        ..item,
+        inventory_levels: list.filter(item.inventory_levels, fn(level) {
+          level.location.id != location_id
+        }),
+      )
+    }),
   )
 }
 

@@ -382,17 +382,90 @@ pub fn event_ended_at_for_status(
 
 @internal
 pub fn status_label(status: String) -> String {
+  status_label_for_activity(status, None, None, False, False)
+}
+
+@internal
+pub fn status_label_for_activity(
+  status: String,
+  tactic: Option(String),
+  target_status: Option(String),
+  is_automation: Bool,
+  republishing: Bool,
+) -> String {
+  let normalized_status = string.uppercase(status)
+  let normalized_tactic =
+    option.unwrap(tactic, "")
+    |> string.uppercase
+  case target_status {
+    Some(target_status) ->
+      case string.uppercase(target_status) {
+        "PAUSED" -> "Pausing"
+        "DELETED" -> "Deleting"
+        "ACTIVE" ->
+          case normalized_status {
+            "ACTIVE" -> raw_status_label(normalized_status)
+            _ -> "Resuming"
+          }
+        _ ->
+          status_label_without_target(
+            normalized_status,
+            normalized_tactic,
+            is_automation,
+            republishing,
+          )
+      }
+    None ->
+      status_label_without_target(
+        normalized_status,
+        normalized_tactic,
+        is_automation,
+        republishing,
+      )
+  }
+}
+
+fn status_label_without_target(
+  status: String,
+  tactic: String,
+  is_automation: Bool,
+  republishing: Bool,
+) -> String {
+  case republishing {
+    True -> "Processing"
+    False ->
+      case is_automation {
+        True -> raw_status_label(status)
+        False ->
+          case status, tactic {
+            "ACTIVE", "POST" -> "Posting"
+            "ACTIVE", "NEWSLETTER" -> "Sending"
+            "ACTIVE", "MESSAGE" -> "Sending"
+            "ACTIVE", _ -> raw_status_label(status)
+            "INACTIVE", "NEWSLETTER" -> "Sent"
+            "INACTIVE", "MESSAGE" -> "Sent"
+            "INACTIVE", "POST" -> "Posted"
+            "INACTIVE", _ -> "Ended"
+            "PENDING", "AD" -> "In review"
+            "PENDING", "RETARGETING" -> "In review"
+            _, _ -> raw_status_label(status)
+          }
+      }
+  }
+}
+
+fn raw_status_label(status: String) -> String {
   case status {
-    "ACTIVE" -> "Sending"
+    "ACTIVE" -> "Active"
     "DELETED" -> "Deleted"
-    "INACTIVE" -> "Sent"
+    "INACTIVE" -> "Inactive"
     "PAUSED" -> "Paused"
     "PENDING" -> "Pending"
     "SCHEDULED" -> "Scheduled"
     "DRAFT" -> "Draft"
     "FAILED" -> "Failed"
     "DISCONNECTED" -> "Disconnected"
-    "DELETED_EXTERNALLY" -> "Deleted externally"
+    "DELETED_EXTERNALLY" -> "Deleted"
     _ -> "Undefined"
   }
 }
@@ -401,14 +474,85 @@ pub fn status_label(status: String) -> String {
 pub fn source_and_medium(
   marketing_channel_type: String,
   tactic: String,
+  referring_domain: Option(String),
 ) -> String {
-  case marketing_channel_type, tactic {
-    "EMAIL", "NEWSLETTER" -> "Email newsletter"
-    _, _ ->
-      capitalize(string.lowercase(marketing_channel_type))
-      <> " "
-      <> string.replace(string.lowercase(tactic), "_", " ")
+  let event_type = string.lowercase(tactic)
+  let marketing_channel = string.lowercase(marketing_channel_type)
+  let referring_domain = present_string(referring_domain)
+
+  case event_type {
+    "abandoned_cart" -> "Abandoned cart email"
+    "affiliate" -> "Affiliate link"
+    "loyalty" -> "Loyalty program"
+    "retargeting" ->
+      case referring_domain {
+        Some(domain) -> aliased_referring_domain(domain) <> " retargeting ad"
+        None -> "Retargeting ad"
+      }
+    "message" ->
+      case referring_domain {
+        Some("facebook.com") -> "Message via Facebook Messenger"
+        Some(domain) -> aliased_referring_domain(domain) <> " message"
+        None -> " message"
+      }
+    _ ->
+      case referring_domain {
+        Some(domain) ->
+          aliased_referring_domain(domain) <> " " <> humanize(event_type)
+        None ->
+          case present_string(Some(marketing_channel)) {
+            Some(channel) -> titleize(channel) <> " " <> humanize(event_type)
+            None -> titleize(event_type)
+          }
+      }
   }
+}
+
+@internal
+pub fn present_string(value: Option(String)) -> Option(String) {
+  case value {
+    Some(raw) -> {
+      let trimmed = string.trim(raw)
+      case trimmed {
+        "" -> None
+        _ -> Some(trimmed)
+      }
+    }
+    None -> None
+  }
+}
+
+@internal
+pub fn aliased_referring_domain(domain: String) -> String {
+  case string.lowercase(domain) {
+    "facebook.com" -> "Facebook"
+    "instagram.com" -> "Instagram"
+    "twitter.com" -> "Twitter"
+    "x.com" -> "X"
+    "pinterest.com" -> "Pinterest"
+    "youtube.com" -> "YouTube"
+    "tiktok.com" -> "TikTok"
+    "snapchat.com" -> "Snapchat"
+    "google.com" -> "Google"
+    "bing.com" -> "Bing"
+    _ -> domain
+  }
+}
+
+@internal
+pub fn humanize(value: String) -> String {
+  value
+  |> string.replace("_", " ")
+}
+
+@internal
+pub fn titleize(value: String) -> String {
+  value
+  |> string.replace("_", " ")
+  |> string.split(" ")
+  |> list.filter(fn(part) { part != "" })
+  |> list.map(capitalize)
+  |> string.join(" ")
 }
 
 @internal
