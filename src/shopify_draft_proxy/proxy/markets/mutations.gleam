@@ -3647,9 +3647,25 @@ fn web_presence_update_errors(
   existing: WebPresenceRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
+  let check_default_locale = dict.has_key(input, "defaultLocale")
+  let check_alternate_locales = dict.has_key(input, "alternateLocales")
   let default_locale_errors = case dict.has_key(input, "defaultLocale") {
     True -> web_presence_default_locale_errors(input)
     False -> []
+  }
+  let alternate_locale_errors = web_presence_alternate_locale_errors(input)
+  let duplicate_language_errors = case
+    default_locale_errors,
+    alternate_locale_errors
+  {
+    [], [] ->
+      web_presence_duplicate_language_errors(
+        input,
+        Some(existing),
+        check_default_locale,
+        check_alternate_locales,
+      )
+    _, _ -> []
   }
   let route_and_suffix_errors = case default_locale_errors {
     [] ->
@@ -3666,7 +3682,8 @@ fn web_presence_update_errors(
   }
   combine_error_lists([
     default_locale_errors,
-    web_presence_alternate_locale_errors(input),
+    alternate_locale_errors,
+    duplicate_language_errors,
     route_and_suffix_errors,
   ])
 }
@@ -3693,6 +3710,14 @@ fn web_presence_input_errors(
     None -> []
   }
   let default_locale_errors = web_presence_default_locale_errors(input)
+  let alternate_locale_errors = web_presence_alternate_locale_errors(input)
+  let duplicate_language_errors = case
+    default_locale_errors,
+    alternate_locale_errors
+  {
+    [], [] -> web_presence_duplicate_language_errors(input, None, True, True)
+    _, _ -> []
+  }
   let route_and_suffix_errors = case domain_errors, default_locale_errors {
     [], [] ->
       combine_error_lists([
@@ -3705,7 +3730,8 @@ fn web_presence_input_errors(
   [
     domain_errors,
     default_locale_errors,
-    web_presence_alternate_locale_errors(input),
+    alternate_locale_errors,
+    duplicate_language_errors,
     route_and_suffix_errors,
   ]
   |> list.flatten
@@ -3816,6 +3842,108 @@ fn web_presence_alternate_locale_errors(
   }
 }
 
+fn web_presence_duplicate_language_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(WebPresenceRecord),
+  check_default_locale: Bool,
+  check_alternate_locales: Bool,
+) -> List(CapturedJsonValue) {
+  case
+    effective_web_presence_default_locale(input, existing),
+    effective_web_presence_alternate_locales(input, existing)
+  {
+    Some(default_locale), alternate_locales -> {
+      let unique_alternate_locales =
+        append_unique_strings([], alternate_locales)
+      case list.contains(unique_alternate_locales, default_locale) {
+        True ->
+          combine_error_lists([
+            duplicate_default_locale_errors(
+              default_locale,
+              check_default_locale,
+            ),
+            duplicate_alternate_locale_errors(
+              default_locale,
+              unique_alternate_locales,
+              check_alternate_locales,
+            ),
+          ])
+        False -> []
+      }
+    }
+    None, _ -> []
+  }
+}
+
+fn effective_web_presence_default_locale(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(WebPresenceRecord),
+) -> Option(String) {
+  case dict.has_key(input, "defaultLocale") {
+    True ->
+      graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+      |> option.then(canonical_web_presence_locale)
+    False ->
+      case existing {
+        Some(record) -> Some(existing_web_presence_default_locale(record))
+        None -> None
+      }
+  }
+}
+
+fn effective_web_presence_alternate_locales(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(WebPresenceRecord),
+) -> List(String) {
+  case dict.has_key(input, "alternateLocales") {
+    True -> canonical_web_presence_alternate_locales_from_input(input)
+    False ->
+      case existing {
+        Some(record) -> existing_web_presence_alternate_locales(record)
+        None -> []
+      }
+  }
+}
+
+fn duplicate_default_locale_errors(
+  default_locale: String,
+  check_default_locale: Bool,
+) -> List(CapturedJsonValue) {
+  case check_default_locale {
+    True -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale The alternate languages already include "
+          <> default_locale
+          <> ".",
+        "DUPLICATE_LANGUAGES",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn duplicate_alternate_locale_errors(
+  default_locale: String,
+  alternate_locales: List(String),
+  check_alternate_locales: Bool,
+) -> List(CapturedJsonValue) {
+  case check_alternate_locales {
+    True -> [
+      user_error(
+        ["input", "alternateLocales"],
+        "Alternate locales Duplicates were found in the following languages: "
+          <> to_duplicate_language_sentence([
+          default_locale,
+          ..alternate_locales
+        ]),
+        "DUPLICATE_LANGUAGES",
+      ),
+    ]
+    False -> []
+  }
+}
+
 fn web_presence_subfolder_suffix_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
@@ -3901,6 +4029,16 @@ fn canonical_web_presence_locale_result(locale: String) -> Result(String, Nil) {
   }
 }
 
+fn canonical_web_presence_alternate_locales_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  let canonical_locales =
+    read_arg_string_array(input, "alternateLocales")
+    |> option.unwrap([])
+    |> list.filter_map(canonical_web_presence_locale_result)
+  append_unique_strings([], canonical_locales)
+}
+
 fn normalize_bcp47_locale(locale: String) -> String {
   case string.split(locale, on: "-") {
     [] -> ""
@@ -3938,6 +4076,15 @@ fn to_sentence(values: List(String)) -> String {
     [only] -> only
     [last, ..prefix_reversed] ->
       string.join(list.reverse(prefix_reversed), ", ") <> ", and " <> last
+  }
+}
+
+fn to_duplicate_language_sentence(values: List(String)) -> String {
+  case values {
+    [] -> ""
+    [only] -> only
+    [first, second] -> first <> " and " <> second
+    _ -> to_sentence(values)
   }
 }
 
@@ -4031,9 +4178,7 @@ fn web_presence_data(
     |> option.then(canonical_web_presence_locale)
     |> option.unwrap("en")
   let alternate_locales =
-    read_arg_string_array(input, "alternateLocales")
-    |> option.unwrap([])
-    |> list.filter_map(canonical_web_presence_locale_result)
+    canonical_web_presence_alternate_locales_from_input(input)
   let suffix =
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   let domain =
@@ -4098,8 +4243,7 @@ fn web_presence_update_data(
     False -> existing_web_presence_default_locale(existing)
   }
   let alternate_locales = case dict.has_key(input, "alternateLocales") {
-    True ->
-      read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
+    True -> canonical_web_presence_alternate_locales_from_input(input)
     False -> existing_web_presence_alternate_locales(existing)
   }
   let suffix = case dict.has_key(input, "subfolderSuffix") {

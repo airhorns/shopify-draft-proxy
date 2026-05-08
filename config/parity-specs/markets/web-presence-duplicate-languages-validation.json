@@ -1,0 +1,99 @@
+{
+  "scenarioId": "web-presence-duplicate-languages-validation",
+  "operationNames": ["webPresenceCreate", "webPresenceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[26].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-default-setup",
+        "capturePath": "$.cases[26].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": [
+          "$.webPresence.defaultLocale.locale",
+          "$.webPresence.alternateLocales",
+          "$.webPresence.subfolderSuffix",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "create-default-in-alternates-rejected",
+        "capturePath": "$.cases[24].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[24].variables"
+        }
+      },
+      {
+        "name": "create-alternates-containing-default-rejected",
+        "capturePath": "$.cases[25].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[25].variables"
+        }
+      },
+      {
+        "name": "update-default-in-existing-alternates-rejected",
+        "capturePath": "$.cases[27].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[27].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-alternate-setup",
+        "capturePath": "$.cases[28].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": [
+          "$.webPresence.defaultLocale.locale",
+          "$.webPresence.alternateLocales",
+          "$.webPresence.subfolderSuffix",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[28].variables"
+        }
+      },
+      {
+        "name": "update-alternates-containing-default-rejected",
+        "capturePath": "$.cases[29].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-alternate-setup",
+              "path": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[29].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves duplicate-language validation for MarketWebPresence locale sets: create rejects defaultLocale appearing in alternateLocales with DUPLICATE_LANGUAGES on defaultLocale and alternateLocales, update rejects supplied defaultLocale that already exists in current alternateLocales, and update rejects supplied alternateLocales containing the effective default locale. Exact non-default duplicate alternate locale input was observed to be accepted and deduped by Shopify, so this spec intentionally models the captured default/alternate collision semantics rather than fabricating an internal-duplicate failure."
+}
