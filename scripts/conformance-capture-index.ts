@@ -1892,6 +1892,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-customer-deprecation-early-return',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-customer-deprecation-early-return-conformance.ts',
+    purpose:
+      'savedSearchCreate CUSTOMER deprecation validation order short-circuits before name-length and query validation.',
+    requiredAuthScopes: ['read_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-customer-deprecation-early-return.json`,
+      'config/parity-specs/saved-searches/saved-search-customer-deprecation-early-return.json',
+      'config/parity-requests/saved-searches/saved-search-customer-deprecation-early-return.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no saved search is created and no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',

@@ -818,6 +818,19 @@ pub fn graphql_saved_search_create_customer_deprecated_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":null,\"message\":\"Customer saved searches have been deprecated. Use Segmentation API instead.\"}]}}}"
 }
 
+pub fn graphql_saved_search_create_customer_deprecation_short_circuits_other_validations_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"collection_id:\\\\\\\"123\\\\\\\" tag:\\\\\\\"AAA\\\\\\\"\\\", resourceType: CUSTOMER }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":null,\"message\":\"Customer saved searches have been deprecated. Use Segmentation API instead.\"}]}}}"
+}
+
 pub fn graphql_saved_search_create_rejects_order_reserved_filter_test() {
   let proxy = draft_proxy.new()
   let request =

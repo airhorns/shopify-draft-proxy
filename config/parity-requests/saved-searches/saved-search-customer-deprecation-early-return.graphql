@@ -1,0 +1,11 @@
+mutation SavedSearchCustomerDeprecationEarlyReturn($input: SavedSearchCreateInput!) {
+  savedSearchCreate(input: $input) {
+    savedSearch {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

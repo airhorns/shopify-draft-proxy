@@ -1304,13 +1304,12 @@ fn validate_resource_type(
           message: "Resource type can't be blank",
         ),
       ])
-    Some("CUSTOMER") ->
-      list.append(errors, [
-        saved_search_types.UserError(
-          field: None,
-          message: "Customer saved searches have been deprecated. Use Segmentation API instead.",
-        ),
-      ])
+    Some("CUSTOMER") -> [
+      saved_search_types.UserError(
+        field: None,
+        message: "Customer saved searches have been deprecated. Use Segmentation API instead.",
+      ),
+    ]
     Some(rt) ->
       case is_supported_resource_type(rt) {
         True -> errors

@@ -1,0 +1,44 @@
+{
+  "capturedAt": "2026-05-08T02:15:56.771Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "savedSearchCreate with resourceType CUSTOMER returns the CUSTOMER deprecation userError before name-length or query validation.",
+    "The submitted name is 41 characters and the query uses PRODUCT-only incompatible filters, but Shopify returns only the CUSTOMER deprecation userError."
+  ],
+  "savedSearchCustomerDeprecationEarlyReturn": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-customer-deprecation-early-return.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "CUSTOMER",
+        "name": "12345678901234567890123456789012345678901",
+        "query": "collection_id:\"123\" tag:\"AAA\""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Customer saved searches have been deprecated. Use Segmentation API instead."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
