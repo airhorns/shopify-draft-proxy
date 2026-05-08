@@ -5,7 +5,8 @@ import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, DraftProxy, Request, Response,
+  type DraftProxy, type Request, Config, DraftProxy, LiveHybrid,
+  RejectUnsupportedMutations, Request, Response,
 }
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
@@ -21,6 +22,17 @@ const article_id: String = "gid://shopify/Article/local-moderation"
 
 fn proxy() -> DraftProxy {
   draft_proxy.new()
+  |> draft_proxy.with_default_registry()
+}
+
+fn reject_live_hybrid_proxy() -> DraftProxy {
+  draft_proxy.with_config(Config(
+    read_mode: LiveHybrid,
+    unsupported_mutation_mode: RejectUnsupportedMutations,
+    port: 4000,
+    shopify_admin_origin: "https://shop.example",
+    snapshot_path: None,
+  ))
   |> draft_proxy.with_default_registry()
 }
 
@@ -136,6 +148,139 @@ fn escape(value: String) -> String {
 
 fn meta_state_request() -> Request {
   Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
+}
+
+fn bulk_fallback_message(root: String) -> String {
+  "shopify-draft-proxy does not yet stage "
+  <> root
+  <> "; public conformance evidence for this Core online-store bulk root is unavailable."
+}
+
+fn assert_bulk_fallback(
+  serialized: String,
+  alias: String,
+  root: String,
+) -> Nil {
+  assert string.contains(
+    serialized,
+    "\""
+      <> alias
+      <> "\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\""
+      <> bulk_fallback_message(root)
+      <> "\",\"code\":\"NOT_IMPLEMENTED\"}]}",
+  )
+}
+
+pub fn online_store_bulk_mutation_fallbacks_return_user_errors_in_reject_mode_test() {
+  let proxy = reject_live_hybrid_proxy()
+  let mutation =
+    "mutation { "
+    <> "pageDelete: onlineStorePageBulkDelete(ids: [\"gid://shopify/Page/1\"]) { job { id done } userErrors { field message code } } "
+    <> "pagePublish: onlineStorePageBulkPublish(ids: [\"gid://shopify/Page/1\"]) { job { id done } userErrors { field message code } } "
+    <> "pageUnpublish: onlineStorePageBulkUnpublish(ids: [\"gid://shopify/Page/1\"]) { job { id done } userErrors { field message code } } "
+    <> "articleDelete: onlineStoreArticleBulkDelete(ids: [\"gid://shopify/Article/1\"]) { job { id done } userErrors { field message code } } "
+    <> "articlePublish: onlineStoreArticleBulkPublish(ids: [\"gid://shopify/Article/1\"]) { job { id done } userErrors { field message code } } "
+    <> "articleUnpublish: onlineStoreArticleBulkUnpublish(ids: [\"gid://shopify/Article/1\"]) { job { id done } userErrors { field message code } } "
+    <> "articleAddTags: onlineStoreArticleBulkAddTags(ids: [\"gid://shopify/Article/1\"], tags: [\"featured\"]) { job { id done } userErrors { field message code } } "
+    <> "articleRemoveTags: onlineStoreArticleBulkRemoveTags(ids: [\"gid://shopify/Article/1\"], tags: [\"featured\"]) { job { id done } userErrors { field message code } } "
+    <> "blogDelete: onlineStoreBlogBulkDelete(ids: [\"gid://shopify/Blog/1\"]) { job { id done } userErrors { field message code } } "
+    <> "commentApprove: onlineStoreCommentBulkApprove(ids: [\"gid://shopify/Comment/1\"]) { job { id done } userErrors { field message code } } "
+    <> "commentDelete: onlineStoreCommentBulkDelete(ids: [\"gid://shopify/Comment/1\"]) { job { id done } userErrors { field message code } } "
+    <> "commentSpam: onlineStoreCommentBulkMarkSpam(ids: [\"gid://shopify/Comment/1\"]) { job { id done } userErrors { field message code } } "
+    <> "commentNotSpam: onlineStoreCommentBulkMarkNotSpam(ids: [\"gid://shopify/Comment/1\"]) { job { id done } userErrors { field message code } } "
+    <> "}"
+
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert_bulk_fallback(serialized, "pageDelete", "onlineStorePageBulkDelete")
+  assert_bulk_fallback(serialized, "pagePublish", "onlineStorePageBulkPublish")
+  assert_bulk_fallback(
+    serialized,
+    "pageUnpublish",
+    "onlineStorePageBulkUnpublish",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "articleDelete",
+    "onlineStoreArticleBulkDelete",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "articlePublish",
+    "onlineStoreArticleBulkPublish",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "articleUnpublish",
+    "onlineStoreArticleBulkUnpublish",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "articleAddTags",
+    "onlineStoreArticleBulkAddTags",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "articleRemoveTags",
+    "onlineStoreArticleBulkRemoveTags",
+  )
+  assert_bulk_fallback(serialized, "blogDelete", "onlineStoreBlogBulkDelete")
+  assert_bulk_fallback(
+    serialized,
+    "commentApprove",
+    "onlineStoreCommentBulkApprove",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "commentDelete",
+    "onlineStoreCommentBulkDelete",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "commentSpam",
+    "onlineStoreCommentBulkMarkSpam",
+  )
+  assert_bulk_fallback(
+    serialized,
+    "commentNotSpam",
+    "onlineStoreCommentBulkMarkNotSpam",
+  )
+  assert !string.contains(serialized, "No mutation dispatcher implemented")
+  let log = store.get_log(proxy.store)
+  assert list.length(log) == 13
+  assert list.all(log, fn(entry) { entry.status == store_types.Failed })
+}
+
+pub fn online_store_bulk_delete_fallback_does_not_change_staged_page_test() {
+  let proxy = proxy()
+  let create =
+    "mutation { pageCreate(page: { title: \"Bulk Fallback Page\" }) { page { id title } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Bulk Fallback Page\"},\"userErrors\":[]}}}"
+
+  let bulk_delete =
+    "mutation { onlineStorePageBulkDelete(ids: [\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\"]) { job { id done } userErrors { field message code } } }"
+  let #(Response(status: bulk_status, body: bulk_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(bulk_delete))
+  assert bulk_status == 200
+  assert json.to_string(bulk_body)
+    == "{\"data\":{\"onlineStorePageBulkDelete\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\""
+    <> bulk_fallback_message("onlineStorePageBulkDelete")
+    <> "\",\"code\":\"NOT_IMPLEMENTED\"}]}}}"
+
+  let read =
+    "query { page(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") { id title } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Bulk Fallback Page\"}}}"
 }
 
 fn meta_log_request() -> Request {

@@ -327,11 +327,76 @@ fn handle_mutation_field(
             "mobilePlatformApplication",
             "deletedMobilePlatformApplicationId",
           )
-        _ -> #(key, json.null(), outcome)
+        _ ->
+          case online_store_bulk_mutation_fallback_root(root) {
+            True -> unsupported_bulk_mutation(outcome, field, fragments, root)
+            False -> #(key, json.null(), outcome)
+          }
       }
     }
     _ -> #(key, json.null(), outcome)
   }
+}
+
+fn online_store_bulk_mutation_fallback_root(name: String) -> Bool {
+  case name {
+    "onlineStorePageBulkDelete"
+    | "onlineStorePageBulkPublish"
+    | "onlineStorePageBulkUnpublish"
+    | "onlineStoreArticleBulkDelete"
+    | "onlineStoreArticleBulkPublish"
+    | "onlineStoreArticleBulkUnpublish"
+    | "onlineStoreArticleBulkAddTags"
+    | "onlineStoreArticleBulkRemoveTags"
+    | "onlineStoreBlogBulkDelete"
+    | "onlineStoreCommentBulkApprove"
+    | "onlineStoreCommentBulkDelete"
+    | "onlineStoreCommentBulkMarkSpam"
+    | "onlineStoreCommentBulkMarkNotSpam" -> True
+    _ -> False
+  }
+}
+
+fn unsupported_bulk_mutation(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  root: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let message =
+    "shopify-draft-proxy does not yet stage "
+    <> root
+    <> "; public conformance evidence for this Core online-store bulk root is unavailable."
+  let error =
+    src_object([
+      #("field", SrcNull),
+      #("message", SrcString(message)),
+      #("code", SrcString("NOT_IMPLEMENTED")),
+    ])
+  let payload =
+    serializers.project_payload_source(
+      field,
+      src_object([#("job", SrcNull), #("userErrors", SrcList([error]))]),
+      fragments,
+    )
+  #(
+    key,
+    payload,
+    serializers.mutation_outcome_with_status(
+      outcome,
+      outcome.store,
+      outcome.identity,
+      root,
+      [],
+      store_types.Failed,
+      Some(
+        "Rejected "
+        <> root
+        <> " locally because conformance-backed bulk staging is not implemented.",
+      ),
+    ),
+  )
 }
 
 fn create_content(

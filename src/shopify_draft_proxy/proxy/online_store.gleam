@@ -67,16 +67,29 @@ pub fn is_online_store_mutation_root(name: String) -> Bool {
     "articleCreate"
     | "articleUpdate"
     | "articleDelete"
+    | "onlineStoreArticleBulkAddTags"
+    | "onlineStoreArticleBulkDelete"
+    | "onlineStoreArticleBulkPublish"
+    | "onlineStoreArticleBulkRemoveTags"
+    | "onlineStoreArticleBulkUnpublish"
     | "blogCreate"
     | "blogUpdate"
     | "blogDelete"
+    | "onlineStoreBlogBulkDelete"
     | "pageCreate"
     | "pageUpdate"
     | "pageDelete"
+    | "onlineStorePageBulkDelete"
+    | "onlineStorePageBulkPublish"
+    | "onlineStorePageBulkUnpublish"
     | "commentApprove"
     | "commentSpam"
     | "commentNotSpam"
     | "commentDelete"
+    | "onlineStoreCommentBulkApprove"
+    | "onlineStoreCommentBulkDelete"
+    | "onlineStoreCommentBulkMarkNotSpam"
+    | "onlineStoreCommentBulkMarkSpam"
     | "themeCreate"
     | "themeUpdate"
     | "themeDelete"
@@ -99,6 +112,25 @@ pub fn is_online_store_mutation_root(name: String) -> Bool {
     | "mobilePlatformApplicationCreate"
     | "mobilePlatformApplicationUpdate"
     | "mobilePlatformApplicationDelete" -> True
+    _ -> False
+  }
+}
+
+pub fn is_online_store_bulk_mutation_fallback_root(name: String) -> Bool {
+  case name {
+    "onlineStorePageBulkDelete"
+    | "onlineStorePageBulkPublish"
+    | "onlineStorePageBulkUnpublish"
+    | "onlineStoreArticleBulkDelete"
+    | "onlineStoreArticleBulkPublish"
+    | "onlineStoreArticleBulkUnpublish"
+    | "onlineStoreArticleBulkAddTags"
+    | "onlineStoreArticleBulkRemoveTags"
+    | "onlineStoreBlogBulkDelete"
+    | "onlineStoreCommentBulkApprove"
+    | "onlineStoreCommentBulkDelete"
+    | "onlineStoreCommentBulkMarkSpam"
+    | "onlineStoreCommentBulkMarkNotSpam" -> True
     _ -> False
   }
 }

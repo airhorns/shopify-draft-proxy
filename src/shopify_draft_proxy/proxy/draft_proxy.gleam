@@ -527,18 +527,39 @@ fn live_hybrid_passthrough_target(
 ) -> Bool {
   case proxy.config.read_mode {
     LiveHybrid -> {
-      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
-      case cap.execution {
-        operation_registry.Passthrough -> True
-        _ ->
-          case list.first(parsed.root_fields) {
-            Ok(primary_root_field) ->
-              !local_dispatch_supported(cap.type_, primary_root_field)
-            Error(_) -> False
+      case parsed.type_, list.first(parsed.root_fields) {
+        MutationOperation, Ok(primary_root_field) ->
+          case
+            online_store.is_online_store_bulk_mutation_fallback_root(
+              primary_root_field,
+            )
+          {
+            True -> False
+            False ->
+              live_hybrid_passthrough_target_for_capability(proxy, parsed)
           }
+        _, _ -> {
+          live_hybrid_passthrough_target_for_capability(proxy, parsed)
+        }
       }
     }
     _ -> False
+  }
+}
+
+fn live_hybrid_passthrough_target_for_capability(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+) -> Bool {
+  let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+  case cap.execution {
+    operation_registry.Passthrough -> True
+    _ ->
+      case list.first(parsed.root_fields) {
+        Ok(primary_root_field) ->
+          !local_dispatch_supported(cap.type_, primary_root_field)
+        Error(_) -> False
+      }
   }
 }
 
@@ -1950,7 +1971,15 @@ fn mutation_handler_for(
         Some(entry) ->
           case entry.implemented {
             True -> local_mutation_handler(primary_root_field, query)
-            False -> None
+            False ->
+              case
+                online_store.is_online_store_bulk_mutation_fallback_root(
+                  primary_root_field,
+                )
+              {
+                True -> local_mutation_handler(primary_root_field, query)
+                False -> None
+              }
           }
         None -> local_mutation_handler(primary_root_field, query)
       }

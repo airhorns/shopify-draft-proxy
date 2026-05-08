@@ -2835,6 +2835,81 @@ pub fn default_registry() -> List(RegistryEntry) {
       ),
     ),
     RegistryEntry(
+      name: "onlineStoreArticleBulkDelete",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreArticleBulkDelete",
+        "OnlineStoreArticleBulkDelete",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage article deletion until real conformance evidence proves job shape, selector semantics, and downstream cascade behavior.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreArticleBulkPublish",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreArticleBulkPublish",
+        "OnlineStoreArticleBulkPublish",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage article publication until real conformance evidence proves job shape, selector semantics, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreArticleBulkUnpublish",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreArticleBulkUnpublish",
+        "OnlineStoreArticleBulkUnpublish",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage article unpublication until real conformance evidence proves job shape, selector semantics, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreArticleBulkAddTags",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreArticleBulkAddTags",
+        "OnlineStoreArticleBulkAddTags",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage article tag changes until real conformance evidence proves job shape, selector semantics, tag normalization, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreArticleBulkRemoveTags",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreArticleBulkRemoveTags",
+        "OnlineStoreArticleBulkRemoveTags",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage article tag removal until real conformance evidence proves job shape, selector semantics, tag normalization, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
       name: "blog",
       type_: Query,
       domain: OnlineStore,
@@ -2904,6 +2979,18 @@ pub fn default_registry() -> List(RegistryEntry) {
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreBlogBulkDelete",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: ["onlineStoreBlogBulkDelete", "OnlineStoreBlogBulkDelete"],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage blog deletion until real conformance evidence proves job shape, selector semantics, and article/comment cascade behavior.",
       ),
     ),
     RegistryEntry(
@@ -2979,6 +3066,45 @@ pub fn default_registry() -> List(RegistryEntry) {
       ),
     ),
     RegistryEntry(
+      name: "onlineStorePageBulkDelete",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: ["onlineStorePageBulkDelete", "OnlineStorePageBulkDelete"],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage page deletion until real conformance evidence proves job shape, selector semantics, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStorePageBulkPublish",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: ["onlineStorePageBulkPublish", "OnlineStorePageBulkPublish"],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage page publication until real conformance evidence proves job shape, selector semantics, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStorePageBulkUnpublish",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStorePageBulkUnpublish",
+        "OnlineStorePageBulkUnpublish",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage page unpublication until real conformance evidence proves job shape, selector semantics, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
       name: "comment",
       type_: Query,
       domain: OnlineStore,
@@ -3048,6 +3174,66 @@ pub fn default_registry() -> List(RegistryEntry) {
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreCommentBulkApprove",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreCommentBulkApprove",
+        "OnlineStoreCommentBulkApprove",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage comment approval until real conformance evidence proves job shape, selector semantics, moderation transitions, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreCommentBulkDelete",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreCommentBulkDelete",
+        "OnlineStoreCommentBulkDelete",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage comment deletion until real conformance evidence proves job shape, selector semantics, true-destroy behavior, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreCommentBulkMarkSpam",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreCommentBulkMarkSpam",
+        "OnlineStoreCommentBulkMarkSpam",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage comment spam moderation until real conformance evidence proves job shape, selector semantics, moderation transitions, and downstream reads.",
+      ),
+    ),
+    RegistryEntry(
+      name: "onlineStoreCommentBulkMarkNotSpam",
+      type_: Mutation,
+      domain: OnlineStore,
+      execution: StageLocally,
+      implemented: False,
+      match_names: [
+        "onlineStoreCommentBulkMarkNotSpam",
+        "OnlineStoreCommentBulkMarkNotSpam",
+      ],
+      runtime_tests: [],
+      support_notes: Some(
+        "Public Admin GraphQL schema evidence in the currently probed conformance API version does not expose this Core online-store bulk root. The proxy returns a non-null local userErrors fallback and must not stage comment not-spam moderation until real conformance evidence proves job shape, selector semantics, moderation transitions, and downstream reads.",
       ),
     ),
     RegistryEntry(
