@@ -9662,6 +9662,137 @@ pub fn orders_order_cancel_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
 }
 
+pub fn orders_order_cancel_restock_refund_and_metadata_read_after_write_test() {
+  let order_id = "gid://shopify/Order/cancel-effects"
+  let seeded = order_cancel_effects_test_store(order_id)
+  let mutation =
+    "
+    mutation {
+      orderCancel(
+        orderId: \"gid://shopify/Order/cancel-effects\"
+        restock: true
+        reason: OTHER
+        refund: true
+        notifyCustomer: false
+        staffNote: \"customer changed their mind\"
+        retailAttributionInput: {
+          deviceId: \"gid://shopify/Device/1\"
+          staffMemberId: \"gid://shopify/StaffMember/1\"
+          transactionGroupId: \"gid://shopify/TransactionGroup/1\"
+        }
+      ) {
+        orderCancelUserErrors { field message code }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"orderCancelUserErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/cancel-effects\") {
+        closed
+        cancelledAt
+        cancelReason
+        cancellation { staffNote }
+        displayFinancialStatus
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        totalOutstandingSet { shopMoney { amount currencyCode } }
+        netPaymentSet { shopMoney { amount currencyCode } }
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refunds {
+          note
+          totalRefundedSet { shopMoney { amount currencyCode } }
+          transactions(first: 5) {
+            nodes {
+              kind
+              status
+              gateway
+              amountSet { shopMoney { amount currencyCode } }
+            }
+          }
+        }
+        transactions {
+          kind
+          status
+          gateway
+          amountSet { shopMoney { amount currencyCode } }
+        }
+        fulfillmentOrders(first: 5) {
+          nodes {
+            lineItems(first: 5) {
+              nodes {
+                totalQuantity
+                remainingQuantity
+                lineItem { quantity fulfillableQuantity }
+              }
+            }
+          }
+        }
+        __draftProxyOrderCancel {
+          restock
+          refund
+          notifyCustomer
+          staffNote
+          retailAttributionInput {
+            deviceId
+            staffMemberId
+            transactionGroupId
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"closed\":true,\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\",\"cancellation\":{\"staffNote\":\"customer changed their mind\"},\"displayFinancialStatus\":\"REFUNDED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"netPaymentSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"refunds\":[{\"note\":\"Order cancellation refund\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"transactions\":{\"nodes\":[{\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}]}}],\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}},{\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}],\"fulfillmentOrders\":{\"nodes\":[{\"lineItems\":{\"nodes\":[{\"totalQuantity\":0,\"remainingQuantity\":0,\"lineItem\":{\"quantity\":2,\"fulfillableQuantity\":0}}]}}]},\"__draftProxyOrderCancel\":{\"restock\":true,\"refund\":true,\"notifyCustomer\":false,\"staffNote\":\"customer changed their mind\",\"retailAttributionInput\":{\"deviceId\":\"gid://shopify/Device/1\",\"staffMemberId\":\"gid://shopify/StaffMember/1\",\"transactionGroupId\":\"gid://shopify/TransactionGroup/1\"}}}}}"
+}
+
+pub fn orders_order_cancel_refund_method_stages_refund_test() {
+  let order_id = "gid://shopify/Order/cancel-refund-method"
+  let seeded = order_cancel_effects_test_store(order_id)
+  let outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", refundMethod: { originalPaymentMethodsRefund: true }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"orderCancelUserErrors\":[],\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/cancel-refund-method\") {
+        displayFinancialStatus
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refunds { totalRefundedSet { shopMoney { amount currencyCode } } }
+        __draftProxyOrderCancel {
+          refund
+          refundMethod { originalPaymentMethodsRefund }
+        }
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"displayFinancialStatus\":\"REFUNDED\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"refunds\":[{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}],\"__draftProxyOrderCancel\":{\"refund\":true,\"refundMethod\":{\"originalPaymentMethodsRefund\":true}}}}}"
+}
+
 pub fn orders_order_cancel_rejects_uncancellable_states_test() {
   let cancelled_id = "gid://shopify/Order/6830646329578"
   let refunded_id = "gid://shopify/Order/6830646329579"
@@ -9974,6 +10105,125 @@ fn order_cancel_test_order(
       #("returns", types.CapturedArray(returns)),
     ]),
   )
+}
+
+fn order_cancel_effects_test_store(order_id: String) -> store.Store {
+  let line_item_id = "gid://shopify/LineItem/cancel-effects"
+  let transaction_id = "gid://shopify/OrderTransaction/cancel-effects-sale"
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#CANCEL-EFFECTS")),
+        #("closed", types.CapturedBool(False)),
+        #("closedAt", types.CapturedNull),
+        #("cancelledAt", types.CapturedNull),
+        #("cancelReason", types.CapturedNull),
+        #("displayFinancialStatus", types.CapturedString("PAID")),
+        #(
+          "totalPriceSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("20.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalReceivedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("20.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalRefundedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("0.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "transactions",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(transaction_id)),
+              #("kind", types.CapturedString("SALE")),
+              #("status", types.CapturedString("SUCCESS")),
+              #("gateway", types.CapturedString("manual")),
+              #(
+                "amountSet",
+                types.CapturedObject([
+                  #(
+                    "shopMoney",
+                    types.CapturedObject([
+                      #("amount", types.CapturedString("20.0")),
+                      #("currencyCode", types.CapturedString("CAD")),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+        #("refunds", types.CapturedArray([])),
+        #(
+          "fulfillmentOrders",
+          types.CapturedArray([
+            types.CapturedObject([
+              #(
+                "id",
+                types.CapturedString(
+                  "gid://shopify/FulfillmentOrder/cancel-effects",
+                ),
+              ),
+              #("status", types.CapturedString("OPEN")),
+              #("requestStatus", types.CapturedString("UNSUBMITTED")),
+              #(
+                "lineItems",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(
+                        "gid://shopify/FulfillmentOrderLineItem/cancel-effects",
+                      ),
+                    ),
+                    #("totalQuantity", types.CapturedInt(2)),
+                    #("remainingQuantity", types.CapturedInt(0)),
+                    #(
+                      "lineItem",
+                      types.CapturedObject([
+                        #("id", types.CapturedString(line_item_id)),
+                        #("quantity", types.CapturedInt(2)),
+                        #("fulfillableQuantity", types.CapturedInt(0)),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn run_order_cancel(seed seed: store.Store, order_id order_id: String) {
