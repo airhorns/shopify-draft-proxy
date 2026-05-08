@@ -1,0 +1,13 @@
+mutation OnlineStoreTemplateSuffixBlogCreate($blog: BlogCreateInput!) {
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

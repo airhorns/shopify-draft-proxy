@@ -1,0 +1,14 @@
+query OnlineStoreTemplateSuffixRead($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+  blog(id: $blogId) {
+    id
+    templateSuffix
+  }
+  page(id: $pageId) {
+    id
+    templateSuffix
+  }
+  article(id: $articleId) {
+    id
+    templateSuffix
+  }
+}

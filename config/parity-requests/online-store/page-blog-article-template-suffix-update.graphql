@@ -1,0 +1,39 @@
+mutation OnlineStoreTemplateSuffixUpdate(
+  $blogId: ID!
+  $blog: BlogUpdateInput!
+  $pageId: ID!
+  $page: PageUpdateInput!
+  $articleId: ID!
+  $article: ArticleUpdateInput!
+) {
+  blogUpdate(id: $blogId, blog: $blog) {
+    blog {
+      id
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  pageUpdate(id: $pageId, page: $page) {
+    page {
+      id
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  articleUpdate(id: $articleId, article: $article) {
+    article {
+      id
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
