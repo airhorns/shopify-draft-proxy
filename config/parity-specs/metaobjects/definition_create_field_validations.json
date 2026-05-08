@@ -43,6 +43,26 @@
         }
       },
       {
+        "name": "unknown-field-type",
+        "capturePath": "$.unknownFieldType.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.unknownFieldType.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unsupported-list-field-type",
+        "capturePath": "$.unsupportedListFieldType.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.unsupportedListFieldType.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "hyphen-field-key",
         "capturePath": "$.hyphenKey.response.data.metaobjectDefinitionCreate",
         "proxyPath": "$.data.metaobjectDefinitionCreate",
