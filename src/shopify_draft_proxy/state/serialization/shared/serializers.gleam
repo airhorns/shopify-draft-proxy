@@ -1050,6 +1050,11 @@ pub fn shopify_function_json(record: types.ShopifyFunctionRecord) -> Json {
     #("description", optional_string(record.description)),
     #("appKey", optional_string(record.app_key)),
     #("app", optional_to_json(record.app, shopify_function_app_json)),
+    #("createGuardrailCode", optional_string(record.create_guardrail_code)),
+    #(
+      "createGuardrailMessage",
+      optional_string(record.create_guardrail_message),
+    ),
   ])
 }
 

@@ -80,6 +80,8 @@ fn shopify_function(
     description: Some(handle <> " description"),
     app_key: Some("app-key"),
     app: None,
+    create_guardrail_code: None,
+    create_guardrail_message: None,
   )
 }
 

@@ -1084,6 +1084,10 @@ pub fn shopify_function_decoder() -> Decoder(types.ShopifyFunctionRecord) {
     None,
     decode.optional(shopify_function_app_decoder()),
   )
+  use create_guardrail_code <- optional_string_field("createGuardrailCode")
+  use create_guardrail_message <- optional_string_field(
+    "createGuardrailMessage",
+  )
   decode.success(types.ShopifyFunctionRecord(
     id: id,
     title: title,
@@ -1092,6 +1096,8 @@ pub fn shopify_function_decoder() -> Decoder(types.ShopifyFunctionRecord) {
     description: description,
     app_key: app_key,
     app: app,
+    create_guardrail_code: create_guardrail_code,
+    create_guardrail_message: create_guardrail_message,
   ))
 }
 

@@ -18,10 +18,13 @@ import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppRecord, type CartTransformRecord,
-  type ShopifyFunctionRecord, type ValidationMetafieldRecord,
+  type ShopRecord, type ShopifyFunctionRecord, type ValidationMetafieldRecord,
   type ValidationRecord, AccessScopeRecord, AppInstallationRecord, AppRecord,
-  CartTransformRecord, ShopifyFunctionRecord, ValidationMetafieldRecord,
-  ValidationRecord,
+  CartTransformRecord, PaymentSettingsRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionRecord,
+  ValidationMetafieldRecord, ValidationRecord,
 }
 
 // ----------- Helpers -----------
@@ -74,6 +77,8 @@ fn shopify_fn(
     description: None,
     app_key: None,
     app: None,
+    create_guardrail_code: None,
+    create_guardrail_message: None,
   )
 }
 
@@ -86,6 +91,20 @@ fn shopify_fn_with_app_key(
   ShopifyFunctionRecord(
     ..shopify_fn(id, handle, api_type),
     app_key: Some(app_key),
+  )
+}
+
+fn shopify_fn_with_guardrail(
+  id: String,
+  handle: String,
+  api_type: String,
+  code: String,
+  message: String,
+) -> ShopifyFunctionRecord {
+  ShopifyFunctionRecord(
+    ..shopify_fn(id, handle, api_type),
+    create_guardrail_code: Some(code),
+    create_guardrail_message: Some(message),
   )
 }
 
@@ -200,6 +219,100 @@ fn seed_cart_transform(
 ) -> store.Store {
   let #(_, s) = store.upsert_staged_cart_transform(store_in, record)
   s
+}
+
+fn non_plus_custom_app_shop() -> ShopRecord {
+  ShopRecord(
+    id: "gid://shopify/Shop/guardrail",
+    name: "Guardrail shop",
+    myshopify_domain: "guardrail.myshopify.com",
+    url: "https://guardrail.myshopify.com",
+    primary_domain: ShopDomainRecord(
+      id: "gid://shopify/Domain/guardrail",
+      host: "guardrail.myshopify.com",
+      url: "https://guardrail.myshopify.com",
+      ssl_enabled: True,
+    ),
+    contact_email: "owner@example.com",
+    email: "owner@example.com",
+    currency_code: "USD",
+    enabled_presentment_currencies: ["USD"],
+    iana_timezone: "UTC",
+    timezone_abbreviation: "UTC",
+    timezone_offset: "+0000",
+    timezone_offset_minutes: 0,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "IMPERIAL_SYSTEM",
+    weight_unit: "POUNDS",
+    shop_address: ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/guardrail",
+      address1: None,
+      address2: None,
+      city: None,
+      company: None,
+      coordinates_validated: False,
+      country: None,
+      country_code_v2: None,
+      formatted: [],
+      formatted_area: None,
+      latitude: None,
+      longitude: None,
+      phone: None,
+      province: None,
+      province_code: None,
+      zip: None,
+    ),
+    plan: ShopPlanRecord(
+      partner_development: False,
+      public_display_name: "Basic",
+      shopify_plus: False,
+    ),
+    resource_limits: ShopResourceLimitsRecord(
+      location_limit: 0,
+      max_product_options: 0,
+      max_product_variants: 0,
+      redirect_limit_reached: False,
+    ),
+    features: ShopFeaturesRecord(
+      avalara_avatax: False,
+      branding: "SHOPIFY",
+      bundles: ShopBundlesFeatureRecord(
+        eligible_for_bundles: False,
+        ineligibility_reason: None,
+        sells_bundles: False,
+      ),
+      captcha: False,
+      cart_transform: ShopCartTransformFeatureRecord(
+        eligible_operations: ShopCartTransformEligibleOperationsRecord(
+          expand_operation: False,
+          merge_operation: False,
+          update_operation: False,
+        ),
+      ),
+      dynamic_remarketing: False,
+      eligible_for_subscription_migration: False,
+      eligible_for_subscriptions: False,
+      gift_cards: False,
+      harmonized_system_code: False,
+      legacy_subscription_gateway_enabled: False,
+      live_view: False,
+      paypal_express_subscription_gateway_status: "DISABLED",
+      reports: False,
+      b2b_deposits_enabled: True,
+      discounts_by_market_enabled: False,
+      markets_granted: 50,
+      sells_subscriptions: False,
+      show_metrics: False,
+      storefront: False,
+      unified_markets: True,
+    ),
+    payment_settings: PaymentSettingsRecord(
+      supported_digital_wallets: [],
+      payment_gateways: [],
+    ),
+    shop_policies: [],
+  )
 }
 
 // ----------- is_function_mutation_root -----------
@@ -330,6 +443,47 @@ pub fn validation_create_rejects_non_validation_function_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  assert store.list_effective_validations(outcome.store) == []
+}
+
+pub fn validation_create_rejects_custom_app_function_on_known_non_plus_shop_test() {
+  let fn_record =
+    shopify_fn_with_app_key(
+      "gid://shopify/ShopifyFunction/non-plus-validation",
+      "non-plus-validation",
+      "VALIDATION",
+      "custom-app-key",
+    )
+  let s =
+    store.new()
+    |> store.upsert_base_shop(non_plus_custom_app_shop())
+    |> seed_function(fn_record)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { validationCreate(validation: { functionId: \"gid://shopify/ShopifyFunction/non-plus-validation\", enable: true }) { validation { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionId\"],\"message\":\"Shop must be on a Shopify Plus plan to activate functions from a custom app.\",\"code\":\"CUSTOM_APP_FUNCTION_NOT_ELIGIBLE\"}]}}}"
+  assert store.list_effective_validations(outcome.store) == []
+}
+
+pub fn validation_create_rejects_required_input_guardrail_test() {
+  let fn_record =
+    shopify_fn_with_guardrail(
+      "gid://shopify/ShopifyFunction/input-validation",
+      "input-validation",
+      "VALIDATION",
+      "REQUIRED_INPUT_FIELD",
+      "Required input field must be present.",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { validationCreate(validation: { functionHandle: \"input-validation\" }) { validation { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionHandle\"],\"message\":\"Required input field must be present.\",\"code\":\"REQUIRED_INPUT_FIELD\"}]}}}"
   assert store.list_effective_validations(outcome.store) == []
 }
 
@@ -1007,6 +1161,66 @@ pub fn cart_transform_create_rejects_non_cart_transform_function_handle_test() {
   assert dict.size(outcome.store.staged_state.cart_transforms) == 0
   assert dict.size(outcome.store.staged_state.shopify_functions) == 0
   assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_custom_app_function_on_known_non_plus_shop_test() {
+  let fn_record =
+    shopify_fn_with_app_key(
+      "gid://shopify/ShopifyFunction/non-plus-cart-transform",
+      "non-plus-cart-transform",
+      "CART_TRANSFORM",
+      "custom-app-key",
+    )
+  let s =
+    store.new()
+    |> store.upsert_base_shop(non_plus_custom_app_shop())
+    |> seed_function(fn_record)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionHandle: \"non-plus-cart-transform\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Shop must be on a Shopify Plus plan to activate functions from a custom app.\",\"code\":\"CUSTOM_APP_FUNCTION_NOT_ELIGIBLE\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_pending_deletion_guardrail_test() {
+  let fn_record =
+    shopify_fn_with_guardrail(
+      "gid://shopify/ShopifyFunction/pending-cart-transform",
+      "pending-cart-transform",
+      "CART_TRANSFORM",
+      "FUNCTION_PENDING_DELETION",
+      "Function is pending deletion.",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { cartTransformCreate(functionHandle: \"pending-cart-transform\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Function is pending deletion.\",\"code\":\"FUNCTION_PENDING_DELETION\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_plus_only_guardrail_test() {
+  let fn_record =
+    shopify_fn_with_guardrail(
+      "gid://shopify/ShopifyFunction/plus-cart-transform",
+      "plus-cart-transform",
+      "CART_TRANSFORM",
+      "FUNCTION_IS_PLUS_ONLY",
+      "Shop must be on a Shopify Plus plan to activate this function.",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/plus-cart-transform\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Shop must be on a Shopify Plus plan to activate this function.\",\"code\":\"FUNCTION_IS_PLUS_ONLY\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
 }
 
 pub fn cart_transform_create_rejects_duplicate_function_id_test() {
