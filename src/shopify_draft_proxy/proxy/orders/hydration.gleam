@@ -26,12 +26,13 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/orders/common.{
   captured_json_from_commit, captured_json_source, captured_string_field,
+  captured_tracking_info_from_details, captured_tracking_info_from_input,
   field_arguments, find_order_with_fulfillment,
   find_order_with_fulfillment_order, inferred_user_error, json_get,
-  json_get_bool, json_get_string, non_null_json, optional_captured_string,
-  order_fulfillments, read_object, read_object_list, read_string,
-  read_string_arg, replace_captured_object_fields, selection_children,
-  serialize_user_error, user_error,
+  json_get_bool, json_get_string, non_null_json, order_fulfillments, read_bool,
+  read_object, read_object_list, read_string, read_string_arg,
+  replace_captured_object_fields, selection_children, serialize_user_error,
+  user_error,
 }
 import shopify_draft_proxy/proxy/user_error_codes
 
@@ -45,7 +46,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CustomerRecord, type DraftOrderRecord,
   type DraftOrderVariantCatalogRecord, type OrderRecord,
-  type ProductVariantRecord, CapturedArray, CapturedObject, CapturedString,
+  type ProductVariantRecord, CapturedArray, CapturedBool, CapturedString,
   CustomerRecord, DraftOrderRecord, DraftOrderVariantCatalogRecord, OrderRecord,
   ProductVariantRecord,
 }
@@ -859,6 +860,10 @@ pub fn update_fulfillment_for_root(
     "fulfillmentTrackingInfoUpdate" -> [
       #("updatedAt", CapturedString(updated_at)),
       #("trackingInfo", tracking_info_from_args(args)),
+      #(
+        "__draftProxyNotifyCustomer",
+        CapturedBool(tracking_notify_customer_from_args(args)),
+      ),
     ]
     _ -> [
       #("updatedAt", CapturedString(updated_at)),
@@ -874,15 +879,29 @@ pub fn tracking_info_from_args(
   args: Dict(String, root_field.ResolvedValue),
 ) -> CapturedJsonValue {
   case dict.get(args, "trackingInfoInput") {
-    Ok(root_field.ObjectVal(input)) ->
-      CapturedArray([
-        CapturedObject([
-          #("number", optional_captured_string(read_string(input, "number"))),
-          #("url", optional_captured_string(read_string(input, "url"))),
-          #("company", optional_captured_string(read_string(input, "company"))),
-        ]),
-      ])
+    Ok(root_field.ObjectVal(input)) -> {
+      let tracking_company = read_string(input, "trackingCompany")
+      case read_object_list(input, "trackingDetails") {
+        [] -> captured_tracking_info_from_input(input, tracking_company)
+        details ->
+          captured_tracking_info_from_details(details, tracking_company)
+      }
+    }
     _ -> CapturedArray([])
+  }
+}
+
+fn tracking_notify_customer_from_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case read_object(args, "trackingInfoInput") {
+    Some(input) ->
+      read_bool(
+        input,
+        "notifyCustomer",
+        read_bool(args, "notifyCustomer", False),
+      )
+    None -> read_bool(args, "notifyCustomer", False)
   }
 }
 

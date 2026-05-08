@@ -58,9 +58,10 @@ import shopify_draft_proxy/state/types.{
   type InventoryLocationRecord, type InventoryMeasurementRecord,
   type InventoryQuantityRecord, type InventoryWeightRecord,
   type InventoryWeightValue, type LocationRecord, type ProductVariantRecord,
-  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
-  InventoryWeightInt, InventoryWeightRecord,
+  type StorePropertyRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  StorePropertyString,
 }
 
 // ===== from inventory_l00 =====
@@ -342,10 +343,27 @@ pub fn product_set_inventory_location(
     Some(location) ->
       InventoryLocationRecord(id: location.id, name: location.name)
     None ->
-      case existing {
-        Some(level) -> level.location
-        None -> InventoryLocationRecord(id: location_id, name: "")
+      case
+        store.get_effective_store_property_location_by_id(store, location_id)
+      {
+        Some(location) ->
+          InventoryLocationRecord(
+            id: location.id,
+            name: store_property_location_name(location),
+          )
+        None ->
+          case existing {
+            Some(level) -> level.location
+            None -> InventoryLocationRecord(id: location_id, name: "")
+          }
       }
+  }
+}
+
+fn store_property_location_name(location: StorePropertyRecord) -> String {
+  case dict.get(location.data, "name") {
+    Ok(StorePropertyString(name)) -> name
+    _ -> ""
   }
 }
 

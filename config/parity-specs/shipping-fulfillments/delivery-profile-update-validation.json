@@ -1,0 +1,99 @@
+{
+  "scenarioId": "delivery-profile-update-validation",
+  "operationNames": ["deliveryProfileCreate", "deliveryProfileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-update-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-create.graphql",
+    "variablesCapturePath": "$.mutations.baseCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 deliveryProfileUpdate validation evidence for oversized names, unknown locationGroupsToCreate locations, unknown locationGroupsToUpdate locationsToAdd, and empty zonesToCreate countries. Admin GraphQL 2026-04 exposes this payload's userErrors as generic UserError without a code field; runtime tests cover the proxy-local code field. Live 2026-04 probes accepted profileLocationGroups.locationsToAdd with an unknown location and duplicate-country overlap updates, so those ticket-required guardrails are covered by local runtime tests and documented in the capture notes rather than asserted as Shopify parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "long-name-user-errors",
+        "capturePath": "$.mutations.longName.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "fromCapturePath": "$.mutations.longName.variables.profile"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-create-location-user-error-message",
+        "capturePath": "$.mutations.unknownCreateLocation.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.deliveryProfileUpdate.profile", "$.deliveryProfileUpdate.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "fromCapturePath": "$.mutations.unknownCreateLocation.variables.profile"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-update-location-user-error-message",
+        "capturePath": "$.mutations.unknownAddLocation.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.deliveryProfileUpdate.profile", "$.deliveryProfileUpdate.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "locationGroupsToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.profileLocationGroups[0].locationGroup.id"
+                  },
+                  "locationsToAdd": ["gid://shopify/Location/999999999"]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "empty-countries-user-error-message",
+        "capturePath": "$.mutations.emptyCountries.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.deliveryProfileUpdate.profile", "$.deliveryProfileUpdate.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "fromCapturePath": "$.mutations.emptyCountries.variables.profile"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

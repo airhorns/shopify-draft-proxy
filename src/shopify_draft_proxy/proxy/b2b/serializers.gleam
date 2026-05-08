@@ -1382,6 +1382,42 @@ pub fn validate_text_field(
 }
 
 @internal
+pub fn validate_required_text_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  error_field: String,
+  prefix: List(String),
+  label: String,
+  max: Int,
+  reject_html: Bool,
+) -> List(b2b_types.UserError) {
+  let errors =
+    validate_text_field(
+      input,
+      field,
+      error_field,
+      prefix,
+      label,
+      max,
+      reject_html,
+    )
+  case errors, dict.get(input, field) {
+    [], Ok(root_field.StringVal(value)) ->
+      case string.trim(value) {
+        "" -> [
+          user_error(
+            Some(field_path(prefix, error_field)),
+            label <> " can't be blank",
+            user_error_code.blank,
+          ),
+        ]
+        _ -> []
+      }
+    _, _ -> errors
+  }
+}
+
+@internal
 pub fn validate_external_id_field(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
@@ -1615,7 +1651,7 @@ pub fn validate_company_input(
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   let input = sanitize_name_field(input)
   let errors =
-    validate_text_field(
+    validate_required_text_field(
       input,
       "name",
       "name",
@@ -1712,7 +1748,7 @@ pub fn validate_location_create_input(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  validate_location_input_with_options(input, prefix, True)
+  validate_location_input_with_options(input, prefix, True, False)
 }
 
 @internal
@@ -1720,25 +1756,40 @@ pub fn validate_location_input(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  validate_location_input_with_options(input, prefix, False)
+  validate_location_input_with_options(input, prefix, False, True)
 }
 
 fn validate_location_input_with_options(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
   require_shipping_address: Bool,
+  require_name: Bool,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   let input = sanitize_name_field(input)
+  let name_errors = case require_name {
+    True ->
+      validate_required_text_field(
+        input,
+        "name",
+        "name",
+        prefix,
+        "Name",
+        b2b_types.default_string_max_length,
+        False,
+      )
+    False ->
+      validate_text_field(
+        input,
+        "name",
+        "name",
+        prefix,
+        "Name",
+        b2b_types.default_string_max_length,
+        False,
+      )
+  }
   let errors =
-    validate_text_field(
-      input,
-      "name",
-      "name",
-      prefix,
-      "Name",
-      b2b_types.default_string_max_length,
-      False,
-    )
+    name_errors
     |> list.append(validate_text_field(
       input,
       "note",

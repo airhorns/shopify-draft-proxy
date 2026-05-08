@@ -55,6 +55,16 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 - deleteAllExternal asynchronous `Job` payload with `done: false`
 - userErrors for missing non-hierarchical attribution and immutable UTM changes
 
+Status labels are derived from the staged activity rather than copied from a
+status-only lookup. External activity captures cover active post/newsletter
+activities as `Posting`/`Sending`, inactive post/newsletter/ad activities as
+`Posted`/`Sent`/`Ended`, and `DELETED_EXTERNALLY` transitions as `Deleted`. The
+current conformance topology rejects `PENDING` ad external creates, so that
+branch is covered by runtime tests and documented as blocked in the status-label
+capture fixture. Native staged activities also preserve `targetStatus` when
+supplied so `PAUSED`, `ACTIVE`, and `DELETED` targets can surface `Pausing`,
+`Resuming`, and `Deleting`.
+
 HAR-687 extends external delete guard coverage:
 
 - `marketingActivityDeleteExternal` with neither `marketingActivityId` nor `remoteId` returns `INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS`

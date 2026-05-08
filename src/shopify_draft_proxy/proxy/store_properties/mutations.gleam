@@ -480,6 +480,7 @@ fn stage_location_add(
                 #("activatable", StorePropertyBool(False)),
                 #("deactivatable", StorePropertyBool(True)),
                 #("deletable", StorePropertyBool(False)),
+                #("hasActiveInventory", StorePropertyBool(False)),
                 #(
                   "fulfillsOnlineOrders",
                   StorePropertyBool(

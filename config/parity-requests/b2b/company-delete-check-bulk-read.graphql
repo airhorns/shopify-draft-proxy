@@ -1,0 +1,23 @@
+query B2BCompanyDeleteCheckBulkRead(
+  $orderCompanyId: ID!
+  $draftOrderCompanyId: ID!
+  $storeCreditCompanyId: ID!
+  $deletedCompanyId: ID!
+) {
+  orderBlocked: company(id: $orderCompanyId) {
+    id
+    name
+  }
+  draftOrderBlocked: company(id: $draftOrderCompanyId) {
+    id
+    name
+  }
+  storeCreditBlocked: company(id: $storeCreditCompanyId) {
+    id
+    name
+  }
+  deleted: company(id: $deletedCompanyId) {
+    id
+    name
+  }
+}

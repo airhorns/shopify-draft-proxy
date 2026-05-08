@@ -14,7 +14,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/delivery_profiles.{
   make_delivery_profile, update_delivery_profile,
-  validate_delivery_profile_create_input,
+  validate_delivery_profile_create_input, validate_delivery_profile_update_input,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers.{
   synthetic_timestamp_string,
@@ -433,17 +433,8 @@ pub fn handle_delivery_profile_update(
   }
   case existing, input {
     Some(profile), Some(profile_input) -> {
-      case read_string(profile_input, "name") {
-        Some("") ->
-          delivery_profile_validation_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            "DeliveryProfileUpdatePayload",
-            [blank_delivery_profile_name_error()],
-          )
-        _ -> {
+      case validate_delivery_profile_update_input(draft_store, profile_input) {
+        [] -> {
           let #(updated, next_identity) =
             update_delivery_profile(
               draft_store,
@@ -470,6 +461,15 @@ pub fn handle_delivery_profile_update(
             next_identity,
           )
         }
+        user_errors ->
+          delivery_profile_validation_result(
+            draft_store,
+            identity,
+            field,
+            fragments,
+            "DeliveryProfileUpdatePayload",
+            user_errors,
+          )
       }
     }
     _, _ ->
