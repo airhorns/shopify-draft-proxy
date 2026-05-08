@@ -1948,6 +1948,7 @@ fn scalar_value_problems(
     "Decimal" -> decimal_value_problems(resolved, path)
     "Int" -> int_value_problems(resolved, path)
     "ID" -> id_value_problems(resolved, path)
+    "UnsignedInt64" -> unsigned_int64_value_problems(resolved, path)
     "URL" -> url_value_problems(resolved, path)
     _ -> []
   }
@@ -1958,6 +1959,14 @@ fn int_value_problems(
   path: List(PathSegment),
 ) -> List(ValueProblem) {
   case resolved {
+    root_field.IntVal(_) -> []
+    root_field.StringVal(value) -> [
+      ValueProblem(
+        path: path,
+        explanation: "Could not coerce value \"" <> value <> "\" to Int",
+        message: None,
+      ),
+    ]
     root_field.FloatVal(value) -> [
       ValueProblem(
         path: path,
@@ -1969,6 +1978,74 @@ fn int_value_problems(
     ]
     _ -> []
   }
+}
+
+fn unsigned_int64_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved {
+    root_field.StringVal(value) ->
+      case string.starts_with(value, "-") {
+        True -> [
+          ValueProblem(
+            path: path,
+            explanation: "UnsignedInt64 '" <> value <> "' is out of range",
+            message: Some("UnsignedInt64 '" <> value <> "' is out of range"),
+          ),
+        ]
+        False ->
+          case unsigned_integer_string(value) {
+            True -> []
+            False -> [
+              ValueProblem(
+                path: path,
+                explanation: "UnsignedInt64 invalid value '" <> value <> "'",
+                message: Some("UnsignedInt64 invalid value '" <> value <> "'"),
+              ),
+            ]
+          }
+      }
+    root_field.IntVal(value) -> [
+      ValueProblem(
+        path: path,
+        explanation: "UnsignedInt64 '"
+          <> int.to_string(value)
+          <> "' must be encoded as a string",
+        message: Some(
+          "UnsignedInt64 '"
+          <> int.to_string(value)
+          <> "' must be encoded as a string",
+        ),
+      ),
+    ]
+    root_field.FloatVal(value) -> [
+      ValueProblem(
+        path: path,
+        explanation: "UnsignedInt64 '"
+          <> float.to_string(value)
+          <> "' must be encoded as a string",
+        message: Some(
+          "UnsignedInt64 '"
+          <> float.to_string(value)
+          <> "' must be encoded as a string",
+        ),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn unsigned_integer_string(value: String) -> Bool {
+  let trimmed = string.trim(value)
+  trimmed != ""
+  && string.to_graphemes(trimmed)
+  |> list.all(fn(grapheme) {
+    case grapheme {
+      "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+      _ -> False
+    }
+  })
 }
 
 fn id_value_problems(

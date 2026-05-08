@@ -239,6 +239,23 @@ fn graphql_request_body(body: String) -> Request {
   )
 }
 
+fn graphql_request(query: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2026-04/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\"" <> escape(query) <> "\"}",
+  )
+}
+
+fn escape(value: String) -> String {
+  value
+  |> string.replace("\\", "\\\\")
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
+  |> string.replace("\"", "\\\"")
+}
+
 fn price_rule_saved_search(id: String) -> SavedSearchRecord {
   price_rule_saved_search_with_query(id, "status:active")
 }
@@ -451,6 +468,92 @@ pub fn int_input_float_literals_are_invalid_before_discount_handlers_test() {
     "Argument 'recurringCycleLimit' on InputObject 'DiscountAutomaticBasicInput' has an invalid value (1.5). Expected type 'Int'.",
   )
   assert store.get_log(next_proxy.store) == []
+}
+
+pub fn native_discount_titles_reject_blank_and_too_long_values_test() {
+  let too_long = string.repeat("x", times: 256)
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"\", code: \"BLANKTITLE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_free_shipping_create =
+    run_mutation(
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let too_long_code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \""
+      <> too_long
+      <> "\", code: \"TOOLONGTITLE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_create.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_create.data)
+    == "{\"data\":{\"discountAutomaticBasicCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_free_shipping_create.data)
+    == "{\"data\":{\"discountAutomaticFreeShippingCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingAutomaticDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(too_long_code_create.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+}
+
+pub fn discount_update_titles_reject_blank_and_too_long_values_test() {
+  let too_long = string.repeat("x", times: 256)
+  let code_created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Valid\", code: \"TITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_blank =
+    run_mutation_from(
+      code_created.store,
+      code_created.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"\", code: \"TITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_created =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Valid auto\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_too_long =
+    run_mutation_from(
+      automatic_created.store,
+      automatic_created.identity,
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \""
+        <> too_long
+        <> "\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let app_created =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let app_blank =
+    run_mutation_from(
+      app_created.store,
+      app_created.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let app_too_long =
+    run_mutation_from(
+      app_created.store,
+      app_created.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \""
+        <> too_long
+        <> "\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_blank.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_too_long.data)
+    == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+  assert json.to_string(app_blank.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"title\"],\"message\":\"can't be blank\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(app_too_long.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"title\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
 pub fn discount_amount_non_numeric_variable_is_graphql_coercion_error_test() {
@@ -863,6 +966,63 @@ pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
 
   assert json.to_string(data)
     == "{\"codeDiscountNode\":{\"codeDiscount\":{\"title\":\"First Updated\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},\"discountNodes\":{\"nodes\":[{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"First Updated\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},{\"id\":\"gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"Second\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"}}]}}"
+}
+
+pub fn code_basic_node_read_reflects_local_update_test() {
+  let create_query =
+    "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Node Basic\", code: \"NODE-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title } } } userErrors { message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Node Basic\"}},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Node Basic Updated\", code: \"NODE-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title } } } userErrors { message } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Node Basic Updated\"}},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query {
+      codeNode: node(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") {
+        __typename
+        id
+        ... on DiscountCodeNode {
+          codeDiscount {
+            __typename
+            ... on DiscountCodeBasic {
+              title
+            }
+          }
+        }
+      }
+      codeNodes: nodes(ids: [
+        \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",
+        \"gid://shopify/DiscountCodeNode/missing\"
+      ]) {
+        __typename
+        id
+        ... on DiscountCodeNode {
+          codeDiscount {
+            __typename
+            ... on DiscountCodeBasic {
+              title
+            }
+          }
+        }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"codeNode\":{\"__typename\":\"DiscountCodeNode\",\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Node Basic Updated\"}},\"codeNodes\":[{\"__typename\":\"DiscountCodeNode\",\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Node Basic Updated\"}},null]}}"
 }
 
 pub fn redeem_code_bulk_mutations_bump_discount_updated_at_test() {
@@ -2502,6 +2662,106 @@ pub fn bxgy_discount_on_quantity_remains_valid_test() {
     == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
   assert json.to_string(automatic_update.data)
     == "{\"data\":{\"discountAutomaticBxgyUpdate\":{\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
+pub fn bxgy_numeric_validation_rejects_invalid_inputs_test() {
+  let code_limit =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-BAD-LIMIT\", startsAt: \"2026-04-25T00:00:00Z\", usesPerOrderLimit: 0, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_limit =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", usesPerOrderLimit: 0, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_buy_quantity =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-BAD-BUY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"0\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_get_quantity =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"0\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_setup =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-BAD-LIMIT-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_update_limit =
+    run_mutation_from(
+      code_setup.store,
+      code_setup.identity,
+      "mutation { discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-BAD-LIMIT-UP\", startsAt: \"2026-04-25T00:00:00Z\", usesPerOrderLimit: 2147483648, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_setup =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY setup\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_update_quantity =
+    run_mutation_from(
+      automatic_setup.store,
+      automatic_setup.identity,
+      "mutation { discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"BXGY setup\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"2147483648\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_limit.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"usesPerOrderLimit\"],\"message\":\"Allocation limit cannot be zero\",\"code\":\"VALUE_OUTSIDE_RANGE\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_limit.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"usesPerOrderLimit\"],\"message\":\"Allocation limit cannot be zero\",\"code\":\"VALUE_OUTSIDE_RANGE\",\"extraInfo\":null}]}}}"
+  assert json.to_string(code_buy_quantity.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerBuys\",\"value\",\"quantity\"],\"message\":\"Prerequisite to entitlement quantity ratio antecedent must be greater than 0\",\"code\":\"GREATER_THAN\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_get_quantity.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"value\",\"discountOnQuantity\",\"quantity\"],\"message\":\"Prerequisite to entitlement quantity ratio consequent must be greater than 0\",\"code\":\"GREATER_THAN\",\"extraInfo\":null}]}}}"
+  assert json.to_string(code_update_limit.data)
+    == "{\"data\":{\"discountCodeBxgyUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"usesPerOrderLimit\"],\"message\":\"Allocation limit must be less than or equal to 2147483647\",\"code\":\"LESS_THAN_OR_EQUAL_TO\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_update_quantity.data)
+    == "{\"data\":{\"discountAutomaticBxgyUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"value\",\"discountOnQuantity\",\"quantity\"],\"message\":\"Prerequisite to entitlement quantity ratio consequent must be less than 100000\",\"code\":\"LESS_THAN\",\"extraInfo\":null}]}}}"
+}
+
+pub fn bxgy_numeric_validation_rejects_invalid_variables_test() {
+  let code_body =
+    "{\"query\":\"mutation Numeric($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }\",\"variables\":{\"input\":{\"title\":\"BXGY\",\"code\":\"BXGY-VAR\",\"startsAt\":\"2026-04-25T00:00:00Z\",\"usesPerOrderLimit\":\"1.5\",\"customerBuys\":{\"value\":{\"quantity\":\"1\"},\"items\":{\"products\":{\"productsToAdd\":[\"gid://shopify/Product/1\"]}}},\"customerGets\":{\"value\":{\"discountOnQuantity\":{\"quantity\":\"1\",\"effect\":{\"percentage\":0.5}}},\"items\":{\"products\":{\"productsToAdd\":[\"gid://shopify/Product/2\"]}}}}}}"
+  let automatic_body =
+    "{\"query\":\"mutation Numeric($input: DiscountAutomaticBxgyInput!) { discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }\",\"variables\":{\"input\":{\"title\":\"BXGY\",\"startsAt\":\"2026-04-25T00:00:00Z\",\"customerBuys\":{\"value\":{\"quantity\":\"1\"},\"items\":{\"products\":{\"productsToAdd\":[\"gid://shopify/Product/1\"]}}},\"customerGets\":{\"value\":{\"discountOnQuantity\":{\"quantity\":\"-3\",\"effect\":{\"percentage\":0.5}}},\"items\":{\"products\":{\"productsToAdd\":[\"gid://shopify/Product/2\"]}}}}}}"
+  let #(Response(status: code_status, body: code_response, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(code_body),
+    )
+  let #(Response(status: automatic_status, body: automatic_response, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(automatic_body),
+    )
+  let code_json = json.to_string(code_response)
+  let automatic_json = json.to_string(automatic_response)
+
+  assert code_status == 200
+  assert string.contains(code_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    code_json,
+    "usesPerOrderLimit (Could not coerce value \\\"1.5\\\" to Int)",
+  )
+  assert automatic_status == 200
+  assert string.contains(automatic_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    automatic_json,
+    "customerGets.value.discountOnQuantity.quantity (UnsignedInt64 '-3' is out of range)",
+  )
+}
+
+pub fn bxgy_numeric_validation_preserves_captured_ratio_acceptance_test() {
+  let code_ratio =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-RATIO-OK\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"7\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"3\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_ratio =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY ratio\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"7\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"3\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_ratio.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+  assert json.to_string(automatic_ratio.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
 }
 
 pub fn blank_bxgy_returns_captured_user_errors_test() {

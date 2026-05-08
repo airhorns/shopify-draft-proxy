@@ -1,0 +1,199 @@
+mutation DiscountTitleValidationCreate(
+  $codeBasicBlank: DiscountCodeBasicInput!
+  $codeBasicTooLong: DiscountCodeBasicInput!
+  $codeBxgyBlank: DiscountCodeBxgyInput!
+  $codeBxgyTooLong: DiscountCodeBxgyInput!
+  $codeFreeShippingBlank: DiscountCodeFreeShippingInput!
+  $codeFreeShippingTooLong: DiscountCodeFreeShippingInput!
+  $automaticBasicBlank: DiscountAutomaticBasicInput!
+  $automaticBasicTooLong: DiscountAutomaticBasicInput!
+  $automaticBxgyBlank: DiscountAutomaticBxgyInput!
+  $automaticBxgyTooLong: DiscountAutomaticBxgyInput!
+  $automaticFreeShippingBlank: DiscountAutomaticFreeShippingInput!
+  $automaticFreeShippingTooLong: DiscountAutomaticFreeShippingInput!
+  $codeAppBlank: DiscountCodeAppInput!
+  $codeAppTooLong: DiscountCodeAppInput!
+  $automaticAppBlank: DiscountAutomaticAppInput!
+  $automaticAppTooLong: DiscountAutomaticAppInput!
+) {
+  codeBasicBlank: discountCodeBasicCreate(basicCodeDiscount: $codeBasicBlank) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBasicTooLong: discountCodeBasicCreate(basicCodeDiscount: $codeBasicTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBxgyBlank: discountCodeBxgyCreate(bxgyCodeDiscount: $codeBxgyBlank) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBxgyTooLong: discountCodeBxgyCreate(bxgyCodeDiscount: $codeBxgyTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeFreeShippingBlank: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeFreeShippingBlank) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeFreeShippingTooLong: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeFreeShippingTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicBlank: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasicBlank) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicTooLong: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasicTooLong) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgyBlank: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgyBlank) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgyTooLong: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgyTooLong) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShippingBlank: discountAutomaticFreeShippingCreate(
+    freeShippingAutomaticDiscount: $automaticFreeShippingBlank
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShippingTooLong: discountAutomaticFreeShippingCreate(
+    freeShippingAutomaticDiscount: $automaticFreeShippingTooLong
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeAppBlank: discountCodeAppCreate(codeAppDiscount: $codeAppBlank) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeAppTooLong: discountCodeAppCreate(codeAppDiscount: $codeAppTooLong) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticAppBlank: discountAutomaticAppCreate(automaticAppDiscount: $automaticAppBlank) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticAppTooLong: discountAutomaticAppCreate(automaticAppDiscount: $automaticAppTooLong) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
