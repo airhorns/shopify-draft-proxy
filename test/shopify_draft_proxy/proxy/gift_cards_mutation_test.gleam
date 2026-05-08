@@ -14,6 +14,7 @@ import gleam/string
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/gift_cards/mutations as gift_card_mutations
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{
@@ -65,8 +66,33 @@ fn run_mutation_outcome_with_upstream(
   outcome
 }
 
+fn run_mutation_outcome_at(
+  store_in: store.Store,
+  document: String,
+  now_iso: String,
+) -> mutation_helpers.MutationOutcome {
+  let identity = synthetic_identity.new()
+  gift_card_mutations.process_mutation_at(
+    store_in,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    document,
+    dict.new(),
+    empty_upstream_context(),
+    now_iso,
+  )
+}
+
 fn run_mutation(store_in: store.Store, document: String) -> String {
   json.to_string(run_mutation_outcome(store_in, document).data)
+}
+
+fn run_mutation_at(
+  store_in: store.Store,
+  document: String,
+  now_iso: String,
+) -> String {
+  json.to_string(run_mutation_outcome_at(store_in, document, now_iso).data)
 }
 
 fn run_proxy_graphql(document: String) {
@@ -124,6 +150,10 @@ fn seed_gift_card_configuration(
       purchase_limit: issue_limit,
     ),
   )
+}
+
+fn seed_shop(store_in: store.Store, record: ShopRecord) -> store.Store {
+  store.upsert_base_shop(store_in, record)
 }
 
 fn upstream_context_with_response(body: String) -> UpstreamContext {
@@ -342,6 +372,27 @@ fn trial_shop() -> ShopRecord {
       payment_gateways: [],
     ),
     shop_policies: [],
+  )
+}
+
+fn timezone_shop(
+  iana_timezone: String,
+  timezone_abbreviation: String,
+  timezone_offset: String,
+  timezone_offset_minutes: Int,
+) -> ShopRecord {
+  ShopRecord(
+    ..trial_shop(),
+    name: "Timezone Shop",
+    iana_timezone: iana_timezone,
+    timezone_abbreviation: timezone_abbreviation,
+    timezone_offset: timezone_offset,
+    timezone_offset_minutes: timezone_offset_minutes,
+    plan: ShopPlanRecord(
+      partner_development: True,
+      public_display_name: "Development",
+      shopify_plus: False,
+    ),
   )
 }
 
@@ -1104,6 +1155,94 @@ pub fn gift_card_update_rejects_recipient_html_and_send_at_without_mutating_test
 }
 
 // ----------- giftCardCredit -----------
+
+pub fn gift_card_expiry_uses_shop_timezone_date_test() {
+  let card =
+    transaction_card(
+      "gid://shopify/GiftCard/timezone-boundary",
+      True,
+      Some("2025-12-31"),
+      "10.0",
+      "USD",
+    )
+  let shop_store =
+    store.new()
+    |> seed_shop(timezone_shop("America/Los_Angeles", "PST", "-0800", -480))
+
+  assert gift_card_mutations.gift_card_is_expired_at(
+      shop_store,
+      card,
+      "2026-01-01T03:00:00.000Z",
+    )
+    == False
+  assert gift_card_mutations.gift_card_is_expired_at(
+      store.new(),
+      card,
+      "2026-01-01T03:00:00.000Z",
+    )
+    == True
+}
+
+pub fn gift_card_expiry_branches_use_shop_timezone_test() {
+  let now = "2026-01-01T03:00:00.000Z"
+  let expires_on = "2025-12-31"
+  let customer_id = "gid://shopify/Customer/timezone-customer"
+  let recipient_id = "gid://shopify/Customer/timezone-recipient"
+  let credit_id = "gid://shopify/GiftCard/timezone-credit"
+  let debit_id = "gid://shopify/GiftCard/timezone-debit"
+  let customer_card_id = "gid://shopify/GiftCard/timezone-customer-card"
+  let recipient_card_id = "gid://shopify/GiftCard/timezone-recipient-card"
+  let s =
+    store.new()
+    |> seed_shop(timezone_shop("America/Los_Angeles", "PST", "-0800", -480))
+    |> seed_gift_card_configuration(money("3000.0", "USD"))
+    |> seed_customer(customer(customer_id, Some("ada@example.com"), None))
+    |> seed_customer(customer(recipient_id, Some("grace@example.com"), None))
+    |> seed_card(transaction_card(
+      credit_id,
+      True,
+      Some(expires_on),
+      "10.0",
+      "USD",
+    ))
+    |> seed_card(transaction_card(
+      debit_id,
+      True,
+      Some(expires_on),
+      "10.0",
+      "USD",
+    ))
+    |> seed_card(
+      GiftCardRecord(
+        ..notification_card(customer_card_id, Some(customer_id), None),
+        expires_on: Some(expires_on),
+      ),
+    )
+    |> seed_card(
+      GiftCardRecord(
+        ..notification_card(recipient_card_id, None, Some(recipient_id)),
+        expires_on: Some(expires_on),
+      ),
+    )
+
+  let body =
+    run_mutation_at(
+      s,
+      "mutation { credit: giftCardCredit(id: \""
+        <> credit_id
+        <> "\", creditInput: { creditAmount: { amount: \"5\", currencyCode: \"USD\" } }) { giftCardCreditTransaction { __typename } userErrors { field code message } } debit: giftCardDebit(id: \""
+        <> debit_id
+        <> "\", debitInput: { debitAmount: { amount: \"2\", currencyCode: \"USD\" } }) { giftCardDebitTransaction { __typename } userErrors { field code message } } customerNotification: giftCardSendNotificationToCustomer(giftCardId: \""
+        <> customer_card_id
+        <> "\") { giftCard { id } userErrors { field code message } } recipientNotification: giftCardSendNotificationToRecipient(giftCardId: \""
+        <> recipient_card_id
+        <> "\") { giftCard { id } userErrors { field code message } } }",
+      now,
+    )
+
+  assert body
+    == "{\"data\":{\"credit\":{\"giftCardCreditTransaction\":{\"__typename\":\"GiftCardCreditTransaction\"},\"userErrors\":[]},\"debit\":{\"giftCardDebitTransaction\":{\"__typename\":\"GiftCardDebitTransaction\"},\"userErrors\":[]},\"customerNotification\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/timezone-customer-card\"},\"userErrors\":[]},\"recipientNotification\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/timezone-recipient-card\"},\"userErrors\":[]}}}"
+}
 
 pub fn gift_card_credit_increases_balance_test() {
   let existing =
