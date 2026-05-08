@@ -1,0 +1,18 @@
+mutation FulfillmentCreateMultiTracking($fulfillment: FulfillmentInput!, $message: String) {
+  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+    fulfillment {
+      id
+      status
+      displayStatus
+      trackingInfo(first: 5) {
+        number
+        url
+        company
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

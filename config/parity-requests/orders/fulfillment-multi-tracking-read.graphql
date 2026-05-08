@@ -1,0 +1,16 @@
+query FulfillmentMultiTrackingRead($id: ID!) {
+  order(id: $id) {
+    id
+    displayFulfillmentStatus
+    fulfillments(first: 5) {
+      id
+      status
+      displayStatus
+      trackingInfo(first: 5) {
+        number
+        url
+        company
+      }
+    }
+  }
+}
