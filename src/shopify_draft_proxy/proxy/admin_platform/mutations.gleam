@@ -11,6 +11,7 @@ import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform/queries
+import shopify_draft_proxy/proxy/apps/delegate_tokens
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
@@ -27,8 +28,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type BackupRegionRecord, AdminPlatformFlowSignatureRecord,
-  AdminPlatformFlowTriggerRecord,
+  type AccessScopeRecord, type BackupRegionRecord,
+  AdminPlatformFlowSignatureRecord, AdminPlatformFlowTriggerRecord,
 }
 
 const flow_trigger_payload_limit_bytes = 50_000
@@ -52,10 +53,11 @@ pub fn process_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  process_mutation_with_shop_origin(
+  process_mutation_with_shop_context(
     store,
     identity,
     upstream.origin,
+    upstream.headers,
     document,
     variables,
   )
@@ -69,6 +71,24 @@ pub fn process_mutation_with_shop_origin(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
+  process_mutation_with_shop_context(
+    store,
+    identity,
+    shop_origin,
+    dict.new(),
+    document,
+    variables,
+  )
+}
+
+fn process_mutation_with_shop_context(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  shop_origin: String,
+  request_headers: Dict(String, String),
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
@@ -77,6 +97,7 @@ pub fn process_mutation_with_shop_origin(
         store,
         identity,
         shop_origin,
+        request_headers,
         document,
         fields,
         fragments,
@@ -90,6 +111,7 @@ fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
   shop_origin: String,
+  request_headers: Dict(String, String),
   document: String,
   fields: List(Selection),
   fragments: FragmentMap,
@@ -108,6 +130,7 @@ fn handle_mutation_fields(
               current_store,
               current_identity,
               shop_origin,
+              request_headers,
               document,
               field,
               name.value,
@@ -188,6 +211,7 @@ fn handle_mutation_field(
   store: Store,
   identity: SyntheticIdentityRegistry,
   shop_origin: String,
+  request_headers: Dict(String, String),
   document: String,
   field: Selection,
   name: String,
@@ -211,6 +235,8 @@ fn handle_mutation_field(
         store,
         identity,
         shop_origin,
+        request_headers,
+        document,
         field,
         fragments,
         variables,
@@ -770,39 +796,139 @@ fn handle_backup_region_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
   shop_origin: String,
+  request_headers: Dict(String, String),
+  document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = graphql_helpers.field_args(field, variables)
-  case dict.get(args, "region") {
-    Ok(root_field.ObjectVal(region_args)) ->
-      handle_backup_region_update_to_country(
-        store,
-        identity,
-        shop_origin,
-        field,
-        fragments,
-        queries.read_string_arg(region_args, "countryCode"),
-      )
-    Ok(root_field.NullVal) | Error(_) ->
+  case backup_region_update_access_denied(store, request_headers) {
+    True ->
       MutationFieldResult(
-        queries.project_selection(
-          backup_region_update_source(
-            markets.effective_backup_region(store, shop_origin),
-            [],
-          ),
-          field,
-          fragments,
-        ),
-        [],
+        json.null(),
+        [backup_region_update_access_error(field, document)],
         store,
         identity,
         [],
         [],
       )
-    _ -> backup_region_not_found_result(store, identity, field, fragments)
+    False -> {
+      let args = graphql_helpers.field_args(field, variables)
+      case dict.get(args, "region") {
+        Ok(root_field.ObjectVal(region_args)) ->
+          handle_backup_region_update_to_country(
+            store,
+            identity,
+            shop_origin,
+            field,
+            fragments,
+            queries.read_string_arg(region_args, "countryCode"),
+          )
+        Ok(root_field.NullVal) | Error(_) ->
+          MutationFieldResult(
+            queries.project_selection(
+              backup_region_update_source(
+                markets.effective_backup_region(store, shop_origin),
+                [],
+              ),
+              field,
+              fragments,
+            ),
+            [],
+            store,
+            identity,
+            [],
+            [],
+          )
+        _ -> backup_region_not_found_result(store, identity, field, fragments)
+      }
+    }
   }
+}
+
+fn backup_region_update_access_denied(
+  store: Store,
+  request_headers: Dict(String, String),
+) -> Bool {
+  missing_modeled_markets_scopes(store, request_headers)
+  || !store.shop_markets_home_enabled(store)
+}
+
+fn missing_modeled_markets_scopes(
+  store: Store,
+  request_headers: Dict(String, String),
+) -> Bool {
+  case active_delegated_access_scopes(store, request_headers) {
+    Some(scopes) ->
+      !list.contains(scopes, "read_markets")
+      || !list.contains(scopes, "write_markets")
+    None ->
+      case store.get_current_app_installation(store) {
+        None -> False
+        Some(installation) ->
+          !has_access_scope(installation.access_scopes, "read_markets")
+          || !has_access_scope(installation.access_scopes, "write_markets")
+      }
+  }
+}
+
+fn active_delegated_access_scopes(
+  store: Store,
+  request_headers: Dict(String, String),
+) -> Option(List(String)) {
+  case delegate_tokens.active_access_token(request_headers) {
+    Some(raw_token) ->
+      case
+        store.find_delegated_access_token_by_hash(
+          store,
+          crypto.sha256_hex(raw_token),
+        )
+      {
+        Some(record) -> Some(record.access_scopes)
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn has_access_scope(scopes: List(AccessScopeRecord), handle: String) -> Bool {
+  list.any(scopes, fn(scope) { scope.handle == handle })
+}
+
+fn backup_region_update_access_error(
+  field: Selection,
+  document: String,
+) -> Json {
+  let required_access =
+    "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Access denied for backupRegionUpdate field. Required access: "
+        <> required_access,
+      ),
+    ),
+    #(
+      "locations",
+      json.array(queries.field_locations(field, document), fn(pair) {
+        let #(line, column) = pair
+        json.object([#("line", json.int(line)), #("column", json.int(column))])
+      }),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("ACCESS_DENIED")),
+        #(
+          "documentation",
+          json.string("https://shopify.dev/api/usage/access-scopes"),
+        ),
+        #("requiredAccess", json.string(required_access)),
+      ]),
+    ),
+    #("path", json.array([get_field_response_key(field)], json.string)),
+  ])
 }
 
 fn handle_backup_region_update_to_country(
