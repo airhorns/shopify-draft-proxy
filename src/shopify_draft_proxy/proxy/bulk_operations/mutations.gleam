@@ -260,6 +260,8 @@ fn handle_bulk_operation_run_query(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let query = graphql_helpers.read_arg_string(args, "query")
+  let client_identifier =
+    graphql_helpers.read_arg_string(args, "clientIdentifier")
   case query {
     None -> #(
       MutationFieldResult(
@@ -283,7 +285,7 @@ fn handle_bulk_operation_run_query(
       identity,
     )
     Some(query_string) ->
-      case build_run_query_jsonl(store, query_string, upstream) {
+      case validate_client_identifier(client_identifier, Some("INVALID")) {
         Error(errors) -> #(
           MutationFieldResult(
             key: key,
@@ -294,53 +296,85 @@ fn handle_bulk_operation_run_query(
           store,
           identity,
         )
-        Ok(result) -> {
-          let BulkQueryResult(
-            result_jsonl: result_jsonl,
-            object_count: object_count,
-            root_object_count: root_object_count,
-          ) = result
-          let #(operation_id, identity_after_id) =
-            synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
-          let #(created_at, identity_after_created) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_id)
-          let #(completed_at, identity_after_completed) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_created)
-          let operation =
-            BulkOperationRecord(
-              id: operation_id,
-              status: "COMPLETED",
-              type_: "QUERY",
-              error_code: None,
-              created_at: created_at,
-              completed_at: Some(completed_at),
-              object_count: int.to_string(object_count),
-              root_object_count: int.to_string(root_object_count),
-              file_size: Some(int.to_string(string.length(result_jsonl))),
-              url: Some(build_bulk_operation_result_url(operation_id)),
-              partial_data_url: None,
-              query: Some(query_string),
-              cursor: None,
-              result_jsonl: Some(result_jsonl),
+        Ok(valid_client_identifier) ->
+          case
+            build_run_query_jsonl(
+              store,
+              query_string,
+              valid_client_identifier,
+              upstream,
             )
-          let #(staged, next_store) =
-            store.stage_bulk_operation_result(store, operation, result_jsonl)
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: serialize_run_query_payload(
-                field,
-                Some(created_bulk_operation_response(staged)),
-                [],
-                fragments,
+          {
+            Error(errors) -> #(
+              MutationFieldResult(
+                key: key,
+                payload: serialize_run_query_payload(
+                  field,
+                  None,
+                  errors,
+                  fragments,
+                ),
+                staged_resource_ids: [],
+                log_drafts: [],
               ),
-              staged_resource_ids: [staged.id],
-              log_drafts: [],
-            ),
-            next_store,
-            identity_after_completed,
-          )
-        }
+              store,
+              identity,
+            )
+            Ok(result) -> {
+              let BulkQueryResult(
+                result_jsonl: result_jsonl,
+                object_count: object_count,
+                root_object_count: root_object_count,
+              ) = result
+              let #(operation_id, identity_after_id) =
+                synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
+              let #(created_at, identity_after_created) =
+                synthetic_identity.make_synthetic_timestamp(identity_after_id)
+              let #(completed_at, identity_after_completed) =
+                synthetic_identity.make_synthetic_timestamp(
+                  identity_after_created,
+                )
+              let operation =
+                BulkOperationRecord(
+                  id: operation_id,
+                  status: "COMPLETED",
+                  type_: "QUERY",
+                  error_code: None,
+                  created_at: created_at,
+                  completed_at: Some(completed_at),
+                  object_count: int.to_string(object_count),
+                  root_object_count: int.to_string(root_object_count),
+                  file_size: Some(int.to_string(string.length(result_jsonl))),
+                  url: Some(build_bulk_operation_result_url(operation_id)),
+                  partial_data_url: None,
+                  query: Some(query_string),
+                  client_identifier: valid_client_identifier,
+                  cursor: None,
+                  result_jsonl: Some(result_jsonl),
+                )
+              let #(staged, next_store) =
+                store.stage_bulk_operation_result(
+                  store,
+                  operation,
+                  result_jsonl,
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: serialize_run_query_payload(
+                    field,
+                    Some(created_bulk_operation_response(staged)),
+                    [],
+                    fragments,
+                  ),
+                  staged_resource_ids: [staged.id],
+                  log_drafts: [],
+                ),
+                next_store,
+                identity_after_completed,
+              )
+            }
+          }
       }
   }
 }
@@ -356,6 +390,7 @@ type BulkQueryResult {
 fn build_run_query_jsonl(
   store: Store,
   query_string: String,
+  client_identifier: Option(String),
   upstream: UpstreamContext,
 ) -> Result(BulkQueryResult, List(UserError)) {
   case parse_bulk_query_document(query_string) {
@@ -363,7 +398,13 @@ fn build_run_query_jsonl(
       case validate_admin_bulk_query(fields, fragments) {
         [_, ..] as validation_errors -> Error(validation_errors)
         [] ->
-          build_supported_run_query_jsonl(store, fields, fragments, upstream)
+          build_supported_run_query_jsonl(
+            store,
+            fields,
+            fragments,
+            client_identifier,
+            upstream,
+          )
       }
     }
     Error(BulkQueryParseFailed) ->
@@ -411,11 +452,12 @@ fn build_supported_run_query_jsonl(
   store: Store,
   fields: List(Selection),
   fragments: FragmentMap,
+  client_identifier: Option(String),
   upstream: UpstreamContext,
 ) -> Result(BulkQueryResult, List(UserError)) {
   case find_supported_bulk_query_root(fields, fragments) {
     Some(#(root, node_fields)) ->
-      case find_in_progress_bulk_operation(store, "QUERY") {
+      case find_in_progress_bulk_operation(store, "QUERY", client_identifier) {
         Some(operation) ->
           Error([operation_in_progress_error(operation, "query")])
         None ->
@@ -1056,6 +1098,8 @@ fn handle_bulk_operation_run_mutation(
   let mutation = graphql_helpers.read_arg_string_nonempty(args, "mutation")
   let staged_upload_path =
     graphql_helpers.read_arg_string_nonempty(args, "stagedUploadPath")
+  let client_identifier =
+    graphql_helpers.read_arg_string(args, "clientIdentifier")
   case mutation, staged_upload_path {
     None, _ -> #(
       MutationFieldResult(
@@ -1110,50 +1154,26 @@ fn handle_bulk_operation_run_mutation(
             key,
             validation_error,
           )
-        Ok(inner_root) ->
-          case find_in_progress_bulk_operation(store, "MUTATION") {
-            Some(operation) -> #(
-              MutationFieldResult(
-                key: key,
-                payload: serialize_run_mutation_payload(
-                  field,
-                  None,
-                  [
-                    operation_in_progress_error(operation, "mutation"),
-                  ],
-                  fragments,
-                ),
-                staged_resource_ids: [],
-                log_drafts: [],
-              ),
-              store,
-              identity,
+        Ok(inner_root) -> {
+          let validated_client_identifier =
+            validate_client_identifier(
+              client_identifier,
+              Some("INVALID_MUTATION"),
             )
-            None ->
-              case store.get_staged_upload_content(store, path) {
-                None -> #(
-                  MutationFieldResult(
-                    key: key,
-                    payload: serialize_run_mutation_payload(
-                      field,
-                      None,
-                      [
-                        UserError(
-                          field: None,
-                          message: "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
-                          code: Some("NO_SUCH_FILE"),
-                        ),
-                      ],
-                      fragments,
-                    ),
-                    staged_resource_ids: [],
-                    log_drafts: [],
-                  ),
-                  store,
-                  identity,
-                )
-                Some(content) ->
-                  stage_supported_run_mutation(
+          case client_identifier_is_nonblank(client_identifier) {
+            False ->
+              case validated_client_identifier {
+                Error(errors) ->
+                  return_run_mutation_user_errors(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    key,
+                    errors,
+                  )
+                Ok(valid_client_identifier) ->
+                  continue_run_mutation_after_client_identifier_validation(
                     store,
                     identity,
                     upstream,
@@ -1163,12 +1183,309 @@ fn handle_bulk_operation_run_mutation(
                     key,
                     inner_root,
                     mutation_string,
-                    content,
+                    path,
+                    valid_client_identifier,
+                    LookupInProgressBeforeUpload,
+                  )
+              }
+            True ->
+              case validated_client_identifier {
+                Error(errors) ->
+                  continue_run_mutation_with_present_client_identifier(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    key,
+                    path,
+                    Error(errors),
+                  )
+                Ok(valid_client_identifier) ->
+                  continue_run_mutation_with_present_client_identifier(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    key,
+                    path,
+                    Ok(#(
+                      upstream,
+                      request_path,
+                      inner_root,
+                      mutation_string,
+                      valid_client_identifier,
+                    )),
                   )
               }
           }
+        }
       }
   }
+}
+
+type RunMutationUploadOrdering {
+  LookupInProgressBeforeUpload
+  LookupUploadBeforeInProgress
+}
+
+fn client_identifier_is_nonblank(client_identifier: Option(String)) -> Bool {
+  case client_identifier {
+    None -> False
+    Some(value) -> string.trim(value) != ""
+  }
+}
+
+fn continue_run_mutation_with_present_client_identifier(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  path: String,
+  validation: Result(
+    #(UpstreamContext, String, String, String, Option(String)),
+    List(UserError),
+  ),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  case store.get_staged_upload_content(store, path) {
+    None ->
+      return_run_mutation_no_such_file(store, identity, field, fragments, key)
+    Some(content) ->
+      case validation {
+        Error(errors) ->
+          return_run_mutation_user_errors(
+            store,
+            identity,
+            field,
+            fragments,
+            key,
+            errors,
+          )
+        Ok(#(
+          upstream,
+          request_path,
+          inner_root,
+          mutation_string,
+          valid_client_identifier,
+        )) ->
+          continue_run_mutation_after_upload(
+            store,
+            identity,
+            upstream,
+            request_path,
+            field,
+            fragments,
+            key,
+            inner_root,
+            mutation_string,
+            valid_client_identifier,
+            content,
+          )
+      }
+  }
+}
+
+fn continue_run_mutation_after_client_identifier_validation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  upstream: UpstreamContext,
+  request_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  inner_root: String,
+  mutation_string: String,
+  path: String,
+  valid_client_identifier: Option(String),
+  ordering: RunMutationUploadOrdering,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  case ordering {
+    LookupInProgressBeforeUpload ->
+      case
+        find_in_progress_bulk_operation(
+          store,
+          "MUTATION",
+          valid_client_identifier,
+        )
+      {
+        Some(operation) ->
+          return_run_mutation_user_errors(
+            store,
+            identity,
+            field,
+            fragments,
+            key,
+            [operation_in_progress_error(operation, "mutation")],
+          )
+        None ->
+          case store.get_staged_upload_content(store, path) {
+            None ->
+              return_run_mutation_no_such_file(
+                store,
+                identity,
+                field,
+                fragments,
+                key,
+              )
+            Some(content) ->
+              stage_supported_run_mutation(
+                store,
+                identity,
+                upstream,
+                request_path,
+                field,
+                fragments,
+                key,
+                inner_root,
+                mutation_string,
+                valid_client_identifier,
+                content,
+              )
+          }
+      }
+    LookupUploadBeforeInProgress ->
+      case store.get_staged_upload_content(store, path) {
+        None ->
+          return_run_mutation_no_such_file(
+            store,
+            identity,
+            field,
+            fragments,
+            key,
+          )
+        Some(content) ->
+          continue_run_mutation_after_upload(
+            store,
+            identity,
+            upstream,
+            request_path,
+            field,
+            fragments,
+            key,
+            inner_root,
+            mutation_string,
+            valid_client_identifier,
+            content,
+          )
+      }
+  }
+}
+
+fn continue_run_mutation_after_upload(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  upstream: UpstreamContext,
+  request_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  inner_root: String,
+  mutation_string: String,
+  valid_client_identifier: Option(String),
+  content: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  case
+    find_in_progress_bulk_operation(store, "MUTATION", valid_client_identifier)
+  {
+    Some(operation) ->
+      return_run_mutation_user_errors(store, identity, field, fragments, key, [
+        operation_in_progress_error(operation, "mutation"),
+      ])
+    None ->
+      stage_supported_run_mutation(
+        store,
+        identity,
+        upstream,
+        request_path,
+        field,
+        fragments,
+        key,
+        inner_root,
+        mutation_string,
+        valid_client_identifier,
+        content,
+      )
+  }
+}
+
+fn return_run_mutation_user_errors(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(field, None, errors, fragments),
+      staged_resource_ids: [],
+      log_drafts: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn return_run_mutation_no_such_file(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  return_run_mutation_user_errors(store, identity, field, fragments, key, [
+    UserError(
+      field: None,
+      message: "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+      code: Some("NO_SUCH_FILE"),
+    ),
+  ])
+}
+
+fn validate_client_identifier(
+  client_identifier: Option(String),
+  error_code: Option(String),
+) -> Result(Option(String), List(UserError)) {
+  case client_identifier {
+    None | Some("") -> Ok(None)
+    Some(value) -> {
+      case string.trim(value) == "" {
+        True -> Ok(None)
+        False -> {
+          let length = string.length(value)
+          case length < 10 {
+            True ->
+              Error([
+                client_identifier_validation_error(
+                  "is too short (minimum is 10 characters)",
+                  error_code,
+                ),
+              ])
+            False ->
+              case length > 255 {
+                True ->
+                  Error([
+                    client_identifier_validation_error(
+                      "is too long (maximum is 255 characters)",
+                      error_code,
+                    ),
+                  ])
+                False -> Ok(Some(value))
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn client_identifier_validation_error(
+  message: String,
+  code: Option(String),
+) -> UserError {
+  UserError(field: Some(["clientIdentifier"]), message: message, code: code)
 }
 
 fn return_run_mutation_validation_error(
@@ -1231,6 +1548,7 @@ fn stage_supported_run_mutation(
   key: String,
   inner_root: String,
   mutation: String,
+  client_identifier: Option(String),
   upload_content: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let result =
@@ -1268,6 +1586,7 @@ fn stage_supported_run_mutation(
         False -> "COMPLETED"
       },
       mutation,
+      client_identifier,
       result_jsonl,
       object_count,
     )
@@ -1888,6 +2207,7 @@ fn build_and_stage_mutation_operation(
   identity: SyntheticIdentityRegistry,
   status: String,
   mutation: String,
+  client_identifier: Option(String),
   result_jsonl: String,
   object_count: Int,
 ) -> #(BulkOperationRecord, Store, SyntheticIdentityRegistry) {
@@ -1911,6 +2231,7 @@ fn build_and_stage_mutation_operation(
       url: Some(build_bulk_operation_result_url(operation_id)),
       partial_data_url: None,
       query: Some(mutation),
+      client_identifier: client_identifier,
       cursor: None,
       result_jsonl: Some(result_jsonl),
     )
@@ -1993,6 +2314,7 @@ fn bulk_operation_from_json(
     url: json_get_optional_string(value, "url"),
     partial_data_url: json_get_optional_string(value, "partialDataUrl"),
     query: json_get_optional_string(value, "query"),
+    client_identifier: json_get_optional_string(value, "clientIdentifier"),
     cursor: None,
     result_jsonl: None,
   ))
@@ -2294,12 +2616,28 @@ fn operation_in_progress_error(
 fn find_in_progress_bulk_operation(
   store: Store,
   operation_type: String,
+  client_identifier: Option(String),
 ) -> Option(BulkOperationRecord) {
   store.list_effective_bulk_operations(store)
   |> list.find(fn(operation) {
-    operation.type_ == operation_type && !is_terminal_status(operation.status)
+    // Shopify only scopes bulk throttles by clientIdentifier for POS/product-feed
+    // API clients. The proxy does not model API-client identity here, so any
+    // valid identifier opts into the scoped behavior.
+    operation.type_ == operation_type
+    && !is_terminal_status(operation.status)
+    && operation_matches_client_identifier(operation, client_identifier)
   })
   |> option.from_result
+}
+
+fn operation_matches_client_identifier(
+  operation: BulkOperationRecord,
+  client_identifier: Option(String),
+) -> Bool {
+  case client_identifier {
+    Some(_) -> operation.client_identifier == client_identifier
+    None -> True
+  }
 }
 
 fn is_terminal_status(status: String) -> Bool {

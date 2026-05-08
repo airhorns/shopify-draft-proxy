@@ -1109,6 +1109,7 @@ pub fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
   use url <- optional_string_field("url")
   use partial_data_url <- optional_string_field("partialDataUrl")
   use query <- optional_string_field("query")
+  use client_identifier <- optional_string_field("clientIdentifier")
   use cursor <- optional_string_field("cursor")
   use result_jsonl <- optional_string_field("resultJsonl")
   decode.success(types.BulkOperationRecord(
@@ -1124,6 +1125,7 @@ pub fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
     url: url,
     partial_data_url: partial_data_url,
     query: query,
+    client_identifier: client_identifier,
     cursor: cursor,
     result_jsonl: result_jsonl,
   ))

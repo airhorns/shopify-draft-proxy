@@ -1,0 +1,404 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-client-identifier-validation",
+  "capturedAt": "2026-05-08T10:16:43.307Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationClientIdentifierValidation",
+    "query": "mutation BulkOperationRunMutationClientIdentifierValidation($mutation: String!, $path: String!, $clientIdentifier: String) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "cleanupBefore": [
+    {
+      "operationName": "BulkOperationClientIdentifierCurrentMutation",
+      "query": "query BulkOperationClientIdentifierCurrentMutation {\n  currentBulkOperation(type: MUTATION) {\n    id\n    status\n    type\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentBulkOperation": {
+            "id": "gid://shopify/BulkOperation/7760702669106",
+            "status": "COMPLETED",
+            "type": "MUTATION"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "setup": {
+    "tooShort": {
+      "stagedUpload": {
+        "operationName": "BulkOperationClientIdentifierStagedUpload",
+        "query": "mutation BulkOperationClientIdentifierStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": [
+            {
+              "filename": "bulk-client-identifier-too-short-1778235402339.jsonl",
+              "mimeType": "text/jsonl",
+              "resource": "BULK_MUTATION_VARIABLES",
+              "httpMethod": "POST"
+            }
+          ]
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "text/jsonl"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/bulk/42fee3d2-c083-49c9-8f1f-efced2ac3bba/bulk-client-identifier-too-short-1778235402339.jsonl"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260508T101642Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260508/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "46083ea09cf1e53830228f8b69cfbab578dd95932d989b672c44ba27a5b86a649983d3a95efb035892e5059d3d75be088887f656381585022fd32c1df12141ef3b13b4e75445fb79a665afebc44580c68eff0faf0dd716f90fb929a9bdde08728e376222d184fc574f5771e3581ca1da0b231c58b5241fbcb0474fd2a009de6120fba65b885b47eb52bdf6b6248ba1538103cde75f0587bc397a14f33ec6f01c95c7bd45ada582ec135759ce8ef0a17dd47a0b9a8d2ba441fd3d5339a7c579bf08a4c28527977ac20274b21abae064d9c61a7d87c35806b4ae80d0d2a226d8976b4430a87183fc482289de338a0121ee0f86cf49105064063131cc250b5d6347"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvNDJmZWUzZDItYzA4My00OWM5LThmMWYtZWZjZWQyYWMzYmJhXC9idWxrLWNsaWVudC1pZGVudGlmaWVyLXRvby1zaG9ydC0xNzc4MjM1NDAyMzM5Lmpzb25sIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA4VDEwMTY0MloifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA4XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDlUMTA6MTY6NDJaIn0="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "upload": {
+        "status": 201,
+        "body": "<?xml version='1.0' encoding='UTF-8'?><PostResponse><Location>https://storage.googleapis.com/shopify-staged-uploads/tmp/92891250994/bulk/42fee3d2-c083-49c9-8f1f-efced2ac3bba/bulk-client-identifier-too-short-1778235402339.jsonl</Location><Bucket>shopify-staged-uploads</Bucket><Key>tmp/92891250994/bulk/42fee3d2-c083-49c9-8f1f-efced2ac3bba/bulk-client-identifier-too-short-1778235402339.jsonl</Key><ETag>\"16244bd2819f27286c4a052719810d22\"</ETag></PostResponse>"
+      },
+      "uploadContent": "{\"product\":{\"title\":\"Client identifier too-short\"}}\n",
+      "run": {
+        "operationName": "BulkOperationRunMutationClientIdentifierValidation",
+        "query": "mutation BulkOperationRunMutationClientIdentifierValidation($mutation: String!, $path: String!, $clientIdentifier: String) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+          "path": "tmp/92891250994/bulk/42fee3d2-c083-49c9-8f1f-efced2ac3bba/bulk-client-identifier-too-short-1778235402339.jsonl",
+          "clientIdentifier": "abc"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperationRunMutation": {
+              "bulkOperation": null,
+              "userErrors": [
+                {
+                  "field": ["clientIdentifier"],
+                  "message": "is too short (minimum is 10 characters)",
+                  "code": "INVALID_MUTATION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "tooLong": {
+      "stagedUpload": {
+        "operationName": "BulkOperationClientIdentifierStagedUpload",
+        "query": "mutation BulkOperationClientIdentifierStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": [
+            {
+              "filename": "bulk-client-identifier-too-long-1778235402804.jsonl",
+              "mimeType": "text/jsonl",
+              "resource": "BULK_MUTATION_VARIABLES",
+              "httpMethod": "POST"
+            }
+          ]
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "text/jsonl"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/bulk/24cb4199-fb08-48a5-ab5f-94d55bc2495b/bulk-client-identifier-too-long-1778235402804.jsonl"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260508T101642Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260508/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "03450dd0c29f6fe60575cd89f72ac49afa10f00a93002b528b9ea4fac2421eb1fe00c28bef316ba2a2d3af1ef67429504a9cad15bd491d03efe982cfc7ba50a54c403c438dde3aa2111e39abb2173fe6c9cb3120c25e467bff784683d3da37d8d2855ffc0a2232716666ea7ea6a891ff39e0b672bfb0127d0cd8867739f33745b0b8b906cf430822adc178bf9b364a8b5b3919161937efc9e501f8a577e7270ff051816c9a7ee455579042dc8a1ed1fe1e0c54e69c43836893246bf75211ede98a188999d788fb2da155d4158faae59d7c7c758699eea371151dec818cd8f7978a184b66915af1794208657aff5fb36d6791b70584e8f2ab75cff26acdb4349b"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvMjRjYjQxOTktZmIwOC00OGE1LWFiNWYtOTRkNTViYzI0OTViXC9idWxrLWNsaWVudC1pZGVudGlmaWVyLXRvby1sb25nLTE3NzgyMzU0MDI4MDQuanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA1MDhUMTAxNjQyWiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA1MDhcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNS0wOVQxMDoxNjo0MloifQ=="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "upload": {
+        "status": 201,
+        "body": "<?xml version='1.0' encoding='UTF-8'?><PostResponse><Location>https://storage.googleapis.com/shopify-staged-uploads/tmp/92891250994/bulk/24cb4199-fb08-48a5-ab5f-94d55bc2495b/bulk-client-identifier-too-long-1778235402804.jsonl</Location><Bucket>shopify-staged-uploads</Bucket><Key>tmp/92891250994/bulk/24cb4199-fb08-48a5-ab5f-94d55bc2495b/bulk-client-identifier-too-long-1778235402804.jsonl</Key><ETag>\"c5eb8eccb05a7b3c2e477c8e486f8715\"</ETag></PostResponse>"
+      },
+      "uploadContent": "{\"product\":{\"title\":\"Client identifier too-long\"}}\n",
+      "run": {
+        "operationName": "BulkOperationRunMutationClientIdentifierValidation",
+        "query": "mutation BulkOperationRunMutationClientIdentifierValidation($mutation: String!, $path: String!, $clientIdentifier: String) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+          "path": "tmp/92891250994/bulk/24cb4199-fb08-48a5-ab5f-94d55bc2495b/bulk-client-identifier-too-long-1778235402804.jsonl",
+          "clientIdentifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperationRunMutation": {
+              "bulkOperation": null,
+              "userErrors": [
+                {
+                  "field": ["clientIdentifier"],
+                  "message": "is too long (maximum is 255 characters)",
+                  "code": "INVALID_MUTATION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "validations": {
+    "tooShort": {
+      "operationName": "BulkOperationRunMutationClientIdentifierValidation",
+      "query": "mutation BulkOperationRunMutationClientIdentifierValidation($mutation: String!, $path: String!, $clientIdentifier: String) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/42fee3d2-c083-49c9-8f1f-efced2ac3bba/bulk-client-identifier-too-short-1778235402339.jsonl",
+        "clientIdentifier": "abc"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["clientIdentifier"],
+                "message": "is too short (minimum is 10 characters)",
+                "code": "INVALID_MUTATION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooLong": {
+      "operationName": "BulkOperationRunMutationClientIdentifierValidation",
+      "query": "mutation BulkOperationRunMutationClientIdentifierValidation($mutation: String!, $path: String!, $clientIdentifier: String) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/24cb4199-fb08-48a5-ab5f-94d55bc2495b/bulk-client-identifier-too-long-1778235402804.jsonl",
+        "clientIdentifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["clientIdentifier"],
+                "message": "is too long (maximum is 255 characters)",
+                "code": "INVALID_MUTATION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "observations": {
+    "runQueryWithClientIdentifier": {
+      "operationName": "BulkOperationRunQueryClientIdentifierProbe",
+      "query": "mutation BulkOperationRunQueryClientIdentifierProbe($query: String!, $clientIdentifier: String) {\n  bulkOperationRunQuery(query: $query, clientIdentifier: $clientIdentifier) {\n    bulkOperation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+        "clientIdentifier": "client-one"
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'bulkOperationRunQuery' doesn't accept argument 'clientIdentifier'",
+            "locations": [
+              {
+                "line": 2,
+                "column": 40
+              }
+            ],
+            "path": [
+              "mutation BulkOperationRunQueryClientIdentifierProbe",
+              "bulkOperationRunQuery",
+              "clientIdentifier"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "bulkOperationRunQuery",
+              "typeName": "Field",
+              "argumentName": "clientIdentifier"
+            }
+          },
+          {
+            "message": "Variable $clientIdentifier is declared by BulkOperationRunQueryClientIdentifierProbe but not used",
+            "locations": [
+              {
+                "line": 1,
+                "column": 1
+              }
+            ],
+            "path": ["mutation BulkOperationRunQueryClientIdentifierProbe"],
+            "extensions": {
+              "code": "variableNotUsed",
+              "variableName": "clientIdentifier"
+            }
+          }
+        ]
+      }
+    },
+    "posAllowlist": {
+      "status": "blocked",
+      "reason": "The active conformance credential is not a POS-class or product-feed API client, so POS allowlist throttle scoping cannot be captured with this auth grant."
+    }
+  },
+  "upstreamCalls": []
+}

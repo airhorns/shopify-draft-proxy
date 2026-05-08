@@ -67,6 +67,15 @@ pub type ProxyRequest {
   )
 }
 
+pub type ProxyUploadRequest {
+  ProxyUploadRequest(
+    method: String,
+    path: JsonValue,
+    body: JsonValue,
+    headers: List(#(String, String)),
+  )
+}
+
 pub type TargetRequest {
   /// Target reuses the primary `proxyRequest` and its response. The
   /// runner does NOT re-execute the primary; targets that share the
@@ -75,12 +84,17 @@ pub type TargetRequest {
   /// Target executes its own request after the primary. State (store,
   /// synthetic identity) is threaded forward from the primary.
   OverrideRequest(request: ProxyRequest)
+  /// Target replays a non-GraphQL HTTP request through the same proxy
+  /// state. Used for staged-upload byte handoff before a later GraphQL
+  /// mutation consumes the uploaded content.
+  UploadRequest(request: ProxyUploadRequest)
 }
 
 pub type ProxySource {
   ProxyResponse
   ProxyState
   ProxyLog
+  ProxySetup
 }
 
 pub type Target {
@@ -281,13 +295,34 @@ fn target_decoder() -> Decoder(Target) {
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
+  use upload <- decode.optional_field(
+    "proxyUpload",
+    None,
+    decode.optional(proxy_upload_request_decoder()),
+  )
+  let request = case upload {
+    Some(upload_request) -> UploadRequest(upload_request)
+    None -> request
+  }
   let expected_differences =
     list.append(
       expected_differences,
       list.map(excluded_paths, diff.expected_ignore),
     )
-  case proxy_path, proxy_state_path, proxy_log_path {
-    Some(path), _, _ ->
+  case request, proxy_path, proxy_state_path, proxy_log_path {
+    UploadRequest(_), _, _, _ ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: option.unwrap(proxy_path, "$"),
+        proxy_source: ProxySetup,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    _, Some(path), _, _ ->
       decode.success(Target(
         name: name,
         capture_path: capture_path,
@@ -299,7 +334,7 @@ fn target_decoder() -> Decoder(Target) {
         excluded_paths: excluded_paths,
         request: request,
       ))
-    None, Some(path), _ ->
+    _, None, Some(path), _ ->
       decode.success(Target(
         name: name,
         capture_path: capture_path,
@@ -311,7 +346,7 @@ fn target_decoder() -> Decoder(Target) {
         excluded_paths: excluded_paths,
         request: request,
       ))
-    None, None, Some(path) ->
+    _, None, None, Some(path) ->
       decode.success(Target(
         name: name,
         capture_path: capture_path,
@@ -323,7 +358,7 @@ fn target_decoder() -> Decoder(Target) {
         excluded_paths: excluded_paths,
         request: request,
       ))
-    None, None, None ->
+    _, None, None, None ->
       decode.failure(
         Target(
           name: name,
@@ -339,6 +374,32 @@ fn target_decoder() -> Decoder(Target) {
         "target must define proxyPath, proxyStatePath, or proxyLogPath",
       )
   }
+}
+
+fn proxy_upload_request_decoder() -> Decoder(ProxyUploadRequest) {
+  use method <- decode.field("method", decode.string)
+  use path <- decode.field("path", json_value_decoder())
+  use body <- decode.field("body", json_value_decoder())
+  use headers <- decode.optional_field(
+    "headers",
+    [],
+    decode.map(decode.dict(decode.string, decode.string), dict.to_list),
+  )
+  decode.success(ProxyUploadRequest(
+    method: method,
+    path: path,
+    body: body,
+    headers: headers,
+  ))
+}
+
+fn json_value_decoder() -> Decoder(JsonValue) {
+  decode.then(decode.dynamic, fn(dyn) {
+    case json_value.from_dynamic(dyn) {
+      Ok(value) -> decode.success(value)
+      Error(_) -> decode.failure(json_value.JObject([]), "expected JSON value")
+    }
+  })
 }
 
 fn expected_difference_decoder() -> Decoder(ExpectedDifference) {

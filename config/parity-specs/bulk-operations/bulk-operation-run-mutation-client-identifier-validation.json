@@ -1,0 +1,106 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-client-identifier-validation",
+  "operationNames": ["stagedUploadsCreate", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrails", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-client-identifier-staged-upload.graphql",
+    "variablesCapturePath": "$.setup.tooShort.stagedUpload.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "too-short-staged-upload-user-errors",
+        "capturePath": "$.setup.tooShort.stagedUpload.response.data.stagedUploadsCreate.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors"
+      },
+      {
+        "name": "too-short-upload-content",
+        "capturePath": "$.scenarioId",
+        "proxyUpload": {
+          "method": "POST",
+          "path": {
+            "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": {
+            "fromCapturePath": "$.setup.tooShort.uploadContent"
+          }
+        }
+      },
+      {
+        "name": "too-short-client-identifier-user-errors",
+        "capturePath": "$.validations.tooShort.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.validations.tooShort.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].parameters[3].value"
+            },
+            "clientIdentifier": {
+              "fromCapturePath": "$.validations.tooShort.variables.clientIdentifier"
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-staged-upload-user-errors",
+        "capturePath": "$.setup.tooLong.stagedUpload.response.data.stagedUploadsCreate.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-client-identifier-staged-upload.graphql",
+          "variablesCapturePath": "$.setup.tooLong.stagedUpload.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "too-long-upload-content",
+        "capturePath": "$.scenarioId",
+        "proxyUpload": {
+          "method": "POST",
+          "path": {
+            "fromProxyResponse": "too-long-staged-upload-user-errors",
+            "path": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": {
+            "fromCapturePath": "$.setup.tooLong.uploadContent"
+          }
+        }
+      },
+      {
+        "name": "too-long-client-identifier-user-errors",
+        "capturePath": "$.validations.tooLong.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.validations.tooLong.variables.mutation"
+            },
+            "path": {
+              "fromProxyResponse": "too-long-staged-upload-user-errors",
+              "path": "$.data.stagedUploadsCreate.stagedTargets[0].parameters[3].value"
+            },
+            "clientIdentifier": {
+              "fromCapturePath": "$.validations.tooLong.variables.clientIdentifier"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL 2026-04 bulkOperationRunMutation clientIdentifier length validation after JSONL bytes have been uploaded to a staged target. The executable replay uses the proxy's staged-upload HTTP route between stagedUploadsCreate and bulkOperationRunMutation so state is earned through requests rather than runner seeding. The active conformance credential is not a POS-class or product-feed API client, so POS allowlist throttle scoping remains documented as unavailable in the capture observations."
+}

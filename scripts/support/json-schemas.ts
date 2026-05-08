@@ -89,6 +89,14 @@ export const parityProxyRequestSpecSchema = z.strictObject({
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
 
+export const parityProxyUploadSpecSchema = z.strictObject({
+  method: z.string().min(1),
+  path: jsonValueSchema,
+  body: jsonValueSchema,
+  headers: z.record(z.string(), z.string()).optional(),
+});
+export type ProxyUploadSpec = z.infer<typeof parityProxyUploadSpecSchema>;
+
 export const matcherSchema = z.union([
   z.literal('any-string'),
   z.literal('non-empty-string'),
@@ -119,6 +127,7 @@ export const comparisonTargetSchema = z.strictObject({
   proxyLogPath: z.string().optional(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
+  proxyUpload: parityProxyUploadSpecSchema.optional(),
   selectedPaths: z.array(z.string()).optional(),
   excludedPaths: z.array(z.string()).optional(),
   expectedDifferences: z.array(expectedDifferenceSchema).optional(),

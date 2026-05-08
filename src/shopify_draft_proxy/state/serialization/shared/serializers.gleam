@@ -1068,6 +1068,7 @@ pub fn bulk_operation_json(record: types.BulkOperationRecord) -> Json {
     #("url", optional_string(record.url)),
     #("partialDataUrl", optional_string(record.partial_data_url)),
     #("query", optional_string(record.query)),
+    #("clientIdentifier", optional_string(record.client_identifier)),
     #("cursor", optional_string(record.cursor)),
     #("resultJsonl", optional_string(record.result_jsonl)),
   ])
