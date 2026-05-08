@@ -284,45 +284,147 @@ fn handle_flow_generate_signature(
             [],
           )
         True -> {
-          let signature =
-            crypto.sha256_hex(
-              flow_signature_secret <> "|" <> id <> "|" <> payload,
-            )
-          let #(record_id, identity_after_id) =
-            synthetic_identity.make_synthetic_gid(
-              identity,
-              "FlowGenerateSignature",
-            )
-          let #(created_at, identity_after_time) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_id)
-          let record =
-            AdminPlatformFlowSignatureRecord(
-              id: record_id,
-              flow_trigger_id: id,
-              payload_sha256: crypto.sha256_hex(payload),
-              signature_sha256: crypto.sha256_hex(signature),
-              created_at: created_at,
-            )
-          let #(_, next_store) =
-            store.stage_admin_platform_flow_signature(store, record)
-          MutationFieldResult(
-            queries.project_selection(
-              flow_generate_signature_source(payload, signature),
-              field,
-              fragments,
-            ),
-            [],
-            next_store,
-            identity_after_time,
-            [record_id],
-            [
-              "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
-            ],
-          )
+          case canonical_flow_signature_payload(payload) {
+            Error(user_error) ->
+              MutationFieldResult(
+                queries.project_selection(
+                  flow_generate_signature_error_source([user_error]),
+                  field,
+                  fragments,
+                ),
+                [],
+                store,
+                identity,
+                [],
+                [],
+              )
+            Ok(canonical_payload) -> {
+              let signature =
+                crypto.sha256_hex(
+                  flow_signature_secret <> "|" <> id <> "|" <> canonical_payload,
+                )
+              let #(record_id, identity_after_id) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "FlowGenerateSignature",
+                )
+              let #(created_at, identity_after_time) =
+                synthetic_identity.make_synthetic_timestamp(identity_after_id)
+              let record =
+                AdminPlatformFlowSignatureRecord(
+                  id: record_id,
+                  flow_trigger_id: id,
+                  payload_sha256: crypto.sha256_hex(canonical_payload),
+                  signature_sha256: crypto.sha256_hex(signature),
+                  created_at: created_at,
+                )
+              let #(_, next_store) =
+                store.stage_admin_platform_flow_signature(store, record)
+              MutationFieldResult(
+                queries.project_selection(
+                  flow_generate_signature_source(canonical_payload, signature),
+                  field,
+                  fragments,
+                ),
+                [],
+                next_store,
+                identity_after_time,
+                [record_id],
+                [
+                  "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
+                ],
+              )
+            }
+          }
         }
       }
     }
   }
+}
+
+fn canonical_flow_signature_payload(
+  payload: String,
+) -> Result(String, SourceValue) {
+  case json.parse(payload, commit.json_value_decoder()) {
+    Ok(commit.JsonObject(_)) | Ok(commit.JsonArray(_)) ->
+      Ok(compact_json_preserving_order(payload))
+    Ok(_) ->
+      Error(
+        flow_signature_payload_schema_error([
+          "Type error: payload is not an Object or Array.",
+        ]),
+      )
+    Error(_) ->
+      Error(
+        flow_signature_payload_schema_error([
+          flow_trigger_json_parse_message(payload),
+        ]),
+      )
+  }
+}
+
+type JsonCompactionState {
+  JsonCompactionState(output: List(String), in_string: Bool, escaped: Bool)
+}
+
+fn compact_json_preserving_order(payload: String) -> String {
+  payload
+  |> string.to_graphemes
+  |> list.fold(
+    JsonCompactionState(output: [], in_string: False, escaped: False),
+    compact_json_grapheme,
+  )
+  |> fn(state) { state.output }
+  |> list.reverse
+  |> string.concat
+}
+
+fn compact_json_grapheme(
+  state: JsonCompactionState,
+  grapheme: String,
+) -> JsonCompactionState {
+  case state.in_string {
+    True -> {
+      let next_escaped = case state.escaped {
+        True -> False
+        False -> grapheme == "\\"
+      }
+      let next_in_string = case state.escaped, grapheme {
+        False, "\"" -> False
+        _, _ -> True
+      }
+      JsonCompactionState(
+        output: [grapheme, ..state.output],
+        in_string: next_in_string,
+        escaped: next_escaped,
+      )
+    }
+    False -> {
+      case grapheme {
+        "\"" ->
+          JsonCompactionState(
+            output: [grapheme, ..state.output],
+            in_string: True,
+            escaped: False,
+          )
+        " " | "\n" | "\r" | "\t" -> state
+        _ ->
+          JsonCompactionState(
+            output: [grapheme, ..state.output],
+            in_string: False,
+            escaped: False,
+          )
+      }
+    }
+  }
+}
+
+fn flow_signature_payload_schema_error(messages: List(String)) -> SourceValue {
+  user_error(
+    ["payload"],
+    "Errors validating schema:\n  " <> string.join(messages, "\n  ") <> "\n",
+    None,
+  )
 }
 
 fn valid_flow_trigger_id(id: String) -> Bool {
@@ -336,6 +438,15 @@ fn flow_generate_signature_source(payload: String, signature: String) {
     #("payload", SrcString(payload)),
     #("signature", SrcString(signature)),
     #("userErrors", SrcList([])),
+  ])
+}
+
+fn flow_generate_signature_error_source(errors: List(SourceValue)) {
+  src_object([
+    #("__typename", SrcString("FlowGenerateSignaturePayload")),
+    #("payload", SrcNull),
+    #("signature", SrcNull),
+    #("userErrors", SrcList(errors)),
   ])
 }
 
