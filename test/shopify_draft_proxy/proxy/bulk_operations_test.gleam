@@ -15,7 +15,9 @@ import shopify_draft_proxy/proxy/upstream_query.{
 import shopify_draft_proxy/shopify/upstream_client.{SyncTransport}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
-import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/synthetic_identity.{
+  SyntheticIdentityStateDumpV1,
+}
 import shopify_draft_proxy/state/types.{
   type ProductRecord, BulkOperationRecord, ProductRecord, ProductSeoRecord,
 }
@@ -149,6 +151,7 @@ fn bulk_operation(
     type_: type_,
     error_code: None,
     created_at: created_at,
+    updated_at: Some(created_at),
     completed_at: None,
     object_count: "0",
     root_object_count: "0",
@@ -159,6 +162,15 @@ fn bulk_operation(
     cursor: None,
     result_jsonl: None,
   )
+}
+
+fn identity_at(timestamp: String) {
+  let assert Ok(identity) =
+    synthetic_identity.restore_state(SyntheticIdentityStateDumpV1(
+      next_synthetic_id: 1,
+      next_synthetic_timestamp: timestamp,
+    ))
+  identity
 }
 
 pub fn root_predicates_test() {
@@ -546,6 +558,154 @@ pub fn run_query_canceling_operation_still_blocks_new_query_test() {
       "gid://shopify/BulkOperation/711",
     )
   assert operation.status == "CANCELING"
+}
+
+pub fn cancel_stuck_created_running_and_canceling_operations_short_circuits_to_canceled_test() {
+  let created =
+    bulk_operation(
+      "gid://shopify/BulkOperation/901",
+      "CREATED",
+      "QUERY",
+      "2024-01-01T00:00:00.000Z",
+    )
+  let running =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/902",
+        "RUNNING",
+        "QUERY",
+        "2024-01-01T00:00:00.000Z",
+      ),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let canceling =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/903",
+        "CANCELING",
+        "QUERY",
+        "2024-01-01T00:00:00.000Z",
+      ),
+      updated_at: Some("2024-01-01T02:20:00.000Z"),
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), created)
+  let #(_, source) = store.stage_bulk_operation(source, running)
+  let #(_, source) = store.stage_bulk_operation(source, canceling)
+  let outcome =
+    bulk_operations.process_mutation(
+      source,
+      identity_at("2024-01-01T02:30:00.000Z"),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { created: bulkOperationCancel(id: \"gid://shopify/BulkOperation/901\") { bulkOperation { id status completedAt } userErrors { field message } } running: bulkOperationCancel(id: \"gid://shopify/BulkOperation/902\") { bulkOperation { id status completedAt } userErrors { field message } } canceling: bulkOperationCancel(id: \"gid://shopify/BulkOperation/903\") { bulkOperation { id status completedAt } userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+
+  assert string.contains(
+    response,
+    "\"created\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/901\",\"status\":\"CANCELED\",\"completedAt\":\"2024-01-01T02:30:00.000Z\"},\"userErrors\":[]}",
+  )
+  assert string.contains(
+    response,
+    "\"running\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/902\",\"status\":\"CANCELED\",\"completedAt\":\"2024-01-01T02:30:01.000Z\"},\"userErrors\":[]}",
+  )
+  assert string.contains(
+    response,
+    "\"canceling\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/903\",\"status\":\"CANCELED\",\"completedAt\":\"2024-01-01T02:30:02.000Z\"},\"userErrors\":[]}",
+  )
+
+  let next =
+    bulk_operations.process_mutation(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let next_response = json.to_string(next.data)
+  assert !string.contains(next_response, "OPERATION_IN_PROGRESS")
+  assert string.contains(next_response, "\"userErrors\":[]")
+}
+
+pub fn cancel_non_stuck_created_running_and_canceling_operations_remains_canceling_test() {
+  let created =
+    bulk_operation(
+      "gid://shopify/BulkOperation/911",
+      "CREATED",
+      "QUERY",
+      "2024-01-01T00:00:00.000Z",
+    )
+  let running =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/912",
+        "RUNNING",
+        "QUERY",
+        "2024-01-01T00:00:00.000Z",
+      ),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let canceling =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/913",
+        "CANCELING",
+        "QUERY",
+        "2024-01-01T00:00:00.000Z",
+      ),
+      updated_at: Some("2024-01-01T00:06:00.000Z"),
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), created)
+  let #(_, source) = store.stage_bulk_operation(source, running)
+  let #(_, source) = store.stage_bulk_operation(source, canceling)
+  let outcome =
+    bulk_operations.process_mutation(
+      source,
+      identity_at("2024-01-01T00:10:00.000Z"),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { created: bulkOperationCancel(id: \"gid://shopify/BulkOperation/911\") { bulkOperation { id status completedAt } userErrors { field message } } running: bulkOperationCancel(id: \"gid://shopify/BulkOperation/912\") { bulkOperation { id status completedAt } userErrors { field message } } canceling: bulkOperationCancel(id: \"gid://shopify/BulkOperation/913\") { bulkOperation { id status completedAt } userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+
+  assert string.contains(
+    response,
+    "\"created\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/911\",\"status\":\"CANCELING\",\"completedAt\":null},\"userErrors\":[]}",
+  )
+  assert string.contains(
+    response,
+    "\"running\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/912\",\"status\":\"CANCELING\",\"completedAt\":null},\"userErrors\":[]}",
+  )
+  assert string.contains(
+    response,
+    "\"canceling\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/913\",\"status\":\"CANCELING\",\"completedAt\":null},\"userErrors\":[]}",
+  )
+
+  let next =
+    bulk_operations.process_mutation(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(json.to_string(next.data), "OPERATION_IN_PROGRESS")
+
+  let later =
+    bulk_operations.process_mutation(
+      outcome.store,
+      identity_at("2024-01-01T00:11:00.000Z"),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationCancel(id: \"gid://shopify/BulkOperation/913\") { bulkOperation { id status completedAt } userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(later.data)
+    == "{\"data\":{\"bulkOperationCancel\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/913\",\"status\":\"CANCELED\",\"completedAt\":\"2024-01-01T00:11:00.000Z\"},\"userErrors\":[]}}}"
 }
 
 pub fn run_query_accepts_group_objects_true_false_and_default_test() {

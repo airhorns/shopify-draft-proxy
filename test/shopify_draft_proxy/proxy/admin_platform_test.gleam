@@ -173,6 +173,7 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
       type_: "QUERY",
       error_code: None,
       created_at: "2024-01-01T00:00:00.000Z",
+      updated_at: Some("2024-01-01T00:01:00.000Z"),
       completed_at: Some("2024-01-01T00:01:00.000Z"),
       object_count: "3",
       root_object_count: "1",

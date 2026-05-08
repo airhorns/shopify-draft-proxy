@@ -1061,6 +1061,7 @@ pub fn bulk_operation_json(record: types.BulkOperationRecord) -> Json {
     #("type", json.string(record.type_)),
     #("errorCode", optional_string(record.error_code)),
     #("createdAt", json.string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
     #("completedAt", optional_string(record.completed_at)),
     #("objectCount", json.string(record.object_count)),
     #("rootObjectCount", json.string(record.root_object_count)),
