@@ -62,6 +62,8 @@ import shopify_draft_proxy/state/types.{
 @internal
 pub fn list_supported_admin_platform_node_types() -> List(String) {
   [
+    "AbandonedCheckout",
+    "Abandonment",
     "App",
     "Article",
     "AppInstallation",
@@ -71,6 +73,7 @@ pub fn list_supported_admin_platform_node_types() -> List(String) {
     "Blog",
     "BulkOperation",
     "CalculatedOrder",
+    "CartTransform",
     "Channel",
     "Collection",
     "Comment",
@@ -83,6 +86,7 @@ pub fn list_supported_admin_platform_node_types() -> List(String) {
     "Customer",
     "CustomerAccountNativePage",
     "CustomerPaymentMethod",
+    "CustomerSegmentMembersQuery",
     "DeliveryCarrierService",
     "DeliveryCondition",
     "DeliveryCountry",
@@ -285,6 +289,10 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
     dict.size(staged.admin_platform_generic_nodes),
     dict.size(base.admin_platform_taxonomy_categories),
     dict.size(staged.admin_platform_taxonomy_categories),
+    dict.size(base.abandoned_checkouts),
+    dict.size(staged.abandoned_checkouts),
+    dict.size(base.abandonments),
+    dict.size(staged.abandonments),
     dict.size(base.products),
     dict.size(staged.products),
     dict.size(base.product_variants),
@@ -362,6 +370,10 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
     dict.size(staged.app_subscriptions),
     dict.size(base.app_usage_records),
     dict.size(staged.app_usage_records),
+    dict.size(base.cart_transforms),
+    dict.size(staged.cart_transforms),
+    dict.size(base.customer_segment_members_queries),
+    dict.size(staged.customer_segment_members_queries),
   ])
 }
 
@@ -387,8 +399,12 @@ fn resolved_value_requests_passthrough_node(
     root_field.StringVal(id) ->
       list.contains(
         [
+          "AbandonedCheckout",
+          "Abandonment",
+          "CartTransform",
           "Collection",
           "Customer",
+          "CustomerSegmentMembersQuery",
           "DeliveryCondition",
           "DeliveryCountry",
           "DeliveryLocationGroup",
@@ -741,6 +757,20 @@ fn serialize_node_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   case gid_resource_type(id) {
+    "AbandonedCheckout" ->
+      orders.serialize_abandoned_checkout_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "AbandonedCheckout", fragments),
+        fragments,
+      )
+    "Abandonment" ->
+      orders.serialize_abandonment_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Abandonment", fragments),
+        fragments,
+      )
     "Product" ->
       case store.get_effective_product_by_id(store, id) {
         Some(_) ->
@@ -1178,6 +1208,23 @@ fn serialize_node_by_id(
           )
         None -> json.null()
       }
+    "CartTransform" ->
+      function_serializers.serialize_cart_transform_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "CartTransform", fragments),
+        fragments,
+      )
+    "CustomerSegmentMembersQuery" ->
+      segment_serializers.serialize_customer_segment_members_query_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(
+          selections,
+          "CustomerSegmentMembersQuery",
+          fragments,
+        ),
+      )
     "MarketingActivity" ->
       case store.get_effective_marketing_activity_record_by_id(store, id) {
         Some(record) ->

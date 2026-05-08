@@ -13,7 +13,9 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type ShopRecord, BulkOperationRecord, GiftCardRecord, Money,
+  type ShopRecord, AbandonedCheckoutRecord, AbandonmentRecord,
+  BulkOperationRecord, CapturedObject, CapturedString, CartTransformRecord,
+  CustomerSegmentMembersQueryRecord, GiftCardRecord, Money,
   PaymentSettingsRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductSeoRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
@@ -240,6 +242,100 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
     == "{\"data\":{\"nodes\":[{\"__typename\":\"BulkOperation\",\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\",\"objectCount\":\"3\",\"url\":\"https://example.test/bulk.jsonl\"},{\"__typename\":\"GiftCard\",\"id\":\"gid://shopify/GiftCard/1\",\"lastCharacters\":\"4242\",\"enabled\":true,\"balance\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},null]}}"
 }
 
+pub fn node_reads_resolve_modeled_orders_functions_and_segments_test() {
+  let checkout_id = "gid://shopify/AbandonedCheckout/1"
+  let abandonment_id = "gid://shopify/Abandonment/1"
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/1",
+      title: Some("Cart transformer"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some("gid://shopify/ShopifyFunction/cart"),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-02T00:00:00.000Z"),
+    )
+  let member_query =
+    CustomerSegmentMembersQueryRecord(
+      id: "gid://shopify/CustomerSegmentMembersQuery/1",
+      query: Some("number_of_orders > 0"),
+      segment_id: None,
+      status: "INITIALIZED",
+      current_count: 0,
+      done: False,
+    )
+  let #(_, source) =
+    store.new()
+    |> store.upsert_base_abandoned_checkouts([
+      AbandonedCheckoutRecord(
+        id: checkout_id,
+        cursor: None,
+        data: CapturedObject([
+          #("__typename", CapturedString("AbandonedCheckout")),
+          #("id", CapturedString(checkout_id)),
+          #("email", CapturedString("buyer@example.test")),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_abandonments([
+      AbandonmentRecord(
+        id: abandonment_id,
+        abandoned_checkout_id: Some(checkout_id),
+        cursor: None,
+        data: CapturedObject([
+          #("__typename", CapturedString("Abandonment")),
+          #("id", CapturedString(abandonment_id)),
+          #("emailState", CapturedString("SENDING")),
+          #("emailSentAt", CapturedString("2026-04-27T00:00:00Z")),
+        ]),
+        delivery_activities: dict.new(),
+      ),
+    ])
+    |> store.stage_customer_segment_members_query(member_query)
+    |> store.upsert_staged_cart_transform(cart_transform)
+  let body =
+    run_query(
+      source,
+      "query {
+        nodes(ids: [
+          \"gid://shopify/AbandonedCheckout/1\",
+          \"gid://shopify/Abandonment/1\",
+          \"gid://shopify/CartTransform/1\",
+          \"gid://shopify/CustomerSegmentMembersQuery/1\",
+          \"gid://shopify/CartTransform/missing\"
+        ]) {
+          __typename
+          id
+          ... on AbandonedCheckout {
+            email
+          }
+          ... on Abandonment {
+            emailState
+            emailSentAt
+            abandonedCheckoutPayload {
+              id
+              email
+            }
+          }
+          ... on CartTransform {
+            functionId
+            blockOnFailure
+          }
+          ... on CustomerSegmentMembersQuery {
+            status
+            currentCount
+            done
+          }
+        }
+      }",
+    )
+
+  assert body
+    == "{\"data\":{\"nodes\":[{\"__typename\":\"AbandonedCheckout\",\"id\":\"gid://shopify/AbandonedCheckout/1\",\"email\":\"buyer@example.test\"},{\"__typename\":\"Abandonment\",\"id\":\"gid://shopify/Abandonment/1\",\"emailState\":\"SENDING\",\"emailSentAt\":\"2026-04-27T00:00:00Z\",\"abandonedCheckoutPayload\":{\"id\":\"gid://shopify/AbandonedCheckout/1\",\"email\":\"buyer@example.test\"}},{\"__typename\":\"CartTransform\",\"id\":\"gid://shopify/CartTransform/1\",\"functionId\":\"gid://shopify/ShopifyFunction/cart\",\"blockOnFailure\":false},{\"__typename\":\"CustomerSegmentMembersQuery\",\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},null]}}"
+}
+
 pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
   let possible_node_types = read_possible_node_types()
   let supported_node_types =
@@ -258,9 +354,7 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
   assert supported_possible_node_types == supported_node_types
   assert unsupported_node_types
     == [
-      "AbandonedCheckout",
       "AbandonedCheckoutLineItem",
-      "Abandonment",
       "AddAllProductsOperation",
       "AdditionalFee",
       "AppCatalog",
@@ -268,7 +362,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "AppRevenueAttributionRecord",
       "BasicEvent",
       "BusinessEntity",
-      "CartTransform",
       "CashDrawer",
       "CashManagementCustomReasonCode",
       "CashManagementDefaultReasonCode",
@@ -287,7 +380,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "ConsentPolicy",
       "CurrencyExchangeAdjustment",
       "CustomerAccountAppExtensionPage",
-      "CustomerSegmentMembersQuery",
       "CustomerVisit",
       "DeliveryCustomization",
       "DeliveryMethod",
