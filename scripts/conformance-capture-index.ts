@@ -3413,6 +3413,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-status-label',
+    scriptPath: 'scripts/capture-marketing-activity-status-label-conformance.mts',
+    purpose:
+      'External marketing activity statusLabel derivation for ad, post, newsletter, inactive, and deleted-externally branches.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-status-label.json`,
+      'config/parity-specs/marketing/marketing-activity-status-label.json',
+      'config/parity-requests/marketing/marketing-activity-status-label.graphql',
+      'config/parity-requests/marketing/marketing-activity-status-label-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities, records immediate and read-after-write statusLabel strings, then deletes every disposable activity by remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-immutable-fields',
     scriptPath: 'scripts/capture-marketing-activity-immutable-fields-conformance.mts',
     purpose:

@@ -382,17 +382,90 @@ pub fn event_ended_at_for_status(
 
 @internal
 pub fn status_label(status: String) -> String {
+  status_label_for_activity(status, None, None, False, False)
+}
+
+@internal
+pub fn status_label_for_activity(
+  status: String,
+  tactic: Option(String),
+  target_status: Option(String),
+  is_automation: Bool,
+  republishing: Bool,
+) -> String {
+  let normalized_status = string.uppercase(status)
+  let normalized_tactic =
+    option.unwrap(tactic, "")
+    |> string.uppercase
+  case target_status {
+    Some(target_status) ->
+      case string.uppercase(target_status) {
+        "PAUSED" -> "Pausing"
+        "DELETED" -> "Deleting"
+        "ACTIVE" ->
+          case normalized_status {
+            "ACTIVE" -> raw_status_label(normalized_status)
+            _ -> "Resuming"
+          }
+        _ ->
+          status_label_without_target(
+            normalized_status,
+            normalized_tactic,
+            is_automation,
+            republishing,
+          )
+      }
+    None ->
+      status_label_without_target(
+        normalized_status,
+        normalized_tactic,
+        is_automation,
+        republishing,
+      )
+  }
+}
+
+fn status_label_without_target(
+  status: String,
+  tactic: String,
+  is_automation: Bool,
+  republishing: Bool,
+) -> String {
+  case republishing {
+    True -> "Processing"
+    False ->
+      case is_automation {
+        True -> raw_status_label(status)
+        False ->
+          case status, tactic {
+            "ACTIVE", "POST" -> "Posting"
+            "ACTIVE", "NEWSLETTER" -> "Sending"
+            "ACTIVE", "MESSAGE" -> "Sending"
+            "ACTIVE", _ -> raw_status_label(status)
+            "INACTIVE", "NEWSLETTER" -> "Sent"
+            "INACTIVE", "MESSAGE" -> "Sent"
+            "INACTIVE", "POST" -> "Posted"
+            "INACTIVE", _ -> "Ended"
+            "PENDING", "AD" -> "In review"
+            "PENDING", "RETARGETING" -> "In review"
+            _, _ -> raw_status_label(status)
+          }
+      }
+  }
+}
+
+fn raw_status_label(status: String) -> String {
   case status {
-    "ACTIVE" -> "Sending"
+    "ACTIVE" -> "Active"
     "DELETED" -> "Deleted"
-    "INACTIVE" -> "Sent"
+    "INACTIVE" -> "Inactive"
     "PAUSED" -> "Paused"
     "PENDING" -> "Pending"
     "SCHEDULED" -> "Scheduled"
     "DRAFT" -> "Draft"
     "FAILED" -> "Failed"
     "DISCONNECTED" -> "Disconnected"
-    "DELETED_EXTERNALLY" -> "Deleted externally"
+    "DELETED_EXTERNALLY" -> "Deleted"
     _ -> "Undefined"
   }
 }
