@@ -3743,6 +3743,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-query-whitespace-preservation',
+    scriptPath: 'scripts/capture-segment-query-whitespace-preservation-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate query storage fidelity where leading and trailing query whitespace is preserved in mutation payloads and downstream segment reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-query-whitespace-preservation.json`,
+      'config/parity-specs/segments/segment-query-whitespace-preservation.json',
+      'config/parity-requests/segments/segment-query-whitespace-create.graphql',
+      'config/parity-requests/segments/segment-query-whitespace-read.graphql',
+      'config/parity-requests/segments/segment-query-whitespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment, reads it back, updates its query with a different padded string, and deletes the disposable segment during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-update-delete-malformed-gid',
     scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
     purpose:
