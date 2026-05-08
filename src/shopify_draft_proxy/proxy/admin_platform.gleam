@@ -5,10 +5,12 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform/mutations
 import shopify_draft_proxy/proxy/admin_platform/queries
+import shopify_draft_proxy/proxy/graphql_helpers.{type FragmentMap}
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
@@ -51,6 +53,29 @@ pub fn handle_query_request(
     document,
     variables,
   )
+}
+
+pub fn serialize_taxonomy_category_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  queries.serialize_taxonomy_category_node_by_id(
+    store,
+    id,
+    selections,
+    fragments,
+  )
+}
+
+pub fn serialize_generic_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  queries.serialize_generic_node_by_id(store, id, selections, fragments)
 }
 
 pub fn process(
