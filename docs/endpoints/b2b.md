@@ -364,6 +364,21 @@ uses the store-credit failed-deletable branch and records the public bulk error
 surface; single-location delete parity covers the public `FAILED_TO_DELETE`
 branch.
 
+Company deletion applies the parallel company-level failed-deletable checks
+before staging the destructive cascade. `companyDelete` and `companiesDelete`
+reject companies whose effective local company/location evidence includes
+associated orders, associated draft orders, or any company location with a
+non-zero store credit account balance. `companyDelete` returns
+`FAILED_TO_DELETE` with Shopify's generic `Failed to delete the company.`
+message, the `id` field path, `deletedCompanyId: null`, and no state change.
+Public Admin 2026-04 returns indexed `FAILED_TO_DELETE` userErrors for the same
+company-root persistence guard in `companiesDelete`; this differs from the
+location-root bulk surface, which reports `INTERNAL_ERROR`. Bulk company delete
+remains partial-success: unblocked IDs are deleted, blocked IDs are omitted from
+`deletedCompanyIds`, and unknown IDs keep indexed `RESOURCE_NOT_FOUND` errors.
+The executable parity scenarios record order-history, open-draft-order, and
+store-credit blockers for both single and bulk company deletes.
+
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
 unknown/unsupported escape hatch until a faithful no-send model exists.
@@ -431,6 +446,11 @@ conformance-backed local modeling.
 - Location delete failed-deletable check parity scenarios:
   `config/parity-specs/b2b/location_delete_failed_deletable_check.json`,
   `config/parity-specs/b2b/locations_delete_failed_deletable_check.json`
+- Company delete failed-deletable check capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/company-delete-failed-deletable-check.json`
+- Company delete failed-deletable check parity scenarios:
+  `config/parity-specs/b2b/company_delete_failed_deletable_check.json`,
+  `config/parity-specs/b2b/companies_delete_failed_deletable_check.json`
 - Empty input validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
 - Empty input validation parity scenario:
