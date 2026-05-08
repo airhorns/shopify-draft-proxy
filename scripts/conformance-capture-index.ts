@@ -583,6 +583,40 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-company-delete-deletable-check',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-company-delete-deletable-check-conformance.mts',
+    purpose:
+      'B2B companyDelete and companiesDelete failed-deletable checks for order-history, draft-order, store-credit, and bulk partial-success branches.',
+    requiredAuthScopes: [
+      'read_companies',
+      'write_companies',
+      'write_draft_orders',
+      'write_orders',
+      'read_store_credit_accounts',
+      'write_store_credit_account_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}company-delete-failed-deletable-check.json`,
+      'config/parity-specs/b2b/company_delete_failed_deletable_check.json',
+      'config/parity-specs/b2b/companies_delete_failed_deletable_check.json',
+      'config/parity-requests/b2b/company-delete-check-bulk-read.graphql',
+      'config/parity-requests/b2b/company-delete-check-companies-delete.graphql',
+      'config/parity-requests/b2b/company-delete-check-company-create.graphql',
+      'config/parity-requests/b2b/company-delete-check-company-delete.graphql',
+      'config/parity-requests/b2b/company-delete-check-draft-order-complete.graphql',
+      'config/parity-requests/b2b/company-delete-check-draft-order-create.graphql',
+      'config/parity-requests/b2b/company-delete-check-single-read.graphql',
+      'config/parity-requests/b2b/company-delete-check-store-credit-credit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable B2B companies, creates open and completed B2B draft orders, creates and debits company-location store credit accounts, records rejected company delete branches and a bulk partial-success branch, cancels/deletes completed orders when Shopify accepts it, then attempts company cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Shopify can retain completed-order company history even after order deletion; order-history cleanup companyDelete responses are recorded and may remain blocked.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-no-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
