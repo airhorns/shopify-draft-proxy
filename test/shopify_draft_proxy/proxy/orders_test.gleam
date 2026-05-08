@@ -7898,6 +7898,240 @@ pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Inventory-backed line\",\"quantity\":2}]}}}}"
 }
 
+pub fn orders_order_create_preserves_expanded_line_item_fields_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountsSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              title
+              quantity
+              sku
+              customAttributes {
+                key
+                value
+              }
+              requiresShipping
+              taxable
+              giftCard
+              vendor
+              product {
+                id
+              }
+              fulfillmentService {
+                serviceName
+              }
+              fulfillmentStatus
+              weight {
+                value
+                unit
+              }
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              discountAllocations {
+                allocatedAmountSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("USD")),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Expanded line")),
+                    #("quantity", root_field.IntVal(2)),
+                    #("sku", root_field.StringVal("expanded-line-sku")),
+                    #("vendor", root_field.StringVal("Hermes Vendor")),
+                    #(
+                      "productId",
+                      root_field.StringVal("gid://shopify/Product/777"),
+                    ),
+                    #("requiresShipping", root_field.BoolVal(False)),
+                    #("taxable", root_field.BoolVal(False)),
+                    #("giftCard", root_field.BoolVal(True)),
+                    #(
+                      "fulfillmentService",
+                      root_field.StringVal("manual-service"),
+                    ),
+                    #("fulfillmentStatus", root_field.StringVal("FULFILLED")),
+                    #(
+                      "properties",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("name", root_field.StringVal("engraving")),
+                            #("value", root_field.StringVal("Ada")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                    #(
+                      "weight",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("value", root_field.FloatVal(1.5)),
+                          #("unit", root_field.StringVal("KILOGRAMS")),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("12.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "appliedDiscounts",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("title", root_field.StringVal("Line credit")),
+                            #(
+                              "description",
+                              root_field.StringVal("line-level discount"),
+                            ),
+                            #("valueType", root_field.StringVal("FIXED_AMOUNT")),
+                            #("value", root_field.FloatVal(3.0)),
+                            #("amount", root_field.StringVal("3.00")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"24.0\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"21.0\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Expanded line\",\"quantity\":2,\"sku\":\"expanded-line-sku\",\"customAttributes\":[{\"key\":\"engraving\",\"value\":\"Ada\"}],\"requiresShipping\":false,\"taxable\":false,\"giftCard\":true,\"vendor\":\"Hermes Vendor\",\"product\":{\"id\":\"gid://shopify/Product/777\"},\"fulfillmentService\":{\"serviceName\":\"manual-service\"},\"fulfillmentStatus\":\"FULFILLED\",\"weight\":{\"value\":1.5,\"unit\":\"KILOGRAMS\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"USD\"}},\"discountAllocations\":[{\"allocatedAmountSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}}}]}]}},\"userErrors\":[]}}}"
+
+  let query =
+    "
+    query Read($id: ID!) {
+      order(id: $id) {
+        subtotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalDiscountsSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems(first: 5) {
+          nodes {
+            title
+            customAttributes {
+              key
+              value
+            }
+            requiresShipping
+            taxable
+            giftCard
+            vendor
+            product {
+              id
+            }
+            fulfillmentService {
+              serviceName
+            }
+            fulfillmentStatus
+            weight {
+              value
+              unit
+            }
+            discountAllocations {
+              allocatedAmountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(
+      outcome.store,
+      query,
+      dict.from_list([#("id", root_field.StringVal("gid://shopify/Order/1"))]),
+    )
+  assert json.to_string(read_result)
+    == "{\"data\":{\"order\":{\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"24.0\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Expanded line\",\"customAttributes\":[{\"key\":\"engraving\",\"value\":\"Ada\"}],\"requiresShipping\":false,\"taxable\":false,\"giftCard\":true,\"vendor\":\"Hermes Vendor\",\"product\":{\"id\":\"gid://shopify/Product/777\"},\"fulfillmentService\":{\"serviceName\":\"manual-service\"},\"fulfillmentStatus\":\"FULFILLED\",\"weight\":{\"value\":1.5,\"unit\":\"KILOGRAMS\"},\"discountAllocations\":[{\"allocatedAmountSet\":{\"shopMoney\":{\"amount\":\"3.0\",\"currencyCode\":\"USD\"}}}]}]}}}}"
+}
+
 pub fn orders_order_create_money_bags_default_presentment_money_test() {
   let mutation =
     "

@@ -4581,6 +4581,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-create-line-item-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-create-line-item-fields-conformance.ts',
+    purpose:
+      'orderCreate line-item properties/customAttributes, shipping/taxable flags, vendor, product linkage, priceSet, empty discount allocations, and downstream read-after-write behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-create-line-item-fields.json`,
+      'config/parity-specs/orders/orderCreate-line-item-fields.json',
+      'config/parity-requests/orders/orderCreate-line-item-fields.graphql',
+      'config/parity-requests/orders/orderCreate-line-item-fields-downstream-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable test order, reads it back, then records best-effort orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-update-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
