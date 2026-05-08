@@ -1002,7 +1002,7 @@ fn handle_validation_create(
                       title: final_title,
                       enable: enable,
                       block_on_failure: block_on_failure,
-                      function_id: reference.function_id,
+                      function_id: Some(shopify_fn.id),
                       function_handle: function_handle,
                       shopify_function_id: Some(shopify_fn.id),
                       metafields: metafields,
