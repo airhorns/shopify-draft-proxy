@@ -3497,3 +3497,34 @@ Practical rule:
 - for webhook subscription namespace allowlists, resolve only the `$app:`
   prefix to the request API client ID; do not downcase the suffix unless newer
   endpoint-specific live evidence proves Shopify does so for this field
+
+## 83. BXGY quantity ratios are more permissive than expected
+
+Admin GraphQL 2026-04 live capture for code and automatic BXGY discounts
+against `harry-test-heelo.myshopify.com` recorded numeric validation for
+`usesPerOrderLimit`, `customerBuys.value.quantity`, and
+`customerGets.value.discountOnQuantity.quantity`.
+
+Observed behavior:
+
+- `usesPerOrderLimit: 0` reaches resolver validation and returns
+  `VALUE_OUTSIDE_RANGE` with `Allocation limit cannot be zero`
+- negative code `usesPerOrderLimit` reaches resolver validation and returns
+  `GREATER_THAN`; negative automatic `usesPerOrderLimit` is rejected earlier as
+  an `UnsignedInt64` variable coercion error
+- values above `2147483647` reach resolver validation and return
+  `LESS_THAN_OR_EQUAL_TO`
+- zero BXGY buy/get quantities return resolver `GREATER_THAN` userErrors, while
+  negative and non-integer quantity strings fail earlier as `UnsignedInt64`
+  `INVALID_VARIABLE` errors
+- large quantity strings such as `2147483648` return resolver `LESS_THAN` with
+  the public message saying the antecedent/consequent must be less than
+  `100000`
+- a `7:3` prerequisite-to-entitlement quantity ratio was accepted for code and
+  automatic create/update when the rest of the input was valid
+
+Practical rule:
+
+- model captured numeric bounds and coercion exactly, but do not add a
+  non-divisible BXGY ratio rejection without newer live evidence proving Shopify
+  changed this public Admin behavior

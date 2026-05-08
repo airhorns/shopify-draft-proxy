@@ -1,0 +1,99 @@
+mutation DiscountTitleValidationSetup(
+  $codeBasic: DiscountCodeBasicInput!
+  $codeBxgy: DiscountCodeBxgyInput!
+  $codeFreeShipping: DiscountCodeFreeShippingInput!
+  $automaticBasic: DiscountAutomaticBasicInput!
+  $automaticBxgy: DiscountAutomaticBxgyInput!
+  $automaticFreeShipping: DiscountAutomaticFreeShippingInput!
+  $codeApp: DiscountCodeAppInput!
+  $automaticApp: DiscountAutomaticAppInput!
+) {
+  codeBasic: discountCodeBasicCreate(basicCodeDiscount: $codeBasic) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $codeBxgy) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeFreeShipping) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasic) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticBxgy) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShipping: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticFreeShipping) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeApp: discountCodeAppCreate(codeAppDiscount: $codeApp) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticApp: discountAutomaticAppCreate(automaticAppDiscount: $automaticApp) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

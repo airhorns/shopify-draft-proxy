@@ -5,15 +5,23 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/list
+import gleam/option.{None, Some}
+import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/graphql_helpers.{get_document_fragments}
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, type SourceValue, SrcObject, SrcString,
+  get_document_fragments, project_graphql_value,
+}
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/mutations
 import shopify_draft_proxy/proxy/shipping_fulfillments/queries
+import shopify_draft_proxy/proxy/shipping_fulfillments/serializers
+import shopify_draft_proxy/proxy/shipping_fulfillments/sources
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -149,4 +157,174 @@ pub fn process_mutation(
     variables,
     upstream,
   )
+}
+
+pub fn serialize_delivery_carrier_service_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_carrier_service_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        serializers.carrier_service_source(record),
+        "DeliveryCarrierService",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_delivery_profile_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_delivery_profile_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.delivery_profile_source(record),
+        "DeliveryProfile",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_delivery_profile_nested_node_by_id(
+  store: Store,
+  id: String,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+  fallback: fn() -> Json,
+) -> Json {
+  store
+  |> store.list_effective_delivery_profiles
+  |> list.find_map(fn(profile) {
+    case sources.find_captured_node_source_by_id(profile.data, id) {
+      Some(source) -> Ok(source)
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+  |> option.map(fn(source) {
+    project_node_source(source, typename, selections, fragments)
+  })
+  |> option.unwrap(fallback())
+}
+
+pub fn serialize_fulfillment_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_fulfillment_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.fulfillment_source(record),
+        "Fulfillment",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_fulfillment_order_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_fulfillment_order_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.fulfillment_order_source(record),
+        "FulfillmentOrder",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_reverse_delivery_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_reverse_delivery_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.reverse_delivery_source(store, record),
+        "ReverseDelivery",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_reverse_fulfillment_order_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_reverse_fulfillment_order_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.reverse_fulfillment_order_source(store, record),
+        "ReverseFulfillmentOrder",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_calculated_order_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_calculated_order_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        sources.calculated_order_source(record),
+        "CalculatedOrder",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn project_node_source(
+  source: SourceValue,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    source_with_typename(source, typename),
+    selections,
+    fragments,
+  )
+}
+
+fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
+  case source {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    _ -> source
+  }
 }

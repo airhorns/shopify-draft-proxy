@@ -30,6 +30,8 @@ fn graphql_with_variables(query: String, variables: String) -> Request {
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
   |> string.replace("\"", "\\\"")
 }
 
@@ -155,12 +157,57 @@ pub fn product_feed_create_rejects_duplicate_country_language_test() {
     == "{\"data\":{\"productFeedCreate\":{\"productFeed\":null,\"userErrors\":[{\"field\":[\"country\"],\"message\":\"Product feed already exists for this country/language pair\",\"code\":\"TAKEN\"}]}}}"
 
   let read_query =
-    "query { productFeed(id: \"gid://shopify/ProductFeed/US-EN\") { id country language status } productFeeds(first: 10) { nodes { id country language status } } }"
-  let #(Response(status: read_status, body: read_body, ..), _) =
+    "query {
+      productFeed(id: \"gid://shopify/ProductFeed/US-EN\") {
+        id
+        country
+        language
+        status
+      }
+      productFeeds(first: 10) {
+        nodes {
+          id
+          country
+          language
+          status
+        }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_with_variables(read_query, "{}"))
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"},\"productFeeds\":{\"nodes\":[{\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"}]}}}"
+
+  let node_query =
+    "query {
+      productFeedNode: node(id: \"gid://shopify/ProductFeed/US-EN\") {
+        __typename
+        id
+        ... on ProductFeed {
+          country
+          language
+          status
+        }
+      }
+      productFeedNodes: nodes(ids: [
+        \"gid://shopify/ProductFeed/US-EN\",
+        \"gid://shopify/ProductFeed/missing\"
+      ]) {
+        __typename
+        id
+        ... on ProductFeed {
+          country
+          language
+          status
+        }
+      }
+    }"
+  let #(Response(status: node_status, body: node_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_with_variables(node_query, "{}"))
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"productFeedNode\":{\"__typename\":\"ProductFeed\",\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"},\"productFeedNodes\":[{\"__typename\":\"ProductFeed\",\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"},null]}}"
 }
 
 pub fn product_duplicate_job_unknown_shape_test() {
