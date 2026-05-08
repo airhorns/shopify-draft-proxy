@@ -612,7 +612,7 @@ pub fn handle_fulfillment_service_create(
   upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
-  let name = read_trimmed_string(args, "name")
+  let name = read_string(args, "name")
   let callback_url = read_fulfillment_service_callback_url(args)
   let user_errors =
     list.append(
@@ -746,7 +746,7 @@ pub fn update_existing_fulfillment_service(
   existing: FulfillmentServiceRecord,
   upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let next_name = case read_trimmed_string(args, "name") {
+  let next_name = case read_string(args, "name") {
     Some(value) -> Some(value)
     None -> Some(existing.service_name)
   }

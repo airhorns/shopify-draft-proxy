@@ -1,0 +1,105 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-08T12:44:17.871Z",
+  "token": "fsws-mowwpuft",
+  "notes": [
+    "Live fulfillmentService name whitespace validation capture.",
+    "The primary mutation records Shopify rejecting a create name with both leading and trailing whitespace, then creating one disposable fulfillment service used for update validation.",
+    "The update mutation records Shopify rejecting a name with leading whitespace. The disposable setup service is deleted after capture.",
+    "The active public schema exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field; parity records field/message."
+  ],
+  "primary": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-primary.graphql",
+    "variables": {
+      "createName": "  FS Whitespace fsws-mowwpuft  ",
+      "setupName": "FS Whitespace Setup fsws-mowwpuft"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "createWhitespace": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["name"],
+                "message": "Name cannot begin with a whitespace character"
+              },
+              {
+                "field": ["name"],
+                "message": "Name cannot end with a whitespace character"
+              }
+            ]
+          },
+          "setupUpdateSource": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71930839346?id=true",
+              "handle": "fs-whitespace-setup-fsws-mowwpuft",
+              "serviceName": "FS Whitespace Setup fsws-mowwpuft",
+              "callbackUrl": null,
+              "trackingSupport": true,
+              "inventoryManagement": true,
+              "requiresShippingMethod": true,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/112892543282",
+                "name": "FS Whitespace Setup fsws-mowwpuft",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updatePrefix": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-update.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/71930839346?id=true",
+      "name": " FS Whitespace Setup fsws-mowwpuft Updated"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["name"],
+                "message": "Name cannot begin with a whitespace character"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

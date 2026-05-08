@@ -2159,6 +2159,16 @@ pub fn fulfillment_service_create_rejects_case_insensitive_duplicate_name_test()
   assert store.get_log(duplicate.store) == []
 }
 
+pub fn fulfillment_service_create_rejects_name_whitespace_without_staging_test() {
+  let outcome =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "  3PL  ")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name cannot begin with a whitespace character\",\"code\":null},{\"field\":[\"name\"],\"message\":\"Name cannot end with a whitespace character\",\"code\":null}]}}}"
+  assert store.list_effective_fulfillment_services(outcome.store) == []
+  assert store.get_log(outcome.store) == []
+}
+
 pub fn fulfillment_service_create_rejects_generated_handle_collision_test() {
   let first =
     fulfillment_service_create(store.new(), synthetic_identity.new(), "A B")
@@ -2170,6 +2180,30 @@ pub fn fulfillment_service_create_rejects_generated_handle_collision_test() {
   assert json.to_string(duplicate.data)
     == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
   assert store.list_effective_fulfillment_services(duplicate.store) == [created]
+}
+
+pub fn fulfillment_service_update_rejects_name_whitespace_without_staging_test() {
+  let created =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Clean FS",
+    )
+  let assert [service] =
+    store.list_effective_fulfillment_services(created.store)
+
+  let outcome =
+    fulfillment_service_update(
+      created.store,
+      created.identity,
+      service.id,
+      " New Name",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name cannot begin with a whitespace character\",\"code\":null}]}}}"
+  assert store.list_effective_fulfillment_services(outcome.store) == [service]
+  assert store.get_log(outcome.store) == store.get_log(created.store)
 }
 
 pub fn fulfillment_service_update_rejects_name_or_handle_collision_with_other_service_test() {

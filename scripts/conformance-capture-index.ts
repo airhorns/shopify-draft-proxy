@@ -6455,6 +6455,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-name-whitespace-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-name-whitespace-validation-conformance.ts',
+    purpose: 'fulfillmentServiceCreate and fulfillmentServiceUpdate name leading/trailing whitespace validation.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-name-whitespace-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-name-whitespace-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-primary.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Records one validation-only create, creates one disposable fulfillment service for update validation, records rejected update, then deletes the created service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-permits-sku-sharing-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-permits-sku-sharing-validation-conformance.ts',
