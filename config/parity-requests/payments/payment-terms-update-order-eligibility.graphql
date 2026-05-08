@@ -1,0 +1,12 @@
+mutation PaymentTermsUpdateOrderEligibility($input: PaymentTermsUpdateInput!) {
+  paymentTermsUpdate(input: $input) {
+    paymentTerms {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -28,7 +28,8 @@ import shopify_draft_proxy/proxy/payments/payment_methods.{
 }
 import shopify_draft_proxy/proxy/payments/payment_terms.{
   create_payment_terms, delete_payment_terms, hydrate_payment_schedule_context,
-  maybe_hydrate_payment_terms_owner, send_payment_reminder, update_payment_terms,
+  hydrate_payment_terms_context, maybe_hydrate_payment_terms_owner,
+  send_payment_reminder, update_payment_terms,
 }
 import shopify_draft_proxy/proxy/payments/serializers.{
   payment_customization_source, project_payment_customization,
@@ -80,16 +81,23 @@ fn hydrate_before_payments_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
-  let #(customer_ids, method_ids, owner_ids, schedule_ids) =
-    list.fold(fields, #([], [], [], []), fn(acc, field) {
-      let #(customer_acc, method_acc, owner_acc, schedule_acc) = acc
-      let #(customers, methods, owners, schedules) =
+  let #(customer_ids, method_ids, owner_ids, schedule_ids, payment_terms_ids) =
+    list.fold(fields, #([], [], [], [], []), fn(acc, field) {
+      let #(
+        customer_acc,
+        method_acc,
+        owner_acc,
+        schedule_acc,
+        payment_terms_acc,
+      ) = acc
+      let #(customers, methods, owners, schedules, payment_terms) =
         payment_mutation_hydrate_inputs(field, variables)
       #(
         list.append(customer_acc, customers),
         list.append(method_acc, methods),
         list.append(owner_acc, owners),
         list.append(schedule_acc, schedules),
+        list.append(payment_terms_acc, payment_terms),
       )
     })
   let with_payment_methods =
@@ -106,12 +114,16 @@ fn hydrate_before_payments_mutation(
     unique_strings(schedule_ids, []),
     upstream,
   )
+  |> hydrate_payment_terms_context(
+    unique_strings(payment_terms_ids, []),
+    upstream,
+  )
 }
 
 fn payment_mutation_hydrate_inputs(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(List(String), List(String), List(String), List(String)) {
+) -> #(List(String), List(String), List(String), List(String), List(String)) {
   case field {
     Field(name: name, ..) -> {
       let args = graphql_helpers.field_args(field, variables)
@@ -126,11 +138,13 @@ fn payment_mutation_hydrate_inputs(
           [],
           [],
           [],
+          [],
         )
         "customerPaymentMethodCreditCardUpdate"
         | "customerPaymentMethodPaypalBillingAgreementUpdate" -> #(
           [],
           option_to_list(graphql_helpers.read_arg_string_nonempty(args, "id")),
+          [],
           [],
           [],
         )
@@ -143,6 +157,7 @@ fn payment_mutation_hydrate_inputs(
             args,
             "customerPaymentMethodId",
           )),
+          [],
           [],
           [],
         )
@@ -167,6 +182,7 @@ fn payment_mutation_hydrate_inputs(
             option_to_list(method_id),
             [],
             [],
+            [],
           )
         }
         "customerPaymentMethodGetUpdateUrl" | "customerPaymentMethodRevoke" -> #(
@@ -175,6 +191,7 @@ fn payment_mutation_hydrate_inputs(
             args,
             "customerPaymentMethodId",
           )),
+          [],
           [],
           [],
         )
@@ -186,7 +203,23 @@ fn payment_mutation_hydrate_inputs(
             "referenceId",
           )),
           [],
+          [],
         )
+        "paymentTermsUpdate" | "paymentTermsDelete" -> {
+          let input =
+            graphql_helpers.read_arg_object(args, "input")
+            |> option.unwrap(dict.new())
+          #(
+            [],
+            [],
+            [],
+            [],
+            option_to_list(graphql_helpers.read_arg_string_nonempty(
+              input,
+              "paymentTermsId",
+            )),
+          )
+        }
         "paymentReminderSend" -> #(
           [],
           [],
@@ -195,11 +228,12 @@ fn payment_mutation_hydrate_inputs(
             args,
             "paymentScheduleId",
           )),
+          [],
         )
-        _ -> #([], [], [], [])
+        _ -> #([], [], [], [], [])
       }
     }
-    _ -> #([], [], [], [])
+    _ -> #([], [], [], [], [])
   }
 }
 

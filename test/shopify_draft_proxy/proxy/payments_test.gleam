@@ -844,6 +844,21 @@ fn paid_order(id: String) -> OrderRecord {
   )
 }
 
+fn channel_policy_disallowed_order(id: String) -> OrderRecord {
+  OrderRecord(
+    id: id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("displayFinancialStatus", CapturedString("PENDING")),
+      #("paymentTermsAllowed", CapturedBool(False)),
+    ]),
+  )
+}
+
 fn completed_draft_order(id: String) -> DraftOrderRecord {
   DraftOrderRecord(
     id: id,
@@ -1284,6 +1299,21 @@ fn payment_terms_create_mutation(reference_id: String) {
         paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
       }
     ) {
+      paymentTerms { id }
+      userErrors { field message code }
+    }
+  }"
+}
+
+fn payment_terms_update_mutation(payment_terms_id: String) {
+  "mutation {
+    paymentTermsUpdate(input: {
+      paymentTermsId: \"" <> payment_terms_id <> "\",
+      paymentTermsAttributes: {
+        paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\",
+        paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
+      }
+    }) {
       paymentTerms { id }
       userErrors { field message code }
     }
@@ -1735,6 +1765,100 @@ pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   )
   assert !string.contains(update_body, "PAYMENT_TERMS_NOT_FOUND")
   assert !string.contains(delete_body, "PAYMENT_TERMS_NOT_FOUND")
+}
+
+pub fn payment_terms_update_rejects_paid_order_owner_without_staging_test() {
+  let terms_id = "gid://shopify/PaymentTerms/paid-update"
+  let schedule_id = "gid://shopify/PaymentSchedule/paid-update"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_orders([paid_order(order_id)])
+    |> store.upsert_base_payment_terms(payment_terms_with_schedule(
+      terms_id,
+      order_id,
+      schedule_id,
+      money,
+    ))
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy, payment_terms_update_mutation(terms_id))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot create payment terms on an Order that has already been paid in full.\"",
+  )
+  assert string.contains(body, "\"code\":\"PAYMENT_TERMS_UPDATE_UNSUCCESSFUL\"")
+}
+
+pub fn payment_terms_update_rejects_channel_policy_disallowed_order_owner_test() {
+  let terms_id = "gid://shopify/PaymentTerms/channel-policy-update"
+  let schedule_id = "gid://shopify/PaymentSchedule/channel-policy-update"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_orders([channel_policy_disallowed_order(order_id)])
+    |> store.upsert_base_payment_terms(payment_terms_with_schedule(
+      terms_id,
+      order_id,
+      schedule_id,
+      money,
+    ))
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy, payment_terms_update_mutation(terms_id))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot create payment terms on an Order where the sales channel does not allow payment terms.\"",
+  )
+  assert string.contains(body, "\"code\":\"PAYMENT_TERMS_UPDATE_UNSUCCESSFUL\"")
+}
+
+pub fn payment_terms_update_skips_order_eligibility_for_draft_order_owner_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/update-paid-status"
+  let terms_id = "gid://shopify/PaymentTerms/draft-update"
+  let schedule_id = "gid://shopify/PaymentSchedule/draft-update"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      DraftOrderRecord(
+        id: draft_order_id,
+        cursor: None,
+        data: CapturedObject([
+          #("id", CapturedString(draft_order_id)),
+          #("status", CapturedString("COMPLETED")),
+          #("completedAt", CapturedString("2026-05-01T00:00:00Z")),
+          #("displayFinancialStatus", CapturedString("PAID")),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_payment_terms(payment_terms_with_schedule(
+      terms_id,
+      draft_order_id,
+      schedule_id,
+      money,
+    ))
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy, payment_terms_update_mutation(terms_id))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(
+    body,
+    "\"paymentTerms\":{\"id\":\"gid://shopify/PaymentTerms/draft-update\"",
+  )
 }
 
 pub fn payment_terms_delete_clears_stale_order_owner_read_test() {

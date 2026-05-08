@@ -6089,6 +6089,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-update-order-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-update-order-eligibility-conformance.ts',
+    purpose:
+      'paymentTermsUpdate Order eligibility rejection after an existing payment terms owner Order is marked paid.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-update-order-eligibility.json`,
+      `${CAPTURE_ROOT}payment-terms-update-order-eligibility-cleanup.json`,
+      'config/parity-specs/payments/payment-terms-update-order-eligibility.json',
+      'config/parity-requests/payments/payment-terms-update-order-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable unpaid test Order, creates payment terms, marks the Order paid, captures the rejected paymentTermsUpdate payload, then best-effort deletes payment terms and cancels the Order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Channel-policy-disallowed update evidence remains fixture-conditional until a captureable sales-channel setup path is available.',
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-create-reference-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-reference-not-found-conformance.ts',

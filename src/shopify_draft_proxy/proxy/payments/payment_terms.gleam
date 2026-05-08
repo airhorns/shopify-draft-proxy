@@ -33,6 +33,8 @@ import shopify_draft_proxy/state/types as state_types
 
 const order_paid_in_full_payment_terms_message = "Cannot create payment terms on an Order that has already been paid in full."
 
+const channel_policy_does_not_allow_payment_terms_message = "Cannot create payment terms on an Order where the sales channel does not allow payment terms."
+
 const payment_reminder_send_limit_window_ms = 86_400_000
 
 fn payment_terms_error(
@@ -200,6 +202,46 @@ pub fn hydrate_payment_schedule_context(
   })
 }
 
+@internal
+pub fn hydrate_payment_terms_context(
+  store: Store,
+  payment_terms_ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  list.fold(payment_terms_ids, store, fn(current, id) {
+    maybe_hydrate_payment_terms(current, id, upstream)
+  })
+}
+
+fn maybe_hydrate_payment_terms(
+  store: Store,
+  payment_terms_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_shopify_gid(Some(payment_terms_id), "PaymentTerms"),
+    get_effective_payment_terms_by_input_id(store, payment_terms_id)
+  {
+    True, None -> {
+      let variables = json.object([#("id", json.string(payment_terms_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "PaymentTermsHydrate",
+          payment_terms_hydrate_query(),
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_payment_terms_from_response(store, value)
+        Error(_) -> store
+      }
+    }
+    _, _ -> store
+  }
+}
+
 fn maybe_hydrate_payment_schedule(
   store: Store,
   schedule_id: String,
@@ -229,6 +271,32 @@ fn maybe_hydrate_payment_schedule(
   }
 }
 
+fn payment_terms_hydrate_query() -> String {
+  "query PaymentTermsHydrate($id: ID!) {\n"
+  <> "  paymentTerms: node(id: $id) {\n"
+  <> "    ... on PaymentTerms {\n"
+  <> "      id due overdue dueInDays paymentTermsName paymentTermsType translatedName\n"
+  <> "      order {\n"
+  <> "        id email closed closedAt cancelledAt displayFinancialStatus\n"
+  <> "        totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n"
+  <> "        currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n"
+  <> "        totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n"
+  <> "        lineItems(first: 1) { nodes { sellingPlan { name } } }\n"
+  <> "      }\n"
+  <> "      draftOrder { id status completedAt subtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }\n"
+  <> "      paymentSchedules(first: 10) {\n"
+  <> "        nodes {\n"
+  <> "          id dueAt issuedAt completedAt due\n"
+  <> "          amount { amount currencyCode }\n"
+  <> "          balanceDue { amount currencyCode }\n"
+  <> "          totalBalance { amount currencyCode }\n"
+  <> "        }\n"
+  <> "      }\n"
+  <> "    }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
 fn payment_schedule_reminder_hydrate_query() -> String {
   "query PaymentScheduleReminderHydrate($id: ID!) {\n"
   <> "  paymentSchedule: node(id: $id) {\n"
@@ -246,6 +314,31 @@ fn payment_schedule_reminder_hydrate_query() -> String {
   <> "    }\n"
   <> "  }\n"
   <> "}\n"
+}
+
+fn hydrate_payment_terms_from_response(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let node =
+    json_get(value, "data")
+    |> option.then(fn(data) { json_get(data, "paymentTerms") })
+    |> non_null_json
+
+  case node |> option.then(payment_terms_context_from_node) {
+    Some(#(terms, order, draft_order)) -> {
+      let with_order = case order {
+        Some(record) -> store.upsert_base_orders(store, [record])
+        None -> store
+      }
+      let with_draft = case draft_order {
+        Some(record) -> store.upsert_base_draft_orders(with_order, [record])
+        None -> with_order
+      }
+      store.upsert_base_payment_terms(with_draft, terms)
+    }
+    None -> store
+  }
 }
 
 fn hydrate_payment_schedule_from_response(
@@ -327,6 +420,56 @@ fn payment_schedule_context_from_node(
   ))
 }
 
+fn payment_terms_context_from_node(
+  node: commit.JsonValue,
+) -> Option(
+  #(
+    state_types.PaymentTermsRecord,
+    Option(state_types.OrderRecord),
+    Option(state_types.DraftOrderRecord),
+  ),
+) {
+  use terms_id <- option.then(json_get_string(node, "id"))
+  let order = json_get(node, "order") |> option.then(order_from_terms_node)
+  let draft_order =
+    json_get(node, "draftOrder")
+    |> option.then(draft_order_from_terms_node)
+  let owner_id = case order, draft_order {
+    Some(record), _ -> Some(record.id)
+    _, Some(record) -> Some(record.id)
+    _, _ -> None
+  }
+  use owner <- option.then(owner_id)
+  let schedules =
+    json_get(node, "paymentSchedules")
+    |> option.then(fn(connection) { json_get(connection, "nodes") })
+    |> json_array_items
+    |> list.filter_map(fn(node) {
+      case payment_schedule_from_hydrate_node(node) {
+        Some(schedule) -> Ok(schedule)
+        None -> Error(Nil)
+      }
+    })
+  Some(#(
+    state_types.PaymentTermsRecord(
+      id: terms_id,
+      owner_id: owner,
+      due: json_get_bool(node, "due") |> option.unwrap(False),
+      overdue: json_get_bool(node, "overdue") |> option.unwrap(False),
+      due_in_days: json_get_int(node, "dueInDays"),
+      payment_terms_name: json_get_string(node, "paymentTermsName")
+        |> option.unwrap(""),
+      payment_terms_type: json_get_string(node, "paymentTermsType")
+        |> option.unwrap(""),
+      translated_name: json_get_string(node, "translatedName")
+        |> option.unwrap(""),
+      payment_schedules: schedules,
+    ),
+    order,
+    draft_order,
+  ))
+}
+
 fn payment_schedule_from_hydrate_node(
   node: commit.JsonValue,
 ) -> Option(state_types.PaymentScheduleRecord) {
@@ -336,11 +479,25 @@ fn payment_schedule_from_hydrate_node(
     due_at: json_get_string(node, "dueAt"),
     issued_at: json_get_string(node, "issuedAt"),
     completed_at: json_get_string(node, "completedAt"),
-    due: None,
-    amount: None,
-    balance_due: None,
-    total_balance: None,
+    due: json_get_bool(node, "due"),
+    amount: json_get(node, "amount")
+      |> option.then(commit_money_value),
+    balance_due: json_get(node, "balanceDue")
+      |> option.then(commit_money_value),
+    total_balance: json_get(node, "totalBalance")
+      |> option.then(commit_money_value),
   ))
+}
+
+fn commit_money_value(value: commit.JsonValue) -> Option(state_types.Money) {
+  case
+    json_get_string(value, "amount"),
+    json_get_string(value, "currencyCode")
+  {
+    Some(amount), Some(currency_code) ->
+      Some(state_types.Money(amount: amount, currency_code: currency_code))
+    _, _ -> None
+  }
 }
 
 fn append_schedule_if_missing(
@@ -563,27 +720,70 @@ fn payment_terms_create_order_eligibility_error(
   store: Store,
   owner_id: String,
 ) -> Option(UserError) {
+  payment_terms_order_eligibility_error(
+    store,
+    owner_id,
+    payment_terms_creation_unsuccessful_code,
+  )
+}
+
+fn payment_terms_update_order_eligibility_error(
+  store: Store,
+  owner_id: String,
+) -> Option(UserError) {
+  payment_terms_order_eligibility_error(
+    store,
+    owner_id,
+    payment_terms_update_unsuccessful_code,
+  )
+}
+
+fn payment_terms_order_eligibility_error(
+  store: Store,
+  owner_id: String,
+  error_code: String,
+) -> Option(UserError) {
   case is_shopify_gid(Some(owner_id), "Order") {
     True ->
       case store.get_order_by_id(store, owner_id) {
-        Some(order) -> payment_terms_create_order_error(order)
+        Some(order) -> payment_terms_order_error(order, error_code)
         None -> None
       }
     False -> None
   }
 }
 
-fn payment_terms_create_order_error(
+fn payment_terms_order_error(
   order: state_types.OrderRecord,
+  error_code: String,
 ) -> Option(UserError) {
   case captured_string_field(order.data, "displayFinancialStatus") {
     Some("PAID") ->
       Some(payment_terms_root_error(
         order_paid_in_full_payment_terms_message,
-        payment_terms_creation_unsuccessful_code,
+        error_code,
       ))
-    _ -> None
+    _ ->
+      case payment_terms_allowed_by_channel(order.data) {
+        Some(False) ->
+          Some(payment_terms_root_error(
+            channel_policy_does_not_allow_payment_terms_message,
+            error_code,
+          ))
+        _ -> None
+      }
   }
+}
+
+fn payment_terms_allowed_by_channel(
+  order_data: state_types.CapturedJsonValue,
+) -> Option(Bool) {
+  captured_bool_field(order_data, "paymentTermsAllowed")
+  |> option.or(captured_bool_field(order_data, "payment_terms_allowed"))
+  |> option.or(captured_bool_field(
+    order_data,
+    "__draftProxyPaymentTermsAllowed",
+  ))
 }
 
 @internal
@@ -623,33 +823,13 @@ pub fn update_payment_terms(store, identity, field, fragments, variables) {
             get_effective_payment_terms_by_input_id(store, payment_terms_id)
           {
             Some(current) -> {
-              let amount =
-                payment_terms_owner_money(store, current.owner_id)
-                |> option.or(payment_terms_record_money(current))
-                |> option.unwrap(default_payment_terms_money())
               case
-                build_payment_terms(
-                  identity,
+                payment_terms_update_order_eligibility_error(
+                  store,
                   current.owner_id,
-                  attrs,
-                  Some(current.id),
-                  amount,
-                  ["input", "paymentTermsAttributes"],
-                  payment_terms_update_unsuccessful_code,
                 )
               {
-                Ok(#(record, next_identity)) ->
-                  payment_terms_result(
-                    store.upsert_staged_payment_terms(store, record),
-                    next_identity,
-                    field,
-                    fragments,
-                    "paymentTermsUpdate",
-                    Some(record),
-                    [],
-                    [record.id],
-                  )
-                Error(error) ->
+                Some(error) ->
                   payment_terms_result(
                     store,
                     identity,
@@ -660,6 +840,46 @@ pub fn update_payment_terms(store, identity, field, fragments, variables) {
                     [error],
                     [],
                   )
+                None -> {
+                  let amount =
+                    payment_terms_owner_money(store, current.owner_id)
+                    |> option.or(payment_terms_record_money(current))
+                    |> option.unwrap(default_payment_terms_money())
+                  case
+                    build_payment_terms(
+                      identity,
+                      current.owner_id,
+                      attrs,
+                      Some(current.id),
+                      amount,
+                      ["input", "paymentTermsAttributes"],
+                      payment_terms_update_unsuccessful_code,
+                    )
+                  {
+                    Ok(#(record, next_identity)) ->
+                      payment_terms_result(
+                        store.upsert_staged_payment_terms(store, record),
+                        next_identity,
+                        field,
+                        fragments,
+                        "paymentTermsUpdate",
+                        Some(record),
+                        [],
+                        [record.id],
+                      )
+                    Error(error) ->
+                      payment_terms_result(
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        "paymentTermsUpdate",
+                        None,
+                        [error],
+                        [],
+                      )
+                  }
+                }
               }
             }
             None ->
