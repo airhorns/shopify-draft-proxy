@@ -13,7 +13,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate reject per-resource reserved saved-search names case-insensitively. CUSTOMER is not included because customer saved-search create follows the separate deprecation branch. The update branch reuses the duplicate-name failed-update shape: the payload keeps a non-null savedSearch echo with the existing name plus submitted valid query while the failed rename does not persist to effective local state.",
+  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate reject per-resource reserved saved-search names case-insensitively, including DISCOUNT_REDEEM_CODE / All codes. CUSTOMER is not included because customer saved-search create follows the separate deprecation branch. The update branch reuses the duplicate-name failed-update shape: the payload keeps a non-null savedSearch echo with the existing name plus submitted valid query while the failed rename does not persist to effective local state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -76,6 +76,17 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
           "variablesCapturePath": "$.collectionReservedCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "discount-redeem-code-reserved-create",
+        "capturePath": "$.discountRedeemCodeReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.discountRedeemCodeReservedCreate.variables",
           "apiVersion": "2025-01"
         }
       },
