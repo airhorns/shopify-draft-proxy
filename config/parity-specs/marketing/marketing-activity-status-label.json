@@ -1,0 +1,96 @@
+{
+  "scenarioId": "marketing-activity-status-label",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivityUpdateExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-status-label.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-status-label.graphql",
+    "variablesCapturePath": "$.operations.primary.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "active-post-label",
+        "capturePath": "$.operations.primary.response.payload.data.activePost.marketingActivity.statusLabel",
+        "proxyPath": "$.data.activePost.marketingActivity.statusLabel"
+      },
+      {
+        "name": "active-newsletter-label",
+        "capturePath": "$.operations.primary.response.payload.data.activeNewsletter.marketingActivity.statusLabel",
+        "proxyPath": "$.data.activeNewsletter.marketingActivity.statusLabel"
+      },
+      {
+        "name": "inactive-post-label",
+        "capturePath": "$.operations.primary.response.payload.data.inactivePost.marketingActivity.statusLabel",
+        "proxyPath": "$.data.inactivePost.marketingActivity.statusLabel"
+      },
+      {
+        "name": "inactive-newsletter-label",
+        "capturePath": "$.operations.primary.response.payload.data.inactiveNewsletter.marketingActivity.statusLabel",
+        "proxyPath": "$.data.inactiveNewsletter.marketingActivity.statusLabel"
+      },
+      {
+        "name": "inactive-ad-label",
+        "capturePath": "$.operations.primary.response.payload.data.inactiveAd.marketingActivity.statusLabel",
+        "proxyPath": "$.data.inactiveAd.marketingActivity.statusLabel"
+      },
+      {
+        "name": "deleted-externally-label",
+        "capturePath": "$.operations.primary.response.payload.data.deletedExternally.marketingActivity.statusLabel",
+        "proxyPath": "$.data.deletedExternally.marketingActivity.statusLabel"
+      },
+      {
+        "name": "primary-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.activePost.userErrors",
+          "$.activeNewsletter.userErrors",
+          "$.inactivePost.userErrors",
+          "$.inactiveNewsletter.userErrors",
+          "$.inactiveAd.userErrors",
+          "$.deletedSeed.userErrors",
+          "$.deletedExternally.userErrors"
+        ]
+      },
+      {
+        "name": "read-after-write-labels",
+        "capturePath": "$.operations.read.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-status-label-read.graphql",
+          "variables": {
+            "activePostId": {
+              "fromPrimaryProxyPath": "$.data.activePost.marketingActivity.id"
+            },
+            "activeNewsletterId": {
+              "fromPrimaryProxyPath": "$.data.activeNewsletter.marketingActivity.id"
+            },
+            "inactivePostId": {
+              "fromPrimaryProxyPath": "$.data.inactivePost.marketingActivity.id"
+            },
+            "inactiveNewsletterId": {
+              "fromPrimaryProxyPath": "$.data.inactiveNewsletter.marketingActivity.id"
+            },
+            "inactiveAdId": {
+              "fromPrimaryProxyPath": "$.data.inactiveAd.marketingActivity.id"
+            },
+            "deletedExternallyId": {
+              "fromPrimaryProxyPath": "$.data.deletedExternally.marketingActivity.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Records Shopify statusLabel derivation for external marketing activities across ACTIVE post/newsletter, INACTIVE post/newsletter/ad, and a DELETED_EXTERNALLY transition. The capture script creates disposable external activities, reads them back by ID, and deletes each remote ID during cleanup. The required PENDING+ad branch is documented in the capture fixture as blocked in the current conformance topology because MarketingActivityCreateExternalInput.status rejects PENDING and the disposable shop has no readable PENDING+ad activity to use as evidence."
+}

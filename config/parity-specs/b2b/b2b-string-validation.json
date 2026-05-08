@@ -1,6 +1,6 @@
 {
   "scenarioId": "b2b-string-validation",
-  "operationNames": ["companyCreate", "companyLocationCreate"],
+  "operationNames": ["company", "companyCreate", "companyUpdate", "companyLocationCreate", "companyLocationUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-string-validation.json"],
@@ -10,8 +10,8 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "Executable parity coverage for the HAR-625 B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, and companyLocationCreate long name. The same capture records probe-only mismatches where live Admin currently accepts HTML in company notes/contact titles and accepts 300-character contact titles, so those branches remain covered by runtime tests instead of misleading parity specs.",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, companyLocationCreate long name, explicit blank name rejection on companyCreate, companyUpdate, and companyLocationUpdate, plus the captured fallback behavior for explicit blank companyLocation create inputs. The same capture records probe-only mismatches where live Admin currently accepts HTML in company notes/contact titles and accepts 300-character contact titles, so those branches remain covered by runtime tests instead of misleading parity specs.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -37,6 +37,77 @@
         }
       },
       {
+        "name": "company-create-blank-name-user-errors",
+        "capturePath": "$.companyCreateBlankName.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateBlankName.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-create-blank-location-name-fallback",
+        "capturePath": "$.companyCreateBlankLocationName.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateBlankLocationName.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          }
+        ]
+      },
+      {
+        "name": "company-create-blank-location-readback",
+        "capturePath": "$.companyCreateBlankLocationRead.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "company-create-blank-location-name-fallback",
+              "path": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "company-update-blank-name-user-errors",
+        "capturePath": "$.companyUpdateBlankName.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateBlankName.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "location-create-long-name-user-errors",
         "capturePath": "$.locationCreateLongName.response.data.companyLocationCreate",
         "proxyPath": "$.data.companyLocationCreate",
@@ -48,6 +119,72 @@
             },
             "input": {
               "fromCapturePath": "$.locationCreateLongName.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-blank-name-fallback",
+        "capturePath": "$.locationCreateBlankName.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreateBlankName.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-create-update-setup",
+        "capturePath": "$.locationCreateForUpdate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreateForUpdate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-update-blank-name-user-errors",
+        "capturePath": "$.locationUpdateBlankName.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-update-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationUpdateBlankName.request.variables.input"
             }
           },
           "apiVersion": "2026-04"

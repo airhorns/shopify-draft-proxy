@@ -390,6 +390,7 @@ pub fn build_order_from_create_input(
     )
   let discount =
     order_create_discount(input, currency_code, subtotal, shipping_total)
+    |> add_order_create_line_item_discounts(line_items, currency_code)
   let discount_total = captured_money_value(discount.total_discounts_set)
   let presentment_discount_total =
     captured_money_presentment_value(discount.total_discounts_set)
@@ -714,6 +715,9 @@ pub fn build_order_create_line_items(
       read_object(line_item, "originalUnitPriceSet")
       |> option.or(read_object(line_item, "priceSet"))
     let variant_id = read_string(line_item, "variantId")
+    let product_id = read_string(line_item, "productId")
+    let discount_allocations =
+      build_order_create_discount_allocations(line_item, currency_code)
     let current_quantity = case dict.get(line_item, "currentQuantity") {
       Ok(root_field.IntVal(value)) -> [#("currentQuantity", CapturedInt(value))]
       _ -> []
@@ -725,6 +729,45 @@ pub fn build_order_create_line_items(
           #("title", optional_captured_string(read_string(line_item, "title"))),
           #("quantity", CapturedInt(read_int(line_item, "quantity", 0))),
           #("sku", optional_captured_string(read_string(line_item, "sku"))),
+          #(
+            "customAttributes",
+            order_create_line_item_properties(read_object_list(
+              line_item,
+              "properties",
+            )),
+          ),
+          #(
+            "requiresShipping",
+            CapturedBool(read_bool(line_item, "requiresShipping", False)),
+          ),
+          #("taxable", CapturedBool(read_bool(line_item, "taxable", True))),
+          #("giftCard", CapturedBool(read_bool(line_item, "giftCard", False))),
+          #(
+            "vendor",
+            optional_captured_string(read_string(line_item, "vendor")),
+          ),
+          #("productId", optional_captured_string(product_id)),
+          #("product", case product_id {
+            Some(id) -> CapturedObject([#("id", CapturedString(id))])
+            None -> CapturedNull
+          }),
+          #(
+            "fulfillmentService",
+            build_order_create_fulfillment_service(read_string(
+              line_item,
+              "fulfillmentService",
+            )),
+          ),
+          #(
+            "fulfillmentStatus",
+            read_string(line_item, "fulfillmentStatus")
+              |> option.map(string.uppercase)
+              |> optional_captured_string,
+          ),
+          #(
+            "weight",
+            build_order_create_weight(read_object(line_item, "weight")),
+          ),
           #("variantId", optional_captured_string(variant_id)),
           #("variant", case variant_id {
             Some(id) -> CapturedObject([#("id", CapturedString(id))])
@@ -742,11 +785,115 @@ pub fn build_order_create_line_items(
             "taxLines",
             CapturedArray(build_order_create_tax_lines(line_item, currency_code)),
           ),
+          #("discountAllocations", CapturedArray(discount_allocations)),
         ],
         current_quantity,
       ))
     #(list.append(items, [item]), next_identity)
   })
+}
+
+@internal
+pub fn order_create_line_item_properties(
+  properties: List(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  CapturedArray(
+    properties
+    |> list.map(fn(property) {
+      let name = read_string(property, "name")
+      let value = read_string(property, "value")
+      CapturedObject([
+        #("key", optional_captured_string(name)),
+        #("name", optional_captured_string(name)),
+        #("value", optional_captured_string(value)),
+      ])
+    }),
+  )
+}
+
+@internal
+pub fn build_order_create_fulfillment_service(
+  service_name: Option(String),
+) -> CapturedJsonValue {
+  case service_name {
+    Some(value) ->
+      CapturedObject([
+        #("serviceName", CapturedString(value)),
+        #("handle", CapturedString(value)),
+      ])
+    None -> CapturedNull
+  }
+}
+
+@internal
+pub fn build_order_create_weight(
+  weight: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case weight {
+    Some(weight) ->
+      CapturedObject([
+        #("value", captured_number(weight, "value")),
+        #("unit", optional_captured_string(read_string(weight, "unit"))),
+      ])
+    None -> CapturedNull
+  }
+}
+
+@internal
+pub fn build_order_create_discount_allocations(
+  line_item: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> List(CapturedJsonValue) {
+  let quantity = read_int(line_item, "quantity", 0)
+  let price_set =
+    read_object(line_item, "originalUnitPriceSet")
+    |> option.or(read_object(line_item, "priceSet"))
+  let line_total =
+    captured_money_value(order_money_set_from_input(
+      price_set,
+      currency_code,
+      0.0,
+    ))
+    *. int.to_float(quantity)
+  read_object_list(line_item, "appliedDiscounts")
+  |> list.map(fn(discount) {
+    let applied_discount =
+      build_order_create_applied_discount(discount, currency_code, line_total)
+    let amount_set =
+      captured_object_field(applied_discount, "amountSet")
+      |> option.unwrap(money_set(0.0, currency_code))
+    CapturedObject([
+      #("allocatedAmountSet", amount_set),
+      #("discountApplication", applied_discount),
+    ])
+  })
+}
+
+@internal
+pub fn build_order_create_applied_discount(
+  discount: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+  base: Float,
+) -> CapturedJsonValue {
+  let amount =
+    read_number(discount, "amount")
+    |> option.or(read_number(discount, "value"))
+    |> option.unwrap(0.0)
+  let value_type = read_string(discount, "valueType")
+  let amount = case value_type {
+    Some("PERCENTAGE") -> base *. amount /. 100.0
+    _ -> amount
+  }
+  CapturedObject([
+    #("title", optional_captured_string(read_string(discount, "title"))),
+    #(
+      "description",
+      optional_captured_string(read_string(discount, "description")),
+    ),
+    #("value", captured_number(discount, "value")),
+    #("valueType", optional_captured_string(value_type)),
+    #("amountSet", money_set(amount, currency_code)),
+  ])
 }
 
 @internal
@@ -1104,6 +1251,68 @@ pub fn order_create_discount(
           }
       }
     None -> empty_order_create_discount(currency_code)
+  }
+}
+
+@internal
+pub fn add_order_create_line_item_discounts(
+  discount: OrderCreateDiscount,
+  line_items: List(CapturedJsonValue),
+  currency_code: String,
+) -> OrderCreateDiscount {
+  let line_discount_total =
+    line_items
+    |> list.fold(0.0, fn(sum, line_item) {
+      sum +. order_create_line_item_discount_total(line_item)
+    })
+  case line_discount_total >. 0.0 {
+    True -> {
+      let existing_total = captured_money_value(discount.total_discounts_set)
+      let existing_presentment_total =
+        captured_money_presentment_value(discount.total_discounts_set)
+      let presentment_rate = case existing_total >. 0.0 {
+        True -> existing_presentment_total /. existing_total
+        False -> 1.0
+      }
+      let line_discount_set =
+        money_set_with_presentment(
+          line_discount_total,
+          currency_code,
+          line_discount_total *. presentment_rate,
+          first_money_set_presentment_currency(
+            [discount.total_discounts_set],
+            currency_code,
+          ),
+        )
+      OrderCreateDiscount(
+        ..discount,
+        total_discounts_set: money_set_with_presentment(
+          existing_total +. captured_money_value(line_discount_set),
+          currency_code,
+          existing_presentment_total
+            +. captured_money_presentment_value(line_discount_set),
+          first_money_set_presentment_currency(
+            [line_discount_set, discount.total_discounts_set],
+            currency_code,
+          ),
+        ),
+      )
+    }
+    False -> discount
+  }
+}
+
+@internal
+pub fn order_create_line_item_discount_total(
+  line_item: CapturedJsonValue,
+) -> Float {
+  case captured_object_field(line_item, "discountAllocations") {
+    Some(CapturedArray(allocations)) ->
+      allocations
+      |> list.fold(0.0, fn(sum, allocation) {
+        sum +. captured_money_amount(allocation, "allocatedAmountSet")
+      })
+    _ -> 0.0
   }
 }
 

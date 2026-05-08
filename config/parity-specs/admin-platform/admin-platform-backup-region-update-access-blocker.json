@@ -1,0 +1,48 @@
+{
+  "scenarioId": "admin-platform-backup-region-update-access-blocker",
+  "operationNames": ["delegateAccessTokenCreate", "backupRegionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["access-control", "payload-shape", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-backup-region-update-access-blocker.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-happy-validation.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for backupRegionUpdate pre-resolve Markets access denial. The live capture records Shopify's ACCESS_DENIED envelope through a short-lived delegate token with only read_products; the proxy replay earns an equivalent explicit no-Markets app posture by staging the same local delegate-token setup before issuing backupRegionUpdate.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "access-denied-data",
+        "capturePath": "$.captures.backupRegionUpdateAccessDenied.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-idempotent.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_delegate_proxy_1"
+          }
+        }
+      },
+      {
+        "name": "access-denied-errors",
+        "capturePath": "$.captures.backupRegionUpdateAccessDenied.result.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-idempotent.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_delegate_proxy_1"
+          }
+        }
+      }
+    ]
+  }
+}

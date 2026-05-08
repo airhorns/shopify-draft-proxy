@@ -1,0 +1,21 @@
+mutation LocationDeleteInventoryLocationDeactivate(
+  $locationId: ID!
+  $destinationLocationId: ID!
+  $idempotencyKey: String!
+) {
+  locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)
+    @idempotent(key: $idempotencyKey) {
+    location {
+      id
+      name
+      isActive
+      hasActiveInventory
+      deletable
+    }
+    locationDeactivateUserErrors {
+      field
+      message
+      code
+    }
+  }
+}
