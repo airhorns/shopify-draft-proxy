@@ -353,6 +353,106 @@ pub fn root_predicates_test() {
   assert !marketing.is_marketing_mutation_root("productCreate")
 }
 
+pub fn external_status_label_uses_status_and_tactic_test() {
+  let document =
+    "mutation { pendingAd: marketingActivityCreateExternal(input: { title: \"Pending ad\", remoteId: \"label-pending-ad\", status: PENDING, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-pending-ad\", utm: { campaign: \"label-pending-ad\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } activePost: marketingActivityCreateExternal(input: { title: \"Active post\", remoteId: \"label-active-post\", status: ACTIVE, tactic: POST, marketingChannelType: SOCIAL, urlParameterValue: \"label-active-post\", utm: { campaign: \"label-active-post\", source: \"social\", medium: \"post\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactivePost: marketingActivityCreateExternal(input: { title: \"Inactive post\", remoteId: \"label-inactive-post\", status: INACTIVE, tactic: POST, marketingChannelType: SOCIAL, urlParameterValue: \"label-inactive-post\", utm: { campaign: \"label-inactive-post\", source: \"social\", medium: \"post\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactiveNewsletter: marketingActivityCreateExternal(input: { title: \"Inactive newsletter\", remoteId: \"label-inactive-newsletter\", status: INACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"label-inactive-newsletter\", utm: { campaign: \"label-inactive-newsletter\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactiveOther: marketingActivityCreateExternal(input: { title: \"Inactive ad\", remoteId: \"label-inactive-ad\", status: INACTIVE, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-inactive-ad\", utm: { campaign: \"label-inactive-ad\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } deletedExternally: marketingActivityCreateExternal(input: { title: \"Deleted externally\", remoteId: \"label-deleted-externally\", status: DELETED_EXTERNALLY, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-deleted-externally\", utm: { campaign: \"label-deleted-externally\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } }"
+  let outcome =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(
+    response,
+    "\"pendingAd\":{\"marketingActivity\":{\"title\":\"Pending ad\",\"status\":\"PENDING\",\"statusLabel\":\"In review\",\"tactic\":\"AD\"}",
+  )
+  assert string.contains(
+    response,
+    "\"activePost\":{\"marketingActivity\":{\"title\":\"Active post\",\"status\":\"ACTIVE\",\"statusLabel\":\"Posting\",\"tactic\":\"POST\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactivePost\":{\"marketingActivity\":{\"title\":\"Inactive post\",\"status\":\"INACTIVE\",\"statusLabel\":\"Posted\",\"tactic\":\"POST\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactiveNewsletter\":{\"marketingActivity\":{\"title\":\"Inactive newsletter\",\"status\":\"INACTIVE\",\"statusLabel\":\"Sent\",\"tactic\":\"NEWSLETTER\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactiveOther\":{\"marketingActivity\":{\"title\":\"Inactive ad\",\"status\":\"INACTIVE\",\"statusLabel\":\"Ended\",\"tactic\":\"AD\"}",
+  )
+  assert string.contains(
+    response,
+    "\"deletedExternally\":{\"marketingActivity\":{\"title\":\"Deleted externally\",\"status\":\"DELETED_EXTERNALLY\",\"statusLabel\":\"Deleted\",\"tactic\":\"AD\"}",
+  )
+
+  let read_response =
+    run(
+      outcome.store,
+      "{ marketingActivities(first: 10, remoteIds: [\"label-pending-ad\", \"label-active-post\", \"label-inactive-post\", \"label-inactive-newsletter\", \"label-inactive-ad\", \"label-deleted-externally\"]) { nodes { title status statusLabel tactic } } }",
+    )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Pending ad\",\"status\":\"PENDING\",\"statusLabel\":\"In review\",\"tactic\":\"AD\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Active post\",\"status\":\"ACTIVE\",\"statusLabel\":\"Posting\",\"tactic\":\"POST\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive post\",\"status\":\"INACTIVE\",\"statusLabel\":\"Posted\",\"tactic\":\"POST\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive newsletter\",\"status\":\"INACTIVE\",\"statusLabel\":\"Sent\",\"tactic\":\"NEWSLETTER\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive ad\",\"status\":\"INACTIVE\",\"statusLabel\":\"Ended\",\"tactic\":\"AD\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Deleted externally\",\"status\":\"DELETED_EXTERNALLY\",\"statusLabel\":\"Deleted\",\"tactic\":\"AD\"",
+  )
+}
+
+pub fn native_status_label_uses_target_status_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\", status: ACTIVE }) { userErrors { message } } }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let update_doc =
+    "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", targetStatus: PAUSED }) { marketingActivity { id status targetStatus statusLabel } userErrors { message } } }"
+  let updated =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      update_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(updated.data)
+  assert string.contains(
+    response,
+    "\"marketingActivity\":{\"id\":\"gid://shopify/MarketingActivity/1\",\"status\":\"ACTIVE\",\"targetStatus\":\"PAUSED\",\"statusLabel\":\"Pausing\"}",
+  )
+}
+
 pub fn empty_reads_keep_shopify_like_shapes_test() {
   let source = store.new()
   let result =

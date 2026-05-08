@@ -1,0 +1,35 @@
+query MarketingActivityStatusLabelRead(
+  $activePostId: ID!
+  $activeNewsletterId: ID!
+  $inactivePostId: ID!
+  $inactiveNewsletterId: ID!
+  $inactiveAdId: ID!
+  $deletedExternallyId: ID!
+) {
+  activePost: marketingActivity(id: $activePostId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+  activeNewsletter: marketingActivity(id: $activeNewsletterId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+  inactivePost: marketingActivity(id: $inactivePostId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+  inactiveNewsletter: marketingActivity(id: $inactiveNewsletterId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+  inactiveAd: marketingActivity(id: $inactiveAdId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+  deletedExternally: marketingActivity(id: $deletedExternallyId) {
+    ...MarketingActivityStatusLabelReadFields
+  }
+}
+
+fragment MarketingActivityStatusLabelReadFields on MarketingActivity {
+  title
+  status
+  statusLabel
+  tactic
+  targetStatus
+}

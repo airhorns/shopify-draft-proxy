@@ -2131,8 +2131,17 @@ fn build_marketing_records_from_create_input(
       #("createdAt", MarketingString(timestamp)),
       #("updatedAt", MarketingString(timestamp)),
       #("status", MarketingString(status)),
-      #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
+      #(
+        "statusLabel",
+        MarketingString(serializers.status_label_for_activity(
+          status,
+          Some(tactic),
+          None,
+          False,
+          False,
+        )),
+      ),
       #("marketingChannelType", MarketingString(channel_type)),
       #("sourceAndMedium", MarketingString(source_medium)),
       #("isExternal", MarketingBool(True)),
@@ -2209,6 +2218,7 @@ fn build_native_marketing_activity_from_create_input(
     )
   let tactic =
     option.unwrap(serializers.read_value_string(input, "tactic"), "NEWSLETTER")
+  let target_status = serializers.read_value_string(input, "targetStatus")
   let channel_type =
     option.unwrap(
       serializers.read_value_string(input, "marketingChannelType"),
@@ -2223,8 +2233,18 @@ fn build_native_marketing_activity_from_create_input(
       #("createdAt", MarketingString(timestamp)),
       #("updatedAt", MarketingString(timestamp)),
       #("status", MarketingString(status)),
-      #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
+      #("targetStatus", serializers.optional_marketing_string(target_status)),
+      #(
+        "statusLabel",
+        MarketingString(serializers.status_label_for_activity(
+          status,
+          Some(tactic),
+          target_status,
+          False,
+          False,
+        )),
+      ),
       #("marketingChannelType", MarketingString(channel_type)),
       #("sourceAndMedium", MarketingString(source_medium)),
       #("isExternal", MarketingBool(False)),
@@ -2318,6 +2338,9 @@ fn apply_native_marketing_activity_update(
         |> option.or(serializers.read_marketing_string(record.data, "tactic")),
       "NEWSLETTER",
     )
+  let target_status =
+    serializers.read_value_string(input, "targetStatus")
+    |> option.or(serializers.read_marketing_string(record.data, "targetStatus"))
   let channel_type =
     option.unwrap(
       serializers.read_value_string(input, "marketingChannelType")
@@ -2340,8 +2363,18 @@ fn apply_native_marketing_activity_update(
       #("title", MarketingString(title)),
       #("updatedAt", MarketingString(timestamp)),
       #("status", MarketingString(status)),
-      #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
+      #("targetStatus", serializers.optional_marketing_string(target_status)),
+      #(
+        "statusLabel",
+        MarketingString(serializers.status_label_for_activity(
+          status,
+          Some(tactic),
+          target_status,
+          False,
+          False,
+        )),
+      ),
       #("marketingChannelType", MarketingString(channel_type)),
       #("sourceAndMedium", MarketingString(source_medium)),
       #(
@@ -2425,6 +2458,9 @@ fn apply_external_activity_update(
         |> option.or(serializers.read_marketing_string(record.data, "tactic")),
       "NEWSLETTER",
     )
+  let target_status =
+    serializers.read_value_string(input, "targetStatus")
+    |> option.or(serializers.read_marketing_string(record.data, "targetStatus"))
   let channel_type =
     option.unwrap(
       serializers.read_value_string(input, "marketingChannelType")
@@ -2546,8 +2582,18 @@ fn apply_external_activity_update(
       #("title", MarketingString(title)),
       #("updatedAt", MarketingString(timestamp)),
       #("status", MarketingString(status)),
-      #("statusLabel", MarketingString(serializers.status_label(status))),
       #("tactic", MarketingString(tactic)),
+      #("targetStatus", serializers.optional_marketing_string(target_status)),
+      #(
+        "statusLabel",
+        MarketingString(serializers.status_label_for_activity(
+          status,
+          Some(tactic),
+          target_status,
+          False,
+          False,
+        )),
+      ),
       #("marketingChannelType", MarketingString(channel_type)),
       #("sourceAndMedium", MarketingString(source_medium)),
       #(
