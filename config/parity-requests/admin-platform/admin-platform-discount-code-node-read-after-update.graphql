@@ -1,0 +1,22 @@
+query AdminPlatformDiscountCodeNodeReadAfterUpdate($id: ID!) {
+  codeDiscountNode: node(id: $id) {
+    __typename
+    id
+    ... on DiscountCodeNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          asyncUsageCount
+          discountClasses
+          codes(first: 1) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+        }
+      }
+    }
+  }
+}

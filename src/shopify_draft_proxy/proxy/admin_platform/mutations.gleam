@@ -16,6 +16,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
   get_document_fragments, get_field_response_key, src_object,
 }
+import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, LogDraft, MutationOutcome, RequiredArgument,
 }
@@ -788,7 +789,7 @@ fn handle_backup_region_update(
       MutationFieldResult(
         queries.project_selection(
           backup_region_update_source(
-            queries.effective_backup_region(store, shop_origin),
+            markets.effective_backup_region(store, shop_origin),
             [],
           ),
           field,
@@ -812,7 +813,7 @@ fn handle_backup_region_update_to_country(
   fragments: FragmentMap,
   code: String,
 ) -> MutationFieldResult {
-  case queries.backup_region_for_country(store, shop_origin, code) {
+  case markets.backup_region_for_country(store, shop_origin, code) {
     None -> backup_region_not_found_result(store, identity, field, fragments)
     Some(region) -> {
       let #(_, next_store) = store.stage_backup_region(store, region)
@@ -866,7 +867,7 @@ fn backup_region_update_source(
   errors: List(SourceValue),
 ) {
   let region_value = case region {
-    Some(value) -> queries.backup_region_source(value)
+    Some(value) -> markets.backup_region_source(value)
     None -> SrcNull
   }
   src_object([

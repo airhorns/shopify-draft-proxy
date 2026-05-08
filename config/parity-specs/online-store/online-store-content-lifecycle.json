@@ -22,6 +22,7 @@
     "pageDelete",
     "comment",
     "comments",
+    "node",
     "commentApprove",
     "commentSpam",
     "commentNotSpam",
@@ -44,7 +45,7 @@
     "variablesCapturePath": "$.interactions[1].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify capture records online-store content catalog/detail/empty reads, blog/page/article lifecycle writes, downstream read-after-write behavior, delete behavior, and unknown-comment moderation/delete guardrail requests. The standard parity runner replays local blog/page create, article create, blog/page/article update, downstream read-after-write, delete, and unknown-comment requests with strict selected-path comparison. Volatile IDs, timestamps, and opaque cursors are excluded or matcher-scoped while stable payload, count, null/empty, pagination boolean, userErrors, and downstream read behavior are compared.",
+  "notes": "Live Shopify capture records online-store content catalog/detail/empty reads, blog/page/article lifecycle writes, downstream read-after-write behavior, delete behavior, and unknown-comment moderation/delete guardrail requests. The standard parity runner replays local blog/page create, article create, blog/page/article update, downstream read-after-write through both dedicated roots and generic node(id:), delete, and unknown-comment requests with strict selected-path comparison. Volatile IDs, timestamps, and opaque cursors are excluded or matcher-scoped while stable payload, count, null/empty, pagination boolean, userErrors, and downstream read behavior are compared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -168,6 +169,35 @@
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
             "articleId": { "fromPreviousProxyPath": "$.data.articleUpdate.article.id" },
             "articleQuery": { "fromCapturePath": "$.interactions[4].request.variables.articleQuery" }
+          }
+        }
+      },
+      {
+        "name": "admin node read-after-write matches captured stable fields",
+        "capturePath": "$.interactions[4].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blog.title",
+          "$.blog.articlesCount",
+          "$.blog.articles.nodes[0].title",
+          "$.blog.articles.nodes[0].handle",
+          "$.blog.articles.pageInfo.hasNextPage",
+          "$.blog.articles.pageInfo.hasPreviousPage",
+          "$.page.title",
+          "$.page.isPublished",
+          "$.article.title",
+          "$.article.isPublished",
+          "$.article.blog.title"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-online-store-content-node-read-after-update.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "articleId": {
+              "fromProxyResponse": "articleUpdate payload matches captured stable fields after local blog/page/article updates",
+              "path": "$.data.articleUpdate.article.id"
+            }
           }
         }
       },

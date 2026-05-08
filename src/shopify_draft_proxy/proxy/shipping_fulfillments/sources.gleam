@@ -168,6 +168,54 @@ pub fn captured_json_source(value: CapturedJsonValue) -> SourceValue {
 }
 
 @internal
+pub fn find_captured_node_source_by_id(
+  data: CapturedJsonValue,
+  id: String,
+) -> Option(SourceValue) {
+  case data {
+    CapturedObject(fields) ->
+      case captured_object_string_field(fields, "id") == Some(id) {
+        True ->
+          Some(
+            annotate_delivery_profile_source(
+              captured_json_source(CapturedObject(fields)),
+            ),
+          )
+        False ->
+          fields
+          |> list.find_map(fn(pair) {
+            let #(_, value) = pair
+            case find_captured_node_source_by_id(value, id) {
+              Some(source) -> Ok(source)
+              None -> Error(Nil)
+            }
+          })
+          |> option.from_result
+      }
+    CapturedArray(items) ->
+      items
+      |> list.find_map(fn(item) {
+        case find_captured_node_source_by_id(item, id) {
+          Some(source) -> Ok(source)
+          None -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_object_string_field(
+  fields: List(#(String, CapturedJsonValue)),
+  name: String,
+) -> Option(String) {
+  case list.find(fields, fn(pair) { pair.0 == name }) {
+    Ok(#(_, CapturedString(value))) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
 pub fn fulfillment_source(fulfillment: FulfillmentRecord) -> SourceValue {
   case captured_json_source(fulfillment.data) {
     SrcObject(fields) ->

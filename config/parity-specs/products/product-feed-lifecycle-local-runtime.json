@@ -1,6 +1,14 @@
 {
   "scenarioId": "product-feed-lifecycle-local-runtime",
-  "operationNames": ["productFeed", "productFeeds", "productFeedCreate", "productFeedDelete", "productFullSync", "job"],
+  "operationNames": [
+    "productFeed",
+    "productFeeds",
+    "productFeedCreate",
+    "productFeedDelete",
+    "productFullSync",
+    "job",
+    "node"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",
@@ -77,6 +85,20 @@
         }
       },
       {
+        "name": "product feed node read after create",
+        "capturePath": "$.read.response.data.productFeed",
+        "proxyPath": "$.data.productFeed",
+        "selectedPaths": ["$.id", "$.country", "$.language", "$.status"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-product-feed-node-read-after-create.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      },
+      {
         "name": "productFeedDelete payload",
         "capturePath": "$.delete.response.data.productFeedDelete",
         "proxyPath": "$.data.productFeedDelete",
@@ -104,5 +126,5 @@
       }
     ]
   },
-  "notes": "Local-runtime parity evidence for the product feed lifecycle. The live harry-test-heelo shop still blocks productFeedCreate success with channel configuration errors, so this fixture records the executable local contract: create an ACTIVE feed, reject an unknown productFullSync feed id, return a pollable job for known productFullSync, expose productFeed/productFeeds read-after-write, delete the staged feed, and preserve null/empty reads afterward without runtime Shopify writes."
+  "notes": "Local-runtime parity evidence for the product feed lifecycle. The live harry-test-heelo shop still blocks productFeedCreate success with channel configuration errors, so this fixture records the executable local contract: create an ACTIVE feed, reject an unknown productFullSync feed id, return a pollable job for known productFullSync, expose productFeed/productFeeds plus generic node(id:) read-after-write, delete the staged feed, and preserve null/empty reads afterward without runtime Shopify writes."
 }
