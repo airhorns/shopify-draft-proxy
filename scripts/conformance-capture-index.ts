@@ -772,6 +772,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-dropped-inputs',
+    scriptPath: 'scripts/capture-product-create-dropped-inputs-conformance.ts',
+    purpose:
+      'productCreate giftCard, giftCardTemplateSuffix, claimOwnership.bundles, metafields, and productPublications staging with immediate downstream readback.',
+    requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productCreate-dropped-inputs-parity.json`,
+      'config/parity-specs/products/productCreate-dropped-inputs-parity.json',
+      'config/parity-requests/products/productCreate-dropped-inputs-parity.graphql',
+      'config/parity-requests/products/productCreate-dropped-inputs-downstream-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable gift-card/metafield and publication-staged products, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-no-key-on-create',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-create-no-key-on-create-conformance.ts',

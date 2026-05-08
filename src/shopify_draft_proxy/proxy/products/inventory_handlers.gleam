@@ -97,6 +97,11 @@ pub fn product_variant_source_with_inventory(
   variant: ProductVariantRecord,
   inventory_item: SourceValue,
 ) -> SourceValue {
+  let fulfillment_service = gift_card_fulfillment_service_source(store, variant)
+  let requires_shipping = case variant.inventory_item {
+    Some(item) -> item.requires_shipping
+    None -> None
+  }
   src_object([
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
@@ -109,6 +114,8 @@ pub fn product_variant_source_with_inventory(
       graphql_helpers.option_string_source(variant.compare_at_price),
     ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #("requiresShipping", graphql_helpers.option_bool_source(requires_shipping)),
+    #("fulfillmentService", fulfillment_service),
     #(
       "inventoryPolicy",
       graphql_helpers.option_string_source(variant.inventory_policy),
@@ -149,6 +156,21 @@ pub fn product_variant_source_with_inventory(
       optional_captured_json_source(variant.contextual_pricing),
     ),
   ])
+}
+
+fn gift_card_fulfillment_service_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  case store.get_effective_product_by_id(store, variant.product_id) {
+    Some(product) if product.is_gift_card == Some(True) ->
+      src_object([
+        #("__typename", SrcString("FulfillmentService")),
+        #("serviceName", SrcString("Gift Card")),
+        #("type", SrcString("GIFT_CARD")),
+      ])
+    _ -> SrcNull
+  }
 }
 
 @internal

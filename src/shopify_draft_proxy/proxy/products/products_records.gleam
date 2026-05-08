@@ -183,6 +183,15 @@ pub fn updated_product_record(
         |> option.unwrap(product.description_html),
       template_suffix: read_string_field(input, "templateSuffix")
         |> option.or(product.template_suffix),
+      is_gift_card: read_bool_field(input, "giftCard")
+        |> option.or(product.is_gift_card),
+      gift_card_template_suffix: read_string_field(
+          input,
+          "giftCardTemplateSuffix",
+        )
+        |> option.or(product.gift_card_template_suffix),
+      has_bundle_ownership: read_claim_ownership_bundles(input)
+        |> option.or(product.has_bundle_ownership),
       seo: updated_product_seo(product.seo, input),
       category: product_category_from_input(store, input)
         |> option.or(product.category),
@@ -246,6 +255,12 @@ pub fn created_product_record(
         |> option.unwrap(""),
       online_store_preview_url: None,
       template_suffix: read_string_field(input, "templateSuffix"),
+      is_gift_card: read_bool_field(input, "giftCard"),
+      gift_card_template_suffix: read_string_field(
+        input,
+        "giftCardTemplateSuffix",
+      ),
+      has_bundle_ownership: read_claim_ownership_bundles(input),
       seo: updated_product_seo(
         ProductSeoRecord(title: None, description: None),
         input,
@@ -261,6 +276,15 @@ pub fn created_product_record(
     ),
     next_identity,
   )
+}
+
+fn read_claim_ownership_bundles(
+  input: Dict(String, ResolvedValue),
+) -> Option(Bool) {
+  case read_object_field(input, "claimOwnership") {
+    Some(claim_ownership) -> read_bool_field(claim_ownership, "bundles")
+    None -> None
+  }
 }
 
 @internal
