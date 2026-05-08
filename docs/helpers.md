@@ -112,6 +112,10 @@ Shared in-memory store helpers for cross-domain shop capability reads.
 - `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
 - `shop_discounts_by_market_enabled` reads the effective staged/base `ShopRecord.features.discountsByMarketEnabled` capability and defaults missing synthetic shop state to `False`
 - `set_shop_discounts_by_market_enabled` configures the effective shop discount-market capability for tests and local-runtime scenarios without introducing ambient/global shop state
+- `shop_b2b_deposits_enabled` reads the effective staged/base `ShopRecord.features.b2bDeposits` capability and defaults missing synthetic shop state to `False`
+- `set_shop_b2b_deposits_enabled` configures the effective shop B2B deposits capability for tests and local-runtime scenarios without introducing ambient/global shop state
+- `shop_gift_cards_entitlement_enabled` reads the effective staged/base `ShopRecord.entitlements.giftCards.enabled` entitlement and defaults missing synthetic shop state to `True`
+- `set_shop_gift_cards_entitlement_enabled` configures the effective shop gift-card entitlement for tests and local-runtime scenarios without introducing ambient/global shop state
 - `shop_markets_home_enabled` reads the effective staged/base `ShopRecord.features.unifiedMarkets` capability for Markets Home behavior and defaults missing synthetic shop state to `True`, matching the modern conformance shop posture
 - `shop_market_plan_limit` reads the effective staged/base `ShopRecord.features.marketsGranted` limit used by legacy Markets plan-limit checks and defaults missing synthetic shop state to `50`
 - `payment_gateway_by_id` reads an opt-in synthetic shop payment gateway by ID from effective staged/base `ShopRecord.paymentSettings.paymentGateways`

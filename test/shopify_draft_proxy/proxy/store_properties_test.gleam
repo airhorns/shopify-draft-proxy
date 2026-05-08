@@ -14,8 +14,9 @@ import shopify_draft_proxy/state/types.{
   CapturedObject, CapturedString, DeliveryProfileRecord, PaymentSettingsRecord,
   PublicationRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, StorePropertyBool, StorePropertyInt,
+  ShopDomainRecord, ShopEntitlementsRecord, ShopFeaturesRecord,
+  ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopPolicyRecord, ShopRecord,
+  ShopResourceLimitsRecord, StorePropertyBool, StorePropertyInt,
   StorePropertyList, StorePropertyMutationPayloadRecord, StorePropertyNull,
   StorePropertyObject, StorePropertyRecord, StorePropertyString,
 }
@@ -131,6 +132,9 @@ fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
       show_metrics: True,
       storefront: True,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

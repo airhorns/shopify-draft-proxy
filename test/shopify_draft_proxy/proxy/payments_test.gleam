@@ -22,8 +22,9 @@ import shopify_draft_proxy/state/types.{
   DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
   PaymentSettingsRecord, PaymentTermsRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopEntitlementsRecord,
+  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord, ShopifyFunctionRecord,
 }
 
 const customer_id = "gid://shopify/Customer/1"
@@ -2230,6 +2231,9 @@ fn payment_guard_shop() -> ShopRecord {
       show_metrics: True,
       storefront: True,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

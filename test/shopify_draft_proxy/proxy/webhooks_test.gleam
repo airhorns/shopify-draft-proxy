@@ -13,7 +13,8 @@ import shopify_draft_proxy/state/types.{
   type ShopRecord, type WebhookSubscriptionRecord, PaymentSettingsRecord,
   ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopDomainRecord, ShopEntitlementsRecord, ShopFeaturesRecord,
+  ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord, WebhookEventBridgeEndpoint, WebhookHttpEndpoint,
   WebhookPubSubEndpoint, WebhookSubscriptionRecord,
 }
@@ -127,6 +128,9 @@ fn make_shop(primary_host: String, myshopify_domain: String) -> ShopRecord {
       show_metrics: False,
       storefront: False,
       unified_markets: False,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

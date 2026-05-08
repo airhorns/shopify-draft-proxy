@@ -363,6 +363,11 @@ pub fn shop_decoder() -> Decoder(types.ShopRecord) {
     shop_resource_limits_decoder(),
   )
   use features <- decode.field("features", shop_features_decoder())
+  use entitlements <- optional_field(
+    "entitlements",
+    default_shop_entitlements(),
+    shop_entitlements_decoder(),
+  )
   use payment_settings <- decode.field(
     "paymentSettings",
     payment_settings_decoder(),
@@ -393,6 +398,7 @@ pub fn shop_decoder() -> Decoder(types.ShopRecord) {
     plan: plan,
     resource_limits: resource_limits,
     features: features,
+    entitlements: entitlements,
     payment_settings: payment_settings,
     shop_policies: shop_policies,
   ))
@@ -559,6 +565,28 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     storefront: storefront,
     unified_markets: unified_markets,
   ))
+}
+
+fn default_shop_entitlements() -> types.ShopEntitlementsRecord {
+  types.ShopEntitlementsRecord(gift_cards: types.ShopGiftCardsEntitlementRecord(
+    enabled: True,
+  ))
+}
+
+fn shop_entitlements_decoder() -> Decoder(types.ShopEntitlementsRecord) {
+  use gift_cards <- optional_field(
+    "giftCards",
+    types.ShopGiftCardsEntitlementRecord(enabled: True),
+    shop_gift_cards_entitlement_decoder(),
+  )
+  decode.success(types.ShopEntitlementsRecord(gift_cards: gift_cards))
+}
+
+fn shop_gift_cards_entitlement_decoder() -> Decoder(
+  types.ShopGiftCardsEntitlementRecord,
+) {
+  use enabled <- optional_field("enabled", True, decode.bool)
+  decode.success(types.ShopGiftCardsEntitlementRecord(enabled: enabled))
 }
 
 @internal

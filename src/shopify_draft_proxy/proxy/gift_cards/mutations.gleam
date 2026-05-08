@@ -103,94 +103,116 @@ fn handle_mutation_fields(
       case field {
         Field(name: name, ..) -> {
           let current_store =
-            maybe_hydrate_gift_card_for_mutation(
+            maybe_hydrate_shop_for_assignment_guard(
               current_store,
               name.value,
               field,
               variables,
               upstream,
             )
-            |> maybe_hydrate_shop_for_assignment_guard(
-              name.value,
-              field,
-              variables,
-              upstream,
-            )
-          let dispatch = case name.value {
-            "giftCardCreate" ->
-              Some(handle_gift_card_create(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                upstream,
-              ))
-            "giftCardUpdate" ->
-              Some(handle_gift_card_update(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-              ))
-            "giftCardCredit" ->
-              Some(handle_gift_card_transaction(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                upstream,
-                "CREDIT",
-                "creditAmount",
-                "creditInput",
-                "GiftCardCreditPayload",
-                "GiftCardCreditTransaction",
-              ))
-            "giftCardDebit" ->
-              Some(handle_gift_card_transaction(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                upstream,
-                "DEBIT",
-                "debitAmount",
-                "debitInput",
-                "GiftCardDebitPayload",
-                "GiftCardDebitTransaction",
-              ))
-            "giftCardDeactivate" ->
-              Some(handle_gift_card_deactivate(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-              ))
-            "giftCardSendNotificationToCustomer" ->
-              Some(handle_gift_card_notification(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                "customer",
-                "GiftCardSendNotificationToCustomerPayload",
-              ))
-            "giftCardSendNotificationToRecipient" ->
-              Some(handle_gift_card_notification(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                "recipient",
-                "GiftCardSendNotificationToRecipientPayload",
-              ))
-            _ -> None
+          let dispatch = case
+            name.value,
+            store.shop_gift_cards_entitlement_enabled(current_store)
+          {
+            root, False ->
+              case is_gift_card_mutation_root(root) {
+                True ->
+                  Some(gift_card_entitlement_disabled_result(
+                    current_store,
+                    current_identity,
+                    root,
+                    field,
+                    fragments,
+                    variables,
+                  ))
+                False -> None
+              }
+            _, _ -> {
+              let current_store =
+                maybe_hydrate_gift_card_for_mutation(
+                  current_store,
+                  name.value,
+                  field,
+                  variables,
+                  upstream,
+                )
+              case name.value {
+                "giftCardCreate" ->
+                  Some(handle_gift_card_create(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                    upstream,
+                  ))
+                "giftCardUpdate" ->
+                  Some(handle_gift_card_update(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                  ))
+                "giftCardCredit" ->
+                  Some(handle_gift_card_transaction(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                    upstream,
+                    "CREDIT",
+                    "creditAmount",
+                    "creditInput",
+                    "GiftCardCreditPayload",
+                    "GiftCardCreditTransaction",
+                  ))
+                "giftCardDebit" ->
+                  Some(handle_gift_card_transaction(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                    upstream,
+                    "DEBIT",
+                    "debitAmount",
+                    "debitInput",
+                    "GiftCardDebitPayload",
+                    "GiftCardDebitTransaction",
+                  ))
+                "giftCardDeactivate" ->
+                  Some(handle_gift_card_deactivate(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                  ))
+                "giftCardSendNotificationToCustomer" ->
+                  Some(handle_gift_card_notification(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                    "customer",
+                    "GiftCardSendNotificationToCustomerPayload",
+                  ))
+                "giftCardSendNotificationToRecipient" ->
+                  Some(handle_gift_card_notification(
+                    current_store,
+                    current_identity,
+                    field,
+                    fragments,
+                    variables,
+                    "recipient",
+                    "GiftCardSendNotificationToRecipientPayload",
+                  ))
+                _ -> None
+              }
+            }
           }
           case dispatch {
             None -> acc
@@ -223,6 +245,57 @@ fn handle_mutation_fields(
     identity: final_identity,
     staged_resource_ids: all_staged,
     log_drafts: all_drafts,
+  )
+}
+
+fn gift_card_entitlement_disabled_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_field_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let payload = empty_payload([gift_card_entitlement_disabled_user_error()])
+  let json_payload =
+    gift_card_payload_json(
+      payload,
+      gift_card_payload_typename(root_field_name),
+      field,
+      fragments,
+      variables,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: json_payload,
+      staged_resource_ids: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn gift_card_payload_typename(root_field_name: String) -> String {
+  case root_field_name {
+    "giftCardCreate" -> "GiftCardCreatePayload"
+    "giftCardCredit" -> "GiftCardCreditPayload"
+    "giftCardDebit" -> "GiftCardDebitPayload"
+    "giftCardDeactivate" -> "GiftCardDeactivatePayload"
+    "giftCardSendNotificationToCustomer" ->
+      "GiftCardSendNotificationToCustomerPayload"
+    "giftCardSendNotificationToRecipient" ->
+      "GiftCardSendNotificationToRecipientPayload"
+    "giftCardUpdate" | _ -> "GiftCardUpdatePayload"
+  }
+}
+
+fn gift_card_entitlement_disabled_user_error() -> gift_card_types.UserError {
+  gift_card_types.UserError(
+    field: ["base"],
+    code: None,
+    message: "Gift cards are not available on this plan.",
   )
 }
 
