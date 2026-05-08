@@ -7,6 +7,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/functions/helpers.{
   normalize_function_handle, shopify_function_id_from_handle,
@@ -32,11 +33,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CartTransformMetafieldRecord, type CartTransformRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
-  type ValidationMetafieldRecord, CartTransformMetafieldRecord,
-  CartTransformRecord, ShopifyFunctionAppRecord, ShopifyFunctionRecord,
-  TaxAppConfigurationRecord, ValidationMetafieldRecord, ValidationRecord,
+  type AppInstallationRecord, type CartTransformMetafieldRecord,
+  type CartTransformRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, type ValidationMetafieldRecord,
+  CartTransformMetafieldRecord, CartTransformRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord, TaxAppConfigurationRecord, ValidationMetafieldRecord,
+  ValidationRecord,
 }
 
 const max_active_validations: Int = 25
@@ -89,6 +91,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream.headers,
       )
     }
   }
@@ -118,6 +121,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [])
   let #(data_entries, final_store, final_identity, all_staged) =
@@ -165,6 +169,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                request_headers,
               ))
             "taxAppConfigure" ->
               Some(handle_tax_app_configure(
@@ -1465,6 +1470,7 @@ fn handle_cart_transform_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1485,7 +1491,13 @@ fn handle_cart_transform_delete(
       )
     }
     Some(record) -> {
-      case cart_transform_delete_authorization_error(store, record) {
+      case
+        cart_transform_delete_authorization_error(
+          store,
+          record,
+          request_headers,
+        )
+      {
         Some(error) -> {
           let payload =
             serializers.delete_payload(field, fragments, None, [error])
@@ -1521,25 +1533,73 @@ fn handle_cart_transform_delete(
 fn cart_transform_delete_authorization_error(
   store: Store,
   record: CartTransformRecord,
+  request_headers: Dict(String, String),
 ) -> Option(function_types.UserError) {
-  use function_id <- option.then(record.shopify_function_id)
-  use function_record <- option.then(store.get_effective_shopify_function_by_id(
-    store,
-    function_id,
-  ))
-  use function_app_key <- option.then(shopify_function_app_key(function_record))
-  use current_installation <- option.then(store.get_current_app_installation(
-    store,
-  ))
-  use current_app <- option.then(store.get_effective_app_by_id(
-    store,
-    current_installation.app_id,
-  ))
-  use current_app_key <- option.then(current_app.api_key)
-  case function_app_key == current_app_key {
-    True -> None
-    False -> Some(unauthorized_app_scope_error())
+  let current_installation = store.get_current_app_installation(store)
+  case
+    app_identity.has_internal_visibility(request_headers),
+    current_installation
+  {
+    True, _ -> None
+    False, Some(installation) ->
+      case installation_has_access_scope(installation, "all_cart_transforms") {
+        True -> None
+        False ->
+          case
+            cart_transform_owner_app_matches_installation(
+              store,
+              record,
+              installation.app_id,
+            )
+          {
+            True -> None
+            False -> Some(unauthorized_app_scope_error())
+          }
+      }
+    False, None -> Some(unauthorized_app_scope_error())
   }
+}
+
+fn cart_transform_owner_app_matches_installation(
+  store: Store,
+  record: CartTransformRecord,
+  current_app_id: String,
+) -> Bool {
+  case record.shopify_function_id {
+    None -> False
+    Some(function_id) ->
+      case store.get_effective_shopify_function_by_id(store, function_id) {
+        None -> False
+        Some(function_record) ->
+          case shopify_function_owner_app_id(store, function_record) {
+            Some(owner_app_id) -> owner_app_id == current_app_id
+            None -> False
+          }
+      }
+  }
+}
+
+fn shopify_function_owner_app_id(
+  store: Store,
+  record: ShopifyFunctionRecord,
+) -> Option(String) {
+  case record.app {
+    Some(app) ->
+      case app.id {
+        Some(id) -> Some(id)
+        None -> shopify_function_owner_app_id_from_key(store, record)
+      }
+    None -> shopify_function_owner_app_id_from_key(store, record)
+  }
+}
+
+fn shopify_function_owner_app_id_from_key(
+  store: Store,
+  record: ShopifyFunctionRecord,
+) -> Option(String) {
+  use app_key <- option.then(shopify_function_app_key(record))
+  use app <- option.then(store.find_effective_app_by_api_key(store, app_key))
+  Some(app.id)
 }
 
 fn shopify_function_app_key(record: ShopifyFunctionRecord) -> Option(String) {
@@ -1551,6 +1611,14 @@ fn shopify_function_app_key(record: ShopifyFunctionRecord) -> Option(String) {
         None -> None
       }
   }
+}
+
+fn installation_has_access_scope(
+  installation: AppInstallationRecord,
+  handle: String,
+) -> Bool {
+  installation.access_scopes
+  |> list.any(fn(scope) { scope.handle == handle })
 }
 
 fn handle_tax_app_configure(
