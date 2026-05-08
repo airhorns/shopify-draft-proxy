@@ -1,0 +1,197 @@
+{
+  "capturedAt": "2026-05-08T11:34:46.946Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures WebhookSubscription.apiVersion on the create payload, detail read, and filtered connection node for an API-created HTTP webhook subscription.",
+    "The temporary subscription is deleted during cleanup and the script does not trigger webhook delivery."
+  ],
+  "preCaptureCleanup": [],
+  "lifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-api-version-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-api-version-mowu8fyv",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": [],
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929968451890",
+                "topic": "SHOP_UPDATE",
+                "uri": "https://example.com/hermes-webhook-api-version-mowu8fyv",
+                "apiVersion": {
+                  "handle": "2026-07",
+                  "displayName": "2026-07 (Release candidate)",
+                  "supported": false
+                },
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [],
+                "filter": "",
+                "createdAt": "2026-05-08T11:34:46Z",
+                "updatedAt": "2026-05-08T11:34:46Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detail": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-api-version-detail.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929968451890"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929968451890",
+              "topic": "SHOP_UPDATE",
+              "uri": "https://example.com/hermes-webhook-api-version-mowu8fyv",
+              "apiVersion": {
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+              },
+              "format": "JSON",
+              "includeFields": ["id"],
+              "metafieldNamespaces": [],
+              "filter": "",
+              "createdAt": "2026-05-08T11:34:46Z",
+              "updatedAt": "2026-05-08T11:34:46Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connection": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-api-version-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-api-version-mowu8fyv"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1929968451890",
+                  "uri": "https://example.com/hermes-webhook-api-version-mowu8fyv",
+                  "apiVersion": {
+                    "handle": "2026-07",
+                    "displayName": "2026-07 (Release candidate)",
+                    "supported": false
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929968451890"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929968451890",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1929968451890"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929968451890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

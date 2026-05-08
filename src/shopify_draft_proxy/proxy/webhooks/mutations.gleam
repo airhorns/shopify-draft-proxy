@@ -15,6 +15,7 @@ import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/parser as graphql_parser
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
+import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, field_locations_json, get_document_fragments,
@@ -140,6 +141,7 @@ pub fn process_mutation(
     document,
     variables,
     app_identity.read_requesting_api_client_id(upstream.headers),
+    app_identity.read_requesting_api_version(upstream.headers),
   )
 }
 
@@ -159,6 +161,7 @@ pub fn process_mutation_with_headers(
     document,
     variables,
     app_identity.read_requesting_api_client_id(request_headers),
+    app_identity.read_requesting_api_version(request_headers),
   )
 }
 
@@ -169,6 +172,7 @@ fn process_mutation_with_api_client(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -185,6 +189,7 @@ fn process_mutation_with_api_client(
         fragments,
         variables,
         requesting_api_client_id,
+        requesting_api_version,
       )
     }
   }
@@ -226,6 +231,7 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(
@@ -263,6 +269,7 @@ fn handle_mutation_fields(
                     fragments,
                     variables,
                     requesting_api_client_id,
+                    requesting_api_version,
                     root,
                   ))
                 WebhookSubscriptionUpdate
@@ -278,6 +285,7 @@ fn handle_mutation_fields(
                     fragments,
                     variables,
                     requesting_api_client_id,
+                    requesting_api_version,
                     root,
                   ))
                 WebhookSubscriptionDelete ->
@@ -346,13 +354,14 @@ fn handle_mutation_fields(
 fn handle_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
+  request_path: String,
   document: String,
   operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
   root: WebhookMutationRoot,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -440,7 +449,9 @@ fn handle_create(
                   identity,
                   topic,
                   input_dict,
+                  request_path,
                   requesting_api_client_id,
+                  requesting_api_version,
                 )
               let #(_, store_after) =
                 store.upsert_staged_webhook_subscription(store, record)
@@ -489,13 +500,14 @@ fn handle_create(
 fn handle_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
+  request_path: String,
   document: String,
   operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
   root: WebhookMutationRoot,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -575,7 +587,9 @@ fn handle_update(
               identity,
               existing_record,
               input_dict,
+              request_path,
               requesting_api_client_id,
+              requesting_api_version,
             )
           let #(_, store_after) =
             store.upsert_staged_webhook_subscription(store, record)
@@ -717,7 +731,9 @@ fn build_webhook_from_create_input(
   identity: SyntheticIdentityRegistry,
   topic: Option(String),
   input: Dict(String, root_field.ResolvedValue),
+  request_path: String,
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
 ) -> #(WebhookSubscriptionRecord, SyntheticIdentityRegistry) {
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -746,6 +762,10 @@ fn build_webhook_from_create_input(
         [],
       ),
       filter: read_optional_string(input, "filter"),
+      api_version: Some(webhook_subscription_api_version(
+        request_path,
+        requesting_api_version,
+      )),
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
       endpoint: Some(endpoint_from_uri(uri)),
@@ -753,11 +773,27 @@ fn build_webhook_from_create_input(
   #(record, identity_after_id)
 }
 
+fn webhook_subscription_api_version(
+  request_path: String,
+  requesting_api_version: String,
+) -> String {
+  case requesting_api_version {
+    "" ->
+      option.unwrap(
+        admin_api_versions.from_path_string(request_path),
+        app_identity.fallback_api_version,
+      )
+    version -> version
+  }
+}
+
 fn apply_webhook_update_input(
   identity: SyntheticIdentityRegistry,
   existing: WebhookSubscriptionRecord,
   input: Dict(String, root_field.ResolvedValue),
+  request_path: String,
   requesting_api_client_id: Option(String),
+  requesting_api_version: String,
 ) -> #(WebhookSubscriptionRecord, SyntheticIdentityRegistry) {
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -797,6 +833,14 @@ fn apply_webhook_update_input(
       filter: case read_optional_string(input, "filter") {
         Some(s) -> Some(s)
         None -> existing.filter
+      },
+      api_version: case existing.api_version {
+        Some(version) -> Some(version)
+        None ->
+          Some(webhook_subscription_api_version(
+            request_path,
+            requesting_api_version,
+          ))
       },
       updated_at: Some(timestamp),
       endpoint: new_endpoint,

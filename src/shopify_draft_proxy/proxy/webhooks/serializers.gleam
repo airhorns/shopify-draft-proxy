@@ -4,6 +4,7 @@ import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, SrcList, SrcNull, SrcString, project_graphql_value,
   src_object,
@@ -16,6 +17,9 @@ import shopify_draft_proxy/state/types.{
   type WebhookSubscriptionEndpoint, type WebhookSubscriptionRecord,
   WebhookEventBridgeEndpoint, WebhookHttpEndpoint, WebhookPubSubEndpoint,
 }
+
+@internal
+pub const fallback_webhook_subscription_api_version: String = app_identity.fallback_api_version
 
 @internal
 pub fn project_webhook_subscription(
@@ -43,6 +47,7 @@ pub fn webhook_subscription_to_source(
   let name_source = graphql_helpers.option_string_source(record.name)
   let format_source = graphql_helpers.option_string_source(record.format)
   let filter_source = graphql_helpers.option_string_source(record.filter)
+  let api_version_source = api_version_to_source(record.api_version)
   let created_at_source =
     graphql_helpers.option_string_source(record.created_at)
   let updated_at_source =
@@ -65,9 +70,33 @@ pub fn webhook_subscription_to_source(
     #("includeFields", include_fields_source),
     #("metafieldNamespaces", metafield_namespaces_source),
     #("filter", filter_source),
+    #("apiVersion", api_version_source),
     #("createdAt", created_at_source),
     #("updatedAt", updated_at_source),
     #("endpoint", endpoint_source),
+  ])
+}
+
+fn api_version_to_source(
+  api_version: Option(String),
+) -> graphql_helpers.SourceValue {
+  let handle =
+    option.unwrap(api_version, fallback_webhook_subscription_api_version)
+  let display_name = case handle {
+    "2026-04" -> "2026-04 (Latest)"
+    "2026-07" -> "2026-07 (Release candidate)"
+    _ -> handle
+  }
+  let supported = case handle {
+    "unstable" -> False
+    "2026-07" -> False
+    _ -> True
+  }
+  src_object([
+    #("__typename", SrcString("ApiVersion")),
+    #("handle", SrcString(handle)),
+    #("displayName", SrcString(display_name)),
+    #("supported", graphql_helpers.SrcBool(supported)),
   ])
 }
 

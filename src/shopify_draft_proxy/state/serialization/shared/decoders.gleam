@@ -774,6 +774,7 @@ pub fn webhook_subscription_decoder() -> Decoder(
   use include_fields <- string_list_field("includeFields")
   use metafield_namespaces <- string_list_field("metafieldNamespaces")
   use filter <- optional_string_field("filter")
+  use api_version <- optional_string_field("apiVersion")
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   use endpoint <- optional_field(
@@ -790,6 +791,7 @@ pub fn webhook_subscription_decoder() -> Decoder(
     include_fields: include_fields,
     metafield_namespaces: metafield_namespaces,
     filter: filter,
+    api_version: api_version,
     created_at: created_at,
     updated_at: updated_at,
     endpoint: endpoint,

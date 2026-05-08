@@ -735,6 +735,7 @@ pub fn webhook_subscription_json(
       json.array(record.metafield_namespaces, json.string),
     ),
     #("filter", optional_string(record.filter)),
+    #("apiVersion", optional_string(record.api_version)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
     #("endpoint", optional_to_json(record.endpoint, webhook_endpoint_json)),

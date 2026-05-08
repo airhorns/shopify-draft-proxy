@@ -1,0 +1,27 @@
+mutation WebhookSubscriptionApiVersionCreate(
+  $topic: WebhookSubscriptionTopic!
+  $webhookSubscription: WebhookSubscriptionInput!
+) {
+  webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id
+      topic
+      uri
+      apiVersion {
+        handle
+        displayName
+        supported
+      }
+      format
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

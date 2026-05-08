@@ -143,6 +143,7 @@ fn webhook(
     include_fields: [],
     metafield_namespaces: [],
     filter: None,
+    api_version: Some("2026-04"),
     created_at: Some("2024-01-01T00:00:00Z"),
     updated_at: Some("2024-01-02T00:00:00Z"),
     endpoint: Some(WebhookHttpEndpoint(callback_url: Some(url))),

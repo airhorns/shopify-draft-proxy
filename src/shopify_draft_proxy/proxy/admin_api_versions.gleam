@@ -16,6 +16,17 @@ pub fn from_path(path: String) -> Option(#(Int, Int)) {
   }
 }
 
+pub fn from_path_string(path: String) -> Option(String) {
+  case string.split(path, "/") {
+    ["", "admin", "api", version, "graphql.json"] ->
+      case parse(version) {
+        Some(_) -> Some(version)
+        None -> None
+      }
+    _ -> None
+  }
+}
+
 pub fn parse(version: String) -> Option(#(Int, Int)) {
   case string.split(version, "-") {
     [year, month] ->

@@ -36,6 +36,7 @@ fn make_record(
     include_fields: [],
     metafield_namespaces: [],
     filter: None,
+    api_version: Some("2026-04"),
     created_at: created_at,
     updated_at: updated_at,
     endpoint: endpoint,
@@ -743,6 +744,16 @@ pub fn webhook_subscriptions_legacy_resource_id_test() {
   assert result == "{\"webhookSubscription\":{\"legacyResourceId\":\"2\"}}"
 }
 
+pub fn webhook_subscriptions_api_version_projects_non_null_test() {
+  let result =
+    handle(
+      seed_basic_store(),
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/2\") { id apiVersion { handle displayName supported } } webhookSubscriptions(first: 5) { nodes { id apiVersion { handle displayName supported } } } }",
+    )
+  assert result
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/2\",\"apiVersion\":{\"handle\":\"2026-04\",\"displayName\":\"2026-04 (Latest)\",\"supported\":true}},\"webhookSubscriptions\":{\"nodes\":[{\"id\":\"gid://shopify/WebhookSubscription/1\",\"apiVersion\":{\"handle\":\"2026-04\",\"displayName\":\"2026-04 (Latest)\",\"supported\":true}},{\"id\":\"gid://shopify/WebhookSubscription/2\",\"apiVersion\":{\"handle\":\"2026-04\",\"displayName\":\"2026-04 (Latest)\",\"supported\":true}}]}}"
+}
+
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
@@ -852,17 +863,22 @@ fn run_mutation_outcome_with_variables(
 
 pub fn webhook_subscription_create_stages_record_test() {
   let document =
-    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }"
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id topic uri format apiVersion { handle displayName supported } } userErrors { field message } } }"
   let outcome = run_mutation_outcome(store.new(), document)
   let body = json.to_string(outcome.data)
   // Body should be wrapped in {"data": {...}} with one staged subscription
   assert body
-    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\",\"apiVersion\":{\"handle\":\"2026-07\",\"displayName\":\"2026-07 (Release candidate)\",\"supported\":false}},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids
     == ["gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic"]
   // The store should now have one effective record
   let records = store.list_effective_webhook_subscriptions(outcome.store)
   assert list.length(records) == 1
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { id apiVersion { handle displayName supported } } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"apiVersion\":{\"handle\":\"2026-07\",\"displayName\":\"2026-07 (Release candidate)\",\"supported\":false}}}"
 }
 
 pub fn pubsub_webhook_subscription_create_stages_record_test() {
@@ -945,6 +961,7 @@ pub fn webhook_subscription_create_omitted_filter_stores_null_test() {
         include_fields: [],
         metafield_namespaces: [],
         filter: None,
+        api_version: Some("2026-07"),
         created_at: Some("2024-01-01T00:00:00.000Z"),
         updated_at: Some("2024-01-01T00:00:00.000Z"),
         endpoint: Some(
@@ -1368,10 +1385,41 @@ fn seed_update_store() -> store.Store {
 pub fn webhook_subscription_update_modifies_record_test() {
   let s = seed_update_store()
   let document =
-    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri apiVersion { handle displayName supported } } userErrors { field message } } }"
   let body = run_mutation(s, document)
   assert body
-    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\",\"apiVersion\":{\"handle\":\"2026-04\",\"displayName\":\"2026-04 (Latest)\",\"supported\":true}},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_populates_missing_api_version_test() {
+  let existing =
+    WebhookSubscriptionRecord(
+      ..make_record(
+        "gid://shopify/WebhookSubscription/1",
+        Some("SHOP_UPDATE"),
+        Some("https://old.example.com/hook"),
+        Some("JSON"),
+        Some("2024-01-01T00:00:00Z"),
+        Some("2024-01-01T00:00:00Z"),
+        Some(
+          WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+        ),
+      ),
+      api_version: None,
+    )
+  let seeded_store =
+    store.upsert_base_webhook_subscriptions(store.new(), [existing])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri apiVersion { handle displayName supported } } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\",\"apiVersion\":{\"handle\":\"2026-07\",\"displayName\":\"2026-07 (Release candidate)\",\"supported\":false}},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { apiVersion { handle displayName supported } } }",
+    )
+    == "{\"webhookSubscription\":{\"apiVersion\":{\"handle\":\"2026-07\",\"displayName\":\"2026-07 (Release candidate)\",\"supported\":false}}}"
 }
 
 pub fn webhook_subscription_update_duplicate_name_is_case_insensitive_test() {

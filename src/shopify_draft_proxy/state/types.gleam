@@ -1083,6 +1083,7 @@ pub type WebhookSubscriptionRecord {
     include_fields: List(String),
     metafield_namespaces: List(String),
     filter: Option(String),
+    api_version: Option(String),
     created_at: Option(String),
     updated_at: Option(String),
     endpoint: Option(WebhookSubscriptionEndpoint),

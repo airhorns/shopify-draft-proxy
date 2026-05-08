@@ -3498,7 +3498,29 @@ Practical rule:
   prefix to the request API client ID; do not downcase the suffix unless newer
   endpoint-specific live evidence proves Shopify does so for this field
 
-## 83. BXGY quantity ratios are more permissive than expected
+## 83. WebhookSubscription.apiVersion is an object and follows the creating app
+
+Admin GraphQL 2026-04 live capture for `webhookSubscriptionCreate` against
+`harry-test-heelo.myshopify.com` recorded `WebhookSubscription.apiVersion` on
+the create payload, a detail read, and a filtered connection node.
+
+Observed behavior:
+
+- `apiVersion` is not a scalar; selecting it without subfields is a GraphQL
+  error because the field returns an `ApiVersion` object
+- the recorded object had `handle: "2026-07"`,
+  `displayName: "2026-07 (Release candidate)"`, and `supported: false`
+- the request route and parity scenario used Admin API `2026-04`, so this field
+  reflects the creating app's effective webhook serialization version rather
+  than the GraphQL request path version
+
+Practical rule:
+
+- store a webhook subscription API-version handle on the normalized record and
+  project it as an `ApiVersion` object; do not derive this field solely from
+  the request path when staging local creates or filling older records
+
+## 84. BXGY quantity ratios are more permissive than expected
 
 Admin GraphQL 2026-04 live capture for code and automatic BXGY discounts
 against `harry-test-heelo.myshopify.com` recorded numeric validation for

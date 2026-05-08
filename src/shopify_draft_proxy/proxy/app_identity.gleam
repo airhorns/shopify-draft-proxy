@@ -5,9 +5,13 @@ import gleam/string
 
 pub const api_client_id_header: String = "x-shopify-draft-proxy-api-client-id"
 
+pub const api_version_header: String = "x-shopify-draft-proxy-api-version"
+
 pub const internal_visibility_header: String = "x-shopify-draft-proxy-internal-visibility"
 
 pub const fallback_api_client_id: String = "shopify-draft-proxy-local-app"
+
+pub const fallback_api_version: String = "2026-07"
 
 pub fn read_requesting_api_client_id(
   request_headers: Dict(String, String),
@@ -25,6 +29,25 @@ pub fn read_requesting_api_client_id(
   case found {
     Ok("") | Error(_) -> None
     Ok(value) -> Some(value)
+  }
+}
+
+pub fn read_requesting_api_version(
+  request_headers: Dict(String, String),
+) -> String {
+  let found =
+    dict.to_list(request_headers)
+    |> list.find_map(fn(header) {
+      let #(name, value) = header
+      case string.lowercase(name) == api_version_header {
+        True -> Ok(string.trim(value))
+        False -> Error(Nil)
+      }
+    })
+
+  case found {
+    Ok("") | Error(_) -> fallback_api_version
+    Ok(value) -> value
   }
 }
 

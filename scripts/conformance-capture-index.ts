@@ -6774,6 +6774,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-api-version-projection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-api-version-projection.ts',
+    purpose: 'WebhookSubscription.apiVersion projection on create payload, detail read, and connection node.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-api-version-projection.json`,
+      'config/parity-specs/webhooks/webhook-subscription-api-version-projection.json',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-create.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-detail.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one temporary SHOP_UPDATE HTTP webhook subscription, captures apiVersion on mutation/read projections, then deletes the subscription during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-cloud-uri-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-cloud-uri-validation-conformance.ts',

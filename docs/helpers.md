@@ -30,6 +30,7 @@ Shared helper for request-owned app identity.
 
 - reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
 - trims blank values to `None`
+- reads the `x-shopify-draft-proxy-api-version` header case-insensitively for local branches that need the requesting app's effective Admin API version; blank or missing values fall back to the deterministic local conformance-app version used by webhook subscription staging
 - resolves `$app:<suffix>` namespace shorthands to `app--<api_client_id>--<suffix>` when a request-owned API client ID is available, preserving the suffix bytes captured for webhook subscription namespace allowlists
 - resolves saved-search metafield query namespace shorthands matching Shopify's `$app` input preparation: bare `$app` becomes `app--<api_client_id>`, `$app:<suffix>` becomes `app--<api_client_id>--<suffix>`, and missing API client identity falls back to the deterministic `app--shopify-draft-proxy-local-app` namespace
 - reads the `x-shopify-draft-proxy-internal-visibility` header case-insensitively for local branches that emulate Shopify internal Admin visibility
