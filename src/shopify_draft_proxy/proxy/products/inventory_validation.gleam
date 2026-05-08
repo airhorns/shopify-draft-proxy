@@ -1040,6 +1040,7 @@ pub fn read_variant_inventory_item(
             input,
             "harmonizedSystemCode",
           )
+            |> option.map(normalize_harmonized_system_code)
             |> option.or(
               option.then(existing, fn(item) { item.harmonized_system_code }),
             ),
@@ -1049,6 +1050,12 @@ pub fn read_variant_inventory_item(
       )
     }
   }
+}
+
+fn normalize_harmonized_system_code(code: String) -> String {
+  code
+  |> string.replace(".", "")
+  |> string.replace(" ", "")
 }
 
 @internal

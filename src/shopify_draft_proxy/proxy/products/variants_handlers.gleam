@@ -60,7 +60,9 @@ import shopify_draft_proxy/proxy/products/variants_sources.{
   product_variant_source,
 }
 import shopify_draft_proxy/proxy/products/variants_validation.{
-  make_created_variant_records, update_variant_records,
+  apply_variant_input_positions, apply_variant_metafield_inputs,
+  apply_variant_metafield_inputs_by_id, make_created_variant_records,
+  position_variants, select_matching_variants, update_variant_records,
   validate_bulk_create_variant_batch, validate_bulk_update_variant_batch,
   validate_product_options_create_inputs, validate_product_variant_scalar_input,
 }
@@ -649,12 +651,20 @@ pub fn handle_product_variants_bulk_create_valid_size(
                   variant_inputs,
                   defaults,
                 )
+              let created_variants_for_inputs = created_variants
               let retained_variants = case should_remove_standalone_variant {
                 True -> []
                 False -> effective_variants
               }
               let next_variants =
                 list.append(retained_variants, created_variants)
+                |> apply_variant_input_positions(
+                  created_variants,
+                  variant_inputs,
+                )
+                |> position_variants
+              let created_variants =
+                select_matching_variants(next_variants, created_variants)
               let #(synced_options, identity_after_options) = case
                 should_remove_standalone_variant
               {
@@ -691,10 +701,17 @@ pub fn handle_product_variants_bulk_create_valid_size(
                   product_id,
                   synced_options,
                 )
+              let #(next_store, identity_after_metafields, metafield_ids) =
+                apply_variant_metafield_inputs(
+                  next_store,
+                  identity_after_options,
+                  created_variants_for_inputs,
+                  variant_inputs,
+                )
               let #(product, next_store, final_identity) =
                 sync_product_inventory_summary(
                   next_store,
-                  identity_after_options,
+                  identity_after_metafields,
                   product_id,
                   RecomputeProductTotalInventory,
                 )
@@ -711,7 +728,10 @@ pub fn handle_product_variants_bulk_create_valid_size(
                 ),
                 next_store,
                 final_identity,
-                list.flat_map(created_variants, variant_staged_ids),
+                list.append(
+                  list.flat_map(created_variants, variant_staged_ids),
+                  metafield_ids,
+                ),
               )
             }
             _ ->
@@ -806,6 +826,15 @@ pub fn handle_product_variants_bulk_update_valid_size(
             [] -> {
               let #(next_variants, updated_variants, identity_after_variants) =
                 update_variant_records(identity, effective_variants, updates)
+              let next_variants =
+                apply_variant_input_positions(
+                  next_variants,
+                  updated_variants,
+                  updates,
+                )
+                |> position_variants
+              let updated_variants =
+                select_matching_variants(next_variants, updated_variants)
               let synced_options =
                 sync_product_options_with_variants(
                   store.get_effective_options_by_product_id(store, product_id),
@@ -821,10 +850,17 @@ pub fn handle_product_variants_bulk_update_valid_size(
                   product_id,
                   synced_options,
                 )
+              let #(next_store, identity_after_metafields, metafield_ids) =
+                apply_variant_metafield_inputs_by_id(
+                  next_store,
+                  identity_after_variants,
+                  next_variants,
+                  updates,
+                )
               let #(product, next_store, final_identity) =
                 sync_product_inventory_summary(
                   next_store,
-                  identity_after_variants,
+                  identity_after_metafields,
                   product_id,
                   RecomputeProductTotalInventory,
                 )
@@ -841,7 +877,10 @@ pub fn handle_product_variants_bulk_update_valid_size(
                 ),
                 next_store,
                 final_identity,
-                list.flat_map(updated_variants, variant_staged_ids),
+                list.append(
+                  list.flat_map(updated_variants, variant_staged_ids),
+                  metafield_ids,
+                ),
               )
             }
             _ -> {

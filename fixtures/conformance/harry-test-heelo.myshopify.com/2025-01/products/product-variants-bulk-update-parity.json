@@ -1,0 +1,426 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10180320788786",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/51137398112562",
+          "barcode": "1111111111111",
+          "price": "24.00",
+          "compareAtPrice": "30.00",
+          "taxable": false,
+          "taxCode": "P0000000",
+          "requiresComponents": true,
+          "showUnitPrice": true,
+          "unitPriceMeasurement": {
+            "quantityValue": 1.5,
+            "quantityUnit": "L",
+            "referenceValue": 1,
+            "referenceUnit": "L"
+          },
+          "inventoryPolicy": "DENY",
+          "inventoryItem": {
+            "sku": "HERMES-BULK-962361-RED",
+            "tracked": true,
+            "requiresShipping": false,
+            "countryCodeOfOrigin": "US",
+            "provinceCodeOfOrigin": "CA",
+            "harmonizedSystemCode": "1234.56",
+            "measurement": {
+              "weight": {
+                "value": 0.5,
+                "unit": "KILOGRAMS"
+              }
+            }
+          },
+          "metafields": [
+            {
+              "namespace": "specs",
+              "key": "bulkUpdateTier",
+              "type": "single_line_text_field",
+              "value": "premium"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10180320788786",
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51137398112562",
+                  "title": "Red",
+                  "sku": "HERMES-BULK-962361-RED",
+                  "barcode": "1111111111111",
+                  "price": "24.00",
+                  "compareAtPrice": "30.00",
+                  "taxable": false,
+                  "taxCode": "P0000000",
+                  "position": 1,
+                  "requiresComponents": true,
+                  "showUnitPrice": true,
+                  "unitPriceMeasurement": {
+                    "quantityValue": 1.5,
+                    "quantityUnit": "L",
+                    "referenceValue": 1,
+                    "referenceUnit": "L"
+                  },
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53240636604722",
+                    "tracked": true,
+                    "requiresShipping": false,
+                    "countryCodeOfOrigin": "US",
+                    "provinceCodeOfOrigin": "CA",
+                    "harmonizedSystemCode": "123456",
+                    "measurement": {
+                      "weight": {
+                        "value": 0.5,
+                        "unit": "KILOGRAMS"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51137398112562",
+              "title": "Red",
+              "sku": "HERMES-BULK-962361-RED",
+              "barcode": "1111111111111",
+              "price": "24.00",
+              "compareAtPrice": "30.00",
+              "taxable": false,
+              "taxCode": "P0000000",
+              "position": 1,
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53240636604722",
+                "tracked": true,
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "123456",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 32,
+          "actualQueryCost": 32,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "requestVariables": {
+      "id": "gid://shopify/Product/10180320788786",
+      "query": "sku:HERMES-BULK-962361-RED"
+    },
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10180320788786",
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51137398112562",
+              "title": "Red",
+              "sku": "HERMES-BULK-962361-RED",
+              "barcode": "1111111111111",
+              "price": "24.00",
+              "compareAtPrice": "30.00",
+              "taxable": false,
+              "taxCode": "P0000000",
+              "position": 1,
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "metafield": {
+                "value": "premium",
+                "ownerType": "PRODUCTVARIANT"
+              },
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53240636604722",
+                "tracked": true,
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "123456",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "products": {
+        "nodes": []
+      },
+      "skuCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 39,
+        "actualQueryCost": 22,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1978,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/10180320788786",
+          "gid://shopify/ProductVariant/51137398112562"
+        ]
+      },
+      "query": "recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10180320788786",
+                "title": "Hermes Variant Bulk Conformance 1778208962361",
+                "handle": "hermes-variant-bulk-conformance-1778208962361",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51137398112562",
+                      "title": "Red",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "taxCode": "",
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "position": 1,
+                      "requiresComponents": false,
+                      "showUnitPrice": false,
+                      "unitPriceMeasurement": {
+                        "quantityValue": 0,
+                        "quantityUnit": null,
+                        "referenceValue": 0,
+                        "referenceUnit": null
+                      },
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53240636604722",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "countryCodeOfOrigin": null,
+                        "provinceCodeOfOrigin": null,
+                        "harmonizedSystemCode": null,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "__typename": "ProductVariant",
+                "id": "gid://shopify/ProductVariant/51137398112562",
+                "title": "Red",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "taxCode": "",
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "position": 1,
+                "requiresComponents": false,
+                "showUnitPrice": false,
+                "unitPriceMeasurement": {
+                  "quantityValue": 0,
+                  "quantityUnit": null,
+                  "referenceValue": 0,
+                  "referenceUnit": null
+                },
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53240636604722",
+                  "tracked": false,
+                  "requiresShipping": true,
+                  "countryCodeOfOrigin": null,
+                  "provinceCodeOfOrigin": null,
+                  "harmonizedSystemCode": null,
+                  "measurement": {
+                    "weight": {
+                      "unit": "KILOGRAMS",
+                      "value": 0
+                    }
+                  }
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10180320788786",
+                  "title": "Hermes Variant Bulk Conformance 1778208962361",
+                  "handle": "hermes-variant-bulk-conformance-1778208962361",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": false,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51137398112562",
+                        "title": "Red",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "taxCode": "",
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "position": 1,
+                        "requiresComponents": false,
+                        "showUnitPrice": false,
+                        "unitPriceMeasurement": {
+                          "quantityValue": 0,
+                          "quantityUnit": null,
+                          "referenceValue": 0,
+                          "referenceUnit": null
+                        },
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53240636604722",
+                          "tracked": false,
+                          "requiresShipping": true,
+                          "countryCodeOfOrigin": null,
+                          "provinceCodeOfOrigin": null,
+                          "harmonizedSystemCode": null,
+                          "measurement": {
+                            "weight": {
+                              "unit": "KILOGRAMS",
+                              "value": 0
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 190,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

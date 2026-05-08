@@ -86,8 +86,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryLocationRecord,
-  type ProductVariantRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryQuantityRecord, ProductVariantRecord,
+  type ProductVariantRecord, type UnitPriceMeasurementRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
+  ProductVariantRecord,
 }
 
 // ===== from inventory_l07 =====
@@ -108,7 +109,12 @@ pub fn product_variant_source_with_inventory(
       "compareAtPrice",
       graphql_helpers.option_string_source(variant.compare_at_price),
     ),
+    #(
+      "requiresShipping",
+      graphql_helpers.option_bool_source(variant.requires_shipping),
+    ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #("taxCode", graphql_helpers.option_string_source(variant.tax_code)),
     #(
       "inventoryPolicy",
       graphql_helpers.option_string_source(variant.inventory_policy),
@@ -116,6 +122,19 @@ pub fn product_variant_source_with_inventory(
     #(
       "inventoryQuantity",
       graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
+    #("position", graphql_helpers.option_int_source(variant.position)),
+    #(
+      "requiresComponents",
+      graphql_helpers.option_bool_source(variant.requires_components),
+    ),
+    #(
+      "unitPriceMeasurement",
+      unit_price_measurement_source(variant.unit_price_measurement),
+    ),
+    #(
+      "showUnitPrice",
+      graphql_helpers.option_bool_source(variant.show_unit_price),
     ),
     #(
       "selectedOptions",
@@ -149,6 +168,30 @@ pub fn product_variant_source_with_inventory(
       optional_captured_json_source(variant.contextual_pricing),
     ),
   ])
+}
+
+fn unit_price_measurement_source(
+  measurement: Option(UnitPriceMeasurementRecord),
+) -> SourceValue {
+  case measurement {
+    Some(value) ->
+      src_object([
+        #("quantityValue", optional_captured_json_source(value.quantity_value)),
+        #(
+          "quantityUnit",
+          graphql_helpers.option_string_source(value.quantity_unit),
+        ),
+        #(
+          "referenceValue",
+          optional_captured_json_source(value.reference_value),
+        ),
+        #(
+          "referenceUnit",
+          graphql_helpers.option_string_source(value.reference_unit),
+        ),
+      ])
+    None -> SrcNull
+  }
 }
 
 @internal
