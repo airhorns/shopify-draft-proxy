@@ -42,7 +42,7 @@ Current root behavior:
 - `currentBulkOperation(type: BulkOperationType = QUERY)` is deprecated but still documents the app's most recent query or mutation job. Locally, it selects the newest effective job for the requested type and defaults to `QUERY`.
 - `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, accept explicit `groupObjects: true`/`false` as well as the omitted default path, and never proxy supported export requests upstream at runtime. Before staging, the proxy refuses a new query run when any effective `QUERY` BulkOperation is non-terminal (`CREATED`, `RUNNING`, or `CANCELING`), returning `bulkOperation: null` and `userErrors[{ field: null, code: "OPERATION_IN_PROGRESS" }]`.
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated. After inner-mutation validation and before reading staged upload content or staging a job, the proxy refuses a new mutation run when any effective `MUTATION` BulkOperation is non-terminal, using the same `OPERATION_IN_PROGRESS` userError shape.
-- `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, staged non-terminal jobs transition to `CANCELING`; in LiveHybrid, a cold cancel can first read the target `BulkOperation` through the cassette/upstream read seam, then stage the local cancel overlay or terminal userError without sending Shopify's cancel mutation upstream. `CANCELING` remains non-terminal locally, so canceling an in-progress job does not unblock another same-type run until a terminal status is observed or staged.
+- `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, recent non-terminal jobs transition to `CANCELING`; jobs stuck past Shopify's documented startup/progress/graceful-cancel windows short-circuit to terminal `CANCELED` with `completedAt` populated. In LiveHybrid, a cold cancel can first read the target `BulkOperation` through the cassette/upstream read seam, then stage the local cancel overlay, terminal stuck-cancel state, or terminal userError without sending Shopify's cancel mutation upstream. `CANCELING` remains non-terminal locally, so canceling a not-stuck in-progress job does not unblock another same-type run until a terminal status is observed or staged.
 
 ### Local mutation import support
 
@@ -138,8 +138,10 @@ Local `bulkOperationRunMutation` rejects same-type in-progress operations with `
 
 Local `bulkOperationCancel` supports:
 
-- `RUNNING`/`CREATED`/`CANCELING` staged jobs returning a selected `bulkOperation` payload and empty `userErrors`, with non-terminal staged jobs stored as `CANCELING`
-- LiveHybrid prior-operation hydration for cold known IDs, then local staging of a `CANCELING` overlay for non-terminal jobs
+- `RUNNING`/`CREATED`/`CANCELING` staged jobs returning a selected `bulkOperation` payload and empty `userErrors`
+- not-stuck non-terminal jobs stored as `CANCELING`, with the local cancel timestamp tracked internally for later graceful-cancel-window checks
+- stuck non-terminal jobs stored as terminal `CANCELED` with `completedAt` populated; local same-type `OPERATION_IN_PROGRESS` checks treat those jobs as terminal immediately
+- LiveHybrid prior-operation hydration for cold known IDs, then local staging of either a `CANCELING` overlay or a stuck terminal `CANCELED` overlay for non-terminal jobs
 - unknown IDs returning `bulkOperation: null` plus `userErrors[{ field: ["id"], message: "Bulk operation does not exist" }]`
 - terminal jobs returning the selected existing job plus a `field: null` userError such as `A bulk operation cannot be canceled when it is completed`
 - meta log entries with original raw mutation bodies and staged BulkOperation IDs for observability

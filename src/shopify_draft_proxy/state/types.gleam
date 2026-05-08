@@ -1274,6 +1274,7 @@ pub type BulkOperationRecord {
     type_: String,
     error_code: Option(String),
     created_at: String,
+    updated_at: Option(String),
     completed_at: Option(String),
     object_count: String,
     root_object_count: String,

@@ -108,6 +108,13 @@ pub fn make_synthetic_timestamp(
   #(current, next)
 }
 
+/// Read the next synthetic timestamp without advancing the registry.
+pub fn current_synthetic_timestamp(
+  registry: SyntheticIdentityRegistry,
+) -> String {
+  iso_timestamp.format_iso(registry.next_synthetic_time)
+}
+
 /// Snapshot the registry into a versioned dump record. Mirrors
 /// `dumpState`.
 pub fn dump_state(

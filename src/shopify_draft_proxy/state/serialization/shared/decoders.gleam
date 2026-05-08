@@ -1102,6 +1102,7 @@ pub fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
   use type_ <- decode.field("type", decode.string)
   use error_code <- optional_string_field("errorCode")
   use created_at <- decode.field("createdAt", decode.string)
+  use updated_at <- optional_string_field("updatedAt")
   use completed_at <- optional_string_field("completedAt")
   use object_count <- decode.field("objectCount", decode.string)
   use root_object_count <- decode.field("rootObjectCount", decode.string)
@@ -1117,6 +1118,7 @@ pub fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
     type_: type_,
     error_code: error_code,
     created_at: created_at,
+    updated_at: updated_at,
     completed_at: completed_at,
     object_count: object_count,
     root_object_count: root_object_count,

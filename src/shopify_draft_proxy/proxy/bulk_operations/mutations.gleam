@@ -59,6 +59,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/webhooks
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -102,6 +103,12 @@ type InnerMutationValidationError {
 const max_bulk_query_connections: Int = 5
 
 const max_bulk_query_connection_depth: Int = 2
+
+const bulk_operation_startup_stuck_after_ms: Int = 900_000
+
+const bulk_operation_progress_stuck_after_ms: Int = 7_200_000
+
+const bulk_operation_graceful_cancel_stuck_after_ms: Int = 300_000
 
 const bulk_query_invalid_operation_type_message: String = "Invalid operation type. Only `query` operations are supported."
 
@@ -313,6 +320,7 @@ fn handle_bulk_operation_run_query(
               type_: "QUERY",
               error_code: None,
               created_at: created_at,
+              updated_at: Some(completed_at),
               completed_at: Some(completed_at),
               object_count: int.to_string(object_count),
               root_object_count: int.to_string(root_object_count),
@@ -1904,6 +1912,7 @@ fn build_and_stage_mutation_operation(
       type_: "MUTATION",
       error_code: None,
       created_at: created_at,
+      updated_at: Some(completed_at),
       completed_at: Some(completed_at),
       object_count: int.to_string(object_count),
       root_object_count: int.to_string(object_count),
@@ -1986,6 +1995,7 @@ fn bulk_operation_from_json(
     type_: type_,
     error_code: json_get_optional_string(value, "errorCode"),
     created_at: created_at,
+    updated_at: json_get_optional_string(value, "updatedAt"),
     completed_at: json_get_optional_string(value, "completedAt"),
     object_count: object_count,
     root_object_count: root_object_count,
@@ -2069,8 +2079,6 @@ fn handle_bulk_operation_cancel(
       // LiveHybrid request first reads the target BulkOperation so
       // terminal errors and cancel overlays use Shopify's prior job.
       let hydrated_store = hydrate_bulk_operation_by_id(store, id, upstream)
-      let staged_operation =
-        store.get_staged_bulk_operation_by_id(hydrated_store, id)
       let effective_operation =
         store.get_effective_bulk_operation_by_id(hydrated_store, id)
       case effective_operation {
@@ -2110,60 +2118,98 @@ fn handle_bulk_operation_cancel(
               hydrated_store,
               identity,
             )
-            False ->
-              case staged_operation {
-                None -> {
-                  let canceled =
-                    BulkOperationRecord(
-                      ..operation,
-                      status: "CANCELING",
-                      completed_at: None,
-                    )
-                  let #(staged, next_store) =
-                    store.stage_bulk_operation(hydrated_store, canceled)
-                  #(
-                    MutationFieldResult(
-                      key: key,
-                      payload: serialize_cancel_payload(
-                        field,
-                        Some(staged),
-                        [],
-                        fragments,
-                      ),
-                      staged_resource_ids: [staged.id],
-                      log_drafts: [],
-                    ),
-                    next_store,
-                    identity,
-                  )
-                }
-                Some(_) -> {
-                  let #(canceled, next_store) =
-                    store.cancel_staged_bulk_operation(hydrated_store, id)
-                  let staged_id = case canceled {
-                    Some(op) -> [op.id]
-                    None -> []
-                  }
-                  #(
-                    MutationFieldResult(
-                      key: key,
-                      payload: serialize_cancel_payload(
-                        field,
-                        canceled,
-                        [],
-                        fragments,
-                      ),
-                      staged_resource_ids: staged_id,
-                      log_drafts: [],
-                    ),
-                    next_store,
-                    identity,
-                  )
-                }
-              }
+            False -> {
+              let #(cancel_target, next_identity) =
+                cancel_bulk_operation_record(operation, identity)
+              let #(staged, next_store) =
+                store.stage_bulk_operation(hydrated_store, cancel_target)
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: serialize_cancel_payload(
+                    field,
+                    Some(staged),
+                    [],
+                    fragments,
+                  ),
+                  staged_resource_ids: [staged.id],
+                  log_drafts: [],
+                ),
+                next_store,
+                next_identity,
+              )
+            }
           }
       }
     }
+  }
+}
+
+fn cancel_bulk_operation_record(
+  operation: BulkOperationRecord,
+  identity: SyntheticIdentityRegistry,
+) -> #(BulkOperationRecord, SyntheticIdentityRegistry) {
+  let now = synthetic_identity.current_synthetic_timestamp(identity)
+  case is_stuck(operation, now) {
+    True -> {
+      let #(completed_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      #(
+        BulkOperationRecord(
+          ..operation,
+          status: "CANCELED",
+          completed_at: Some(completed_at),
+          updated_at: Some(completed_at),
+        ),
+        next_identity,
+      )
+    }
+    False -> {
+      let updated_at = case operation.status {
+        "CANCELING" -> operation.updated_at
+        _ -> Some(now)
+      }
+      #(
+        BulkOperationRecord(
+          ..operation,
+          status: "CANCELING",
+          completed_at: None,
+          updated_at: updated_at,
+        ),
+        identity,
+      )
+    }
+  }
+}
+
+fn is_stuck(operation: BulkOperationRecord, now: String) -> Bool {
+  case operation.status {
+    "CREATED" ->
+      elapsed_at_least(
+        operation.created_at,
+        now,
+        bulk_operation_startup_stuck_after_ms,
+      )
+    "RUNNING" ->
+      elapsed_at_least(
+        option.unwrap(operation.updated_at, operation.created_at),
+        now,
+        bulk_operation_progress_stuck_after_ms,
+      )
+    "CANCELING" ->
+      elapsed_at_least(
+        option.unwrap(operation.updated_at, operation.created_at),
+        now,
+        bulk_operation_graceful_cancel_stuck_after_ms,
+      )
+    _ -> False
+  }
+}
+
+fn elapsed_at_least(timestamp: String, now: String, threshold_ms: Int) -> Bool {
+  case iso_timestamp.parse_iso(timestamp), iso_timestamp.parse_iso(now) {
+    Ok(start_ms), Ok(now_ms) -> now_ms - start_ms >= threshold_ms
+    _, _ -> False
   }
 }
 
