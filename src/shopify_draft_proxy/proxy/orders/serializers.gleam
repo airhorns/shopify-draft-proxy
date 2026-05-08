@@ -7,6 +7,7 @@
 
 import gleam/dict.{type Dict}
 
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -32,14 +33,15 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_field_or_null, captured_int_field, captured_json_source,
   captured_object_field, captured_string_field, connection_nodes,
-  field_arguments, fulfillment_order_line_items,
+  field_arguments, format_decimal_amount, fulfillment_order_line_items,
   fulfillment_order_merchant_requests, fulfillment_order_supported_actions,
   fulfillment_source_line_item_id, fulfillment_source_line_item_title,
   has_pending_cancellation_request, inferred_user_error, min_int, option_is_in,
-  option_to_result, optional_captured_string, order_fulfillment_holds,
-  order_fulfillment_orders, order_fulfillments, read_bool_argument, read_int,
-  read_int_argument, read_object_list, read_string, read_string_list,
-  replace_captured_object_fields, selection_children,
+  option_to_result, optional_captured_string, order_currency_code,
+  order_fulfillment_holds, order_fulfillment_orders, order_fulfillments,
+  order_presentment_currency_code, read_bool, read_bool_argument, read_int,
+  read_int_argument, read_object, read_object_list, read_string,
+  read_string_list, replace_captured_object_fields, selection_children,
   serialize_captured_selection, serialize_order_mutation_user_error,
   serialize_user_error,
 }
@@ -60,8 +62,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
   type DraftOrderRecord, type OrderRecord, type ProductMetafieldRecord,
-  CapturedArray, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  OrderRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
@@ -1219,7 +1221,12 @@ pub fn build_return_line_items(
                       )
                     #(
                       list.append(items, [
-                        build_return_line_item(id, fulfillment_line_item, item),
+                        build_return_line_item(
+                          id,
+                          fulfillment_line_item,
+                          item,
+                          read_bool(input, "unprocessed", False),
+                        ),
                       ]),
                       errors,
                       next_identity,
@@ -1277,6 +1284,7 @@ pub fn build_return_line_item(
   id: String,
   fulfillment_line_item: CapturedJsonValue,
   input: Dict(String, root_field.ResolvedValue),
+  unprocessed: Bool,
 ) -> CapturedJsonValue {
   let line_item =
     captured_object_field(fulfillment_line_item, "lineItem")
@@ -1291,6 +1299,7 @@ pub fn build_return_line_item(
     #("title", captured_field_or_null(line_item, "title")),
     #("quantity", CapturedInt(read_int(input, "quantity", 0))),
     #("processedQuantity", CapturedInt(0)),
+    #("unprocessed", CapturedBool(unprocessed)),
     #(
       "returnReason",
       CapturedString(
@@ -1319,6 +1328,10 @@ pub fn build_order_return(
     synthetic_identity.make_synthetic_timestamp(identity)
   let #(return_id, identity_after_return) =
     synthetic_identity.make_synthetic_gid(identity_after_time, "Return")
+  let #(shipping_fees, identity_after_shipping_fee) =
+    build_return_shipping_fees(identity_after_return, order, input)
+  let return_delivery = captured_input_field(input, "returnDelivery")
+  let retail_attribution = captured_input_field(input, "retailAttribution")
   let base_return =
     CapturedObject([
       #("id", CapturedString(return_id)),
@@ -1341,18 +1354,283 @@ pub fn build_order_return(
       ),
       #("closedAt", CapturedNull),
       #("decline", CapturedNull),
+      #("note", optional_captured_string(read_string(input, "note"))),
+      #(
+        "refundIntent",
+        optional_captured_string(read_string(input, "refundIntent")),
+      ),
+      #(
+        "locationId",
+        optional_captured_string(read_string(input, "locationId")),
+      ),
+      #("location", return_location_from_input(input)),
+      #("retailAttribution", retail_attribution),
+      #("unprocessed", CapturedBool(read_bool(input, "unprocessed", False))),
+      #("returnShippingFees", CapturedArray(shipping_fees)),
+      #("reverseDeliveries", CapturedArray([])),
+      #("returnDelivery", return_delivery),
       #("totalQuantity", CapturedInt(total_return_quantity(line_items))),
       #("returnLineItems", CapturedArray(line_items)),
       #("reverseFulfillmentOrders", CapturedArray([])),
     ])
   case status {
-    "OPEN" ->
-      ensure_return_reverse_fulfillment_orders(
-        identity_after_return,
-        order,
-        base_return,
+    "OPEN" -> {
+      let #(return_with_reverse_orders, identity_after_reverse_orders) =
+        ensure_return_reverse_fulfillment_orders(
+          identity_after_shipping_fee,
+          order,
+          base_return,
+        )
+      attach_return_delivery(
+        identity_after_reverse_orders,
+        return_with_reverse_orders,
+        input,
       )
-    _ -> #(base_return, identity_after_return)
+    }
+    _ -> attach_return_delivery(identity_after_shipping_fee, base_return, input)
+  }
+}
+
+fn build_return_shipping_fees(
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  case read_object(input, "returnShippingFee") {
+    None -> #([], identity)
+    Some(shipping_fee_input) -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "ReturnShippingFee")
+      let amount =
+        read_return_shipping_fee_amount_string(shipping_fee_input)
+        |> option.unwrap("0.0")
+      let currency_code =
+        read_return_shipping_fee_currency_code(shipping_fee_input)
+        |> option.unwrap(order_currency_code(order))
+      let presentment_currency_code = order_presentment_currency_code(order)
+      #(
+        [
+          CapturedObject([
+            #("id", CapturedString(id)),
+            #("amount", CapturedString(amount)),
+            #(
+              "type",
+              optional_captured_string(read_string(shipping_fee_input, "type")),
+            ),
+            #("currencyCode", CapturedString(currency_code)),
+            #(
+              "amountSet",
+              CapturedObject([
+                #(
+                  "shopMoney",
+                  CapturedObject([
+                    #("amount", CapturedString(amount)),
+                    #("currencyCode", CapturedString(currency_code)),
+                  ]),
+                ),
+                #(
+                  "presentmentMoney",
+                  CapturedObject([
+                    #("amount", CapturedString(amount)),
+                    #("currencyCode", CapturedString(presentment_currency_code)),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ],
+        next_identity,
+      )
+    }
+  }
+}
+
+fn attach_return_delivery(
+  identity: SyntheticIdentityRegistry,
+  order_return: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  case read_object(input, "returnDelivery") {
+    None -> #(order_return, identity)
+    Some(delivery_input) -> {
+      let reverse_orders = order_reverse_fulfillment_orders(order_return)
+      case reverse_orders {
+        [reverse_order, ..rest] -> {
+          let #(reverse_delivery, next_identity) =
+            build_return_delivery(identity, delivery_input, Some(reverse_order))
+          let updated_reverse_order =
+            replace_captured_object_fields(reverse_order, [
+              #(
+                "reverseDeliveries",
+                CapturedArray([
+                  reverse_delivery,
+                  ..reverse_fulfillment_order_reverse_deliveries(reverse_order)
+                ]),
+              ),
+            ])
+          #(
+            replace_captured_object_fields(order_return, [
+              #(
+                "reverseFulfillmentOrders",
+                CapturedArray([updated_reverse_order, ..rest]),
+              ),
+            ]),
+            next_identity,
+          )
+        }
+        [] -> {
+          let #(reverse_delivery, next_identity) =
+            build_return_delivery(identity, delivery_input, None)
+          #(
+            replace_captured_object_fields(order_return, [
+              #("reverseDeliveries", CapturedArray([reverse_delivery])),
+            ]),
+            next_identity,
+          )
+        }
+      }
+    }
+  }
+}
+
+fn build_return_delivery(
+  identity: SyntheticIdentityRegistry,
+  delivery_input: Dict(String, root_field.ResolvedValue),
+  reverse_order: Option(CapturedJsonValue),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(line_items, identity_after_line_items) = case reverse_order {
+    Some(reverse_order) ->
+      build_all_reverse_delivery_line_items(identity, reverse_order)
+    None -> #([], identity)
+  }
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_line_items,
+      "ReverseDelivery",
+    )
+  let tracking =
+    normalize_return_delivery_tracking(
+      delivery_input,
+      read_object(delivery_input, "trackingInfo"),
+    )
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #("reverseFulfillmentOrderId", case reverse_order {
+        Some(reverse_order) -> captured_field_or_null(reverse_order, "id")
+        None -> CapturedNull
+      }),
+      #("reverseDeliveryLineItems", CapturedArray(line_items)),
+      #("tracking", tracking),
+      #(
+        "label",
+        normalize_reverse_delivery_label(read_object(delivery_input, "label")),
+      ),
+      #("returnDelivery", captured_resolved_object(delivery_input)),
+    ]),
+    next_identity,
+  )
+}
+
+fn normalize_return_delivery_tracking(
+  delivery_input: Dict(String, root_field.ResolvedValue),
+  tracking_input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  let normalized = normalize_reverse_delivery_tracking(tracking_input)
+  case
+    captured_string_field(normalized, "company"),
+    read_string(delivery_input, "carrier")
+  {
+    None, Some(carrier) ->
+      replace_captured_object_fields(normalized, [
+        #("company", CapturedString(carrier)),
+      ])
+    _, _ -> normalized
+  }
+}
+
+fn captured_input_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> CapturedJsonValue {
+  case dict.get(input, name) {
+    Ok(value) -> captured_resolved_value(value)
+    Error(_) -> CapturedNull
+  }
+}
+
+fn captured_resolved_object(
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  CapturedObject(
+    input
+    |> dict.to_list
+    |> list.map(fn(pair) {
+      let #(key, value) = pair
+      #(key, captured_resolved_value(value))
+    }),
+  )
+}
+
+fn captured_resolved_value(
+  value: root_field.ResolvedValue,
+) -> CapturedJsonValue {
+  case value {
+    root_field.NullVal -> CapturedNull
+    root_field.BoolVal(value) -> CapturedBool(value)
+    root_field.IntVal(value) -> CapturedInt(value)
+    root_field.FloatVal(value) -> CapturedFloat(value)
+    root_field.StringVal(value) -> CapturedString(value)
+    root_field.ListVal(values) ->
+      CapturedArray(list.map(values, captured_resolved_value))
+    root_field.ObjectVal(fields) -> captured_resolved_object(fields)
+  }
+}
+
+fn return_location_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  read_string(input, "locationId")
+  |> option.map(fn(id) { CapturedObject([#("id", CapturedString(id))]) })
+  |> option.unwrap(CapturedNull)
+}
+
+fn read_return_shipping_fee_amount_string(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_object(input, "amount") {
+    Some(money_input) -> read_money_amount_string(money_input, "amount")
+    None -> read_money_amount_string(input, "amount")
+  }
+}
+
+fn read_return_shipping_fee_currency_code(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_object(input, "amount") {
+    Some(money_input) -> read_string(money_input, "currencyCode")
+    None -> read_string(input, "currencyCode")
+  }
+}
+
+fn read_money_amount_string(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(value)) ->
+      Some(normalize_money_amount_string(value))
+    Ok(root_field.IntVal(value)) ->
+      Some(format_decimal_amount(int.to_float(value)))
+    Ok(root_field.FloatVal(value)) -> Some(format_decimal_amount(value))
+    _ -> None
+  }
+}
+
+fn normalize_money_amount_string(value: String) -> String {
+  case float.parse(value) {
+    Ok(amount) -> format_decimal_amount(amount)
+    Error(_) -> value
   }
 }
 
@@ -1971,6 +2249,28 @@ pub fn order_return_line_items(
 }
 
 @internal
+pub fn order_return_shipping_fees(
+  order_return: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_return, "returnShippingFees") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+@internal
+pub fn order_return_reverse_deliveries(
+  order_return: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_return, "reverseDeliveries") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+@internal
 pub fn order_reverse_fulfillment_orders(
   order_return: CapturedJsonValue,
 ) -> List(CapturedJsonValue) {
@@ -2207,6 +2507,31 @@ pub fn serialize_order_return(
                 ),
               ),
             )
+            "returnShippingFees" -> #(
+              key,
+              serialize_return_shipping_fees(
+                child,
+                order_return_shipping_fees(order_return),
+                fragments,
+              ),
+            )
+            "reverseDeliveries" -> #(
+              key,
+              serialize_return_reverse_deliveries_connection(
+                child,
+                order_return,
+                order,
+                fragments,
+              ),
+            )
+            "location" -> #(
+              key,
+              project_graphql_value(
+                return_location_source(order_return),
+                selection_children(child),
+                fragments,
+              ),
+            )
             "returnLineItems" -> #(
               key,
               serialize_return_line_items_connection(
@@ -2235,6 +2560,86 @@ pub fn serialize_order_return(
       }
     })
   json.object(entries)
+}
+
+@internal
+pub fn serialize_return_shipping_fees(
+  field: Selection,
+  shipping_fees: List(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  case selection_children(field) {
+    [Field(name: child_name, ..), ..]
+      if child_name.value == "nodes" || child_name.value == "edges"
+    ->
+      serialize_return_shipping_fees_connection(field, shipping_fees, fragments)
+    _ ->
+      json.array(shipping_fees, fn(shipping_fee) {
+        project_graphql_value(
+          captured_json_source(shipping_fee),
+          selection_children(field),
+          fragments,
+        )
+      })
+  }
+}
+
+@internal
+pub fn serialize_return_shipping_fees_connection(
+  field: Selection,
+  shipping_fees: List(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_static_connection(
+    field,
+    shipping_fees,
+    fn(shipping_fee) {
+      captured_string_field(shipping_fee, "id") |> option.unwrap("")
+    },
+    fn(shipping_fee, selection) {
+      project_graphql_value(
+        captured_json_source(shipping_fee),
+        selection_children(selection),
+        fragments,
+      )
+    },
+  )
+}
+
+@internal
+pub fn serialize_return_reverse_deliveries_connection(
+  field: Selection,
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  let reverse_orders = order_reverse_fulfillment_orders(order_return)
+  let fallback_reverse_order = case reverse_orders {
+    [reverse_order, ..] -> reverse_order
+    [] -> CapturedObject([])
+  }
+  let reverse_deliveries =
+    order_return_reverse_deliveries(order_return)
+    |> list.append(
+      reverse_orders
+      |> list.flat_map(reverse_fulfillment_order_reverse_deliveries),
+    )
+  serialize_reverse_deliveries_connection(
+    field,
+    reverse_deliveries,
+    fallback_reverse_order,
+    order_return,
+    order,
+    fragments,
+  )
+}
+
+fn return_location_source(order_return: CapturedJsonValue) -> SourceValue {
+  case captured_string_field(order_return, "locationId") {
+    Some(id) -> src_object([#("id", SrcString(id))])
+    None ->
+      captured_json_source(captured_field_or_null(order_return, "location"))
+  }
 }
 
 @internal
@@ -2297,6 +2702,10 @@ pub fn serialize_return_line_item(
             "unprocessedQuantity" -> #(
               key,
               json.int(int.max(0, quantity - processed)),
+            )
+            "unprocessed" -> #(
+              key,
+              project_graphql_field_value(source, child, fragments),
             )
             "quantity" | "refundableQuantity" | "processableQuantity" -> #(
               key,

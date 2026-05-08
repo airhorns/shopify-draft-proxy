@@ -9854,6 +9854,170 @@ pub fn orders_return_request_rejects_invalid_notify_email_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn orders_return_create_stages_metadata_fields_test() {
+  let order_id = "gid://shopify/Order/return-metadata-create"
+  let fulfillment_line_item_id =
+    "gid://shopify/FulfillmentLineItem/return-metadata-create"
+  let outcome =
+    run_return_create_metadata(
+      seed: return_metadata_test_store(order_id, fulfillment_line_item_id),
+      order_id: order_id,
+      fulfillment_line_item_id: fulfillment_line_item_id,
+    )
+
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"note\":\"metadata note\"")
+  assert string.contains(response, "\"refundIntent\":\"RECOMMENDED\"")
+  assert string.contains(
+    response,
+    "\"location\":{\"id\":\"gid://shopify/Location/return-metadata\"}",
+  )
+  assert string.contains(
+    response,
+    "\"retailAttribution\":{\"deviceId\":\"pos-device\",\"staffMemberId\":\"gid://shopify/StaffMember/1\"}",
+  )
+  assert string.contains(
+    response,
+    "\"returnShippingFees\":[{\"amount\":\"7.5\",\"type\":\"SHIPPING\",\"amountSet\":{\"shopMoney\":{\"amount\":\"7.5\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"7.5\",\"currencyCode\":\"CAD\"}}}]",
+  )
+  assert string.contains(
+    response,
+    "\"tracking\":{\"number\":\"TRACK-1\",\"carrierName\":\"UPS\",\"trackingUrl\":\"https://tracking.example/1\"}",
+  )
+  assert string.contains(
+    response,
+    "\"returnLineItems\":{\"nodes\":[{\"quantity\":1,\"unprocessed\":true,\"unprocessedQuantity\":1}]}",
+  )
+  assert outcome.log_drafts != []
+  let assert [return_id] = outcome.staged_resource_ids
+
+  let assert Ok(read) = orders.process(outcome.store, "
+        query {
+          return(id: \"" <> return_id <> "\") {
+            id
+            note
+            refundIntent
+            location { id }
+            retailAttribution { deviceId staffMemberId }
+            returnShippingFees {
+              amount
+              type
+            }
+            reverseDeliveries(first: 5) {
+              nodes {
+                deliverable {
+                  __typename
+                  ... on ReverseDeliveryShippingDeliverable {
+                    tracking { number carrierName }
+                  }
+                }
+              }
+            }
+            returnLineItems(first: 5) {
+              nodes { unprocessed unprocessedQuantity }
+            }
+          }
+        }
+      ", dict.new())
+  let read_json = json.to_string(read)
+  assert string.contains(read_json, "\"note\":\"metadata note\"")
+  assert string.contains(
+    read_json,
+    "\"returnShippingFees\":[{\"amount\":\"7.5\",\"type\":\"SHIPPING\"}]",
+  )
+  assert string.contains(
+    read_json,
+    "\"tracking\":{\"number\":\"TRACK-1\",\"carrierName\":\"UPS\"}",
+  )
+}
+
+pub fn orders_return_request_stages_metadata_fields_test() {
+  let order_id = "gid://shopify/Order/return-metadata-request"
+  let fulfillment_line_item_id =
+    "gid://shopify/FulfillmentLineItem/return-metadata-request"
+  let outcome =
+    run_return_request_metadata(
+      seed: return_metadata_test_store(order_id, fulfillment_line_item_id),
+      order_id: order_id,
+      fulfillment_line_item_id: fulfillment_line_item_id,
+    )
+
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"REQUESTED\"")
+  assert string.contains(response, "\"note\":\"metadata note\"")
+  assert string.contains(response, "\"refundIntent\":\"RECOMMENDED\"")
+  assert string.contains(
+    response,
+    "\"returnShippingFees\":[{\"amount\":\"7.5\",\"type\":\"SHIPPING\"}]",
+  )
+  assert string.contains(
+    response,
+    "\"reverseDeliveries\":{\"nodes\":[{\"id\":\"",
+  )
+  let assert [return_id] = outcome.staged_resource_ids
+
+  let assert Ok(read) = orders.process(outcome.store, "
+        query {
+          return(id: \"" <> return_id <> "\") {
+            id
+            status
+            note
+            refundIntent
+            reverseDeliveries(first: 5) {
+              nodes {
+                deliverable {
+                  __typename
+                  ... on ReverseDeliveryShippingDeliverable {
+                    tracking { number carrierName }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ", dict.new())
+  let read_json = json.to_string(read)
+  assert string.contains(read_json, "\"status\":\"REQUESTED\"")
+  assert string.contains(
+    read_json,
+    "\"tracking\":{\"number\":\"TRACK-1\",\"carrierName\":\"UPS\"}",
+  )
+}
+
+pub fn orders_return_create_rejects_negative_shipping_fee_test() {
+  let order_id = "gid://shopify/Order/return-metadata-negative-fee"
+  let fulfillment_line_item_id =
+    "gid://shopify/FulfillmentLineItem/return-metadata-negative-fee"
+  let outcome =
+    run_return_create_with_extra_input(
+      seed: return_metadata_test_store(order_id, fulfillment_line_item_id),
+      order_id: order_id,
+      fulfillment_line_item_id: fulfillment_line_item_id,
+      extra_input: ", returnShippingFee: { amount: { amount: \"-1.00\", currencyCode: CAD }, type: SHIPPING }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCreate\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"returnShippingFee\",\"amount\"],\"message\":\"Amount must be greater than or equal to 0\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn orders_return_request_rejects_return_delivery_without_tracking_test() {
+  let order_id = "gid://shopify/Order/return-metadata-missing-tracking"
+  let fulfillment_line_item_id =
+    "gid://shopify/FulfillmentLineItem/return-metadata-missing-tracking"
+  let outcome =
+    run_return_request_with_metadata_extra_input(
+      seed: return_metadata_test_store(order_id, fulfillment_line_item_id),
+      order_id: order_id,
+      fulfillment_line_item_id: fulfillment_line_item_id,
+      extra_input: ", returnDelivery: { carrier: \"UPS\" }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"returnDelivery\",\"trackingInfo\"],\"message\":\"Tracking info is required\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn orders_return_close_on_closed_return_is_idempotent_test() {
   let outcome =
     run_return_status_mutation(
@@ -10189,6 +10353,239 @@ fn run_return_request_with_extra_input(
     dict.new(),
     empty_upstream_context(),
   )
+}
+
+fn run_return_create_metadata(
+  seed seed: store.Store,
+  order_id order_id: String,
+  fulfillment_line_item_id fulfillment_line_item_id: String,
+) -> MutationOutcome {
+  run_return_create_with_extra_input(
+    seed: seed,
+    order_id: order_id,
+    fulfillment_line_item_id: fulfillment_line_item_id,
+    extra_input: return_metadata_extra_input(),
+  )
+}
+
+fn run_return_request_metadata(
+  seed seed: store.Store,
+  order_id order_id: String,
+  fulfillment_line_item_id fulfillment_line_item_id: String,
+) -> MutationOutcome {
+  run_return_request_with_metadata_extra_input(
+    seed: seed,
+    order_id: order_id,
+    fulfillment_line_item_id: fulfillment_line_item_id,
+    extra_input: return_metadata_extra_input(),
+  )
+}
+
+fn run_return_create_with_extra_input(
+  seed seed: store.Store,
+  order_id order_id: String,
+  fulfillment_line_item_id fulfillment_line_item_id: String,
+  extra_input extra_input: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    "mutation {
+      returnCreate(returnInput: {
+        orderId: \"" <> order_id <> "\"
+        returnLineItems: [
+          {
+            fulfillmentLineItemId: \"" <> fulfillment_line_item_id <> "\"
+            quantity: 1
+          }
+        ]" <> extra_input <> "
+      }) {
+        " <> return_metadata_payload_selection("returnCreate") <> "
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn run_return_request_with_metadata_extra_input(
+  seed seed: store.Store,
+  order_id order_id: String,
+  fulfillment_line_item_id fulfillment_line_item_id: String,
+  extra_input extra_input: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    "mutation {
+      returnRequest(input: {
+        orderId: \"" <> order_id <> "\"
+        returnLineItems: [
+          {
+            fulfillmentLineItemId: \"" <> fulfillment_line_item_id <> "\"
+            quantity: 1
+          }
+        ]" <> extra_input <> "
+      }) {
+        " <> return_metadata_payload_selection("returnRequest") <> "
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn return_metadata_payload_selection(root_name: String) -> String {
+  let return_selection = case root_name {
+    "returnRequest" ->
+      "
+        return {
+          id
+          status
+          note
+          refundIntent
+          returnShippingFees {
+            amount
+            type
+          }
+          reverseDeliveries(first: 5) {
+            nodes {
+              id
+              deliverable {
+                __typename
+                ... on ReverseDeliveryShippingDeliverable {
+                  tracking { number carrierName }
+                }
+              }
+            }
+          }
+        }
+      "
+    _ ->
+      "
+        return {
+          id
+          note
+          refundIntent
+          location { id }
+          retailAttribution { deviceId staffMemberId }
+          unprocessed
+          returnShippingFees {
+            amount
+            type
+            amountSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
+          }
+          reverseDeliveries(first: 5) {
+            nodes {
+              id
+              deliverable {
+                __typename
+                ... on ReverseDeliveryShippingDeliverable {
+                  tracking { number carrierName trackingUrl }
+                }
+              }
+            }
+          }
+          reverseFulfillmentOrders(first: 5) {
+            nodes {
+              reverseDeliveries(first: 5) {
+                nodes { id }
+              }
+            }
+          }
+          returnLineItems(first: 5) {
+            nodes {
+              quantity
+              unprocessed
+              unprocessedQuantity
+            }
+          }
+        }
+      "
+  }
+  return_selection <> "
+        userErrors { field message code }"
+}
+
+fn return_metadata_extra_input() -> String {
+  ", returnShippingFee: { amount: { amount: \"7.50\", currencyCode: CAD }, type: SHIPPING }
+        returnDelivery: {
+          trackingInfo: {
+            number: \"TRACK-1\"
+            url: \"https://tracking.example/1\"
+          }
+          carrier: \"UPS\"
+        }
+        note: \"metadata note\"
+        refundIntent: RECOMMENDED
+        locationId: \"gid://shopify/Location/return-metadata\"
+        retailAttribution: {
+          deviceId: \"pos-device\"
+          staffMemberId: \"gid://shopify/StaffMember/1\"
+        }
+        unprocessed: true"
+}
+
+fn return_metadata_test_store(
+  order_id: String,
+  fulfillment_line_item_id: String,
+) -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#RETURN-METADATA")),
+        #("returns", types.CapturedArray([])),
+        #(
+          "fulfillments",
+          types.CapturedArray([
+            types.CapturedObject([
+              #(
+                "id",
+                types.CapturedString(
+                  "gid://shopify/Fulfillment/return-metadata",
+                ),
+              ),
+              #(
+                "fulfillmentLineItems",
+                types.CapturedObject([
+                  #(
+                    "nodes",
+                    types.CapturedArray([
+                      types.CapturedObject([
+                        #("id", types.CapturedString(fulfillment_line_item_id)),
+                        #("quantity", types.CapturedInt(1)),
+                        #(
+                          "lineItem",
+                          types.CapturedObject([
+                            #(
+                              "id",
+                              types.CapturedString(
+                                "gid://shopify/LineItem/return-metadata",
+                              ),
+                            ),
+                            #("title", types.CapturedString("Return metadata")),
+                          ]),
+                        ),
+                      ]),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn assert_return_status_read(
