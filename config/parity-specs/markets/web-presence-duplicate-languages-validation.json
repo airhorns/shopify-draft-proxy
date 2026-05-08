@@ -9,7 +9,7 @@
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
-    "variablesCapturePath": "$.cases[26].variables"
+    "variablesCapturePath": "$.cases[35].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -18,7 +18,7 @@
     "targets": [
       {
         "name": "update-default-setup",
-        "capturePath": "$.cases[26].response.payload.data.webPresenceCreate",
+        "capturePath": "$.cases[35].response.payload.data.webPresenceCreate",
         "proxyPath": "$.data.webPresenceCreate",
         "selectedPaths": [
           "$.webPresence.defaultLocale.locale",
@@ -29,25 +29,25 @@
       },
       {
         "name": "create-default-in-alternates-rejected",
-        "capturePath": "$.cases[24].response.payload.data.webPresenceCreate",
+        "capturePath": "$.cases[33].response.payload.data.webPresenceCreate",
         "proxyPath": "$.data.webPresenceCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
-          "variablesCapturePath": "$.cases[24].variables"
+          "variablesCapturePath": "$.cases[33].variables"
         }
       },
       {
         "name": "create-alternates-containing-default-rejected",
-        "capturePath": "$.cases[25].response.payload.data.webPresenceCreate",
+        "capturePath": "$.cases[34].response.payload.data.webPresenceCreate",
         "proxyPath": "$.data.webPresenceCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
-          "variablesCapturePath": "$.cases[25].variables"
+          "variablesCapturePath": "$.cases[34].variables"
         }
       },
       {
         "name": "update-default-in-existing-alternates-rejected",
-        "capturePath": "$.cases[27].response.payload.data.webPresenceUpdate",
+        "capturePath": "$.cases[36].response.payload.data.webPresenceUpdate",
         "proxyPath": "$.data.webPresenceUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
@@ -56,14 +56,14 @@
               "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
             },
             "input": {
-              "fromCapturePath": "$.cases[27].variables.input"
+              "fromCapturePath": "$.cases[36].variables.input"
             }
           }
         }
       },
       {
         "name": "update-alternate-setup",
-        "capturePath": "$.cases[28].response.payload.data.webPresenceCreate",
+        "capturePath": "$.cases[37].response.payload.data.webPresenceCreate",
         "proxyPath": "$.data.webPresenceCreate",
         "selectedPaths": [
           "$.webPresence.defaultLocale.locale",
@@ -73,12 +73,12 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
-          "variablesCapturePath": "$.cases[28].variables"
+          "variablesCapturePath": "$.cases[37].variables"
         }
       },
       {
         "name": "update-alternates-containing-default-rejected",
-        "capturePath": "$.cases[29].response.payload.data.webPresenceUpdate",
+        "capturePath": "$.cases[38].response.payload.data.webPresenceUpdate",
         "proxyPath": "$.data.webPresenceUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
@@ -88,7 +88,7 @@
               "path": "$.data.webPresenceCreate.webPresence.id"
             },
             "input": {
-              "fromCapturePath": "$.cases[29].variables.input"
+              "fromCapturePath": "$.cases[38].variables.input"
             }
           }
         }
