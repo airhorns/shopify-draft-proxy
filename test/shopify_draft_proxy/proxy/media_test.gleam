@@ -636,6 +636,23 @@ pub fn file_update_rejects_video_filename_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
 }
 
+pub fn file_update_aggregates_video_filename_errors_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_video(),
+      FileRecord(..ready_video(), id: "gid://shopify/Video/4"),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/Video/2\", filename: \"clip-new.mp4\" }, { id: \"gid://shopify/Video/4\", filename: \"clip-other.mp4\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
+}
+
 pub fn file_update_image_original_source_updates_preview_only_test() {
   let #(Response(status: status, body: body, ..), proxy) =
     graphql(
@@ -688,6 +705,27 @@ pub fn file_update_rejects_filename_extension_mismatch_test() {
     graphql(
       registry_proxy_with_files([ready_image()]),
       "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", filename: \"seed.png\" }]) { files { id fileStatus alt filename __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"The filename extension provided must match the original filename.\",\"code\":\"INVALID_FILENAME_EXTENSION\"}]}}}"
+}
+
+pub fn file_update_aggregates_filename_extension_mismatch_errors_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_image(),
+      FileRecord(
+        ..ready_image(),
+        id: "gid://shopify/MediaImage/5",
+        filename: Some("second.jpg"),
+      ),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", filename: \"seed.png\" }, { id: \"gid://shopify/MediaImage/5\", filename: \"second.gif\" }]) { files { id fileStatus alt filename __typename } userErrors { field message code } } }",
     )
 
   assert status == 200
