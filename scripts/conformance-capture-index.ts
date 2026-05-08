@@ -3178,6 +3178,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-enabled-without-status',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-create-enabled-without-status-conformance.mts',
+    purpose:
+      'marketCreate accepts enabled: true when status is omitted, without returning INVALID_STATUS_AND_ENABLED_COMBINATION.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-enabled-without-status.json`,
+      'config/parity-specs/markets/market-create-enabled-without-status.json',
+      'config/parity-requests/markets/market-create-enabled-without-status.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable market with enabled true and omitted status, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-plan-limit-markets-home',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-market-create-plan-limit-conformance.mts',

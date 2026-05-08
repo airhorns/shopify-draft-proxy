@@ -596,17 +596,22 @@ fn market_create_duplicate_name_errors(
 fn market_create_status_enabled_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  let status = market_create_status(input)
-  let enabled = market_create_enabled(input)
-  case enabled == { status == "ACTIVE" } {
-    True -> []
-    False -> [
-      user_error(
-        ["input"],
-        "Invalid status and enabled combination.",
-        "INVALID_STATUS_AND_ENABLED_COMBINATION",
-      ),
-    ]
+  case
+    graphql_helpers.read_arg_string_nonempty(input, "status"),
+    graphql_helpers.read_arg_bool(input, "enabled")
+  {
+    Some(status), Some(enabled) ->
+      case enabled == { status == "ACTIVE" } {
+        True -> []
+        False -> [
+          user_error(
+            ["input"],
+            "Invalid status and enabled combination.",
+            "INVALID_STATUS_AND_ENABLED_COMBINATION",
+          ),
+        ]
+      }
+    _, _ -> []
   }
 }
 

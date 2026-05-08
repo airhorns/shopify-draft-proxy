@@ -186,7 +186,10 @@ pub fn market_data(
   let status =
     graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
-    |> option.unwrap("DRAFT")
+    |> option.unwrap(case graphql_helpers.read_arg_bool(input, "enabled") {
+      Some(True) -> "ACTIVE"
+      _ -> "DRAFT"
+    })
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")

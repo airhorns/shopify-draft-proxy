@@ -2065,6 +2065,24 @@ pub fn market_create_rejects_status_enabled_mismatch_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Invalid status and enabled combination.\",\"code\":\"INVALID_STATUS_AND_ENABLED_COMBINATION\"}]}}}"
 }
 
+pub fn market_create_skips_status_enabled_check_for_partial_inputs_test() {
+  let #(Response(status: enabled_status, body: enabled_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Enabled Only\", enabled: true, regions: [{ countryCode: US }] }) { market { id name status enabled } userErrors { field message code } } }",
+    )
+  let #(Response(status: active_status, body: active_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Active Only\", status: ACTIVE, regions: [{ countryCode: US }] }) { market { id name status enabled } userErrors { field message code } } }",
+    )
+
+  assert enabled_status == 200
+  assert json.to_string(enabled_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"name\":\"Enabled Only\",\"status\":\"ACTIVE\",\"enabled\":true},\"userErrors\":[]}}}"
+  assert active_status == 200
+  assert json.to_string(active_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"name\":\"Active Only\",\"status\":\"ACTIVE\",\"enabled\":true},\"userErrors\":[]}}}"
+}
+
 pub fn market_create_projects_price_inclusions_test() {
   let #(Response(status: status, body: body, ..), proxy) =
     graphql(
