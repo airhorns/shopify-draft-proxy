@@ -378,20 +378,23 @@ pub fn validation_create_with_handle_stages_validation_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { validationCreate(validation: { functionHandle: \"checkout-validator\", title: \"My validator\" }) { validation { id title enable enabled blockOnFailure functionHandle shopifyFunction { id handle apiType } createdAt updatedAt } userErrors { field message code } } }",
+      "mutation { validationCreate(validation: { functionHandle: \"checkout-validator\", title: \"My validator\" }) { validation { id title enable enabled blockOnFailure functionId functionHandle shopifyFunction { id handle apiType } createdAt updatedAt } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   // Validation gid: synthetic #1. ShopifyFunction metadata is reused from state.
   // Timestamp: 2024-01-01T00:00:00.000Z (first synthetic timestamp).
   assert body
-    == "{\"data\":{\"validationCreate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"title\":\"My validator\",\"enable\":false,\"enabled\":false,\"blockOnFailure\":false,\"functionHandle\":\"checkout-validator\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"handle\":\"checkout-validator\",\"apiType\":\"VALIDATION\"},\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"title\":\"My validator\",\"enable\":false,\"enabled\":false,\"blockOnFailure\":false,\"functionId\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"functionHandle\":\"checkout-validator\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"handle\":\"checkout-validator\",\"apiType\":\"VALIDATION\"},\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == ["gid://shopify/Validation/1"]
   // The staged validation is visible and the referenced Function metadata is preserved.
-  let assert Some(_) =
+  let assert Some(created) =
     store.get_effective_validation_by_id(
       outcome.store,
       "gid://shopify/Validation/1",
     )
+  assert created.function_id == Some(fn_record.id)
+  assert created.function_handle == Some("checkout-validator")
+  assert created.shopify_function_id == Some(fn_record.id)
   let assert Some(_) =
     store.get_effective_shopify_function_by_id(
       outcome.store,
@@ -531,20 +534,20 @@ pub fn validation_create_title_falls_back_to_function_title_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { omitted: validationCreate(validation: { functionHandle: \"conformance-validation\" }) { validation { id title } userErrors { field } } explicitNull: validationCreate(validation: { functionHandle: \"conformance-validation\", title: null }) { validation { id title } userErrors { field } } emptyString: validationCreate(validation: { functionHandle: \"conformance-validation\", title: \"\" }) { validation { id title } userErrors { field } } }",
+      "mutation { omitted: validationCreate(validation: { functionHandle: \"conformance-validation\" }) { validation { id title functionId functionHandle } userErrors { field } } explicitNull: validationCreate(validation: { functionHandle: \"conformance-validation\", title: null }) { validation { id title functionId functionHandle } userErrors { field } } emptyString: validationCreate(validation: { functionHandle: \"conformance-validation\", title: \"\" }) { validation { id title functionId functionHandle } userErrors { field } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"omitted\":{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"explicitNull\":{\"validation\":{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"emptyString\":{\"validation\":{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"omitted\":{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]},\"explicitNull\":{\"validation\":{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]},\"emptyString\":{\"validation\":{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"userErrors\":[]}}}"
 
   let assert Ok(read_data) =
     functions.handle_function_query(
       outcome.store,
-      "{ validation(id: \"gid://shopify/Validation/2\") { id title } validations(first: 5) { nodes { id title } } }",
+      "{ validation(id: \"gid://shopify/Validation/2\") { id title functionId functionHandle } validations(first: 5) { nodes { id title functionId functionHandle } } }",
       dict.new(),
     )
   assert json.to_string(read_data)
-    == "{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"}]}}"
+    == "{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"},{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\",\"functionId\":\"gid://shopify/ShopifyFunction/conformance-validation\",\"functionHandle\":\"conformance-validation\"}]}}"
 }
 
 pub fn validation_create_does_not_accept_enabled_alias_test() {
@@ -1252,6 +1255,138 @@ pub fn cart_transform_create_rejects_duplicate_function_id_test() {
     == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
   let assert [_] = store.list_effective_cart_transforms(outcome.store)
   let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_duplicate_wrong_api_function_id_precedes_api_mismatch_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let existing =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/existing",
+      title: Some("Existing"),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
+  let assert [_] = store.list_effective_cart_transforms(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_duplicate_wrong_api_function_handle_keeps_api_mismatch_first_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let existing =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/existing",
+      title: Some("Existing"),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionHandle: \"checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  let assert [_] = store.list_effective_cart_transforms(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_validation_registered_wrong_api_function_id_precedes_api_mismatch_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let validation =
+    ValidationRecord(
+      id: "gid://shopify/Validation/existing",
+      title: Some("Existing"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(validation)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
+  let assert [_] = store.list_effective_validations(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_validation_registered_wrong_api_function_handle_keeps_api_mismatch_first_test() {
+  let function_id = "gid://shopify/ShopifyFunction/checkout-validator"
+  let fn_record = shopify_fn(function_id, "checkout-validator", "VALIDATION")
+  let validation =
+    ValidationRecord(
+      id: "gid://shopify/Validation/existing",
+      title: Some("Existing"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(function_id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(validation)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(functionHandle: \"checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  let assert [_] = store.list_effective_validations(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
   assert list.is_empty(store.get_log(outcome.store))
 }
 

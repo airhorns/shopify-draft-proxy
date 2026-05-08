@@ -1,0 +1,41 @@
+{
+  "scenarioId": "admin-platform-backup-region-update-no-region-market",
+  "operationNames": ["markets", "backupRegionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-backup-region-update-no-region-market.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/markets-catalog-read.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "first": 20
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for backupRegionUpdate returning REGION_NOT_FOUND when the country is still a captured backup-region country but no active non-legacy region market covers it. The primary markets read hydrates the no-AT market state from the recorded cassette before the mutation is replayed.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-state-after-country-removal",
+        "capturePath": "$.captures.marketAfterRemoval.result.payload.data.markets",
+        "proxyPath": "$.data.markets",
+        "upstreamCapturePath": "$.upstreamCalls[0].response.body.data.markets"
+      },
+      {
+        "name": "no-region-market-validation",
+        "capturePath": "$.captures.backupRegionUpdateNoRegionMarket.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-no-region-market.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

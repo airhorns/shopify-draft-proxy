@@ -937,6 +937,61 @@ pub fn web_presence_create_reports_combined_invalid_alternate_locales_test() {
   assert !string.contains(serialized, "\"alternateLocales\",\"3\"")
 }
 
+pub fn web_presence_create_rejects_default_locale_in_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"en\", \"fr\"], subfolderSuffix: \"dup\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Default locale The alternate languages already include en.\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Alternate locales Duplicates were found in the following languages: en, en, and fr\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"webPresences\":{\"nodes\":[]}}}"
+}
+
+pub fn web_presence_create_accepts_exact_duplicate_non_default_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"fr\", \"fr\"], subfolderSuffix: \"dup\" }) { webPresence { id alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(body)
+  let read_serialized = json.to_string(read_body)
+
+  assert status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+}
+
 pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
   let #(Response(status: mutex_status, body: mutex_body, ..), _) =
     graphql_with_proxy(
@@ -958,11 +1013,17 @@ pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
       seeded_proxy(),
       "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"Latn\" }) { webPresence { id } userErrors { field message code } } }",
     )
+  let #(Response(status: non_letter_status, body: non_letter_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"us2\" }) { webPresence { id } userErrors { field message code } } }",
+    )
 
   assert mutex_status == 200
   assert missing_status == 200
   assert short_status == 200
   assert script_status == 200
+  assert non_letter_status == 200
   assert string.contains(
     json.to_string(mutex_body),
     "\"code\":\"CANNOT_HAVE_SUBFOLDER_AND_DOMAIN\"",
@@ -979,6 +1040,67 @@ pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
     json.to_string(script_body),
     "\"code\":\"SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE\"",
   )
+  assert string.contains(
+    json.to_string(non_letter_body),
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must contain only letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS\"",
+  )
+}
+
+pub fn web_presence_create_preserves_subfolder_suffix_error_order_test() {
+  let #(
+    Response(status: short_non_letter_status, body: short_non_letter_body, ..),
+    _,
+  ) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"1\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: script_non_letter_status, body: script_non_letter_body, ..),
+    _,
+  ) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"Latn1\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let short_json = json.to_string(short_non_letter_body)
+  let script_json = json.to_string(script_non_letter_body)
+
+  assert short_non_letter_status == 200
+  assert script_non_letter_status == 200
+  assert string.contains(
+    short_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must be at least 2 letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS\"},{\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must contain only letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS\"}]",
+  )
+  assert string.contains(
+    script_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must contain only letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS\"}]",
+  )
+}
+
+pub fn web_presence_create_rejects_non_letter_subfolder_suffix_without_staging_test() {
+  let #(Response(status: invalid_status, body: invalid_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"us-east\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id subfolderSuffix } } }",
+    )
+  let invalid_json = json.to_string(invalid_body)
+  let read_json = json.to_string(read_body)
+
+  assert invalid_status == 200
+  assert read_status == 200
+  assert string.contains(invalid_json, "\"webPresence\":null")
+  assert string.contains(
+    invalid_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must contain only letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS\"",
+  )
+  assert string.contains(read_json, "\"nodes\":[]")
+  assert !string.contains(read_json, "us-east")
 }
 
 pub fn web_presence_create_rejects_taken_subfolder_suffix_test() {
@@ -990,7 +1112,7 @@ pub fn web_presence_create_rejects_taken_subfolder_suffix_test() {
   let #(Response(status: second_status, body: second_body, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
     )
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql_with_proxy(
@@ -1102,6 +1224,85 @@ pub fn web_presence_update_preserves_absent_alternate_locales_test() {
   assert string.contains(
     serialized,
     "\"alternateLocales\":[{\"locale\":\"es\"}]",
+  )
+}
+
+pub fn web_presence_update_rejects_default_locale_already_in_alternate_locales_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"fr\"], subfolderSuffix: \"intl\" }) { webPresence { id defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { defaultLocale: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(update_body)
+  let read_serialized = json.to_string(read_body)
+
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Default locale The alternate languages already include fr.\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert !string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"]",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"defaultLocale\":{\"locale\":\"en\"},\"alternateLocales\":[{\"locale\":\"fr\"}]",
+  )
+}
+
+pub fn web_presence_update_rejects_alternate_locales_containing_existing_default_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"intl\" }) { webPresence { id defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { alternateLocales: [\"en\", \"en\"] }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } } } }",
+    )
+  let serialized = json.to_string(update_body)
+  let read_serialized = json.to_string(read_body)
+
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert !string.contains(serialized, "\"field\":[\"input\",\"defaultLocale\"]")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Alternate locales Duplicates were found in the following languages: en and en\",\"code\":\"DUPLICATE_LANGUAGES\"",
+  )
+  assert string.contains(
+    read_serialized,
+    "\"defaultLocale\":{\"locale\":\"en\"},\"alternateLocales\":[]",
   )
 }
 
@@ -1267,12 +1468,12 @@ pub fn web_presence_update_rejects_taken_subfolder_suffix_test() {
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"DE\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"de\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
     )
   let #(Response(status: noop_status, body: noop_body, ..), _) =
     graphql_with_proxy(
       proxy,
-      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
     )
   let update_json = json.to_string(update_body)
   let noop_json = json.to_string(noop_body)
@@ -1291,8 +1492,43 @@ pub fn web_presence_update_rejects_taken_subfolder_suffix_test() {
   assert string.contains(noop_json, "\"userErrors\":[]")
   assert string.contains(
     noop_json,
-    "\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"FR\"}",
+    "\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"fr\"}",
   )
+}
+
+pub fn web_presence_update_rejects_non_letter_subfolder_suffix_without_staging_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"us\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"en1\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id subfolderSuffix } } }",
+    )
+  let update_json = json.to_string(update_body)
+  let read_json = json.to_string(read_body)
+
+  assert create_status == 200
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  assert string.contains(update_json, "\"webPresence\":null")
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must contain only letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS\"",
+  )
+  assert string.contains(
+    read_json,
+    "\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"us\"}]",
+  )
+  assert !string.contains(read_json, "en1")
 }
 
 pub fn web_presence_update_subfolder_domain_mutex_uses_existing_domain_test() {
@@ -2063,6 +2299,24 @@ pub fn market_create_rejects_status_enabled_mismatch_test() {
   assert active_status == 200
   assert json.to_string(active_body)
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Invalid status and enabled combination.\",\"code\":\"INVALID_STATUS_AND_ENABLED_COMBINATION\"}]}}}"
+}
+
+pub fn market_create_skips_status_enabled_check_for_partial_inputs_test() {
+  let #(Response(status: enabled_status, body: enabled_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Enabled Only\", enabled: true, regions: [{ countryCode: US }] }) { market { id name status enabled } userErrors { field message code } } }",
+    )
+  let #(Response(status: active_status, body: active_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Active Only\", status: ACTIVE, regions: [{ countryCode: US }] }) { market { id name status enabled } userErrors { field message code } } }",
+    )
+
+  assert enabled_status == 200
+  assert json.to_string(enabled_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"name\":\"Enabled Only\",\"status\":\"ACTIVE\",\"enabled\":true},\"userErrors\":[]}}}"
+  assert active_status == 200
+  assert json.to_string(active_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"name\":\"Active Only\",\"status\":\"ACTIVE\",\"enabled\":true},\"userErrors\":[]}}}"
 }
 
 pub fn market_create_projects_price_inclusions_test() {

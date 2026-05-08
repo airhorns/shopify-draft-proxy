@@ -1,0 +1,29 @@
+query LocationDeleteInventoryRead($inventoryItemId: ID!, $deletedLocationId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    locationsCount {
+      count
+      precision
+    }
+    deletedLevel: inventoryLevel(locationId: $deletedLocationId) {
+      id
+      location {
+        id
+        name
+      }
+    }
+    inventoryLevels(first: 10) {
+      nodes {
+        id
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+}

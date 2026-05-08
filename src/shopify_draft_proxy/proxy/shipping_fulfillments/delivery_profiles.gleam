@@ -6,7 +6,7 @@
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
@@ -18,7 +18,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
   read_trimmed_string, store_property_string_field, unique_strings,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
-  blank_delivery_profile_create_name_error,
+  blank_delivery_profile_create_name_error, blank_delivery_profile_name_error,
   delivery_profile_create_disassociate_variants_error,
   delivery_profile_create_update_method_definitions_error,
   delivery_profile_create_update_zones_error,
@@ -44,15 +44,12 @@ pub fn validate_delivery_profile_create_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Result(String, List(shipping_types.DeliveryProfileUserError)) {
   let name = read_trimmed_string(input, "name")
-  let name_errors = case name {
-    Some(value) if value != "" -> {
-      case string.length(value) >= 128 {
-        True -> [too_long_delivery_profile_create_name_error()]
-        False -> []
-      }
-    }
-    _ -> [blank_delivery_profile_create_name_error()]
-  }
+  let name_errors =
+    validate_delivery_profile_name(
+      name,
+      require_name: True,
+      blank_error: blank_delivery_profile_create_name_error(),
+    )
   let nested_errors =
     list.append(
       validate_delivery_profile_location_group_inputs(
@@ -74,6 +71,75 @@ pub fn validate_delivery_profile_create_input(
   case errors, name {
     [], Some(value) -> Ok(value)
     _, _ -> Error(errors)
+  }
+}
+
+@internal
+pub fn validate_delivery_profile_update_input(
+  draft_store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(shipping_types.DeliveryProfileUserError) {
+  let name_errors =
+    validate_delivery_profile_optional_name(read_trimmed_string(input, "name"))
+  let group_errors =
+    list.append(
+      validate_delivery_profile_location_group_inputs(
+        draft_store,
+        input,
+        "profileLocationGroups",
+        True,
+      ),
+      validate_delivery_profile_location_group_inputs(
+        draft_store,
+        input,
+        "locationGroupsToCreate",
+        False,
+      ),
+    )
+  let update_group_errors =
+    validate_delivery_profile_location_group_inputs(
+      draft_store,
+      input,
+      "locationGroupsToUpdate",
+      True,
+    )
+  list.append(name_errors, list.append(group_errors, update_group_errors))
+}
+
+@internal
+pub fn validate_delivery_profile_optional_name(
+  name: Option(String),
+) -> List(shipping_types.DeliveryProfileUserError) {
+  case name {
+    Some("") -> [blank_delivery_profile_name_error()]
+    Some(value) -> {
+      case string.length(value) >= 128 {
+        True -> [too_long_delivery_profile_create_name_error()]
+        False -> []
+      }
+    }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_delivery_profile_name(
+  name: Option(String),
+  require_name require_name: Bool,
+  blank_error blank_error: shipping_types.DeliveryProfileUserError,
+) -> List(shipping_types.DeliveryProfileUserError) {
+  case name {
+    Some(value) if value != "" -> {
+      case string.length(value) >= 128 {
+        True -> [too_long_delivery_profile_create_name_error()]
+        False -> []
+      }
+    }
+    _ ->
+      case require_name {
+        True -> [blank_error]
+        False -> []
+      }
   }
 }
 
@@ -154,7 +220,10 @@ pub fn validate_delivery_profile_location_group(
   validate_zone_updates: Bool,
 ) -> List(shipping_types.DeliveryProfileUserError) {
   let location_errors =
-    read_indexed_string_array(input, "locations")
+    list.append(
+      read_indexed_string_array(input, "locations"),
+      read_indexed_string_array(input, "locationsToAdd"),
+    )
     |> list.filter_map(fn(location) {
       case delivery_profile_location_available(draft_store, location.1) {
         True -> Error(Nil)
@@ -163,7 +232,9 @@ pub fn validate_delivery_profile_location_group(
             group_key
             <> "."
             <> int.to_string(group_index)
-            <> ".locations."
+            <> "."
+            <> location.2
+            <> "."
             <> int.to_string(location.0),
           ))
       }
@@ -174,6 +245,7 @@ pub fn validate_delivery_profile_location_group(
       group_key,
       group_index,
       "zonesToCreate",
+      True,
     )
   let update_zone_errors = case validate_zone_updates {
     True ->
@@ -182,6 +254,7 @@ pub fn validate_delivery_profile_location_group(
         group_key,
         group_index,
         "zonesToUpdate",
+        False,
       )
     False -> []
   }
@@ -217,14 +290,15 @@ pub fn validate_delivery_profile_zones(
   group_key: String,
   group_index: Int,
   zone_key: String,
+  require_countries: Bool,
 ) -> List(shipping_types.DeliveryProfileUserError) {
   let #(errors, _, _) =
     list.fold(zones, #([], dict.new(), False), fn(acc, zone) {
       let #(current_errors, seen_countries, has_overlap) = acc
       let zone_index = zone.0
       let countries = read_indexed_object_array(zone.1, "countries")
-      let empty_errors = case countries {
-        [] -> [
+      let empty_errors = case require_countries, countries {
+        True, [] -> [
           empty_delivery_profile_zone_countries_error(
             group_key
             <> "."
@@ -236,7 +310,7 @@ pub fn validate_delivery_profile_zones(
             <> ".countries",
           ),
         ]
-        _ -> []
+        _, _ -> []
       }
       let #(next_seen, overlap_errors, next_has_overlap) =
         validate_delivery_profile_zone_countries(
@@ -345,9 +419,9 @@ pub fn indexed_object_values(
 pub fn read_indexed_string_array(
   input: Dict(String, root_field.ResolvedValue),
   key: String,
-) -> List(#(Int, String)) {
+) -> List(#(Int, String, String)) {
   case dict.get(input, key) {
-    Ok(root_field.ListVal(items)) -> indexed_string_values(items, 0)
+    Ok(root_field.ListVal(items)) -> indexed_string_values(items, 0, key)
     _ -> []
   }
 }
@@ -356,13 +430,14 @@ pub fn read_indexed_string_array(
 pub fn indexed_string_values(
   values: List(root_field.ResolvedValue),
   index: Int,
-) -> List(#(Int, String)) {
+  key: String,
+) -> List(#(Int, String, String)) {
   case values {
     [] -> []
     [first, ..rest] -> {
-      let tail = indexed_string_values(rest, index + 1)
+      let tail = indexed_string_values(rest, index + 1, key)
       case first {
-        root_field.StringVal(value) -> [#(index, value), ..tail]
+        root_field.StringVal(value) -> [#(index, value, key), ..tail]
         _ -> tail
       }
     }

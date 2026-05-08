@@ -292,6 +292,30 @@ try {
   const zeroCredit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables);
   assertNoGraphqlFailure(zeroCredit, 'storeCreditAccountCredit zero amount validation');
 
+  const zeroDebitVariables = {
+    id: customerId,
+    debitInput: {
+      debitAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const zeroDebit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, zeroDebitVariables);
+  assertNoGraphqlFailure(zeroDebit, 'storeCreditAccountDebit zero amount validation');
+
+  const negativeDebitVariables = {
+    id: customerId,
+    debitInput: {
+      debitAmount: {
+        amount: '-1.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const negativeDebit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, negativeDebitVariables);
+  assertNoGraphqlFailure(negativeDebit, 'storeCreditAccountDebit negative amount validation');
+
   const ownerSecondCurrencyCreditVariables = {
     id: customerId,
     creditInput: {
@@ -456,6 +480,8 @@ try {
       ),
       pastExpiry: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, pastExpiryVariables, pastExpiry),
       zeroCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables, zeroCredit),
+      zeroDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, zeroDebitVariables, zeroDebit),
+      negativeDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, negativeDebitVariables, negativeDebit),
       ownerSecondCurrencyCredit: record(
         STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
         ownerSecondCurrencyCreditVariables,

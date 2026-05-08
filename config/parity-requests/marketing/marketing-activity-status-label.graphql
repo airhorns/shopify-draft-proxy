@@ -1,0 +1,90 @@
+mutation MarketingActivityStatusLabel(
+  $activePostInput: MarketingActivityCreateExternalInput!
+  $activeNewsletterInput: MarketingActivityCreateExternalInput!
+  $inactivePostInput: MarketingActivityCreateExternalInput!
+  $inactiveNewsletterInput: MarketingActivityCreateExternalInput!
+  $inactiveAdInput: MarketingActivityCreateExternalInput!
+  $deletedSeedInput: MarketingActivityCreateExternalInput!
+  $deletedRemoteId: String!
+  $deletedExternallyInput: MarketingActivityUpdateExternalInput!
+) {
+  activePost: marketingActivityCreateExternal(input: $activePostInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  activeNewsletter: marketingActivityCreateExternal(input: $activeNewsletterInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inactivePost: marketingActivityCreateExternal(input: $inactivePostInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inactiveNewsletter: marketingActivityCreateExternal(input: $inactiveNewsletterInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inactiveAd: marketingActivityCreateExternal(input: $inactiveAdInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  deletedSeed: marketingActivityCreateExternal(input: $deletedSeedInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  deletedExternally: marketingActivityUpdateExternal(remoteId: $deletedRemoteId, input: $deletedExternallyInput) {
+    marketingActivity {
+      ...MarketingActivityStatusLabelFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+
+fragment MarketingActivityStatusLabelFields on MarketingActivity {
+  id
+  title
+  status
+  statusLabel
+  tactic
+  targetStatus
+}

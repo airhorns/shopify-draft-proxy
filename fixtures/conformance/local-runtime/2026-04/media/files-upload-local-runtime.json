@@ -147,8 +147,13 @@
           "files": [],
           "userErrors": [
             {
-              "field": ["files", "0"],
-              "message": "Specify either originalSource or previewImageSource, not both.",
+              "field": ["files", "0", "previewImageSource"],
+              "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+              "code": "INVALID"
+            },
+            {
+              "field": ["files", "0", "originalSource"],
+              "message": "Cannot update the preview image and image at the same time because they are one and the same.",
               "code": "INVALID"
             }
           ]

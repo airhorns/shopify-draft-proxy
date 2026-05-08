@@ -3,11 +3,12 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
 import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/marketing/serializers
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{
   UpstreamContext, empty_upstream_context,
@@ -81,6 +82,35 @@ fn external_create_with_budget_doc(
   <> "\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId } userErrors { field message code } } }"
 }
 
+fn source_medium_create_alias(
+  alias: String,
+  title: String,
+  remote_id: String,
+  tactic: String,
+  channel: String,
+  referring_domain: Option(String),
+) -> String {
+  let referring_domain_input = case referring_domain {
+    Some(domain) -> ", referringDomain: \"" <> domain <> "\""
+    None -> ""
+  }
+  alias
+  <> ": marketingActivityCreateExternal(input: { title: \""
+  <> title
+  <> "\", remoteId: \""
+  <> remote_id
+  <> "\", status: ACTIVE, remoteUrl: \"https://example.com/"
+  <> remote_id
+  <> "\", tactic: "
+  <> tactic
+  <> ", marketingChannelType: "
+  <> channel
+  <> referring_domain_input
+  <> ", utm: { campaign: \""
+  <> remote_id
+  <> "\", source: \"marketing\", medium: \"test\" } }) { marketingActivity { id sourceAndMedium marketingEvent { sourceAndMedium } } userErrors { field message code } }"
+}
+
 /// Apply the dispatcher-level `record_log_drafts` to the outcome. Tests that
 /// exercise `marketing.process_mutation` directly need this so log-buffer
 /// assertions still see the drafts the module emitted; centralized recording
@@ -125,6 +155,37 @@ fn run_with_api_client(
       Some(api_client_id),
     )
   json.to_string(data)
+}
+
+pub fn source_and_medium_matches_shopify_labels_test() {
+  assert serializers.source_and_medium("EMAIL", "ABANDONED_CART", None)
+    == "Abandoned cart email"
+  assert serializers.source_and_medium("SEARCH", "AFFILIATE", None)
+    == "Affiliate link"
+  assert serializers.source_and_medium("DISPLAY", "LOYALTY", None)
+    == "Loyalty program"
+  assert serializers.source_and_medium(
+      "DISPLAY",
+      "RETARGETING",
+      Some("facebook.com"),
+    )
+    == "Facebook retargeting ad"
+  assert serializers.source_and_medium("DISPLAY", "RETARGETING", None)
+    == "Retargeting ad"
+  assert serializers.source_and_medium(
+      "SEARCH",
+      "MESSAGE",
+      Some("facebook.com"),
+    )
+    == "Message via Facebook Messenger"
+  assert serializers.source_and_medium("SEARCH", "MESSAGE", Some("twitter.com"))
+    == "Twitter message"
+  assert serializers.source_and_medium("SEARCH", "AD", Some("instagram.com"))
+    == "Instagram ad"
+  assert serializers.source_and_medium("SEARCH", "AD", Some("example.com"))
+    == "example.com ad"
+  assert serializers.source_and_medium("SEARCH", "AD", None) == "Search ad"
+  assert serializers.source_and_medium("", "AD", None) == "Ad"
 }
 
 fn activity(id: String, title: String, remote_id: String, created_at: String) {
@@ -353,6 +414,106 @@ pub fn root_predicates_test() {
   assert !marketing.is_marketing_mutation_root("productCreate")
 }
 
+pub fn external_status_label_uses_status_and_tactic_test() {
+  let document =
+    "mutation { pendingAd: marketingActivityCreateExternal(input: { title: \"Pending ad\", remoteId: \"label-pending-ad\", status: PENDING, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-pending-ad\", utm: { campaign: \"label-pending-ad\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } activePost: marketingActivityCreateExternal(input: { title: \"Active post\", remoteId: \"label-active-post\", status: ACTIVE, tactic: POST, marketingChannelType: SOCIAL, urlParameterValue: \"label-active-post\", utm: { campaign: \"label-active-post\", source: \"social\", medium: \"post\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactivePost: marketingActivityCreateExternal(input: { title: \"Inactive post\", remoteId: \"label-inactive-post\", status: INACTIVE, tactic: POST, marketingChannelType: SOCIAL, urlParameterValue: \"label-inactive-post\", utm: { campaign: \"label-inactive-post\", source: \"social\", medium: \"post\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactiveNewsletter: marketingActivityCreateExternal(input: { title: \"Inactive newsletter\", remoteId: \"label-inactive-newsletter\", status: INACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"label-inactive-newsletter\", utm: { campaign: \"label-inactive-newsletter\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } inactiveOther: marketingActivityCreateExternal(input: { title: \"Inactive ad\", remoteId: \"label-inactive-ad\", status: INACTIVE, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-inactive-ad\", utm: { campaign: \"label-inactive-ad\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } deletedExternally: marketingActivityCreateExternal(input: { title: \"Deleted externally\", remoteId: \"label-deleted-externally\", status: DELETED_EXTERNALLY, tactic: AD, marketingChannelType: SEARCH, urlParameterValue: \"label-deleted-externally\", utm: { campaign: \"label-deleted-externally\", source: \"search\", medium: \"ad\" } }) { marketingActivity { title status statusLabel tactic } userErrors { message } } }"
+  let outcome =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(
+    response,
+    "\"pendingAd\":{\"marketingActivity\":{\"title\":\"Pending ad\",\"status\":\"PENDING\",\"statusLabel\":\"In review\",\"tactic\":\"AD\"}",
+  )
+  assert string.contains(
+    response,
+    "\"activePost\":{\"marketingActivity\":{\"title\":\"Active post\",\"status\":\"ACTIVE\",\"statusLabel\":\"Posting\",\"tactic\":\"POST\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactivePost\":{\"marketingActivity\":{\"title\":\"Inactive post\",\"status\":\"INACTIVE\",\"statusLabel\":\"Posted\",\"tactic\":\"POST\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactiveNewsletter\":{\"marketingActivity\":{\"title\":\"Inactive newsletter\",\"status\":\"INACTIVE\",\"statusLabel\":\"Sent\",\"tactic\":\"NEWSLETTER\"}",
+  )
+  assert string.contains(
+    response,
+    "\"inactiveOther\":{\"marketingActivity\":{\"title\":\"Inactive ad\",\"status\":\"INACTIVE\",\"statusLabel\":\"Ended\",\"tactic\":\"AD\"}",
+  )
+  assert string.contains(
+    response,
+    "\"deletedExternally\":{\"marketingActivity\":{\"title\":\"Deleted externally\",\"status\":\"DELETED_EXTERNALLY\",\"statusLabel\":\"Deleted\",\"tactic\":\"AD\"}",
+  )
+
+  let read_response =
+    run(
+      outcome.store,
+      "{ marketingActivities(first: 10, remoteIds: [\"label-pending-ad\", \"label-active-post\", \"label-inactive-post\", \"label-inactive-newsletter\", \"label-inactive-ad\", \"label-deleted-externally\"]) { nodes { title status statusLabel tactic } } }",
+    )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Pending ad\",\"status\":\"PENDING\",\"statusLabel\":\"In review\",\"tactic\":\"AD\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Active post\",\"status\":\"ACTIVE\",\"statusLabel\":\"Posting\",\"tactic\":\"POST\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive post\",\"status\":\"INACTIVE\",\"statusLabel\":\"Posted\",\"tactic\":\"POST\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive newsletter\",\"status\":\"INACTIVE\",\"statusLabel\":\"Sent\",\"tactic\":\"NEWSLETTER\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Inactive ad\",\"status\":\"INACTIVE\",\"statusLabel\":\"Ended\",\"tactic\":\"AD\"",
+  )
+  assert string.contains(
+    read_response,
+    "\"title\":\"Deleted externally\",\"status\":\"DELETED_EXTERNALLY\",\"statusLabel\":\"Deleted\",\"tactic\":\"AD\"",
+  )
+}
+
+pub fn native_status_label_uses_target_status_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\", status: ACTIVE }) { userErrors { message } } }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let update_doc =
+    "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", targetStatus: PAUSED }) { marketingActivity { id status targetStatus statusLabel } userErrors { message } } }"
+  let updated =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      update_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(updated.data)
+  assert string.contains(
+    response,
+    "\"marketingActivity\":{\"id\":\"gid://shopify/MarketingActivity/1\",\"status\":\"ACTIVE\",\"targetStatus\":\"PAUSED\",\"statusLabel\":\"Pausing\"}",
+  )
+}
+
 pub fn empty_reads_keep_shopify_like_shapes_test() {
   let source = store.new()
   let result =
@@ -558,6 +719,190 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     )
   assert read_after_delete
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
+}
+
+pub fn external_activity_create_stages_shopify_source_and_medium_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { "
+    <> source_medium_create_alias(
+      "abandoned",
+      "Abandoned",
+      "source-medium-abandoned",
+      "ABANDONED_CART",
+      "EMAIL",
+      None,
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "affiliate",
+      "Affiliate",
+      "source-medium-affiliate",
+      "AFFILIATE",
+      "SEARCH",
+      None,
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "loyalty",
+      "Loyalty",
+      "source-medium-loyalty",
+      "LOYALTY",
+      "DISPLAY",
+      None,
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "retargetingFacebook",
+      "Retargeting Facebook",
+      "source-medium-retargeting-facebook",
+      "RETARGETING",
+      "DISPLAY",
+      Some("facebook.com"),
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "retargetingNoDomain",
+      "Retargeting No Domain",
+      "source-medium-retargeting-none",
+      "RETARGETING",
+      "DISPLAY",
+      None,
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "messageFacebook",
+      "Message Facebook",
+      "source-medium-message-facebook",
+      "MESSAGE",
+      "SEARCH",
+      Some("facebook.com"),
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "messageTwitter",
+      "Message Twitter",
+      "source-medium-message-twitter",
+      "MESSAGE",
+      "SEARCH",
+      Some("twitter.com"),
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "adInstagram",
+      "Ad Instagram",
+      "source-medium-ad-instagram",
+      "AD",
+      "SEARCH",
+      Some("instagram.com"),
+    )
+    <> " "
+    <> source_medium_create_alias(
+      "adNoDomain",
+      "Ad No Domain",
+      "source-medium-ad-none",
+      "AD",
+      "SEARCH",
+      None,
+    )
+    <> " }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(created.data)
+
+  assert string.contains(
+    response,
+    "\"sourceAndMedium\":\"Abandoned cart email\"",
+  )
+  assert string.contains(response, "\"sourceAndMedium\":\"Affiliate link\"")
+  assert string.contains(response, "\"sourceAndMedium\":\"Loyalty program\"")
+  assert string.contains(
+    response,
+    "\"sourceAndMedium\":\"Facebook retargeting ad\"",
+  )
+  assert string.contains(response, "\"sourceAndMedium\":\"Retargeting ad\"")
+  assert string.contains(
+    response,
+    "\"sourceAndMedium\":\"Message via Facebook Messenger\"",
+  )
+  assert string.contains(response, "\"sourceAndMedium\":\"Twitter message\"")
+  assert string.contains(response, "\"sourceAndMedium\":\"Instagram ad\"")
+  assert string.contains(response, "\"sourceAndMedium\":\"Search ad\"")
+  assert string.contains(response, "\"userErrors\":[]")
+
+  let read_after_create =
+    run(
+      created.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/11\") { sourceAndMedium marketingEvent { sourceAndMedium } } }",
+    )
+  assert read_after_create
+    == "{\"marketingActivity\":{\"sourceAndMedium\":\"Message via Facebook Messenger\",\"marketingEvent\":{\"sourceAndMedium\":\"Message via Facebook Messenger\"}}}"
+}
+
+pub fn external_activity_update_refreshes_source_and_medium_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"source-medium-update\", status: ACTIVE, remoteUrl: \"https://example.com/source-medium-update\", tactic: AD, marketingChannelType: SEARCH, utm: { campaign: \"source-medium-update\", source: \"marketing\", medium: \"test\" } }) { marketingActivity { id sourceAndMedium marketingEvent { sourceAndMedium } } userErrors { field message code } } }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(
+    json.to_string(created.data),
+    "\"sourceAndMedium\":\"Search ad\"",
+  )
+
+  let retargeting_doc =
+    "mutation { marketingActivityUpdateExternal(remoteId: \"source-medium-update\", input: { tactic: RETARGETING, marketingChannelType: DISPLAY, referringDomain: \"facebook.com\" }) { marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } } userErrors { field message code } } }"
+  let retargeting =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      retargeting_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(
+    json.to_string(retargeting.data),
+    "\"sourceAndMedium\":\"Facebook retargeting ad\"",
+  )
+
+  let message_doc =
+    "mutation { marketingActivityUpdateExternal(remoteId: \"source-medium-update\", input: { tactic: MESSAGE, marketingChannelType: SEARCH, referringDomain: \"twitter.com\" }) { marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } } userErrors { field message code } } }"
+  let message =
+    marketing.process_mutation(
+      retargeting.store,
+      retargeting.identity,
+      request_path,
+      message_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(
+    json.to_string(message.data),
+    "\"sourceAndMedium\":\"Twitter message\"",
+  )
+
+  let read_after_update =
+    run(
+      message.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { sourceAndMedium marketingEvent { sourceAndMedium } } }",
+    )
+  assert read_after_update
+    == "{\"marketingActivity\":{\"sourceAndMedium\":\"Twitter message\",\"marketingEvent\":{\"sourceAndMedium\":\"Twitter message\"}}}"
 }
 
 pub fn external_activity_url_scheme_validation_rejects_non_http_schemes_test() {

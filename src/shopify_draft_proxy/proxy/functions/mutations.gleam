@@ -1114,7 +1114,7 @@ fn handle_validation_create(
                           title: final_title,
                           enable: enable,
                           block_on_failure: block_on_failure,
-                          function_id: reference.function_id,
+                          function_id: Some(shopify_fn.id),
                           function_handle: function_handle,
                           shopify_function_id: Some(shopify_fn.id),
                           metafields: metafields,
@@ -1390,13 +1390,13 @@ fn handle_cart_transform_create(
       )
     }
     _, _ -> {
-      let #(resolution, store_after_fn, identity_after_fn) =
-        resolve_cart_transform_function(store, identity, reference)
-      case resolution {
-        Error(user_error) -> {
+      let field_name = cart_transform_reference_field(reference)
+      let value = cart_transform_reference_value(reference)
+      case find_existing_shopify_function(store, reference) {
+        None -> {
           let payload =
             serializers.cart_transform_mutation_payload(field, fragments, None, [
-              user_error,
+              function_not_found_error(field_name, value),
             ])
           #(
             MutationFieldResult(
@@ -1404,20 +1404,16 @@ fn handle_cart_transform_create(
               payload: payload,
               staged_resource_ids: [],
             ),
-            store_after_fn,
-            identity_after_fn,
+            store,
+            identity,
           )
         }
-        Ok(shopify_fn) -> {
-          let field_name = cart_transform_reference_field(reference)
-          case
-            cart_transform_create_guardrail_error(
-              store_after_fn,
-              shopify_fn,
-              field_name,
-            )
-          {
-            Some(user_error) -> {
+        Some(shopify_fn) -> {
+          let api_supported = cart_transform_function_api_supported(shopify_fn)
+          case field_name == "functionHandle" && !api_supported {
+            True -> {
+              let user_error =
+                cart_transform_function_api_mismatch_user_error(field_name)
               let payload =
                 serializers.cart_transform_mutation_payload(
                   field,
@@ -1431,12 +1427,12 @@ fn handle_cart_transform_create(
                   payload: payload,
                   staged_resource_ids: [],
                 ),
-                store_after_fn,
-                identity_after_fn,
+                store,
+                identity,
               )
             }
-            None -> {
-              case cart_transform_function_in_use(store_after_fn, shopify_fn) {
+            False -> {
+              case cart_transform_function_in_use(store, shopify_fn) {
                 True -> {
                   let payload =
                     serializers.cart_transform_mutation_payload(
@@ -1453,45 +1449,23 @@ fn handle_cart_transform_create(
                       payload: payload,
                       staged_resource_ids: [],
                     ),
-                    store_after_fn,
-                    identity_after_fn,
+                    store,
+                    identity,
                   )
                 }
                 False -> {
-                  let #(timestamp, identity_after_ts) =
-                    synthetic_identity.make_synthetic_timestamp(
-                      identity_after_fn,
-                    )
-                  let #(cart_transform_id, identity_final) =
-                    synthetic_identity.make_synthetic_gid(
-                      identity_after_ts,
-                      "CartTransform",
-                    )
-                  let #(metafields, metafield_errors, identity_after_metafields) =
-                    read_cart_transform_metafields(
-                      args,
-                      cart_transform_id,
-                      timestamp,
-                      identity_final,
-                    )
-                  let function_handle = case reference.function_handle {
-                    Some(_) -> reference.function_handle
-                    None -> shopify_fn.handle
-                  }
-                  let block_on_failure = case
-                    graphql_helpers.read_arg_bool(args, "blockOnFailure")
-                  {
-                    Some(b) -> Some(b)
-                    None -> Some(False)
-                  }
-                  case metafield_errors {
-                    [_, ..] -> {
+                  case api_supported {
+                    False -> {
+                      let user_error =
+                        cart_transform_function_api_mismatch_user_error(
+                          field_name,
+                        )
                       let payload =
                         serializers.cart_transform_mutation_payload(
                           field,
                           fragments,
                           None,
-                          metafield_errors,
+                          [user_error],
                         )
                       #(
                         MutationFieldResult(
@@ -1499,44 +1473,127 @@ fn handle_cart_transform_create(
                           payload: payload,
                           staged_resource_ids: [],
                         ),
-                        store_after_fn,
-                        identity_after_metafields,
+                        store,
+                        identity,
                       )
                     }
-                    [] -> {
-                      let cart_transform =
-                        CartTransformRecord(
-                          id: cart_transform_id,
-                          title: None,
-                          block_on_failure: block_on_failure,
-                          function_id: Some(shopify_fn.id),
-                          function_handle: function_handle,
-                          shopify_function_id: Some(shopify_fn.id),
-                          metafields: metafields,
-                          created_at: Some(timestamp),
-                          updated_at: Some(timestamp),
+                    True -> {
+                      case
+                        cart_transform_create_guardrail_error(
+                          store,
+                          shopify_fn,
+                          field_name,
                         )
-                      let #(_, store_final) =
-                        store.upsert_staged_cart_transform(
-                          store_after_fn,
-                          cart_transform,
-                        )
-                      let payload =
-                        serializers.cart_transform_mutation_payload(
-                          field,
-                          fragments,
-                          Some(cart_transform),
-                          [],
-                        )
-                      #(
-                        MutationFieldResult(
-                          key: key,
-                          payload: payload,
-                          staged_resource_ids: [cart_transform.id],
-                        ),
-                        store_final,
-                        identity_after_metafields,
-                      )
+                      {
+                        Some(user_error) -> {
+                          let payload =
+                            serializers.cart_transform_mutation_payload(
+                              field,
+                              fragments,
+                              None,
+                              [user_error],
+                            )
+                          #(
+                            MutationFieldResult(
+                              key: key,
+                              payload: payload,
+                              staged_resource_ids: [],
+                            ),
+                            store,
+                            identity,
+                          )
+                        }
+                        None -> {
+                          let #(timestamp, identity_after_ts) =
+                            synthetic_identity.make_synthetic_timestamp(
+                              identity,
+                            )
+                          let #(cart_transform_id, identity_final) =
+                            synthetic_identity.make_synthetic_gid(
+                              identity_after_ts,
+                              "CartTransform",
+                            )
+                          let #(
+                            metafields,
+                            metafield_errors,
+                            identity_after_metafields,
+                          ) =
+                            read_cart_transform_metafields(
+                              args,
+                              cart_transform_id,
+                              timestamp,
+                              identity_final,
+                            )
+                          let function_handle = case reference.function_handle {
+                            Some(_) -> reference.function_handle
+                            None -> shopify_fn.handle
+                          }
+                          let block_on_failure = case
+                            graphql_helpers.read_arg_bool(
+                              args,
+                              "blockOnFailure",
+                            )
+                          {
+                            Some(b) -> Some(b)
+                            None -> Some(False)
+                          }
+                          case metafield_errors {
+                            [_, ..] -> {
+                              let payload =
+                                serializers.cart_transform_mutation_payload(
+                                  field,
+                                  fragments,
+                                  None,
+                                  metafield_errors,
+                                )
+                              #(
+                                MutationFieldResult(
+                                  key: key,
+                                  payload: payload,
+                                  staged_resource_ids: [],
+                                ),
+                                store,
+                                identity_after_metafields,
+                              )
+                            }
+                            [] -> {
+                              let cart_transform =
+                                CartTransformRecord(
+                                  id: cart_transform_id,
+                                  title: None,
+                                  block_on_failure: block_on_failure,
+                                  function_id: Some(shopify_fn.id),
+                                  function_handle: function_handle,
+                                  shopify_function_id: Some(shopify_fn.id),
+                                  metafields: metafields,
+                                  created_at: Some(timestamp),
+                                  updated_at: Some(timestamp),
+                                )
+                              let #(_, store_final) =
+                                store.upsert_staged_cart_transform(
+                                  store,
+                                  cart_transform,
+                                )
+                              let payload =
+                                serializers.cart_transform_mutation_payload(
+                                  field,
+                                  fragments,
+                                  Some(cart_transform),
+                                  [],
+                                )
+                              #(
+                                MutationFieldResult(
+                                  key: key,
+                                  payload: payload,
+                                  staged_resource_ids: [cart_transform.id],
+                                ),
+                                store_final,
+                                identity_after_metafields,
+                              )
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -2072,34 +2129,12 @@ fn resolve_validation_function(
   }
 }
 
-fn resolve_cart_transform_function(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  reference: function_types.FunctionReference,
-) -> #(
-  Result(ShopifyFunctionRecord, function_types.UserError),
-  Store,
-  SyntheticIdentityRegistry,
-) {
-  let field_name = cart_transform_reference_field(reference)
-  let value = cart_transform_reference_value(reference)
-  case find_existing_shopify_function(store, reference) {
-    None -> #(
-      Error(function_not_found_error(field_name, value)),
-      store,
-      identity,
-    )
-    Some(record) ->
-      case cart_transform_function_api_supported(record) {
-        True -> #(Ok(record), store, identity)
-        False -> {
-          let user_error = case field_name {
-            "functionId" -> function_id_api_mismatch_error(field_name)
-            _ -> function_does_not_implement_error(field_name)
-          }
-          #(Error(user_error), store, identity)
-        }
-      }
+fn cart_transform_function_api_mismatch_user_error(
+  field_name: String,
+) -> function_types.UserError {
+  case field_name {
+    "functionId" -> function_id_api_mismatch_error(field_name)
+    _ -> function_does_not_implement_error(field_name)
   }
 }
 
@@ -2154,11 +2189,21 @@ fn cart_transform_function_in_use(
   store: Store,
   shopify_fn: ShopifyFunctionRecord,
 ) -> Bool {
-  store.list_effective_cart_transforms(store)
-  |> list.any(fn(record) {
-    record.shopify_function_id == Some(shopify_fn.id)
-    || record.function_id == Some(shopify_fn.id)
-  })
+  let cart_transform_uses_function =
+    store.list_effective_cart_transforms(store)
+    |> list.any(fn(record) {
+      record.shopify_function_id == Some(shopify_fn.id)
+      || record.function_id == Some(shopify_fn.id)
+    })
+
+  let validation_uses_function =
+    store.list_effective_validations(store)
+    |> list.any(fn(record) {
+      record.shopify_function_id == Some(shopify_fn.id)
+      || record.function_id == Some(shopify_fn.id)
+    })
+
+  cart_transform_uses_function || validation_uses_function
 }
 
 fn result_to_option(result: Result(a, b)) -> Option(a) {

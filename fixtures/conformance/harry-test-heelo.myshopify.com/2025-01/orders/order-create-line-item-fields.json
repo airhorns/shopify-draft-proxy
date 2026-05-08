@@ -1,0 +1,253 @@
+{
+  "scenarioId": "order-create-line-item-fields",
+  "recordedAt": "2026-05-08T02:29:17.476Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "productLookup": {
+      "variables": {},
+      "response": {
+        "data": {
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9801098789170"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "document": "mutation OrderCreateLineItemFields($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n            sku\n            customAttributes { key value }\n            requiresShipping\n            taxable\n            vendor\n            product { id }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            discountAllocations {\n              allocatedAmountSet { shopMoney { amount currencyCode } }\n            }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {
+    "order": {
+      "email": "hermes-order-line-item-fields-1778207356340@example.com",
+      "note": "orderCreate line-item field coverage",
+      "tags": ["order-create-line-item-fields"],
+      "test": true,
+      "currency": "USD",
+      "lineItems": [
+        {
+          "title": "Line item field coverage",
+          "quantity": 2,
+          "sku": "LINE-FIELDS-1778207356340",
+          "vendor": "Hermes Vendor",
+          "productId": "gid://shopify/Product/9801098789170",
+          "properties": [
+            {
+              "name": "engraving",
+              "value": "Ada"
+            },
+            {
+              "name": "fulfillment_note",
+              "value": "Pack flat"
+            }
+          ],
+          "requiresShipping": false,
+          "taxable": false,
+          "priceSet": {
+            "shopMoney": {
+              "amount": "12.00",
+              "currencyCode": "USD"
+            }
+          },
+          "taxLines": []
+        }
+      ]
+    },
+    "options": {
+      "inventoryBehaviour": "BYPASS",
+      "sendReceipt": false,
+      "sendFulfillmentReceipt": false
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "id": "gid://shopify/Order/8735472910642",
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "24.0",
+                "currencyCode": "USD"
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "24.0",
+                "currencyCode": "USD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/19312607822130",
+                  "title": "Line item field coverage",
+                  "quantity": 2,
+                  "sku": "LINE-FIELDS-1778207356340",
+                  "customAttributes": [
+                    {
+                      "key": "engraving",
+                      "value": "Ada"
+                    },
+                    {
+                      "key": "fulfillment_note",
+                      "value": "Pack flat"
+                    }
+                  ],
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "vendor": "Hermes Vendor",
+                  "product": {
+                    "id": "gid://shopify/Product/9801098789170"
+                  },
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.0",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "discountAllocations": []
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "document": "query OrderCreateLineItemFieldsDownstreamRead($id: ID!) {\n    order(id: $id) {\n      id\n      subtotalPriceSet { shopMoney { amount currencyCode } }\n      totalDiscountsSet { shopMoney { amount currencyCode } }\n      currentTotalPriceSet { shopMoney { amount currencyCode } }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          customAttributes { key value }\n          requiresShipping\n          taxable\n          vendor\n          product { id }\n          originalUnitPriceSet { shopMoney { amount currencyCode } }\n          discountAllocations {\n            allocatedAmountSet { shopMoney { amount currencyCode } }\n          }\n        }\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/Order/8735472910642"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8735472910642",
+          "subtotalPriceSet": {
+            "shopMoney": {
+              "amount": "24.0",
+              "currencyCode": "USD"
+            }
+          },
+          "totalDiscountsSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "USD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "24.0",
+              "currencyCode": "USD"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/LineItem/19312607822130",
+                "title": "Line item field coverage",
+                "quantity": 2,
+                "sku": "LINE-FIELDS-1778207356340",
+                "customAttributes": [
+                  {
+                    "key": "engraving",
+                    "value": "Ada"
+                  },
+                  {
+                    "key": "fulfillment_note",
+                    "value": "Pack flat"
+                  }
+                ],
+                "requiresShipping": false,
+                "taxable": false,
+                "vendor": "Hermes Vendor",
+                "product": {
+                  "id": "gid://shopify/Product/9801098789170"
+                },
+                "originalUnitPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "discountAllocations": []
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "variables": {
+      "orderId": "gid://shopify/Order/8735472910642"
+    },
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/534492fb-5430-4026-ad4f-dfb7407571ac",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
