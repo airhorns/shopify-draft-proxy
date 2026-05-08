@@ -1,0 +1,456 @@
+{
+  "capturedAt": "2026-05-08T02:31:35.298Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "locationUsed": "gid://shopify/Location/106318430514",
+    "deliveryProfileUpdateUserErrorsType": "UserError",
+    "userErrorFields": ["field", "message"],
+    "codeSelectionError": "Field 'code' doesn't exist on type 'UserError'"
+  },
+  "mutations": {
+    "baseCreate": {
+      "query": "mutation DeliveryProfileUpdateValidationCreate($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileItems(first: 5) {\n          nodes {\n            product {\n              id\n              title\n            }\n            variants(first: 5) {\n              nodes {\n                id\n                title\n              }\n            }\n          }\n        }\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                  methodConditions {\n                    id\n                    field\n                    operator\n                    conditionCriteria {\n                      __typename\n                      ... on Weight {\n                        value\n                        unit\n                      }\n                      ... on MoneyV2 {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Update validation base 1778207493873",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131818324274",
+                "name": "Update validation base 1778207493873",
+                "version": 1,
+                "originLocationCount": 0,
+                "zoneCountryCount": 0,
+                "activeMethodDefinitionsCount": 0,
+                "profileItems": {
+                  "nodes": []
+                },
+                "profileLocationGroups": [
+                  {
+                    "locationGroup": {
+                      "id": "gid://shopify/DeliveryLocationGroup/133505974578"
+                    },
+                    "locationGroupZones": {
+                      "nodes": [
+                        {
+                          "zone": {
+                            "id": "gid://shopify/DeliveryZone/582286016818",
+                            "name": "Domestic"
+                          },
+                          "methodDefinitions": {
+                            "nodes": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 85,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "longName": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Profile name must be less than 128 characters long"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownCreateLocation": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/999999999"]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The Location could not be found for this shop."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownAddLocation": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "locationGroupsToUpdate": [
+            {
+              "id": "gid://shopify/DeliveryLocationGroup/133505974578",
+              "locationsToAdd": ["gid://shopify/Location/999999999"]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The Location could not be found for this shop."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownProfileGroupAddLocationProbe": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "profileLocationGroups": [
+            {
+              "id": "gid://shopify/DeliveryLocationGroup/133505974578",
+              "locationsToAdd": ["gid://shopify/Location/999999999"]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131818324274",
+                "name": "Update validation base 1778207493873"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "emptyCountries": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Empty countries",
+                  "countries": []
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Profile is invalid: cannot create LocationGroupZone without countries."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "overlappingZonesProbe": {
+      "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "profile": {
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "One",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ]
+                },
+                {
+                  "name": "Two",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131818324274",
+                "name": "Update validation base 1778207493873"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removeCreatedProfile": {
+      "query": "mutation DeliveryProfileUpdateValidationCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131818324274"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/29208342-60b4-47a5-87eb-b80982bc105f",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
+    "The capture creates one disposable delivery profile, records update-side validation branches against it, then removes the profile in cleanup.",
+    "The public Admin GraphQL 2026-04 schema exposes deliveryProfileUpdate.userErrors as UserError with field/message only; runtime tests cover the proxy-local code convenience field.",
+    "A profileLocationGroups.locationsToAdd unknown-location update probe was accepted by public Admin GraphQL 2026-04; local runtime tests still cover the ticket-required guardrail.",
+    "A duplicate-country zonesToCreate update probe was accepted by public Admin GraphQL 2026-04; local runtime tests still cover the ticket-required overlapping-zone guardrail."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileLocationsHydrate",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingDeliveryProfileVariantsHydrate",
+      "variables": {
+        "ids": []
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": []
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

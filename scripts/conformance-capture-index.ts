@@ -6517,6 +6517,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-update-validation-conformance.ts',
+    purpose:
+      'deliveryProfileUpdate validation behavior for oversized names, unknown location references, empty zone countries, and public update probes.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-update-validation.json',
+      'config/parity-specs/shipping-fulfillments/delivery-profile-update-validation.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable delivery profile, records invalid update attempts and public update probes against it, then removes the profile in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'shipping-settings',
     scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
     purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',
