@@ -313,13 +313,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'b2b-string-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
-    purpose: 'B2B company/contact/location free-text length and HTML validation branches.',
+    purpose: 'B2B company/contact/location free-text length, blank-name, and HTML validation branches.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-string-validation.json`,
       'config/parity-specs/b2b/b2b-string-validation.json',
       'config/parity-requests/b2b/b2b-string-validation-company-create.graphql',
+      'config/parity-requests/b2b/b2b-string-validation-company-read.graphql',
+      'config/parity-requests/b2b/b2b-string-validation-company-update.graphql',
       'config/parity-requests/b2b/b2b-string-validation-location-create.graphql',
+      'config/parity-requests/b2b/b2b-string-validation-location-update.graphql',
     ],
     cleanupBehavior:
       'Creates one setup company for child mutation validation plus cleanup for any live branch that unexpectedly creates a company.',
