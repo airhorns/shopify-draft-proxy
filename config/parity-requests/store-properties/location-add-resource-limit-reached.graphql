@@ -1,0 +1,14 @@
+#graphql
+mutation LocationAddResourceLimitReached($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

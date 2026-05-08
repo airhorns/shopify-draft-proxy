@@ -440,6 +440,7 @@ fn stage_location_add(
           let errors =
             []
             |> list.append(validate_location_name_length(value))
+            |> list.append(validate_location_add_limit_reached(store))
             |> list.append(validate_location_duplicate_name(store, value, None))
             |> list.append(validate_location_address_component_lengths(
               address_data,
@@ -714,6 +715,47 @@ fn validate_location_add_metafield_user_errors(
     validate_location_edit_metafield_type(metafield_input, index)
   })
   |> list.flatten
+}
+
+fn validate_location_add_limit_reached(
+  store: Store,
+) -> List(store_properties_types.LocationEditUserError) {
+  case location_add_limit_reached_limit(store) {
+    Some(limit) -> [
+      store_properties_types.LocationEditUserError(
+        field: ["input"],
+        message: "You have reached the maximum number of locations ("
+          <> int.to_string(limit)
+          <> ")",
+        code: Some("INVALID"),
+      ),
+    ]
+    None -> []
+  }
+}
+
+fn location_add_limit_reached_limit(store: Store) -> Option(Int) {
+  case
+    store.list_effective_store_property_locations(store)
+    |> list.find_map(fn(record) {
+      case location_activation_limit_reached(record) {
+        True -> Ok(location_limit_from_record(record))
+        False -> Error(Nil)
+      }
+    })
+  {
+    Ok(limit) -> Some(limit)
+    Error(_) -> None
+  }
+}
+
+fn location_limit_from_record(record: StorePropertyRecord) -> Int {
+  nested_store_property_int_field(record.data, [
+    "shop",
+    "resourceLimits",
+    "locationLimit",
+  ])
+  |> option.unwrap(200)
 }
 
 fn validate_location_add_metafield_top_level_errors(
@@ -2364,6 +2406,26 @@ fn nested_store_property_bool_field(
       case dict.get(data, key) {
         Ok(StorePropertyObject(child)) ->
           nested_store_property_bool_field(child, rest)
+        _ -> None
+      }
+  }
+}
+
+fn nested_store_property_int_field(
+  data: Dict(String, StorePropertyValue),
+  path: List(String),
+) -> Option(Int) {
+  case path {
+    [] -> None
+    [key] ->
+      case dict.get(data, key) {
+        Ok(StorePropertyInt(value)) -> Some(value)
+        _ -> None
+      }
+    [key, ..rest] ->
+      case dict.get(data, key) {
+        Ok(StorePropertyObject(child)) ->
+          nested_store_property_int_field(child, rest)
         _ -> None
       }
   }
