@@ -1107,6 +1107,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-simultaneous-source-conflict',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-simultaneous-source-conflict.ts',
+    purpose:
+      'Files API fileUpdate validation when originalSource and previewImageSource are both supplied in one or more inputs.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-simultaneous-source-conflict.json`,
+      'config/parity-specs/media/file_update_simultaneous_source/simultaneous-source-conflict.json',
+      'config/parity-requests/media/file_update_simultaneous_source/update.graphql',
+    ],
+    cleanupBehavior: 'Creates two disposable image files and deletes all returned file IDs during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-user-error-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-user-error-aggregation-conformance.ts',
