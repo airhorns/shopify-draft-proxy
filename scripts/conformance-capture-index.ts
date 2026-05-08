@@ -6930,7 +6930,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'gift-card-create-validation',
     scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',
     purpose:
-      'Gift-card create validation for initial value, code length/format/uniqueness, missing customer, and generated code behavior.',
+      'Gift-card create validation for initial value, code length/format/uniqueness, missing customer, combined invalid-code plus missing-customer precedence, and generated code behavior.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-create-validation.json`,
