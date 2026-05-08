@@ -77,6 +77,8 @@ const default_max_fields_per_definition = 40
 
 const forms_max_fields_per_definition = 100
 
+const shopify_forms_api_client_id = "6171699"
+
 const min_field_key_length = 2
 
 const max_field_key_length = 64
@@ -595,13 +597,18 @@ pub fn append_create_field_limit_user_errors(
   values: List(root_field.ResolvedValue),
   type_: String,
 ) -> List(UserError) {
-  let fields = read_field_definitions(values)
-  append_definition_field_limit_user_errors(
-    errors,
-    list.length(values),
-    fields,
-    type_,
-  )
+  case is_shopify_reserved_definition_type(type_) {
+    True -> errors
+    False -> {
+      let fields = read_field_definitions(values)
+      append_definition_field_limit_user_errors(
+        errors,
+        list.length(values),
+        fields,
+        type_,
+      )
+    }
+  }
 }
 
 @internal
@@ -830,9 +837,10 @@ pub fn admin_filterable_field_count_user_error() -> UserError {
 
 @internal
 pub fn max_fields_per_definition(type_: String) -> Int {
-  case string.starts_with(type_, "shopify--form-") {
-    True -> forms_max_fields_per_definition
-    False -> default_max_fields_per_definition
+  case app_controlled_api_client_id(type_) {
+    Some(api_client_id) if api_client_id == shopify_forms_api_client_id ->
+      forms_max_fields_per_definition
+    _ -> default_max_fields_per_definition
   }
 }
 
