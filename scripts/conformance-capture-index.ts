@@ -4982,6 +4982,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-bxgy-numeric-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-bxgy-numeric-validation-conformance.ts',
+    purpose:
+      'Buy-X-get-Y usesPerOrderLimit and quantity numeric validation for code and automatic create/update, plus captured ratio acceptance.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-bxgy-numeric-validation.json`,
+      'config/parity-specs/discounts/discount-bxgy-numeric-validation.json',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-create.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-automatic-update.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-code-create.graphql',
+      'config/parity-requests/discounts/discount-bxgy-numeric-validation-code-update.graphql',
+    ],
+    cleanupBehavior: 'Creates temporary products and setup BXGY discounts, then deletes captured discounts/products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-items-refs-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-items-refs-validation-conformance.ts',
