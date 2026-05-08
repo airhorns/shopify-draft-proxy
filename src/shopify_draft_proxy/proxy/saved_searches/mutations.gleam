@@ -1140,16 +1140,16 @@ fn validate_query_for_resource_type(
       resource_type,
       non_reserved_keys,
     ))
-  case product_incompatible_filter_pair(resource_type, keys) {
-    Some(pair) -> {
-      let #(left, right) = pair
+  case product_incompatible_filter_fields(resource_type, keys) {
+    [] -> errors
+    incompatible_fields -> {
       errors
       |> append_user_error(saved_search_types.UserError(
         field: Some(["input", "query"]),
-        message: "Query has incompatible filters: " <> left <> ", " <> right,
+        message: "Query has incompatible filters: "
+          <> string.join(incompatible_fields, ", "),
       ))
     }
-    None -> errors
   }
 }
 
@@ -1276,19 +1276,21 @@ fn valid_filter_fields_for_resource_type(
   }
 }
 
-fn product_incompatible_filter_pair(
+fn product_incompatible_filter_fields(
   resource_type: String,
   keys: List(String),
-) -> Option(#(String, String)) {
+) -> List(String) {
   case resource_type, list.contains(keys, "collection_id") {
     "PRODUCT", True -> {
-      let incompatible = ["tag", "error_feedback", "published_status"]
-      case list.find(incompatible, fn(key) { list.contains(keys, key) }) {
-        Ok(key) -> Some(#("collection_id", key))
-        Error(_) -> None
+      let conflicting_fields =
+        ["tag", "published_status", "error_feedback"]
+        |> list.filter(fn(key) { list.contains(keys, key) })
+      case conflicting_fields {
+        [] -> []
+        fields -> ["collection_id", ..fields] |> dedupe_strings
       }
     }
-    _, _ -> None
+    _, _ -> []
   }
 }
 

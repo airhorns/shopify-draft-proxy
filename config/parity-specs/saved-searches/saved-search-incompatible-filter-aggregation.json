@@ -1,0 +1,29 @@
+{
+  "scenarioId": "saved-search-incompatible-filter-aggregation",
+  "operationNames": ["savedSearchCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "query-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-incompatible-filter-aggregation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql",
+    "variablesCapturePath": "$.savedSearchIncompatibleFilterAggregation.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that PRODUCT savedSearchCreate with collection_id, tag, and published_status reports one incompatible-filter userError listing all conflicting fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-collection-tag-published-create",
+        "capturePath": "$.savedSearchIncompatibleFilterAggregation.payload.data.productCollectionTagPublished",
+        "proxyPath": "$.data.productCollectionTagPublished",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

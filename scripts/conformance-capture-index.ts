@@ -1848,6 +1848,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-query-grammar-validation.json`,
+      `${CAPTURE_ROOT}saved-search-incompatible-filter-aggregation.json`,
+      'config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json',
+      'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
       'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
