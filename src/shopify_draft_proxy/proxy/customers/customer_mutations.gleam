@@ -274,19 +274,20 @@ pub fn validate_customer_create(
   let address_errors = validate_customer_address_inputs(input, [])
   let consent_required_errors =
     customer_create_consent_required_errors(input, email, phone)
-  let presence_errors = case email, phone {
-    None, None ->
+  let has_identity = customer_set_input_has_identity(input)
+  let presence_errors = case has_identity {
+    False ->
       case consent_required_errors {
         [] -> [
           UserError(
             field: [],
             message: "A name, phone number, or email address must be present",
-            code: None,
+            code: Some("INVALID"),
           ),
         ]
         _ -> []
       }
-    _, _ -> []
+    True -> []
   }
   let local_errors =
     validate_customer_input_fields(store, input, None, phone_errors)

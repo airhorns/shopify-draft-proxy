@@ -1,0 +1,27 @@
+mutation DiscountNumericBoundsAutomaticBasicCreate(
+  $recurringHigh: DiscountAutomaticBasicInput!
+  $amountHigh: DiscountAutomaticBasicInput!
+) {
+  recurringHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $recurringHigh) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountHigh: discountAutomaticBasicCreate(automaticBasicDiscount: $amountHigh) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

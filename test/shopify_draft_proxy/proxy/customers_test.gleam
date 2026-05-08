@@ -763,6 +763,84 @@ pub fn customer_create_readback_and_log_test() {
   )
 }
 
+pub fn customer_create_accepts_name_only_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { firstName: \"Alice\" }) { customer { id firstName lastName displayName email phone defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert first_status == 200
+  let first_json = json.to_string(first_body)
+  assert string.contains(first_json, "\"userErrors\":[]")
+  assert string.contains(first_json, "\"firstName\":\"Alice\"")
+  assert string.contains(first_json, "\"lastName\":null")
+  assert string.contains(first_json, "\"email\":null")
+  assert string.contains(first_json, "\"phone\":null")
+  assert string.contains(first_json, "\"defaultEmailAddress\":null")
+  assert string.contains(first_json, "\"defaultPhoneNumber\":null")
+
+  let #(Response(status: last_status, body: last_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { lastName: \"Yardley\" }) { customer { id firstName lastName displayName email phone defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert last_status == 200
+  let last_json = json.to_string(last_body)
+  assert string.contains(last_json, "\"userErrors\":[]")
+  assert string.contains(last_json, "\"firstName\":null")
+  assert string.contains(last_json, "\"lastName\":\"Yardley\"")
+  assert string.contains(last_json, "\"email\":null")
+  assert string.contains(last_json, "\"phone\":null")
+
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(
+      proxy,
+      "query { first: customer(id: \"gid://shopify/Customer/1\") { firstName lastName email phone } firstIdentifier: customerByIdentifier(identifier: { id: \"gid://shopify/Customer/1\" }) { firstName lastName email phone } firstCustomers: customers(first: 5, query: \"Alice\") { nodes { firstName lastName email phone } } last: customer(id: \"gid://shopify/Customer/3\") { firstName lastName email phone } lastIdentifier: customerByIdentifier(identifier: { id: \"gid://shopify/Customer/3\" }) { firstName lastName email phone } lastCustomers: customers(first: 5, query: \"Yardley\") { nodes { firstName lastName email phone } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"first\":{\"firstName\":\"Alice\",\"lastName\":null,\"email\":null,\"phone\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"firstIdentifier\":{\"firstName\":\"Alice\",\"lastName\":null,\"email\":null,\"phone\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"firstCustomers\":{\"nodes\":[{\"firstName\":\"Alice\",\"lastName\":null,\"email\":null,\"phone\":null}]}",
+  )
+  assert string.contains(
+    read_json,
+    "\"last\":{\"firstName\":null,\"lastName\":\"Yardley\",\"email\":null,\"phone\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"lastIdentifier\":{\"firstName\":null,\"lastName\":\"Yardley\",\"email\":null,\"phone\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"lastCustomers\":{\"nodes\":[{\"firstName\":null,\"lastName\":\"Yardley\",\"email\":null,\"phone\":null}]}",
+  )
+  assert_log_occurrences(proxy, "customerCreate", 2)
+}
+
+pub fn customer_create_rejects_blank_identity_with_invalid_code_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: {}) { customer { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert_required_identity_user_error(body_json)
+  assert_log_omits_root(proxy, "customerCreate")
+}
+
 pub fn customer_create_sanitizes_email_before_storage_and_lookup_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =

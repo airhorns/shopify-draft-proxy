@@ -1,0 +1,144 @@
+{
+  "scenarioId": "customer-create-name-identity",
+  "operationNames": ["customerCreate", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-name-identity.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer_create_name_identity.graphql",
+    "variablesCapturePath": "$.scenarios.firstNameOnly.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for customerCreate's identity precondition: firstName-only and lastName-only inputs succeed with null email/phone and are visible through downstream customer and customerByIdentifier reads; all-blank input returns customer: null with the name/phone/email presence userError. The capture also records customers(first:, query: \"\") readback, but strict parity avoids asserting connection order because the live store includes unrelated preexisting customers. Public Admin API 2025-01 exposes this payload userError with field/message only, and the proxy emits compatibility code INVALID when local callers select code.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-name-only-create",
+        "capturePath": "$.scenarios.firstNameOnly.create.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.displayName",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.phone",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "first-name-only-downstream-read",
+        "capturePath": "$.scenarios.firstNameOnly.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_create_name_identity_read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": {
+              "fromCapturePath": "$.scenarios.firstNameOnly.downstreamRead.variables.query"
+            },
+            "first": 5
+          }
+        },
+        "selectedPaths": [
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.displayName",
+          "$.customer.email",
+          "$.customer.phone",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber",
+          "$.customerByIdentifier.firstName",
+          "$.customerByIdentifier.lastName",
+          "$.customerByIdentifier.displayName",
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.phone",
+          "$.customerByIdentifier.defaultEmailAddress",
+          "$.customerByIdentifier.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "last-name-only-create",
+        "capturePath": "$.scenarios.lastNameOnly.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_create_name_identity.graphql",
+          "variablesCapturePath": "$.scenarios.lastNameOnly.create.variables"
+        },
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.displayName",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.phone",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "last-name-only-downstream-read",
+        "capturePath": "$.scenarios.lastNameOnly.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_create_name_identity_read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "last-name-only-create",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromProxyResponse": "last-name-only-create",
+                "path": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": {
+              "fromCapturePath": "$.scenarios.lastNameOnly.downstreamRead.variables.query"
+            },
+            "first": 5
+          }
+        },
+        "selectedPaths": [
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.displayName",
+          "$.customer.email",
+          "$.customer.phone",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber",
+          "$.customerByIdentifier.firstName",
+          "$.customerByIdentifier.lastName",
+          "$.customerByIdentifier.displayName",
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.phone",
+          "$.customerByIdentifier.defaultEmailAddress",
+          "$.customerByIdentifier.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "blank-input-rejection",
+        "capturePath": "$.scenarios.blankInput.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_create_name_identity.graphql",
+          "variablesCapturePath": "$.scenarios.blankInput.create.variables"
+        },
+        "selectedPaths": ["$.customerCreate.customer", "$.customerCreate.userErrors"]
+      }
+    ]
+  }
+}

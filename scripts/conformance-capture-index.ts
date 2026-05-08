@@ -3765,6 +3765,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-page-blog-article-template-suffix',
+    scriptPath: 'scripts/capture-online-store-template-suffix-conformance.ts',
+    purpose:
+      'Online store page/blog/article create and update templateSuffix persistence, empty-string preservation, explicit-null clearing, and downstream read-after-write behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}page-blog-article-template-suffix.json`,
+      'config/parity-specs/online-store/page-blog-article-template-suffix.json',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-article-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-blog-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-delete.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-page-create.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-read.graphql',
+      'config/parity-requests/online-store/page-blog-article-template-suffix-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article, updates their template suffixes, records empty-string/null handling and downstream reads, then deletes all created content during the scenario and retries cleanup if needed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-article-media-navigation-follow-through',
     scriptPath: 'scripts/capture-online-store-article-media-navigation-follow-through-conformance.ts',
     purpose:
@@ -4963,6 +4984,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Runs only against the local proxy runtime with a deterministic Function cassette; no Shopify cleanup required.',
     expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-numeric-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-numeric-bounds-conformance.ts',
+    purpose:
+      'Discount usageLimit, recurringCycleLimit, and fixed amount numeric bounds for basic code/automatic create and update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-numeric-bounds.json`,
+      'config/parity-specs/discounts/discount-numeric-bounds.json',
+      'config/parity-requests/discounts/discount-numeric-bounds-setup.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-variable.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-literal.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code and automatic basic discounts for update validation, captures rejected validation branches, then deletes setup discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'discounts',
@@ -7216,6 +7260,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customerInputValidation-update.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-create-name-identity',
+    scriptPath: 'scripts/capture-customer-create-name-identity-conformance.ts',
+    purpose:
+      'customerCreate firstName-only, lastName-only, and blank-input identity precondition behavior with downstream reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-create-name-identity.json`,
+      'config/parity-specs/customers/customer_create_name_identity.json',
+      'config/parity-requests/customers/customer_create_name_identity.graphql',
+      'config/parity-requests/customers/customer_create_name_identity_read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable firstName-only and lastName-only customers, then deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -1,0 +1,132 @@
+{
+  "scenarioId": "discount-numeric-bounds",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBasicUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-numeric-bounds.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "numeric-bounds-setup",
+        "capturePath": "$.setup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.codeSetup.userErrors", "$.automaticSetup.userErrors"]
+      },
+      {
+        "name": "code-basic-create-numeric-bounds",
+        "capturePath": "$.cases.codeCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.usageHigh.userErrors",
+          "$.usageLow.userErrors",
+          "$.recurringHigh.userErrors",
+          "$.amountHigh.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-code-basic-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-basic-update-numeric-bounds",
+        "capturePath": "$.cases.codeUpdate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.usageHigh.userErrors", "$.recurringHigh.userErrors", "$.amountHigh.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-code-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.codeSetup.codeDiscountNode.id"
+            },
+            "usageHigh": {
+              "fromCapturePath": "$.cases.codeUpdate.request.variables.usageHigh"
+            },
+            "recurringHigh": {
+              "fromCapturePath": "$.cases.codeUpdate.request.variables.recurringHigh"
+            },
+            "amountHigh": {
+              "fromCapturePath": "$.cases.codeUpdate.request.variables.amountHigh"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-basic-create-numeric-bounds",
+        "capturePath": "$.cases.automaticCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.recurringHigh.userErrors", "$.amountHigh.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-create.graphql",
+          "variablesCapturePath": "$.cases.automaticCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-basic-update-numeric-bounds",
+        "capturePath": "$.cases.automaticUpdate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.recurringHigh.userErrors", "$.amountHigh.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticDiscountNode.id"
+            },
+            "recurringHigh": {
+              "fromCapturePath": "$.cases.automaticUpdate.request.variables.recurringHigh"
+            },
+            "amountHigh": {
+              "fromCapturePath": "$.cases.automaticUpdate.request.variables.amountHigh"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "recurring-cycle-float-variable-invalid",
+        "capturePath": "$.cases.recurringFloatVariable.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-recurring-float-variable.graphql",
+          "variablesCapturePath": "$.cases.recurringFloatVariable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "recurring-cycle-float-literal-invalid",
+        "capturePath": "$.cases.recurringFloatLiteral.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-numeric-bounds-recurring-float-literal.graphql",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[0].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The parity request uses the checked-in request formatting rather than the recorder wrapper, so GraphQL source locations drift while the error message, path, and code remain stable."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 numeric bounds for basic code and automatic basic discount create/update inputs. Shopify returns mutation userErrors for usageLimit int32 overflow/floor, recurringCycleLimit int32 overflow, and fixed amount values at the 1e18 boundary. Float values for Int inputs are rejected before resolver execution as top-level GraphQL coercion errors, not mutation-scoped NOT_AN_INTEGER userErrors."
+}
