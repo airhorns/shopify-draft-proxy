@@ -4949,6 +4949,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-numeric-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-numeric-bounds-conformance.ts',
+    purpose:
+      'Discount usageLimit, recurringCycleLimit, and fixed amount numeric bounds for basic code/automatic create and update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-numeric-bounds.json`,
+      'config/parity-specs/discounts/discount-numeric-bounds.json',
+      'config/parity-requests/discounts/discount-numeric-bounds-setup.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-code-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-create.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-automatic-basic-update.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-variable.graphql',
+      'config/parity-requests/discounts/discount-numeric-bounds-recurring-float-literal.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable code and automatic basic discounts for update validation, captures rejected validation branches, then deletes setup discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-buyer-context',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
