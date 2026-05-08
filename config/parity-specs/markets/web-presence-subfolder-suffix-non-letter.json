@@ -1,0 +1,132 @@
+{
+  "scenarioId": "web-presence-subfolder-suffix-non-letter",
+  "operationNames": ["webPresenceCreate", "webPresenceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging", "market-web-presence-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[27].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-valid-us",
+        "capturePath": "$.cases[27].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy creates a deterministic synthetic MarketWebPresence id while the capture stores Shopify's disposable live id."
+          }
+        ]
+      },
+      {
+        "name": "create-us2-rejected",
+        "capturePath": "$.cases[24].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[24].variables"
+        }
+      },
+      {
+        "name": "create-en1-rejected",
+        "capturePath": "$.cases[25].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[25].variables"
+        }
+      },
+      {
+        "name": "create-us-east-rejected",
+        "capturePath": "$.cases[26].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+          "variablesCapturePath": "$.cases[26].variables"
+        }
+      },
+      {
+        "name": "update-us2-rejected",
+        "capturePath": "$.cases[29].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[29].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-en1-rejected",
+        "capturePath": "$.cases[30].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[30].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-us-east-rejected",
+        "capturePath": "$.cases[31].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[31].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-valid-us",
+        "capturePath": "$.cases[32].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[32].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy updates the deterministic synthetic MarketWebPresence id created earlier in the parity replay."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves webPresenceCreate and webPresenceUpdate reject subfolderSuffix values containing digits or hyphens with field [\"input\", \"subfolderSuffix\"] and code SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS. The same fixture records valid subfolderSuffix us for create and update as the positive control."
+}

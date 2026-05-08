@@ -3969,7 +3969,17 @@ fn web_presence_subfolder_suffix_errors(
         ]
         False -> []
       }
-      list.append(length_errors, script_errors)
+      let letter_only_errors = case is_lowercase_ascii_letters(suffix) {
+        False -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix must contain only letters",
+            "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS",
+          ),
+        ]
+        True -> []
+      }
+      combine_error_lists([length_errors, script_errors, letter_only_errors])
     }
     None -> []
   }
@@ -4153,6 +4163,13 @@ fn is_ascii_alpha(grapheme: String) -> Bool {
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     grapheme,
   )
+}
+
+fn is_lowercase_ascii_letters(value: String) -> Bool {
+  value != ""
+  && list.all(string.to_graphemes(value), fn(grapheme) {
+    string.contains("abcdefghijklmnopqrstuvwxyz", grapheme)
+  })
 }
 
 fn is_web_presence_script_code(value: String) -> Bool {
