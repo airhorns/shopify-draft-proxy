@@ -628,6 +628,17 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "pubSubWebhookSubscriptionCreate" | "pubSubWebhookSubscriptionUpdate" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "webhookSubscription",
+        "PubSubWebhookSubscriptionInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
     _ -> []
   }
 }
@@ -1791,6 +1802,7 @@ fn top_level_required_input_field_strict_types() -> List(String) {
     "DeliveryCarrierServiceCreateInput",
     "CatalogCreateInput",
     "PriceListCreateInput",
+    "PubSubWebhookSubscriptionInput",
     "ShopPolicyInput",
   ]
 }

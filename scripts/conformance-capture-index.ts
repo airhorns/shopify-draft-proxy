@@ -6814,6 +6814,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-pub-sub-required-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-pub-sub-required-fields-conformance.ts',
+    purpose:
+      'Pub/Sub dedicated webhook subscription create/update required pubSubProject/pubSubTopic input-field validation.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-pub-sub-required-fields.json`,
+      'config/parity-specs/webhooks/webhook-subscription-pub-sub-required-fields.json',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project-topic.graphql',
+    ],
+    cleanupBehavior:
+      'All captured branches fail GraphQL variable validation before resolver execution; no webhook subscriptions are created, updated, deleted, or delivered.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records top-level INVALID_VARIABLE errors for missing Pub/Sub project/topic fields on deprecated dedicated Pub/Sub roots.',
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-metafield-namespaces-resolution',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-metafield-namespaces-resolution.ts',
