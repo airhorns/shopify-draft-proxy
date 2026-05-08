@@ -1,34 +1,36 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-06T23:39:35.121Z",
-  "token": "fsuniq-moup8tr4",
+  "capturedAt": "2026-05-08T08:45:11.046Z",
+  "token": "fsuniq-mowo6bal",
   "notes": [
     "Live fulfillmentService uniqueness capture.",
     "Created disposable fulfillment services, then recorded Shopify rejecting same-name duplicate create, case-variant duplicate create, generated-handle collision create, and update-to-existing-name.",
+    "Recorded Shopify fulfillment-service handle generation for a diacritic/punctuation name: Latin diacritics are transliterated, punctuation collapses to hyphens, underscores are preserved, and trailing punctuation is trimmed.",
+    "Recorded Shopify rejecting generated reserved handles for Manual and Gift_Card on create, and Manual on update, with field [\"name\"] and message \"Name is reserved\".",
     "The active app schema exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field; focused runtime tests cover the proxy projecting null when clients select code.",
     "Rejected duplicate create/update branches returned fulfillmentService: null and userErrors[{ field: [\"name\"], message: \"Name has already been taken\" }]."
   ],
   "createA": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Acme fsuniq-moup8tr4"
+      "name": "FS Unique Acme fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71925268786?id=true",
-            "handle": "fs-unique-acme-fsuniq-moup8tr4",
-            "serviceName": "FS Unique Acme fsuniq-moup8tr4",
+            "id": "gid://shopify/FulfillmentService/71930413362?id=true",
+            "handle": "fs-unique-acme-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Acme fsuniq-mowo6bal",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112866033970",
-              "name": "FS Unique Acme fsuniq-moup8tr4",
+              "id": "gid://shopify/Location/112890052914",
+              "name": "FS Unique Acme fsuniq-mowo6bal",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -53,7 +55,7 @@
   "sameNameDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Acme fsuniq-moup8tr4"
+      "name": "FS Unique Acme fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
@@ -83,7 +85,7 @@
   "caseVariantDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS UNIQUE ACME FSUNIQ-MOUP8TR4"
+      "name": "FS UNIQUE ACME FSUNIQ-MOWO6BAL"
     },
     "payload": {
       "data": {
@@ -113,23 +115,23 @@
   "createSpaced": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique AB fsuniq-moup8tr4"
+      "name": "FS Unique AB fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71925301554?id=true",
-            "handle": "fs-unique-ab-fsuniq-moup8tr4",
-            "serviceName": "FS Unique AB fsuniq-moup8tr4",
+            "id": "gid://shopify/FulfillmentService/71930446130?id=true",
+            "handle": "fs-unique-ab-fsuniq-mowo6bal",
+            "serviceName": "FS Unique AB fsuniq-mowo6bal",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112866066738",
-              "name": "FS Unique AB fsuniq-moup8tr4",
+              "id": "gid://shopify/Location/112890085682",
+              "name": "FS Unique AB fsuniq-mowo6bal",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -154,7 +156,7 @@
   "handleCollisionDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "fs-unique-ab-fsuniq-moup8tr4"
+      "name": "fs-unique-ab-fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
@@ -181,26 +183,127 @@
       }
     }
   },
-  "createUpdateSource": {
+  "createDiacriticPunctuation": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Source fsuniq-moup8tr4"
+      "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71925334322?id=true",
-            "handle": "fs-unique-source-fsuniq-moup8tr4",
-            "serviceName": "FS Unique Source fsuniq-moup8tr4",
+            "id": "gid://shopify/FulfillmentService/71930478898?id=true",
+            "handle": "fs-unique-cafe__3pl-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Café__3PL fsuniq-mowo6bal!!!",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112866099506",
-              "name": "FS Unique Source fsuniq-moup8tr4",
+              "id": "gid://shopify/Location/112890118450",
+              "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!",
+              "isFulfillmentService": true,
+              "fulfillsOnlineOrders": true,
+              "shipsInventory": false
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reservedManualCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variables": {
+      "name": "Manual"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceCreate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reservedGiftCardCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variables": {
+      "name": "Gift_Card"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceCreate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createUpdateSource": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variables": {
+      "name": "FS Unique Source fsuniq-mowo6bal"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceCreate": {
+          "fulfillmentService": {
+            "id": "gid://shopify/FulfillmentService/71930511666?id=true",
+            "handle": "fs-unique-source-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Source fsuniq-mowo6bal",
+            "callbackUrl": null,
+            "trackingSupport": true,
+            "inventoryManagement": true,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+              "id": "gid://shopify/Location/112890151218",
+              "name": "FS Unique Source fsuniq-mowo6bal",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -225,23 +328,23 @@
   "createUpdateTarget": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Target fsuniq-moup8tr4"
+      "name": "FS Unique Target fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71925367090?id=true",
-            "handle": "fs-unique-target-fsuniq-moup8tr4",
-            "serviceName": "FS Unique Target fsuniq-moup8tr4",
+            "id": "gid://shopify/FulfillmentService/71930544434?id=true",
+            "handle": "fs-unique-target-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Target fsuniq-mowo6bal",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112866132274",
-              "name": "FS Unique Target fsuniq-moup8tr4",
+              "id": "gid://shopify/Location/112890183986",
+              "name": "FS Unique Target fsuniq-mowo6bal",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -266,8 +369,8 @@
   "updateToExistingName": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
     "variables": {
-      "id": "gid://shopify/FulfillmentService/71925367090?id=true",
-      "name": "FS Unique Source fsuniq-moup8tr4"
+      "id": "gid://shopify/FulfillmentService/71930544434?id=true",
+      "name": "FS Unique Source fsuniq-mowo6bal"
     },
     "payload": {
       "data": {
@@ -294,630 +397,36 @@
       }
     }
   },
-  "upstreamCalls": [
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
+  "updateToReservedName": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/71930544434?id=true",
+      "name": "Manual"
     },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
+    "payload": {
+      "data": {
+        "fulfillmentServiceUpdate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
             }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
+          ]
         }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingFulfillmentServicesCatalogHydrate",
-      "variables": {},
-      "query": "query ShippingFulfillmentServicesCatalogHydrate {\n  shop {\n    fulfillmentServices {\n      id handle serviceName callbackUrl inventoryManagement\n      requiresShippingMethod trackingSupport type\n      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shop": {
-              "fulfillmentServices": [
-                {
-                  "id": "gid://shopify/FulfillmentService/manual",
-                  "handle": "manual",
-                  "serviceName": "Manual",
-                  "callbackUrl": null,
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": false,
-                  "type": "MANUAL",
-                  "location": {
-                    "id": "gid://shopify/Location/106318430514",
-                    "name": "Shop location",
-                    "isFulfillmentService": false,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": true
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
-                  "handle": "snow-city-warehouse",
-                  "serviceName": "Snow City Warehouse",
-                  "callbackUrl": "https://mock.shop/",
-                  "inventoryManagement": false,
-                  "requiresShippingMethod": false,
-                  "trackingSupport": false,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/106318496050",
-                    "name": "Snow City Warehouse",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                },
-                {
-                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
-                  "handle": "har-571-transfer-fs-20260505000731",
-                  "serviceName": "HAR-571 transfer FS 20260505000731",
-                  "callbackUrl": null,
-                  "inventoryManagement": true,
-                  "requiresShippingMethod": true,
-                  "trackingSupport": true,
-                  "type": "THIRD_PARTY",
-                  "location": {
-                    "id": "gid://shopify/Location/112829858098",
-                    "name": "HAR-571 transfer FS 20260505000731",
-                    "isFulfillmentService": true,
-                    "fulfillsOnlineOrders": true,
-                    "shipsInventory": false
-                  }
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 3,
-              "actualQueryCost": 3,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
-                "restoreRate": 100
-              }
-            }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
           }
         }
       }
     }
-  ]
+  },
+  "upstreamCalls": []
 }
