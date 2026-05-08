@@ -6037,6 +6037,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-platform-backup-region-update-access-blocker',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-backup-region-update-access-blocker.mts',
+    purpose:
+      'backupRegionUpdate pre-resolve Markets access denial for a short-lived delegate token without Markets scopes.',
+    requiredAuthScopes: [
+      'active Admin API token that can create delegate tokens and has Markets/admin platform access',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-backup-region-update-access-blocker.json`,
+      'config/parity-specs/admin-platform/admin-platform-backup-region-update-access-blocker.json',
+    ],
+    cleanupBehavior:
+      'Creates one short-lived read_products delegate token, records the denied backupRegionUpdate response through that token, then destroys the delegate token with the parent credential.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform-flow-generate-signature-required-args',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-flow-generate-signature-required-args-conformance.mts',
