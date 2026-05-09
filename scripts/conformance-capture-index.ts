@@ -1735,6 +1735,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-update-constraints.json`,
+      'config/parity-specs/metafield-definition-update/empty-constraint-values.json',
       'config/parity-specs/metafields/metafield-definition-update-constraints.json',
       'config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql',
       'config/parity-requests/metafields/metafield-definition-update-constraints.graphql',

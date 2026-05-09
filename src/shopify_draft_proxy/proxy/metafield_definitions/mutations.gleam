@@ -1566,6 +1566,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
   let errors =
     definition_types.validate_definition_input(input, False)
     |> list.append(constraint_update_input_conflict_errors(input))
+    |> list.append(constraint_update_value_errors(input))
     |> list.append(validate_definition_update_access_input(input))
   case errors {
     [_, ..] -> #(
@@ -2685,6 +2686,59 @@ pub fn constraint_update_input_conflict_errors(
       ),
     ]
     _, _, _ -> []
+  }
+}
+
+@internal
+pub fn constraint_update_value_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  let updates_errors = case
+    definition_types.has_field(input, "constraintsUpdates")
+  {
+    True ->
+      validate_keyed_empty_constraints_update_values(
+        definition_types.read_object(input, "constraintsUpdates"),
+      )
+    False -> []
+  }
+  case definition_types.has_field(input, "constraintsSet") {
+    True ->
+      list.append(
+        updates_errors,
+        validate_keyed_empty_constraints_update_values(
+          definition_types.read_object(input, "constraintsSet"),
+        ),
+      )
+    False -> updates_errors
+  }
+}
+
+fn validate_keyed_empty_constraints_update_values(
+  constraints: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  case
+    definition_types.read_optional_string(constraints, "key"),
+    constraint_values_count(constraints, "values")
+  {
+    Some(_), 0 -> [
+      definition_types.UserError(
+        field: Some(["definition"]),
+        message: "Cannot change the constraint key without providing values.",
+        code: "INVALID_INPUT",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn constraint_values_count(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Int {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) -> list.length(values)
+    _ -> 0
   }
 }
 
