@@ -1126,6 +1126,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-filename-extension-aggregation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-filename-extension-aggregation.ts',
+    purpose:
+      'Files API fileUpdate filename validation aggregation for single and multi-input image extension mismatches plus multi-input unsupported external-video filename updates.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-filename-extension-aggregation.json`,
+      'config/parity-specs/media/file_update_filename_extension/filename-extension-aggregation.json',
+      'config/parity-requests/media/file_update_filename_extension/file-update.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable image and external-video files and deletes all returned file IDs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-fabricated-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-fabricated-validation.ts',
