@@ -1475,6 +1475,8 @@ pub fn run_mutation_rejects_oversized_staged_upload_before_import_or_throttle_te
         read_mode: proxy_state.Snapshot,
         unsupported_mutation_mode: proxy_state.PassthroughUnsupportedMutations,
         bulk_operation_run_mutation_max_input_file_size_bytes: 10,
+        staged_upload_resource_permissions: None,
+        force_staged_upload_url_generation_failure: False,
         port: 4000,
         shopify_admin_origin: "https://shopify.com",
         snapshot_path: None,

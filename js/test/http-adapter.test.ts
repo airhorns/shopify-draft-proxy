@@ -64,6 +64,8 @@ describe('Node HTTP adapter', () => {
         SHOPIFY_DRAFT_PROXY_READ_MODE: 'snapshot',
         SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'reject',
         SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: '1024',
+        SHOPIFY_DRAFT_PROXY_STAGED_UPLOAD_RESOURCE_PERMISSIONS: 'files,url_redirects',
+        SHOPIFY_DRAFT_PROXY_FORCE_STAGED_UPLOAD_URL_GENERATION_FAILURE: 'false',
         SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH: '/tmp/snapshot.json',
       }),
     ).toEqual({
@@ -72,6 +74,8 @@ describe('Node HTTP adapter', () => {
       readMode: 'snapshot',
       unsupportedMutationMode: 'reject',
       bulkOperationRunMutationMaxInputFileSizeBytes: 1024,
+      stagedUploadResourcePermissions: ['files', 'url_redirects'],
+      forceStagedUploadUrlGenerationFailure: false,
       snapshotPath: '/tmp/snapshot.json',
     });
   });

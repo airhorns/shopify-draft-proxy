@@ -34,6 +34,26 @@ function readPositiveInt(name: string, raw: string | undefined): number | undefi
   return parsed;
 }
 
+function readBool(name: string, raw: string | undefined): boolean | undefined {
+  if (!raw) return undefined;
+  if (raw === '1' || raw === 'true' || raw === 'TRUE' || raw === 'yes') {
+    return true;
+  }
+  if (raw === '0' || raw === 'false' || raw === 'FALSE' || raw === 'no') {
+    return false;
+  }
+  throw new Error(`Invalid ${name}: ${raw}`);
+}
+
+function readCommaSeparated(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined;
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  return values;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const shopifyAdminOrigin = env['SHOPIFY_ADMIN_ORIGIN'];
   if (!shopifyAdminOrigin) {
@@ -45,6 +65,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     'SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES',
     env['SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES'],
   );
+  const stagedUploadResourcePermissions = readCommaSeparated(
+    env['SHOPIFY_DRAFT_PROXY_STAGED_UPLOAD_RESOURCE_PERMISSIONS'],
+  );
+  const forceStagedUploadUrlGenerationFailure = readBool(
+    'SHOPIFY_DRAFT_PROXY_FORCE_STAGED_UPLOAD_URL_GENERATION_FAILURE',
+    env['SHOPIFY_DRAFT_PROXY_FORCE_STAGED_UPLOAD_URL_GENERATION_FAILURE'],
+  );
 
   return {
     port: readPort(env['PORT']),
@@ -54,6 +81,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(bulkOperationRunMutationMaxInputFileSizeBytes === undefined
       ? {}
       : { bulkOperationRunMutationMaxInputFileSizeBytes }),
+    ...(stagedUploadResourcePermissions === undefined ? {} : { stagedUploadResourcePermissions }),
+    ...(forceStagedUploadUrlGenerationFailure === undefined ? {} : { forceStagedUploadUrlGenerationFailure }),
     ...(snapshotPath ? { snapshotPath } : {}),
   };
 }

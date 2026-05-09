@@ -47,10 +47,19 @@ defmodule ShopifyDraftProxy do
     snapshot_path = option(Keyword.get(opts, :snapshot_path))
     bulk_operation_run_mutation_max_input_file_size_bytes =
       Keyword.get(opts, :bulk_operation_run_mutation_max_input_file_size_bytes, 104_857_600)
+    staged_upload_resource_permissions =
+      option(Keyword.get(opts, :staged_upload_resource_permissions))
+    force_staged_upload_url_generation_failure =
+      Keyword.get(opts, :force_staged_upload_url_generation_failure, false)
 
     raw =
       {:config, read_mode, unsupported_mutation_mode,
-       bulk_operation_run_mutation_max_input_file_size_bytes, port, origin, snapshot_path}
+       bulk_operation_run_mutation_max_input_file_size_bytes,
+       staged_upload_resource_permissions,
+       force_staged_upload_url_generation_failure,
+       port,
+       origin,
+       snapshot_path}
       |> DraftProxy.with_config()
       |> DraftProxy.with_default_registry()
 

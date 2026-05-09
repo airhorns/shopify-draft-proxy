@@ -47,6 +47,7 @@ import {
   Result$Ok$0,
   type List,
   type Result,
+  toList,
 } from '../../build/dev/javascript/prelude.mjs';
 
 import type {
@@ -90,10 +91,16 @@ function unsupportedMutationModeToGleam(
 
 function configToGleam(config: AppConfig): Config {
   const snapshotPath = config.snapshotPath === undefined ? new None() : new Some(config.snapshotPath);
+  const stagedUploadResourcePermissions =
+    config.stagedUploadResourcePermissions === undefined
+      ? new None()
+      : new Some(toList(config.stagedUploadResourcePermissions));
   return new Config(
     readModeToGleam(config.readMode),
     unsupportedMutationModeToGleam(config.unsupportedMutationMode),
     config.bulkOperationRunMutationMaxInputFileSizeBytes ?? 104_857_600,
+    stagedUploadResourcePermissions,
+    config.forceStagedUploadUrlGenerationFailure ?? false,
     config.port,
     config.shopifyAdminOrigin,
     snapshotPath,

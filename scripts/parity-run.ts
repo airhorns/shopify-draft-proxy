@@ -11,6 +11,8 @@ type CliArgs = {
 
 type ParitySpecHeader = {
   scenarioId?: string;
+  comparisonMode?: string;
+  liveCaptureFiles?: unknown[];
 };
 
 type GleamResult<T> = { constructor: { name: 'Ok' }; 0: T } | { constructor: { name: 'Error' }; 0: unknown };
@@ -104,6 +106,15 @@ async function findSpecForScenario(scenarioId: string): Promise<string> {
   throw new Error(`No parity spec with scenarioId "${scenarioId}" found under config/parity-specs/`);
 }
 
+async function isCapturedFixtureSpec(specPath: string): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFile(specPath, 'utf8')) as ParitySpecHeader;
+    return parsed.comparisonMode === 'captured-fixture' && (parsed.liveCaptureFiles?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveSpecPaths(args: CliArgs): Promise<string[]> {
   if (args.all) {
     return findAllSpecPaths();
@@ -147,6 +158,11 @@ async function main(): Promise<void> {
 
   for (const specPath of specPaths) {
     const relativeSpecPath = path.relative(repoRoot, specPath);
+    if (await isCapturedFixtureSpec(specPath)) {
+      log(`[parity] ${relativeSpecPath}: skipped captured fixture; see runtimeTestFiles`);
+      continue;
+    }
+
     const runResult = args.debug ? runner.run_debug(relativeSpecPath) : runner.run(relativeSpecPath);
     if (!isOk(runResult)) {
       failures += 1;

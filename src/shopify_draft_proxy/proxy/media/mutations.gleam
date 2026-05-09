@@ -22,6 +22,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   MutationOutcome,
 }
 import shopify_draft_proxy/proxy/products/hydration as product_hydration
+import shopify_draft_proxy/proxy/proxy_state.{type Config}
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -137,6 +138,46 @@ pub fn process_mutation(
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
+  process_mutation_with_options(
+    store,
+    identity,
+    document,
+    variables,
+    upstream,
+    None,
+    False,
+  )
+}
+
+pub fn process_mutation_with_config(
+  config: Config,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
+  process_mutation_with_options(
+    store,
+    identity,
+    document,
+    variables,
+    upstream,
+    config.staged_upload_resource_permissions,
+    config.force_staged_upload_url_generation_failure,
+  )
+}
+
+fn process_mutation_with_options(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+  staged_upload_resource_permissions: Option(List(String)),
+  force_staged_upload_url_generation_failure: Bool,
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
@@ -161,6 +202,8 @@ pub fn process_mutation(
             fragments,
             variables,
             upstream,
+            staged_upload_resource_permissions,
+            force_staged_upload_url_generation_failure,
           )
         }
       }
@@ -299,6 +342,19 @@ fn file_create_missing_original_source_error(
   ])
 }
 
+fn media_bucket_url_generation_failed_error(root_key: String) -> json.Json {
+  json.object([
+    #("message", json.string("MEDIA_BUCKET_URL_GENERATION_FAILED")),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("MEDIA_BUCKET_URL_GENERATION_FAILED")),
+      ]),
+    ),
+    #("path", json.array([root_key], json.string)),
+  ])
+}
+
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -306,56 +362,100 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
+  staged_upload_resource_permissions: Option(List(String)),
+  force_staged_upload_url_generation_failure: Bool,
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [], [])
-  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
+  let initial = #([], store, identity, [], [], [])
+  let #(
+    data_entries,
+    final_store,
+    final_identity,
+    all_staged,
+    all_drafts,
+    execution_errors,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
+      let #(
+        entries,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+        errors,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
-          let #(result, next_store, next_identity) = case name.value {
-            "fileCreate" ->
-              handle_file_create(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-              )
-            "fileUpdate" ->
-              handle_file_update(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                upstream,
-              )
-            "fileDelete" ->
-              handle_file_delete(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-                upstream,
-              )
-            "fileAcknowledgeUpdateFailed" ->
-              handle_file_acknowledge_update_failed(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-              )
-            "stagedUploadsCreate" ->
-              handle_staged_uploads_create(
-                current_store,
-                current_identity,
-                field,
-                fragments,
-                variables,
-              )
+          let #(result, next_store, next_identity, field_errors, should_log) = case
+            name.value
+          {
+            "fileCreate" -> {
+              let #(result, next_store, next_identity) =
+                handle_file_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              #(result, next_store, next_identity, [], True)
+            }
+            "fileUpdate" -> {
+              let #(result, next_store, next_identity) =
+                handle_file_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              #(result, next_store, next_identity, [], True)
+            }
+            "fileDelete" -> {
+              let #(result, next_store, next_identity) =
+                handle_file_delete(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              #(result, next_store, next_identity, [], True)
+            }
+            "fileAcknowledgeUpdateFailed" -> {
+              let #(result, next_store, next_identity) =
+                handle_file_acknowledge_update_failed(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              #(result, next_store, next_identity, [], True)
+            }
+            "stagedUploadsCreate" -> {
+              case force_staged_upload_url_generation_failure {
+                True ->
+                  staged_uploads_create_url_generation_failed(
+                    current_store,
+                    current_identity,
+                    field,
+                  )
+                False -> {
+                  let #(result, next_store, next_identity) =
+                    handle_staged_uploads_create(
+                      current_store,
+                      current_identity,
+                      field,
+                      fragments,
+                      variables,
+                      staged_upload_resource_permissions,
+                    )
+                  #(result, next_store, next_identity, [], True)
+                }
+              }
+            }
             _ -> #(
               MutationFieldResult(
                 key: get_field_response_key(field),
@@ -364,36 +464,75 @@ fn handle_mutation_fields(
               ),
               current_store,
               current_identity,
+              [],
+              False,
             )
           }
-          let draft =
-            mutation_helpers.single_root_log_draft(
-              name.value,
-              result.staged_resource_ids,
-              store_types.Staged,
-              "media",
-              "stage-locally",
-              Some(
-                "Locally staged " <> name.value <> " in shopify-draft-proxy.",
-              ),
-            )
+          let next_drafts = case should_log {
+            True -> {
+              let draft =
+                mutation_helpers.single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store_types.Staged,
+                  "media",
+                  "stage-locally",
+                  Some(
+                    "Locally staged "
+                    <> name.value
+                    <> " in shopify-draft-proxy.",
+                  ),
+                )
+              list.append(drafts, [draft])
+            }
+            False -> drafts
+          }
           #(
             list.append(entries, [#(result.key, result.payload)]),
             next_store,
             next_identity,
             list.append(staged_ids, result.staged_resource_ids),
-            list.append(drafts, [draft]),
+            next_drafts,
+            list.append(errors, field_errors),
           )
         }
         _ -> acc
       }
     })
+  let payload_entries = case execution_errors {
+    [] -> [#("data", json.object(data_entries))]
+    _ -> [
+      #("errors", json.preprocessed_array(execution_errors)),
+      #("data", json.object(data_entries)),
+    ]
+  }
   MutationOutcome(
-    data: json.object([#("data", json.object(data_entries))]),
+    data: json.object(payload_entries),
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
     log_drafts: all_drafts,
+  )
+}
+
+fn staged_uploads_create_url_generation_failed(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+) -> #(
+  MutationFieldResult,
+  Store,
+  SyntheticIdentityRegistry,
+  List(json.Json),
+  Bool,
+) {
+  let key = get_field_response_key(field)
+  #(
+    MutationFieldResult(key: key, payload: json.null(), staged_resource_ids: []),
+    store,
+    identity,
+    [media_bucket_url_generation_failed_error(key)],
+    False,
   )
 }
 
@@ -718,6 +857,7 @@ fn handle_staged_uploads_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  staged_upload_resource_permissions: Option(List(String)),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let inputs =
@@ -728,7 +868,11 @@ fn handle_staged_uploads_create(
     |> enumerate_objects
     |> list.flat_map(fn(entry) {
       let #(input, index) = entry
-      validate_staged_upload_input(input, index)
+      validate_staged_upload_input(
+        input,
+        index,
+        staged_upload_resource_permissions,
+      )
     })
   let #(targets, next_identity) =
     map_with_identity(
@@ -736,7 +880,13 @@ fn handle_staged_uploads_create(
       identity,
       fn(current_identity, entry) {
         let #(input, index) = entry
-        case validate_staged_upload_input(input, index) {
+        case
+          validate_staged_upload_input(
+            input,
+            index,
+            staged_upload_resource_permissions,
+          )
+        {
           [] -> make_staged_target(current_identity, input, index)
           _ -> #(empty_staged_target(), current_identity)
         }
@@ -1442,6 +1592,7 @@ fn validate_optional_url(
 fn validate_staged_upload_input(
   input: Dict(String, ResolvedValue),
   index: Int,
+  staged_upload_resource_permissions: Option(List(String)),
 ) -> List(media_types.FilesUserError) {
   let required_errors =
     ["filename", "mimeType", "resource"]
@@ -1458,10 +1609,17 @@ fn validate_staged_upload_input(
       }
     })
   let resource_errors = validate_staged_upload_resource(input, index)
+  let permission_errors =
+    validate_staged_upload_resource_permission(
+      input,
+      index,
+      staged_upload_resource_permissions,
+    )
   let file_size_errors = validate_staged_upload_file_size(input, index)
   let mime_errors = validate_staged_upload_mime_type(input, index)
   required_errors
   |> list.append(resource_errors)
+  |> list.append(permission_errors)
   |> list.append(file_size_errors)
   |> list.append(mime_errors)
 }
@@ -1483,6 +1641,56 @@ fn validate_staged_upload_resource(
         ]
       }
     _ -> []
+  }
+}
+
+fn validate_staged_upload_resource_permission(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+  staged_upload_resource_permissions: Option(List(String)),
+) -> List(media_types.FilesUserError) {
+  case
+    staged_upload_resource_permissions,
+    read_string_field(input, "resource")
+  {
+    None, _ -> []
+    Some(permissions), Some(resource) ->
+      case
+        list.contains(staged_upload_resource_values, resource),
+        staged_upload_required_permission(resource)
+      {
+        True, Some(permission) ->
+          case list.contains(permissions, permission) {
+            True -> []
+            False -> [
+              media_types.FilesUserError(
+                ["input", int.to_string(index), "resource"],
+                "You do not have permission to create a staged upload for "
+                  <> resource,
+                "ACCESS_DENIED",
+              ),
+            ]
+          }
+        _, _ -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn staged_upload_required_permission(resource: String) -> Option(String) {
+  case resource {
+    "IMAGE"
+    | "FILE"
+    | "VIDEO"
+    | "MODEL_3D"
+    | "COLLECTION_IMAGE"
+    | "PRODUCT_IMAGE"
+    | "SHOP_IMAGE" -> Some("files")
+    "BULK_MUTATION_VARIABLES" -> Some("bulk_operations")
+    "URL_REDIRECT_IMPORT" -> Some("url_redirects")
+    "RETURN_LABEL" -> Some("return_labels")
+    "DISPUTE_FILE_UPLOAD" -> Some("disputes")
+    _ -> None
   }
 }
 

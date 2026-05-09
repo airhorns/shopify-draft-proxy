@@ -145,6 +145,8 @@ describe('public API server helpers', () => {
         SHOPIFY_DRAFT_PROXY_READ_MODE: 'live-hybrid',
         SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'reject',
         SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: '2048',
+        SHOPIFY_DRAFT_PROXY_STAGED_UPLOAD_RESOURCE_PERMISSIONS: 'files,bulk_operations',
+        SHOPIFY_DRAFT_PROXY_FORCE_STAGED_UPLOAD_URL_GENERATION_FAILURE: 'true',
       }),
     ).toEqual({
       port: 4111,
@@ -152,6 +154,8 @@ describe('public API server helpers', () => {
       readMode: 'live-hybrid',
       unsupportedMutationMode: 'reject',
       bulkOperationRunMutationMaxInputFileSizeBytes: 2048,
+      stagedUploadResourcePermissions: ['files', 'bulk_operations'],
+      forceStagedUploadUrlGenerationFailure: true,
     });
   });
 });

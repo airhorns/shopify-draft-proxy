@@ -35,6 +35,22 @@ fn live_hybrid_registry_proxy() {
   |> draft_proxy.with_default_registry
 }
 
+fn registry_proxy_with_staged_upload_permissions(permissions: List(String)) {
+  let config = draft_proxy.default_config()
+  draft_proxy.with_config(
+    Config(..config, staged_upload_resource_permissions: Some(permissions)),
+  )
+  |> draft_proxy.with_default_registry
+}
+
+fn registry_proxy_with_forced_staged_upload_url_failure() {
+  let config = draft_proxy.default_config()
+  draft_proxy.with_config(
+    Config(..config, force_staged_upload_url_generation_failure: True),
+  )
+  |> draft_proxy.with_default_registry
+}
+
 fn registry_proxy_with_files(files: List(FileRecord)) {
   let proxy = registry_proxy()
   DraftProxy(..proxy, store: store.upsert_staged_files(proxy.store, files))
@@ -1064,6 +1080,42 @@ pub fn staged_uploads_create_shop_image_uses_image_family_shape_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"Content-Type\",\"value\":\"image/png\"},{\"name\":\"success_action_status\",\"value\":\"201\"},{\"name\":\"acl\",\"value\":\"private\"},{\"name\":\"key\",\"value\":\"shopify-draft-proxy/gid://shopify/StagedUploadTarget0/1/logo.png\"},{\"name\":\"x-goog-date\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-date\"},{\"name\":\"x-goog-credential\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-credential\"},{\"name\":\"x-goog-algorithm\",\"value\":\"GOOG4-RSA-SHA256\"},{\"name\":\"x-goog-signature\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-signature\"},{\"name\":\"policy\",\"value\":\"shopify-draft-proxy-placeholder-policy\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_allows_configured_resource_permission_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_staged_upload_permissions(["files"]),
+      "mutation { stagedUploadsCreate(input: [{ resource: FILE, filename: \"file.txt\", mimeType: \"text/plain\", httpMethod: PUT }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/plain\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_rejects_missing_resource_permission_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_staged_upload_permissions(["files"]),
+      "mutation { stagedUploadsCreate(input: [{ resource: URL_REDIRECT_IMPORT, filename: \"redirects.csv\", mimeType: \"text/csv\", httpMethod: POST }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"resource\"],\"message\":\"You do not have permission to create a staged upload for URL_REDIRECT_IMPORT\"}]}}}"
+}
+
+pub fn staged_uploads_create_forced_url_generation_failure_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_forced_staged_upload_url_failure(),
+      "mutation { stagedUploadsCreate(input: [{ resource: FILE, filename: \"file.txt\", mimeType: \"text/plain\" }]) { stagedTargets { url resourceUrl } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"MEDIA_BUCKET_URL_GENERATION_FAILED\",\"extensions\":{\"code\":\"MEDIA_BUCKET_URL_GENERATION_FAILED\"},\"path\":[\"stagedUploadsCreate\"]}],\"data\":{\"stagedUploadsCreate\":null}}"
 }
 
 pub fn staged_uploads_create_user_errors_rejects_code_selection_test() {

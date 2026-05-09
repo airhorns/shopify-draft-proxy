@@ -72,6 +72,8 @@ describe('Gleam JS HTTP adapter route surface', () => {
             readMode: 'snapshot',
             unsupportedMutationMode: 'passthrough',
             bulkOperationRunMutationMaxInputFileSizeBytes: 104857600,
+            stagedUploadResourcePermissions: null,
+            forceStagedUploadUrlGenerationFailure: false,
           },
           proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
           snapshot: { enabled: false, path: null },

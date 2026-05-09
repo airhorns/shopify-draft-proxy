@@ -1,0 +1,12 @@
+{
+  "scenarioId": "media-staged-uploads-create-permission-and-url-generation",
+  "operationNames": ["stagedUploadsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["access-scope-boundary", "execution-error-shape", "runtime-test-backed-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-staged-uploads-create-non-merchandising.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "comparisonMode": "captured-fixture",
+  "notes": "The referenced live capture records authorized stagedUploadsCreate success for non-merchandising resources plus the current conformance app's SHOP_IMAGE top-level ACCESS_DENIED boundary. The generic parity runner cannot yet replay config-specific staged-upload permission opt-outs, and Shopify's bucket signer failure is a transient backend exception with no deterministic public trigger. Local executable tests therefore enforce the per-resource permission knob and deterministic MEDIA_BUCKET_URL_GENERATION_FAILED execution-error affordance without fabricated Shopify fixture data."
+}

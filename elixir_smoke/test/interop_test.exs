@@ -125,6 +125,8 @@ defmodule ShopifyDraftProxy.InteropTest do
         read_mode: :live_hybrid,
         unsupported_mutation_mode: :reject,
         bulk_operation_run_mutation_max_input_file_size_bytes: 2048,
+        staged_upload_resource_permissions: ["files", "bulk_operations"],
+        force_staged_upload_url_generation_failure: true,
         shopify_admin_origin: "https://my-shop.myshopify.com"
       )
 
@@ -132,6 +134,8 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert config.body =~ ~s("readMode":"live-hybrid")
     assert config.body =~ ~s("unsupportedMutationMode":"reject")
     assert config.body =~ ~s("bulkOperationRunMutationMaxInputFileSizeBytes":2048)
+    assert config.body =~ ~s("stagedUploadResourcePermissions":["files","bulk_operations"])
+    assert config.body =~ ~s("forceStagedUploadUrlGenerationFailure":true)
     assert config.body =~ ~s("shopifyAdminOrigin":"https://my-shop.myshopify.com")
   end
 

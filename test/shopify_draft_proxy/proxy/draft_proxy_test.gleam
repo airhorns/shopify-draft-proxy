@@ -183,7 +183,7 @@ pub fn meta_config_default_test() {
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
+    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600,\"stagedUploadResourcePermissions\":null,\"forceStagedUploadUrlGenerationFailure\":false},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
 }
 
 pub fn meta_config_with_snapshot_path_test() {
@@ -192,6 +192,8 @@ pub fn meta_config_with_snapshot_path_test() {
       read_mode: LiveHybrid,
       unsupported_mutation_mode: PassthroughUnsupportedMutations,
       bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
+      staged_upload_resource_permissions: None,
+      force_staged_upload_url_generation_failure: False,
       port: 9000,
       shopify_admin_origin: "https://shop.test",
       snapshot_path: Some("/tmp/snap.json"),
@@ -207,7 +209,7 @@ pub fn meta_config_with_snapshot_path_test() {
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600},\"proxy\":{\"port\":9000,\"shopifyAdminOrigin\":\"https://shop.test\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
+    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600,\"stagedUploadResourcePermissions\":null,\"forceStagedUploadUrlGenerationFailure\":false},\"proxy\":{\"port\":9000,\"shopifyAdminOrigin\":\"https://shop.test\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
 }
 
 pub fn meta_config_post_returns_405_test() {
@@ -2013,7 +2015,7 @@ pub fn graphql_url_variable_hostless_scheme_reports_missing_host_test() {
 pub fn get_config_snapshot_default_test() {
   let proxy = draft_proxy.new()
   assert json.to_string(draft_proxy.get_config_snapshot(proxy))
-    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
+    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600,\"stagedUploadResourcePermissions\":null,\"forceStagedUploadUrlGenerationFailure\":false},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
 }
 
 pub fn get_config_snapshot_with_snapshot_path_test() {
@@ -2022,13 +2024,15 @@ pub fn get_config_snapshot_with_snapshot_path_test() {
       read_mode: LiveHybrid,
       unsupported_mutation_mode: PassthroughUnsupportedMutations,
       bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
+      staged_upload_resource_permissions: None,
+      force_staged_upload_url_generation_failure: False,
       port: 4001,
       shopify_admin_origin: "https://example.myshopify.com",
       snapshot_path: Some("/tmp/snap.json"),
     )
   let proxy = draft_proxy.with_config(cfg)
   assert json.to_string(draft_proxy.get_config_snapshot(proxy))
-    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600},\"proxy\":{\"port\":4001,\"shopifyAdminOrigin\":\"https://example.myshopify.com\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
+    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\",\"bulkOperationRunMutationMaxInputFileSizeBytes\":104857600,\"stagedUploadResourcePermissions\":null,\"forceStagedUploadUrlGenerationFailure\":false},\"proxy\":{\"port\":4001,\"shopifyAdminOrigin\":\"https://example.myshopify.com\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
 }
 
 pub fn get_config_snapshot_matches_meta_route_body_test() {

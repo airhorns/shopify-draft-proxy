@@ -36,6 +36,28 @@ Local staged mutations:
   HTTP adapter accepts bytes posted back to those placeholder routes only as an
   in-memory staged-upload handoff for local `bulkOperationRunMutation` imports;
   it does not prove external media upload success.
+- `stagedUploadsCreate` can model resource-specific session permissions through
+  `Config.staged_upload_resource_permissions`, the JS
+  `stagedUploadResourcePermissions` option, or the comma-separated
+  `SHOPIFY_DRAFT_PROXY_STAGED_UPLOAD_RESOURCE_PERMISSIONS` environment
+  variable. The default `None` / unset value preserves existing behavior and
+  treats every accepted resource permission as present. When the list is set,
+  resources requiring a permission that is not present return a `userErrors`
+  entry on `["input", index, "resource"]` and an empty placeholder staged
+  target. The current accepted-resource mapping is:
+  IMAGE/FILE/VIDEO/MODEL_3D/COLLECTION_IMAGE/PRODUCT_IMAGE/SHOP_IMAGE ->
+  `files`, BULK_MUTATION_VARIABLES -> `bulk_operations`,
+  URL_REDIRECT_IMPORT -> `url_redirects`, RETURN_LABEL -> `return_labels`, and
+  DISPUTE_FILE_UPLOAD -> `disputes`.
+- `stagedUploadsCreate` also has a deterministic local execution-error
+  affordance for storage URL generation failures:
+  `Config.force_staged_upload_url_generation_failure`, the JS
+  `forceStagedUploadUrlGenerationFailure` option, or
+  `SHOPIFY_DRAFT_PROXY_FORCE_STAGED_UPLOAD_URL_GENERATION_FAILURE=true`. When
+  enabled, the resolver returns `data.stagedUploadsCreate: null` and a
+  top-level `errors[]` entry whose `extensions.code` is
+  `MEDIA_BUCKET_URL_GENERATION_FAILED`; no normal `stagedTargets` or
+  `userErrors` payload is produced.
 - HAR-405 captured live Shopify Admin GraphQL 2026-04 staged upload targets for
   representative IMAGE, FILE, VIDEO, and MODEL_3D inputs. The proxy now matches
   the captured target count, selected `userErrors` shape, parameter order, and
@@ -59,7 +81,10 @@ Local staged mutations:
   conformance app receives top-level `ACCESS_DENIED` for that resource. The
   local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
   not emit proxy-specific parameter names; a scoped live target capture remains
-  blocked until the conformance credential can access that resource.
+  blocked until the conformance credential can access that resource. The local
+  permission opt-out knob covers resource-specific denial as a per-input
+  `userErrors` branch; it does not infer app-auth root access denial from
+  request headers.
 - `CUSTOMER_IMPORT`, `INVENTORY_IMPORT`, `ARTICLE_IMAGE`, `THEME_ARCHIVE`, and
   `TRANSLATIONS_IMPORT` are not public 2026-04 enum values on the captured
   conformance store. Variable requests for those resources are rejected by
@@ -70,6 +95,12 @@ Local staged mutations:
   policy values. Static non-secret form values match the capture where Shopify
   returns them: MIME `Content-Type`, `success_action_status: 201`,
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
+- Real `MEDIA_BUCKET_URL_GENERATION_FAILED` Shopify captures are deferred: the
+  branch is raised by transient storage-signing backend failures, and the
+  current public Admin API path has no deterministic input that triggers it.
+  The proxy exposes the explicit config/env knob above so local tests can
+  exercise client handling for that top-level error shape without fabricated
+  Shopify fixture data.
 - HAR-704 captured staged upload validation behavior for Admin GraphQL 2026-04.
   `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
   field-scoped `userErrors` entry and a null placeholder target. Invalid enum

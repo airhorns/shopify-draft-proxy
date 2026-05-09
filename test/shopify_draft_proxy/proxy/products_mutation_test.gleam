@@ -3282,6 +3282,8 @@ pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
       read_mode: Snapshot,
       unsupported_mutation_mode: PassthroughUnsupportedMutations,
       bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
+      staged_upload_resource_permissions: None,
+      force_staged_upload_url_generation_failure: False,
       port: 4000,
       shopify_admin_origin: "https://acme.myshopify.com",
       snapshot_path: None,

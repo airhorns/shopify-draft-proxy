@@ -310,6 +310,16 @@ pub fn get_config_snapshot(proxy: DraftProxy) -> Json {
             proxy.config.bulk_operation_run_mutation_max_input_file_size_bytes,
           ),
         ),
+        #(
+          "stagedUploadResourcePermissions",
+          option_list_string_json(
+            proxy.config.staged_upload_resource_permissions,
+          ),
+        ),
+        #(
+          "forceStagedUploadUrlGenerationFailure",
+          json.bool(proxy.config.force_staged_upload_url_generation_failure),
+        ),
       ]),
     ),
     #(
@@ -343,6 +353,13 @@ fn unsupported_mutation_mode_to_string(
   case mode {
     PassthroughUnsupportedMutations -> "passthrough"
     RejectUnsupportedMutations -> "reject"
+  }
+}
+
+fn option_list_string_json(value: Option(List(String))) -> Json {
+  case value {
+    Some(items) -> json.array(items, json.string)
+    None -> json.null()
   }
 }
 
@@ -2075,7 +2092,22 @@ fn config_aware_mutation_handler(
           upstream,
         )
       })
-    False -> local_mutation_handler(name, query)
+    False ->
+      case media.is_media_mutation_root(name) {
+        True ->
+          Some(fn(store, identity, request_path, document, variables, upstream) {
+            media.process_mutation_with_config(
+              proxy.config,
+              store,
+              identity,
+              request_path,
+              document,
+              variables,
+              upstream,
+            )
+          })
+        False -> local_mutation_handler(name, query)
+      }
   }
 }
 
