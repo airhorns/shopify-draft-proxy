@@ -1,4 +1,4 @@
-mutation MetafieldDeleteParityPlan($input: MetafieldDeleteInput!) {
+mutation MetafieldDeleteById($input: MetafieldDeleteInput!) {
   metafieldDelete(input: $input) {
     deletedId
     userErrors {

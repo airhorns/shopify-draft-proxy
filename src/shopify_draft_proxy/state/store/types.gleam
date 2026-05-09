@@ -441,6 +441,7 @@ pub type StagedState {
       StorePropertyMutationPayloadRecord,
     ),
     product_metafields: Dict(String, ProductMetafieldRecord),
+    deleted_product_metafield_ids: Dict(String, Bool),
     metafield_definitions: Dict(String, MetafieldDefinitionRecord),
     deleted_metafield_definition_ids: Dict(String, Bool),
     saved_searches: Dict(String, SavedSearchRecord),

@@ -18,11 +18,11 @@ import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type MetaobjectDefinitionRecord,
-  type ProductMediaRecord, type ProductRecord, type ProductVariantRecord,
-  type SellingPlanGroupRecord, type ShopRecord, type StorePropertyRecord,
-  CapturedArray, CapturedObject, CapturedString, ChannelRecord, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, CustomerRecord,
-  DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord, type ProductRecord,
+  type ProductVariantRecord, type SellingPlanGroupRecord, type ShopRecord,
+  type StorePropertyRecord, CapturedArray, CapturedObject, CapturedString,
+  ChannelRecord, CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
+  CustomerRecord, DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
   InventoryLocationRecord, InventoryQuantityRecord,
   InventoryTransferLineItemRecord, InventoryTransferRecord, LocationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
@@ -2306,7 +2306,7 @@ pub fn metafield_delete_stages_product_owned_deletion_test() {
     == 1
 }
 
-pub fn metafield_delete_unknown_id_keeps_compatibility_payload_test() {
+pub fn metafield_delete_unknown_id_returns_not_found_without_log_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
   let query =
@@ -2317,8 +2317,49 @@ pub fn metafield_delete_unknown_id_keeps_compatibility_payload_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":\"gid://shopify/Metafield/missing\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Metafield does not exist.\"}]}}}"
   assert store.get_log(next_proxy.store)
+    |> list.length
+    == 0
+}
+
+pub fn metafield_delete_repeated_id_returns_not_found_without_extra_log_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
+  let query =
+    "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/material\\\" }) { deletedId userErrors { field message } } }"
+
+  let #(Response(status: first_status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), final_proxy) =
+    draft_proxy.process_request(next_proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Metafield does not exist.\"}]}}}"
+  assert store.get_log(final_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn metafield_delete_repeated_only_owner_metafield_returns_not_found_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: single_owner_metafield_store())
+  let query =
+    "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/only\\\" }) { deletedId userErrors { field message } } }"
+
+  let #(Response(status: first_status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), final_proxy) =
+    draft_proxy.process_request(next_proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Metafield does not exist.\"}]}}}"
+  assert store.get_log(final_proxy.store)
     |> list.length
     == 1
 }
@@ -6269,35 +6310,38 @@ fn taggable_customer() -> CustomerRecord {
 fn metafield_store() -> store.Store {
   default_option_store()
   |> store.replace_base_metafields_for_owner("gid://shopify/Product/optioned", [
-    ProductMetafieldRecord(
-      id: "gid://shopify/Metafield/material",
-      owner_id: "gid://shopify/Product/optioned",
-      namespace: "custom",
-      key: "material",
-      type_: Some("single_line_text_field"),
-      value: Some("Canvas"),
-      compare_digest: Some("digest-material"),
-      json_value: None,
-      created_at: None,
-      updated_at: None,
-      owner_type: Some("PRODUCT"),
-      market_localizable_content: [],
-    ),
-    ProductMetafieldRecord(
-      id: "gid://shopify/Metafield/origin",
-      owner_id: "gid://shopify/Product/optioned",
-      namespace: "details",
-      key: "origin",
-      type_: Some("single_line_text_field"),
-      value: Some("VN"),
-      compare_digest: Some("digest-origin"),
-      json_value: None,
-      created_at: None,
-      updated_at: None,
-      owner_type: Some("PRODUCT"),
-      market_localizable_content: [],
-    ),
+    product_metafield("material", "custom", "material", "Canvas"),
+    product_metafield("origin", "details", "origin", "VN"),
   ])
+}
+
+fn single_owner_metafield_store() -> store.Store {
+  default_option_store()
+  |> store.replace_base_metafields_for_owner("gid://shopify/Product/optioned", [
+    product_metafield("only", "custom", "only", "Solo"),
+  ])
+}
+
+fn product_metafield(
+  id_tail: String,
+  namespace: String,
+  key: String,
+  value: String,
+) -> ProductMetafieldRecord {
+  ProductMetafieldRecord(
+    id: "gid://shopify/Metafield/" <> id_tail,
+    owner_id: "gid://shopify/Product/optioned",
+    namespace: namespace,
+    key: key,
+    type_: Some("single_line_text_field"),
+    value: Some(value),
+    compare_digest: Some("digest-" <> id_tail),
+    json_value: None,
+    created_at: None,
+    updated_at: None,
+    owner_type: Some("PRODUCT"),
+    market_localizable_content: [],
+  )
 }
 
 fn definition_validation_store() -> store.Store {
