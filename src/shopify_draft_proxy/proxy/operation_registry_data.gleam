@@ -5420,9 +5420,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
-      runtime_tests: ["test/parity_test.gleam"],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured 2026-04 MARK_AS_OPEN behavior after report-progress state: local staging returns OPEN status and restores open supported actions for downstream reads.",
+        "Local staging requires a SCHEDULED fulfillment order, returns INVALID_FULFILLMENT_ORDER_STATUS on field id without staging for other statuses, and restores OPEN status/actions when the precondition is met. The optional IN_PROGRESS flag path is not modeled.",
       ),
     ),
     RegistryEntry(
@@ -5480,9 +5482,11 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderReportProgress",
         "FulfillmentOrderReportProgress",
       ],
-      runtime_tests: ["test/parity_test.gleam"],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured 2026-04 report-progress support for OPEN merchant-managed fulfillment orders: local staging moves status to IN_PROGRESS and exposes MARK_AS_OPEN in downstream reads.",
+        "Local staging requires an IN_PROGRESS fulfillment order, returns INVALID_FULFILLMENT_ORDER_STATUS on field id without staging for other statuses, and restamps progress while preserving IN_PROGRESS status/actions when the precondition is met.",
       ),
     ),
     RegistryEntry(
