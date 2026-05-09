@@ -312,8 +312,10 @@ pub fn find_effective_metaobject_by_handle(
   type_: String,
   handle: String,
 ) -> Option(state_types.MetaobjectRecord) {
+  let normalized_handle = string.lowercase(handle)
   list.find(list_effective_metaobjects(store), fn(record) {
-    record.type_ == type_ && record.handle == handle
+    record.type_ == type_
+    && string.lowercase(record.handle) == normalized_handle
   })
   |> option.from_result
 }

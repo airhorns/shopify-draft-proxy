@@ -2646,6 +2646,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-auto-handle-generation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-auto-handle-generation-conformance.ts',
+    purpose:
+      'metaobjectCreate generated handle and fallback displayName shape when no handle is supplied and the definition has no displayNameKey, plus explicit mixed-case handle lowercasing, titleized display-name fallback, and case-insensitive conflict suffixing.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-auto-handle-generation.json`,
+      'config/parity-specs/metaobjects/metaobject-auto-handle-generation.json',
+      'config/parity-requests/metaobjects/metaobject-auto-handle-generation-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-auto-handle-generation-definition-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and four rows, then deletes the rows and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-upsert-recovery-and-prefixes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-upsert-recovery-and-prefixes-conformance.ts',
