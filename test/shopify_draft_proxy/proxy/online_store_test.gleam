@@ -3,6 +3,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, DraftProxy, Request, Response,
@@ -122,6 +123,17 @@ fn graphql_request(query: String) -> Request {
     method: "POST",
     path: "/admin/api/2025-01/graphql.json",
     headers: dict.new(),
+    body: "{\"query\":\"" <> escape(query) <> "\"}",
+  )
+}
+
+fn app_graphql_request(query: String, api_client_id: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.from_list([
+      #(app_identity.api_client_id_header, api_client_id),
+    ]),
     body: "{\"query\":\"" <> escape(query) <> "\"}",
   )
 }
@@ -1441,6 +1453,54 @@ pub fn online_store_integration_missing_ids_return_not_found_codes_test() {
   let #(delete_body, _) = run_graphql(proxy, delete_query)
   assert delete_body
     == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]},\"scriptTagDelete\":{\"deletedScriptTagId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"themeDelete\":{\"deletedThemeId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Theme not found\"}]},\"serverPixelDelete\":{\"deletedServerPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationDelete\":{\"deletedMobilePlatformApplicationId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+}
+
+pub fn online_store_app_scoped_integrations_reject_other_app_mutations_test() {
+  let app_a = "app-a"
+  let app_b = "app-b"
+  let create_query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\" }) { scriptTag { id } userErrors { code field message } } webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field message } } serverPixelCreate { serverPixel { id } userErrors { code field message } } mobilePlatformApplicationCreate(input: { apple: { appId: \"com.example.app\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { id } } userErrors { code field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy(),
+      app_graphql_request(create_query, app_a),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]},\"webPixelCreate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic\"},\"userErrors\":[]},\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/3?shopify-draft-proxy=synthetic\"},\"userErrors\":[]},\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/4?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let denied_updates =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"https://cdn.example.test/other.js\" }) { scriptTag { id } userErrors { __typename code field message } } webPixelUpdate(id: \"gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { __typename code field message } } mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/4?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"com.example.other\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      app_graphql_request(denied_updates, app_b),
+    )
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]},\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+
+  let denied_deletes =
+    "mutation { scriptTagDelete(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\") { deletedScriptTagId userErrors { code field message } } webPixelDelete(id: \"gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic\") { deletedWebPixelId userErrors { code field message } } serverPixelDelete { deletedServerPixelId userErrors { code field message } } mobilePlatformApplicationDelete(id: \"gid://shopify/MobilePlatformApplication/4?shopify-draft-proxy=synthetic\") { deletedMobilePlatformApplicationId userErrors { code field message } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      app_graphql_request(denied_deletes, app_b),
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"scriptTagDelete\":{\"deletedScriptTagId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]},\"serverPixelDelete\":{\"deletedServerPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationDelete\":{\"deletedMobilePlatformApplicationId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+
+  let same_app_delete =
+    "mutation { serverPixelDelete { deletedServerPixelId userErrors { code field message } } }"
+  let #(Response(status: same_status, body: same_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      app_graphql_request(same_app_delete, app_a),
+    )
+  assert same_status == 200
+  assert json.to_string(same_body)
+    == "{\"data\":{\"serverPixelDelete\":{\"deletedServerPixelId\":\"gid://shopify/ServerPixel/3?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
 }
 
 pub fn online_store_integration_malformed_ids_return_invalid_codes_test() {

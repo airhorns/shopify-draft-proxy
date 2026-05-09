@@ -10,6 +10,7 @@ import gleam/string
 import gleam/uri
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull, SrcObject,
@@ -129,6 +130,8 @@ fn handle_mutation_field(
   upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
+  let requesting_api_permission =
+    app_identity.read_requesting_api_client_id(upstream.headers)
   case field {
     Field(name: name, ..) -> {
       let root = name.value
@@ -230,14 +233,27 @@ fn handle_mutation_field(
             root,
             "theme",
             "deletedThemeId",
+            None,
           )
         "themeFilesUpsert" -> theme_files_upsert(outcome, field, variables)
         "themeFilesCopy" -> theme_files_copy(outcome, field, variables)
         "themeFilesDelete" -> theme_files_delete(outcome, field, variables)
         "scriptTagCreate" ->
-          create_script_tag(outcome, field, fragments, variables)
+          create_script_tag(
+            outcome,
+            field,
+            fragments,
+            variables,
+            requesting_api_permission,
+          )
         "scriptTagUpdate" ->
-          update_script_tag(outcome, field, fragments, variables)
+          update_script_tag(
+            outcome,
+            field,
+            fragments,
+            variables,
+            requesting_api_permission,
+          )
         "scriptTagDelete" ->
           delete_integration(
             outcome,
@@ -246,6 +262,7 @@ fn handle_mutation_field(
             root,
             "scriptTag",
             "deletedScriptTagId",
+            requesting_api_permission,
           )
         "webPixelCreate" ->
           create_pixel(
@@ -255,6 +272,7 @@ fn handle_mutation_field(
             variables,
             "webPixelCreate",
             "webPixel",
+            requesting_api_permission,
           )
         "webPixelUpdate" ->
           update_pixel(
@@ -264,6 +282,7 @@ fn handle_mutation_field(
             variables,
             "webPixelUpdate",
             "webPixel",
+            requesting_api_permission,
           )
         "webPixelDelete" ->
           delete_integration(
@@ -273,6 +292,7 @@ fn handle_mutation_field(
             root,
             "webPixel",
             "deletedWebPixelId",
+            requesting_api_permission,
           )
         "serverPixelCreate" ->
           create_pixel(
@@ -282,6 +302,7 @@ fn handle_mutation_field(
             variables,
             "serverPixelCreate",
             "serverPixel",
+            requesting_api_permission,
           )
         "serverPixelDelete" ->
           delete_integration(
@@ -291,6 +312,7 @@ fn handle_mutation_field(
             root,
             "serverPixel",
             "deletedServerPixelId",
+            requesting_api_permission,
           )
         "eventBridgeServerPixelUpdate" ->
           update_server_pixel_endpoint(
@@ -300,6 +322,7 @@ fn handle_mutation_field(
             variables,
             root,
             "arn",
+            requesting_api_permission,
           )
         "pubSubServerPixelUpdate" ->
           update_server_pixel_endpoint(
@@ -309,15 +332,28 @@ fn handle_mutation_field(
             variables,
             root,
             "pubsub",
+            requesting_api_permission,
           )
         "storefrontAccessTokenCreate" ->
           create_storefront_token(outcome, field, fragments, variables)
         "storefrontAccessTokenDelete" ->
           delete_storefront_token(outcome, field, variables)
         "mobilePlatformApplicationCreate" ->
-          create_mobile_app(outcome, field, fragments, variables)
+          create_mobile_app(
+            outcome,
+            field,
+            fragments,
+            variables,
+            requesting_api_permission,
+          )
         "mobilePlatformApplicationUpdate" ->
-          update_mobile_app(outcome, field, fragments, variables)
+          update_mobile_app(
+            outcome,
+            field,
+            fragments,
+            variables,
+            requesting_api_permission,
+          )
         "mobilePlatformApplicationDelete" ->
           delete_integration(
             outcome,
@@ -326,6 +362,7 @@ fn handle_mutation_field(
             root,
             "mobilePlatformApplication",
             "deletedMobilePlatformApplicationId",
+            requesting_api_permission,
           )
         _ -> #(key, json.null(), outcome)
       }
@@ -2353,6 +2390,7 @@ fn create_script_tag(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let input =
     graphql_helpers.read_arg_object(
@@ -2369,25 +2407,32 @@ fn create_script_tag(
           "online_store",
         )
       let #(record, identity) =
-        serializers.make_integration(outcome.identity, "scriptTag", [
-          #("__typename", SrcString("ScriptTag")),
-          #(
-            "src",
-            serializers.option_source(
-              serializers.input_string(input, "src"),
-              "",
-            ),
+        serializers.make_integration(
+          outcome.identity,
+          "scriptTag",
+          serializers.with_api_permission(
+            [
+              #("__typename", SrcString("ScriptTag")),
+              #(
+                "src",
+                serializers.option_source(
+                  serializers.input_string(input, "src"),
+                  "",
+                ),
+              ),
+              #("displayScope", SrcString(display_scope)),
+              #("event", SrcString("onload")),
+              #(
+                "cache",
+                serializers.bool_source(
+                  serializers.input_bool(input, "cache"),
+                  False,
+                ),
+              ),
+            ],
+            requesting_api_permission,
           ),
-          #("displayScope", SrcString(display_scope)),
-          #("event", SrcString("onload")),
-          #(
-            "cache",
-            serializers.bool_source(
-              serializers.input_bool(input, "cache"),
-              False,
-            ),
-          ),
-        ])
+        )
       let #(_, store) =
         store.upsert_staged_online_store_integration(outcome.store, record)
       integration_payload_result(
@@ -2421,12 +2466,20 @@ fn update_script_tag(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case serializers.lookup_integration_by_id(outcome.store, "scriptTag", id) {
+  case
+    serializers.lookup_app_scoped_integration_by_id(
+      outcome.store,
+      "scriptTag",
+      id,
+      requesting_api_permission,
+    )
+  {
     serializers.IntegrationFound(existing) -> {
       let errors = script_tag_input_errors(input, False, [])
       case errors {
@@ -2650,6 +2703,7 @@ fn create_pixel(
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
   kind: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let settings = case kind {
@@ -2665,7 +2719,7 @@ fn create_pixel(
     kind == "webPixel"
     && list.any(
       store.list_effective_online_store_integrations(outcome.store, "webPixel"),
-      serializers.same_current_app_web_pixel,
+      serializers.same_app_web_pixel(_, requesting_api_permission),
     )
   case duplicate_web_pixel {
     True ->
@@ -2691,6 +2745,7 @@ fn create_pixel(
         root,
         kind,
         settings,
+        requesting_api_permission,
       )
   }
 }
@@ -2703,6 +2758,7 @@ fn create_pixel_record(
   root: String,
   kind: String,
   settings: graphql_helpers.SourceValue,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let type_name = case kind {
     "webPixel" -> "WebPixel"
@@ -2722,7 +2778,11 @@ fn create_pixel_record(
     ]
   }
   let #(record, identity) =
-    serializers.make_integration(outcome.identity, kind, entries)
+    serializers.make_integration(
+      outcome.identity,
+      kind,
+      serializers.with_api_permission(entries, requesting_api_permission),
+    )
   let #(_, store) =
     store.upsert_staged_online_store_integration(outcome.store, record)
   integration_payload_result(
@@ -2747,20 +2807,27 @@ fn update_pixel(
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
   kind: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
   let lookup = case id {
-    Some(_) -> serializers.lookup_integration_by_id(outcome.store, kind, id)
+    Some(_) ->
+      serializers.lookup_app_scoped_integration_by_id(
+        outcome.store,
+        kind,
+        id,
+        requesting_api_permission,
+      )
     None ->
-      case
-        serializers.first_option(store.list_effective_online_store_integrations(
-          outcome.store,
-          kind,
-        ))
-      {
-        Some(record) -> serializers.IntegrationFound(record)
-        None -> serializers.IntegrationMissing
+      case kind {
+        "serverPixel" ->
+          serializers.first_app_scoped_integration(
+            outcome.store,
+            kind,
+            requesting_api_permission,
+          )
+        _ -> serializers.IntegrationMissing
       }
   }
   case lookup {
@@ -3205,12 +3272,14 @@ fn update_server_pixel_endpoint(
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
   mode: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let existing =
-    serializers.first_option(store.list_effective_online_store_integrations(
+    serializers.first_app_scoped_integration(
       outcome.store,
       "serverPixel",
-    ))
+      requesting_api_permission,
+    )
   let args = graphql_helpers.field_args(field, variables)
   let #(address, validation_errors) = server_pixel_endpoint_address(mode, args)
   case validation_errors {
@@ -3225,7 +3294,7 @@ fn update_server_pixel_endpoint(
       )
     [] ->
       case existing {
-        Some(existing) -> {
+        serializers.IntegrationFound(existing) -> {
           let record =
             OnlineStoreIntegrationRecord(
               ..existing,
@@ -3251,7 +3320,7 @@ fn update_server_pixel_endpoint(
             [record.id],
           )
         }
-        None ->
+        _ ->
           integration_payload_result(
             outcome,
             field,
@@ -3480,6 +3549,7 @@ fn create_mobile_app(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let raw_input =
     graphql_helpers.read_arg_object(
@@ -3509,6 +3579,7 @@ fn create_mobile_app(
         "android",
         "AndroidApplication",
         "applicationId",
+        requesting_api_permission,
       )
     None, Some(app_input) ->
       create_mobile_app_for_platform(
@@ -3520,6 +3591,7 @@ fn create_mobile_app(
         "apple",
         "AppleApplication",
         "appId",
+        requesting_api_permission,
       )
   }
 }
@@ -3533,6 +3605,7 @@ fn create_mobile_app_for_platform(
   platform: String,
   typename: String,
   id_field: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   case serializers.input_non_blank_string(app_input, id_field) {
     None ->
@@ -3540,7 +3613,13 @@ fn create_mobile_app_for_platform(
         mobile_platform_blank_id_error(platform, id_field),
       ])
     Some(platform_id) ->
-      case mobile_platform_has_platform(outcome.store, platform) {
+      case
+        mobile_platform_has_platform(
+          outcome.store,
+          platform,
+          requesting_api_permission,
+        )
+      {
         True ->
           mobile_platform_create_error_payload(outcome, field, fragments, [
             mobile_platform_taken_error(platform),
@@ -3555,6 +3634,7 @@ fn create_mobile_app_for_platform(
             platform_id,
             typename,
             id_field,
+            requesting_api_permission,
           )
       }
   }
@@ -3569,12 +3649,14 @@ fn stage_mobile_app(
   platform_id: String,
   typename: String,
   id_field: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let #(record, identity) =
     serializers.make_integration(
       outcome.identity,
       "mobilePlatformApplication",
-      mobile_platform_create_entries(typename, app_input, platform_id, id_field),
+      mobile_platform_create_entries(typename, app_input, platform_id, id_field)
+        |> serializers.with_api_permission(requesting_api_permission),
     )
   let #(_, store) =
     store.upsert_staged_online_store_integration(outcome.store, record)
@@ -3687,10 +3769,15 @@ fn mobile_platform_has_object(
   }
 }
 
-fn mobile_platform_has_platform(store: Store, platform: String) -> Bool {
-  store.list_effective_online_store_integrations(
+fn mobile_platform_has_platform(
+  store: Store,
+  platform: String,
+  requesting_api_permission: Option(String),
+) -> Bool {
+  serializers.app_scoped_integrations(
     store,
     "mobilePlatformApplication",
+    requesting_api_permission,
   )
   |> list.any(fn(record) {
     mobile_platform_record_platform(record) == Some(platform)
@@ -3769,16 +3856,18 @@ fn update_mobile_app(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case
-    serializers.lookup_integration_by_id(
+    serializers.lookup_app_scoped_integration_by_id(
       outcome.store,
       "mobilePlatformApplication",
       id,
+      requesting_api_permission,
     )
   {
     serializers.IntegrationFound(record) -> {
@@ -4054,13 +4143,31 @@ fn delete_integration(
   root: String,
   kind: String,
   deleted_key: String,
+  requesting_api_permission: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
-  let #(deleted, errors, store) = case
-    serializers.lookup_integration_by_id(outcome.store, kind, id)
-  {
+  let lookup = case id {
+    Some(_) ->
+      serializers.lookup_app_scoped_integration_by_id(
+        outcome.store,
+        kind,
+        id,
+        requesting_api_permission,
+      )
+    None ->
+      case kind {
+        "serverPixel" ->
+          serializers.first_app_scoped_integration(
+            outcome.store,
+            kind,
+            requesting_api_permission,
+          )
+        _ -> serializers.IntegrationMissing
+      }
+  }
+  let #(deleted, errors, store) = case lookup {
     serializers.IntegrationFound(record) -> #(
       SrcString(record.id),
       [],
