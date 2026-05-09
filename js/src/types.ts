@@ -11,6 +11,7 @@ export interface AppConfig {
   shopifyAdminOrigin: string;
   snapshotPath?: string;
   unsupportedMutationMode?: UnsupportedMutationMode;
+  bulkOperationRunMutationMaxInputFileSizeBytes?: number;
 }
 
 export type DraftProxyHeaderValue = string | string[] | undefined;
@@ -39,7 +40,11 @@ export interface DraftProxyOptions extends AppConfig {
 }
 
 export interface DraftProxyConfigSnapshot {
-  runtime: { readMode: ReadMode; unsupportedMutationMode: UnsupportedMutationMode };
+  runtime: {
+    readMode: ReadMode;
+    unsupportedMutationMode: UnsupportedMutationMode;
+    bulkOperationRunMutationMaxInputFileSizeBytes: number;
+  };
   proxy: { port: number; shopifyAdminOrigin: string };
   snapshot: { enabled: boolean; path: string | null };
 }

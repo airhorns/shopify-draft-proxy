@@ -45,9 +45,12 @@ defmodule ShopifyDraftProxy do
     port = Keyword.get(opts, :port, 4000)
     origin = Keyword.get(opts, :shopify_admin_origin, "https://shopify.com")
     snapshot_path = option(Keyword.get(opts, :snapshot_path))
+    bulk_operation_run_mutation_max_input_file_size_bytes =
+      Keyword.get(opts, :bulk_operation_run_mutation_max_input_file_size_bytes, 104_857_600)
 
     raw =
-      {:config, read_mode, unsupported_mutation_mode, port, origin, snapshot_path}
+      {:config, read_mode, unsupported_mutation_mode,
+       bulk_operation_run_mutation_max_input_file_size_bytes, port, origin, snapshot_path}
       |> DraftProxy.with_config()
       |> DraftProxy.with_default_registry()
 

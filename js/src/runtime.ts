@@ -93,6 +93,7 @@ function configToGleam(config: AppConfig): Config {
   return new Config(
     readModeToGleam(config.readMode),
     unsupportedMutationModeToGleam(config.unsupportedMutationMode),
+    config.bulkOperationRunMutationMaxInputFileSizeBytes ?? 104_857_600,
     config.port,
     config.shopifyAdminOrigin,
     snapshotPath,

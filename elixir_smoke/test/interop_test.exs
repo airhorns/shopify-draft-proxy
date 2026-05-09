@@ -124,12 +124,14 @@ defmodule ShopifyDraftProxy.InteropTest do
       ShopifyDraftProxy.with_config(
         read_mode: :live_hybrid,
         unsupported_mutation_mode: :reject,
+        bulk_operation_run_mutation_max_input_file_size_bytes: 2048,
         shopify_admin_origin: "https://my-shop.myshopify.com"
       )
 
     config = ShopifyDraftProxy.config(proxy)
     assert config.body =~ ~s("readMode":"live-hybrid")
     assert config.body =~ ~s("unsupportedMutationMode":"reject")
+    assert config.body =~ ~s("bulkOperationRunMutationMaxInputFileSizeBytes":2048)
     assert config.body =~ ~s("shopifyAdminOrigin":"https://my-shop.myshopify.com")
   end
 

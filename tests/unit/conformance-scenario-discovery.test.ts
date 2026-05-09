@@ -73,7 +73,9 @@ describe('conformance scenario discovery', () => {
         expect(existsSync(resolve(repoRoot, paritySpec.proxyRequest.variablesPath))).toBe(true);
       }
 
-      if (scenario.status === 'captured') {
+      if (scenario.status === 'captured' && paritySpec.comparisonMode === 'captured-fixture') {
+        expect(paritySpec.runtimeTestFiles?.length ?? 0, `${scenario.id} runtime test files`).toBeGreaterThan(0);
+      } else if (scenario.status === 'captured') {
         expect(validateComparisonContract(paritySpec.comparison), `${scenario.id} comparison contract`).toEqual([]);
       } else if (paritySpec.comparison) {
         expect(validateComparisonContract(paritySpec.comparison)).not.toEqual([]);

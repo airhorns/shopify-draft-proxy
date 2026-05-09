@@ -21,6 +21,7 @@ fn live_hybrid_proxy() -> draft_proxy.DraftProxy {
   draft_proxy.with_config(Config(
     read_mode: LiveHybrid,
     unsupported_mutation_mode: PassthroughUnsupportedMutations,
+    bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
     port: 4000,
     shopify_admin_origin: "https://shop.example",
     snapshot_path: None,
@@ -32,6 +33,7 @@ fn reject_unsupported_proxy() -> draft_proxy.DraftProxy {
   draft_proxy.with_config(Config(
     read_mode: LiveHybrid,
     unsupported_mutation_mode: RejectUnsupportedMutations,
+    bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
     port: 4000,
     shopify_admin_origin: "https://shop.example",
     snapshot_path: None,

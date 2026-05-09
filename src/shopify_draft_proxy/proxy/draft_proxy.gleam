@@ -304,6 +304,12 @@ pub fn get_config_snapshot(proxy: DraftProxy) -> Json {
             proxy.config.unsupported_mutation_mode,
           )),
         ),
+        #(
+          "bulkOperationRunMutationMaxInputFileSizeBytes",
+          json.int(
+            proxy.config.bulk_operation_run_mutation_max_input_file_size_bytes,
+          ),
+        ),
       ]),
     ),
     #(
@@ -2041,12 +2047,35 @@ fn mutation_handler_for(
       {
         Some(entry) ->
           case entry.implemented {
-            True -> local_mutation_handler(primary_root_field, query)
+            True ->
+              config_aware_mutation_handler(proxy, primary_root_field, query)
             False -> None
           }
-        None -> local_mutation_handler(primary_root_field, query)
+        None -> config_aware_mutation_handler(proxy, primary_root_field, query)
       }
     _ -> None
+  }
+}
+
+fn config_aware_mutation_handler(
+  proxy: DraftProxy,
+  name: String,
+  query: String,
+) -> Option(MutationHandler) {
+  case bulk_operations.is_bulk_operations_mutation_root(name) {
+    True ->
+      Some(fn(store, identity, request_path, document, variables, upstream) {
+        bulk_operations.process_mutation_with_config(
+          proxy.config,
+          store,
+          identity,
+          request_path,
+          document,
+          variables,
+          upstream,
+        )
+      })
+    False -> local_mutation_handler(name, query)
   }
 }
 

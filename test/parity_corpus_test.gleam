@@ -26,13 +26,11 @@ pub fn corpus_discovers_all_specs_test() {
   assert list.length(files) >= 379
 }
 
-pub fn corpus_partition_is_all_ready_for_comparison_test() {
+pub fn corpus_partition_has_no_invalid_or_planned_specs_test() {
   let assert Ok(files) = discover.discover(parity_root)
   let states = classify_all(files)
-  // Today every checked-in spec is `captured` + `captured-vs-proxy-request`,
-  // so the entire corpus must classify as `ReadyForComparison`. If a
-  // spec ever flips to `captured-fixture` or `planned`, this test
-  // fails loudly so the corpus doesn't silently shrink.
+  // Checked-in captured specs must either run through the generic parity
+  // runner or be explicitly enforced by a referenced runtime test file.
   let invalid =
     list.filter(states, fn(state) {
       state == classify.InvalidMissingComparisonContract
