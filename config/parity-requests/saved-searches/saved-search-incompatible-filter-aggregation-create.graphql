@@ -1,0 +1,13 @@
+mutation SavedSearchIncompatibleFilterAggregationCreate($productCollectionTagPublished: SavedSearchCreateInput!) {
+  productCollectionTagPublished: savedSearchCreate(input: $productCollectionTagPublished) {
+    savedSearch {
+      id
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

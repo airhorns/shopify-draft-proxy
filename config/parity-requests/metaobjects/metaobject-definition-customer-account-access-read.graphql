@@ -1,0 +1,11 @@
+query MetaobjectDefinitionCustomerAccountAccessRead($type: String!) {
+  metaobjectDefinitionByType(type: $type) {
+    id
+    type
+    access {
+      admin
+      storefront
+      customerAccount
+    }
+  }
+}

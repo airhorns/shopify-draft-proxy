@@ -32,6 +32,8 @@ fn shopify_fn(
     description: None,
     app_key: None,
     app: None,
+    create_guardrail_code: None,
+    create_guardrail_message: None,
   )
 }
 

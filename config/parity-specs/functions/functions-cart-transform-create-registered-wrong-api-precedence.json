@@ -1,0 +1,54 @@
+{
+  "scenarioId": "functions-cart-transform-create-registered-wrong-api-precedence",
+  "operationNames": ["validationCreate", "cartTransformCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["live-capture", "user-errors-parity", "function-identifier-validation", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-validation-setup.graphql",
+    "variablesCapturePath": "$.validationCreateSetup.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-setup",
+        "capturePath": "$.validationCreateSetup.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy stages a deterministic synthetic Validation ID for the setup create."
+          }
+        ]
+      },
+      {
+        "name": "cart-transform-registered-wrong-api-by-id",
+        "capturePath": "$.cartTransformCreateRegisteredWrongApiById.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-by-id.graphql",
+          "variablesCapturePath": "$.cartTransformCreateRegisteredWrongApiById.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-registered-wrong-api-by-handle",
+        "capturePath": "$.cartTransformCreateRegisteredWrongApiByHandle.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-registered-wrong-api-by-handle.graphql",
+          "variablesCapturePath": "$.cartTransformCreateRegisteredWrongApiByHandle.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for cartTransformCreate precedence when a validation Function is already registered on the shop via validationCreate. Shopify returns FUNCTION_ALREADY_REGISTERED for the functionId branch before the cart-transform API mismatch, while the functionHandle branch still returns FUNCTION_DOES_NOT_IMPLEMENT from handle/API resolution first."
+}

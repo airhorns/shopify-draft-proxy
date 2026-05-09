@@ -20,6 +20,26 @@ const path = "/admin/api/2026-04/graphql.json"
 
 const test_api_client_id = "999001"
 
+fn assert_generated_metaobject_handle(handle: String, type_: String) -> String {
+  let prefix = string.replace(type_, "_", "-") <> "-"
+  assert string.starts_with(handle, prefix)
+  let suffix = string.drop_start(handle, string.length(prefix))
+  assert string.length(suffix) == 8
+  assert list.all(string.to_graphemes(suffix), fn(grapheme) {
+    string.contains("0123456789abcdefghijklmnopqrstuvwxyz", grapheme)
+  })
+  suffix
+}
+
+fn extract_handle_from_serialized_metaobject_create(
+  serialized: String,
+) -> String {
+  let marker = "\"handle\":\""
+  let assert [_, rest, ..] = string.split(serialized, marker)
+  let assert [handle, ..] = string.split(rest, "\"")
+  handle
+}
+
 fn run_query(s: store.Store, query: String) -> String {
   let assert Ok(data) = metaobject_definitions.process(s, query, dict.new())
   json.to_string(data)
@@ -885,6 +905,161 @@ pub fn definition_create_rejects_admin_access_for_non_app_type_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"access\",\"admin\"],\"message\":\"Admin access can only be specified on metaobject definitions that have an app-reserved type.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_access_defaults_customer_account_to_none_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(created, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_customer_account_default\",
+          name: \"Customer Account Default\",
+          displayNameKey: \"title\",
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+          ]
+        }) {
+          metaobjectDefinition { id type access { admin storefront customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert created
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_default\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}},\"userErrors\":[]}}}"
+
+  let #(read_back, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "{ metaobjectDefinitionByType(type: \"codex_customer_account_default\") { id type access { admin storefront customerAccount } } }",
+    )
+  assert read_back
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_default\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}}}}"
+
+  let #(proxy_state.Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_state_request())
+  assert state_status == 200
+  assert string.contains(
+    json.to_string(state_body),
+    "\"customerAccount\":\"NONE\"",
+  )
+}
+
+pub fn definition_access_persists_customer_account_create_and_update_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(created, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_customer_account_lifecycle\",
+          name: \"Customer Account Lifecycle\",
+          displayNameKey: \"title\",
+          access: { customerAccount: READ },
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+          ]
+        }) {
+          metaobjectDefinition { id type access { customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert created
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_lifecycle\",\"access\":{\"customerAccount\":\"READ\"}},\"userErrors\":[]}}}"
+
+  let #(updated, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { access: { customerAccount: NONE } }
+        ) {
+          metaobjectDefinition { id type access { admin storefront customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert updated
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_customer_account_lifecycle\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}},\"userErrors\":[]}}}"
+
+  let #(read_back, _) =
+    run_graphql_proxy(
+      proxy,
+      "{ metaobjectDefinitionByType(type: \"codex_customer_account_lifecycle\") { id access { customerAccount } } }",
+    )
+  assert read_back
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"access\":{\"customerAccount\":\"NONE\"}}}}"
+}
+
+pub fn definition_access_rejects_invalid_customer_account_enum_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let invalid_create =
+    "mutation {
+      metaobjectDefinitionCreate(definition: {
+        type: \"codex_customer_account_invalid_create\",
+        name: \"Invalid Customer Account Create\",
+        displayNameKey: \"title\",
+        access: { customerAccount: BANANA },
+        fieldDefinitions: [
+          { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+        ]
+      }) {
+        metaobjectDefinition { id access { customerAccount } }
+        userErrors { field message code }
+      }
+    }"
+  let #(
+    proxy_state.Response(status: create_status, body: create_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(invalid_create))
+  let serialized_create = json.to_string(create_body)
+  assert create_status == 200
+  assert string.contains(serialized_create, "\"errors\":[")
+  assert string.contains(
+    serialized_create,
+    "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+  )
+  assert string.contains(
+    serialized_create,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(
+    serialized_create,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"customerAccount\"",
+  )
+
+  let #(_, proxy) =
+    run_graphql_proxy(proxy, create_definition_query("codex_invalid_update"))
+  let invalid_update =
+    "mutation {
+      metaobjectDefinitionUpdate(
+        id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+        definition: { access: { customerAccount: BANANA } }
+      ) {
+        metaobjectDefinition { id access { customerAccount } }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: update_status, body: update_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  let serialized_update = json.to_string(update_body)
+  assert update_status == 200
+  assert string.contains(serialized_update, "\"errors\":[")
+  assert string.contains(
+    serialized_update,
+    "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+  )
+  assert string.contains(
+    serialized_update,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(
+    serialized_update,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"customerAccount\"",
+  )
 }
 
 pub fn definition_create_downcases_type_before_uniqueness_test() {
@@ -3264,7 +3439,7 @@ pub fn metaobject_mutations_validate_explicit_handle_format_length_and_blank_tes
     == "{\"data\":{\"valid\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"valid\",\"displayName\":\"Valid\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"valid\",\"displayName\":\"Valid\"}}}"
 }
 
-pub fn metaobject_create_omitted_handle_generates_valid_capped_handle_test() {
+pub fn metaobject_create_omitted_handle_uses_display_value_when_present_test() {
   let definition_outcome =
     run_mutation(
       store.new(),
@@ -3292,12 +3467,124 @@ pub fn metaobject_create_omitted_handle_generates_valid_capped_handle_test() {
         <> string.repeat("A", times: 260)
         <> " ! héllo/world\" }] }) { metaobject { id handle } userErrors { field message code } } }",
     )
+  let duplicate_serialized = json.to_string(duplicate.data)
   let duplicate_handle = string.repeat("a", times: 253) <> "-1"
-  assert string.contains(json.to_string(duplicate.data), "\"userErrors\":[]")
+  assert string.contains(duplicate_serialized, "\"userErrors\":[]")
   assert string.contains(
-    json.to_string(duplicate.data),
+    duplicate_serialized,
     "\"handle\":\"" <> duplicate_handle <> "\"",
   )
+}
+
+pub fn metaobject_create_without_display_field_value_uses_generated_handle_display_name_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"lookbook\",
+          name: \"Lookbook\",
+          displayNameKey: \"title\",
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: false },
+            { key: \"body\", name: \"Body\", type: \"multi_line_text_field\" }
+          ]
+        }) {
+          metaobjectDefinition { id type displayNameKey }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"lookbook\",
+          fields: [{ key: \"body\", value: \"No title\" }]
+        }) {
+          metaobject { id handle displayName }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let serialized = json.to_string(create.data)
+  assert string.contains(serialized, "\"userErrors\":[]")
+  let handle = extract_handle_from_serialized_metaobject_create(serialized)
+  let suffix = assert_generated_metaobject_handle(handle, "lookbook")
+  assert string.contains(
+    serialized,
+    "\"displayName\":\"Lookbook #" <> string.uppercase(suffix) <> "\"",
+  )
+
+  let duplicate =
+    run_mutation(
+      create.store,
+      create.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"lookbook\",
+          fields: [{ key: \"body\", value: \"No title again\" }]
+        }) {
+          metaobject { id handle displayName }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let duplicate_serialized = json.to_string(duplicate.data)
+  assert string.contains(duplicate_serialized, "\"userErrors\":[]")
+  let duplicate_handle =
+    extract_handle_from_serialized_metaobject_create(duplicate_serialized)
+  let duplicate_suffix =
+    assert_generated_metaobject_handle(duplicate_handle, "lookbook")
+  assert handle != duplicate_handle
+  assert string.contains(
+    duplicate_serialized,
+    "\"displayName\":\"Lookbook #" <> string.uppercase(duplicate_suffix) <> "\"",
+  )
+}
+
+pub fn metaobject_create_lowercases_explicit_handle_and_checks_conflicts_case_insensitively_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_mixed_case\",
+          name: \"Mixed Case\",
+          fieldDefinitions: [
+            { key: \"body\", name: \"Body\", type: \"single_line_text_field\" }
+          ]
+        }) {
+          metaobjectDefinition { id type displayNameKey }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_mixed_case\", handle: \"MyHandle\", fields: [{ key: \"body\", value: \"Mixed\" }] }) { metaobject { id handle displayName } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(create.data)
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"handle\":\"myhandle\"")
+  assert string.contains(serialized, "\"displayName\":\"My Handle\"")
+
+  let duplicate =
+    run_mutation(
+      create.store,
+      create.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_mixed_case\", handle: \"myhandle\", fields: [{ key: \"body\", value: \"Duplicate\" }] }) { metaobject { id handle displayName } userErrors { field message code } } }",
+    )
+  let duplicate_serialized = json.to_string(duplicate.data)
+  assert string.contains(duplicate_serialized, "\"userErrors\":[]")
+  assert string.contains(duplicate_serialized, "\"handle\":\"myhandle-1\"")
+  assert string.contains(duplicate_serialized, "\"displayName\":\"Myhandle 1\"")
 }
 
 pub fn metaobject_upsert_exact_match_preserves_updated_at_and_skips_log_test() {

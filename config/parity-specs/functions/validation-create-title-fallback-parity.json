@@ -7,7 +7,8 @@
     "runtime-staging",
     "payload-shape",
     "downstream-read-parity",
-    "function-title-fallback"
+    "function-title-fallback",
+    "function-reference-resolution"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json"
@@ -78,5 +79,5 @@
       }
     ]
   },
-  "notes": "Live Shopify evidence that validationCreate falls back to the resolved ShopifyFunction title when title is omitted or explicitly null, while preserving an explicit empty string. The capture cleans disposable validations before and after the scenario, then verifies validation(id:) and validations(first: 3) read-after-write title behavior. No expectedDifferences allowlist applies to validation.title."
+  "notes": "Live Shopify evidence that validationCreate falls back to the resolved ShopifyFunction title when title is omitted or explicitly null, while preserving an explicit empty string. The capture cleans disposable validations before and after the scenario, then verifies validation(id:) and validations(first: 3) read-after-write title behavior plus the resolved Function reference through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields; runtime tests cover the proxy-local scalar projections from the same staged resolved Function id. No expectedDifferences allowlist applies to validation.title or shopifyFunction.id/handle."
 }

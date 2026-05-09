@@ -98,6 +98,31 @@ function assertDuplicateNameUserError(
   }
 }
 
+function assertReservedNameUserError(
+  result: ConformanceGraphqlResult,
+  root: 'fulfillmentServiceCreate' | 'fulfillmentServiceUpdate',
+  context: string,
+): void {
+  assertNoTopLevelErrors(result, context);
+  const mutationPayload = readMutationPayload(result.payload, root);
+  if (mutationPayload['fulfillmentService'] !== null) {
+    throw new Error(
+      `Expected ${context} fulfillmentService to be null; got ${JSON.stringify(
+        mutationPayload['fulfillmentService'],
+      )}.`,
+    );
+  }
+  const userErrors = mutationPayload['userErrors'];
+  if (!Array.isArray(userErrors) || userErrors.length !== 1) {
+    throw new Error(`Expected ${context} to return exactly one userError; got ${JSON.stringify(userErrors)}.`);
+  }
+  const error = readObject(userErrors[0]);
+  const field = error?.['field'];
+  if (!Array.isArray(field) || field.length !== 1 || field[0] !== 'name' || error?.['message'] !== 'Name is reserved') {
+    throw new Error(`Expected ${context} reserved-name userError; got ${JSON.stringify(error)}.`);
+  }
+}
+
 function readFulfillmentServiceId(payload: ConformanceGraphqlPayload, context: string): string {
   const mutationPayload = readMutationPayload(payload, 'fulfillmentServiceCreate');
   const service = readObject(mutationPayload['fulfillmentService']);
@@ -114,6 +139,20 @@ function readOptionalFulfillmentServiceId(payload: ConformanceGraphqlPayload): s
   const service = readObject(mutationPayload['fulfillmentService']);
   const id = service?.['id'];
   return typeof id === 'string' ? id : null;
+}
+
+function assertFulfillmentServiceHandle(
+  payload: ConformanceGraphqlPayload,
+  root: 'fulfillmentServiceCreate' | 'fulfillmentServiceUpdate',
+  expectedHandle: string,
+  context: string,
+): void {
+  const mutationPayload = readMutationPayload(payload, root);
+  const service = readObject(mutationPayload['fulfillmentService']);
+  const handle = service?.['handle'];
+  if (handle !== expectedHandle) {
+    throw new Error(`Expected ${context} handle ${expectedHandle}; got ${JSON.stringify(handle)}.`);
+  }
 }
 
 async function cleanup(id: string, deleteDocument: string): Promise<void> {
@@ -135,6 +174,8 @@ const token = `fsuniq-${Date.now().toString(36)}`;
 const nameA = `FS Unique Acme ${token}`;
 const spacedName = `FS Unique AB ${token}`;
 const handleCollisionName = `fs-unique-ab-${token.toLowerCase()}`;
+const diacriticPunctuationName = `FS Unique Café__3PL ${token}!!!`;
+const diacriticPunctuationHandle = `fs-unique-cafe__3pl-${token.toLowerCase()}`;
 const updateSourceName = `FS Unique Source ${token}`;
 const updateTargetName = `FS Unique Target ${token}`;
 const cleanupIds: string[] = [];
@@ -144,6 +185,9 @@ const sameNameDuplicateVariables = { name: nameA };
 const caseVariantDuplicateVariables = { name: nameA.toUpperCase() };
 const createSpacedVariables = { name: spacedName };
 const handleCollisionDuplicateVariables = { name: handleCollisionName };
+const diacriticPunctuationVariables = { name: diacriticPunctuationName };
+const reservedManualVariables = { name: 'Manual' };
+const reservedGiftCardVariables = { name: 'Gift_Card' };
 const createUpdateSourceVariables = { name: updateSourceName };
 const createUpdateTargetVariables = { name: updateTargetName };
 
@@ -152,9 +196,13 @@ let sameNameDuplicateCreate: ConformanceGraphqlResult | null = null;
 let caseVariantDuplicateCreate: ConformanceGraphqlResult | null = null;
 let createSpaced: ConformanceGraphqlResult | null = null;
 let handleCollisionDuplicateCreate: ConformanceGraphqlResult | null = null;
+let createDiacriticPunctuation: ConformanceGraphqlResult | null = null;
+let reservedManualCreate: ConformanceGraphqlResult | null = null;
+let reservedGiftCardCreate: ConformanceGraphqlResult | null = null;
 let createUpdateSource: ConformanceGraphqlResult | null = null;
 let createUpdateTarget: ConformanceGraphqlResult | null = null;
 let updateToExistingName: ConformanceGraphqlResult | null = null;
+let updateToReservedName: ConformanceGraphqlResult | null = null;
 
 try {
   createA = await client.runGraphqlRequest(createDocument, createAVariables);
@@ -184,6 +232,26 @@ try {
   const unexpectedHandleCollisionId = readOptionalFulfillmentServiceId(handleCollisionDuplicateCreate.payload);
   if (unexpectedHandleCollisionId) cleanupIds.push(unexpectedHandleCollisionId);
 
+  createDiacriticPunctuation = await client.runGraphqlRequest(createDocument, diacriticPunctuationVariables);
+  assertNoUserErrors(createDiacriticPunctuation, 'fulfillmentServiceCreate', 'create diacritic punctuation name');
+  assertFulfillmentServiceHandle(
+    createDiacriticPunctuation.payload,
+    'fulfillmentServiceCreate',
+    diacriticPunctuationHandle,
+    'create diacritic punctuation name',
+  );
+  cleanupIds.push(readFulfillmentServiceId(createDiacriticPunctuation.payload, 'create diacritic punctuation name'));
+
+  reservedManualCreate = await client.runGraphqlRequest(createDocument, reservedManualVariables);
+  assertReservedNameUserError(reservedManualCreate, 'fulfillmentServiceCreate', 'reserved manual create');
+  const unexpectedManualId = readOptionalFulfillmentServiceId(reservedManualCreate.payload);
+  if (unexpectedManualId) cleanupIds.push(unexpectedManualId);
+
+  reservedGiftCardCreate = await client.runGraphqlRequest(createDocument, reservedGiftCardVariables);
+  assertReservedNameUserError(reservedGiftCardCreate, 'fulfillmentServiceCreate', 'reserved gift_card create');
+  const unexpectedGiftCardId = readOptionalFulfillmentServiceId(reservedGiftCardCreate.payload);
+  if (unexpectedGiftCardId) cleanupIds.push(unexpectedGiftCardId);
+
   createUpdateSource = await client.runGraphqlRequest(createDocument, createUpdateSourceVariables);
   assertNoUserErrors(createUpdateSource, 'fulfillmentServiceCreate', 'create update source');
   cleanupIds.push(readFulfillmentServiceId(createUpdateSource.payload, 'create update source'));
@@ -200,6 +268,13 @@ try {
   updateToExistingName = await client.runGraphqlRequest(updateDocument, updateToExistingNameVariables);
   assertDuplicateNameUserError(updateToExistingName, 'fulfillmentServiceUpdate', 'update-to-existing-name');
 
+  const updateToReservedNameVariables = {
+    id: updateTargetId,
+    name: reservedManualVariables.name,
+  };
+  updateToReservedName = await client.runGraphqlRequest(updateDocument, updateToReservedNameVariables);
+  assertReservedNameUserError(updateToReservedName, 'fulfillmentServiceUpdate', 'update-to-reserved-name');
+
   const fixture = {
     storeDomain,
     apiVersion,
@@ -208,6 +283,8 @@ try {
     notes: [
       'Live fulfillmentService uniqueness capture.',
       'Created disposable fulfillment services, then recorded Shopify rejecting same-name duplicate create, case-variant duplicate create, generated-handle collision create, and update-to-existing-name.',
+      'Recorded Shopify fulfillment-service handle generation for a diacritic/punctuation name: Latin diacritics are transliterated, punctuation collapses to hyphens, underscores are preserved, and trailing punctuation is trimmed.',
+      'Recorded Shopify rejecting generated reserved handles for Manual and Gift_Card on create, and Manual on update, with field ["name"] and message "Name is reserved".',
       'The active app schema exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field; focused runtime tests cover the proxy projecting null when clients select code.',
       'Rejected duplicate create/update branches returned fulfillmentService: null and userErrors[{ field: ["name"], message: "Name has already been taken" }].',
     ],
@@ -236,6 +313,21 @@ try {
       variables: handleCollisionDuplicateVariables,
       payload: handleCollisionDuplicateCreate.payload,
     },
+    createDiacriticPunctuation: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      variables: diacriticPunctuationVariables,
+      payload: createDiacriticPunctuation.payload,
+    },
+    reservedManualCreate: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      variables: reservedManualVariables,
+      payload: reservedManualCreate.payload,
+    },
+    reservedGiftCardCreate: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      variables: reservedGiftCardVariables,
+      payload: reservedGiftCardCreate.payload,
+    },
     createUpdateSource: {
       documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
       variables: createUpdateSourceVariables,
@@ -250,6 +342,11 @@ try {
       documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
       variables: updateToExistingNameVariables,
       payload: updateToExistingName.payload,
+    },
+    updateToReservedName: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
+      variables: updateToReservedNameVariables,
+      payload: updateToReservedName.payload,
     },
     upstreamCalls: [],
   };

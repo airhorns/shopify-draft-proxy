@@ -151,6 +151,8 @@ fn seed_shopify_function(proxy: DraftProxy, handle: String) -> DraftProxy {
       description: None,
       app_key: None,
       app: None,
+      create_guardrail_code: None,
+      create_guardrail_message: None,
     )
   let #(_, next_store) =
     store.upsert_staged_shopify_function(proxy.store, record)

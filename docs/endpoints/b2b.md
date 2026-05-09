@@ -364,6 +364,21 @@ uses the store-credit failed-deletable branch and records the public bulk error
 surface; single-location delete parity covers the public `FAILED_TO_DELETE`
 branch.
 
+Company deletion applies the parallel company-level failed-deletable checks
+before staging the destructive cascade. `companyDelete` and `companiesDelete`
+reject companies whose effective local company/location evidence includes
+associated orders, associated draft orders, or any company location with a
+non-zero store credit account balance. `companyDelete` returns
+`FAILED_TO_DELETE` with Shopify's generic `Failed to delete the company.`
+message, the `id` field path, `deletedCompanyId: null`, and no state change.
+Public Admin 2026-04 returns indexed `FAILED_TO_DELETE` userErrors for the same
+company-root persistence guard in `companiesDelete`; this differs from the
+location-root bulk surface, which reports `INTERNAL_ERROR`. Bulk company delete
+remains partial-success: unblocked IDs are deleted, blocked IDs are omitted from
+`deletedCompanyIds`, and unknown IDs keep indexed `RESOURCE_NOT_FOUND` errors.
+The executable parity scenarios record order-history, open-draft-order, and
+store-credit blockers for both single and bulk company deletes.
+
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
 unknown/unsupported escape hatch until a faithful no-send model exists.
@@ -431,6 +446,11 @@ conformance-backed local modeling.
 - Location delete failed-deletable check parity scenarios:
   `config/parity-specs/b2b/location_delete_failed_deletable_check.json`,
   `config/parity-specs/b2b/locations_delete_failed_deletable_check.json`
+- Company delete failed-deletable check capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/company-delete-failed-deletable-check.json`
+- Company delete failed-deletable check parity scenarios:
+  `config/parity-specs/b2b/company_delete_failed_deletable_check.json`,
+  `config/parity-specs/b2b/companies_delete_failed_deletable_check.json`
 - Empty input validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
 - Empty input validation parity scenario:
@@ -468,22 +488,29 @@ reads. The capture showed that contact creation materializes customer
 references, revoking the main contact returns `Company.mainContact: null`, and
 `companiesCount` does not accept a `query` argument in 2026-04.
 
-HAR-625 adds local free-text guardrails for supported B2B mutations before any
-staged state is written. Company and company-location `name` values are
-HTML-stripped before blank/length checks and local staging; `name` values longer
-than 255 characters fail with `TOO_LONG`. Company-contact `title` values longer
-than 255 characters fail with `TOO_LONG`, and title/notes-style fields with
-markup fail with `CONTAINS_HTML_TAGS`. Company and company-location `note`
+Local free-text guardrails run for supported B2B mutations before any staged
+state is written. Company and company-location `name` values are HTML-stripped
+before blank/length checks and local staging; `name` values longer than 255
+characters fail with `TOO_LONG`. Explicit blank company names fail with `BLANK`
+on `companyCreate(input.company.name)` and `companyUpdate(input.name)`, and
+explicit blank location names fail with `BLANK` on `companyLocationUpdate`.
+Public Admin API 2026-04 still treats explicit blank `companyLocationCreate`
+and nested `companyCreate(input.companyLocation.name)` names like omitted
+location names, so those create paths continue through the documented fallback
+chain instead of returning a presence error. Company-contact `title` values
+longer than 255 characters fail with `TOO_LONG`, and title/notes-style fields
+with markup fail with `CONTAINS_HTML_TAGS`. Company and company-location `note`
 inputs use Shopify's `notes` user-error field label and fail above 5000
 characters. The 2026-04 `b2b-string-validation` parity capture on
 `harry-test-heelo.myshopify.com` now gives executable strict evidence for the
-live-reproduced length branches: `companyCreate` long name, `companyCreate`
-long note, and `companyLocationCreate` long name. The same capture intentionally
-keeps probe-only responses for current live mismatches: Shopify accepted HTML in
-company notes/contact titles, accepted a 300-character contact title, and
-reported only `TOO_LONG` for HTML-plus-too-long notes. Those internal-source
-HTML/title branches remain covered by runtime tests rather than a misleading
-parity spec.
+live-reproduced length and blank-name branches: `companyCreate` long/blank
+company name, `companyCreate` long note, `companyLocationCreate` long name and
+blank-name fallback, `companyUpdate` blank name, and `companyLocationUpdate`
+blank name. The same capture intentionally keeps probe-only responses for
+current live mismatches: Shopify accepted HTML in company notes/contact titles,
+accepted a 300-character contact title, and reported only `TOO_LONG` for
+HTML-plus-too-long notes. Those internal-source HTML/title branches remain
+covered by runtime tests rather than a misleading parity spec.
 
 B2B address handling now adds reusable `CompanyAddressInput` validation for
 address-bearing mutation paths before local staging.

@@ -1,6 +1,6 @@
 {
   "scenarioId": "customer-segment-members-query-create-validation-and-shape",
-  "operationNames": ["customerSegmentMembersQueryCreate", "customerSegmentMembersQuery"],
+  "operationNames": ["customerSegmentMembersQueryCreate", "customerSegmentMembersQuery", "node"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write"],
   "liveCaptureFiles": [
@@ -60,6 +60,27 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/customer-segment-members-query-lookup-validation-and-shape.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "query-create-initialized",
+              "path": "$.data.customerSegmentMembersQueryCreate.customerSegmentMembersQuery.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "query-node-read-created-initialized",
+        "capturePath": "$.cases[4].response.payload.data.customerSegmentMembersQuery",
+        "proxyPath": "$.data.node",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CustomerSegmentMembersQuery",
+            "reason": "The downstream node lookup returns the locally staged query-job ID from the proxy mutation."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-node-read.graphql",
           "variables": {
             "id": {
               "fromProxyResponse": "query-create-initialized",

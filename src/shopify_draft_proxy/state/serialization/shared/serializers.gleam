@@ -428,9 +428,21 @@ pub fn product_variant_json(record: types.ProductVariantRecord) -> Json {
     #("barcode", optional_string(record.barcode)),
     #("price", optional_string(record.price)),
     #("compareAtPrice", optional_string(record.compare_at_price)),
+    #("requiresShipping", optional_bool(record.requires_shipping)),
     #("taxable", optional_bool(record.taxable)),
+    #("taxCode", optional_string(record.tax_code)),
     #("inventoryPolicy", optional_string(record.inventory_policy)),
     #("inventoryQuantity", optional_int(record.inventory_quantity)),
+    #("position", optional_int(record.position)),
+    #("requiresComponents", optional_bool(record.requires_components)),
+    #(
+      "unitPriceMeasurement",
+      optional_to_json(
+        record.unit_price_measurement,
+        unit_price_measurement_json,
+      ),
+    ),
+    #("showUnitPrice", optional_bool(record.show_unit_price)),
     #(
       "selectedOptions",
       json.array(record.selected_options, selected_option_json),
@@ -445,6 +457,23 @@ pub fn product_variant_json(record: types.ProductVariantRecord) -> Json {
       optional_to_json(record.contextual_pricing, captured_json_value_json),
     ),
     #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn unit_price_measurement_json(
+  record: types.UnitPriceMeasurementRecord,
+) -> Json {
+  json.object([
+    #(
+      "quantityValue",
+      optional_to_json(record.quantity_value, captured_json_value_json),
+    ),
+    #("quantityUnit", optional_string(record.quantity_unit)),
+    #(
+      "referenceValue",
+      optional_to_json(record.reference_value, captured_json_value_json),
+    ),
+    #("referenceUnit", optional_string(record.reference_unit)),
   ])
 }
 
@@ -1056,6 +1085,11 @@ pub fn shopify_function_json(record: types.ShopifyFunctionRecord) -> Json {
     #("description", optional_string(record.description)),
     #("appKey", optional_string(record.app_key)),
     #("app", optional_to_json(record.app, shopify_function_app_json)),
+    #("createGuardrailCode", optional_string(record.create_guardrail_code)),
+    #(
+      "createGuardrailMessage",
+      optional_string(record.create_guardrail_message),
+    ),
   ])
 }
 

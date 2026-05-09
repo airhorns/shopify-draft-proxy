@@ -1,0 +1,25 @@
+query MetafieldsAppNamespaceProductRead(
+  $productId: ID!
+  $canonicalNamespace: String!
+  $defaultNamespace: String!
+  $key: String!
+  $defaultKey: String!
+) {
+  product(id: $productId) {
+    id
+    canonical: metafield(namespace: $canonicalNamespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+  }
+}

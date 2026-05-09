@@ -494,7 +494,8 @@ pub fn variant_media_connection_source(
   let media =
     variant.media_ids
     |> list.filter_map(fn(media_id) {
-      find_media_by_id(product_media, media_id) |> option_to_result
+      find_media_by_variant_reference(product_media, media_id)
+      |> option_to_result
     })
   src_object([
     #(
@@ -520,6 +521,19 @@ pub fn variant_media_connection_source(
       ]),
     ),
   ])
+}
+
+fn find_media_by_variant_reference(
+  media: List(ProductMediaRecord),
+  reference: String,
+) -> Option(ProductMediaRecord) {
+  case find_media_by_id(media, reference) {
+    Some(record) -> Some(record)
+    None ->
+      media
+      |> list.find(fn(record) { record.source_url == Some(reference) })
+      |> option.from_result
+  }
 }
 
 @internal
