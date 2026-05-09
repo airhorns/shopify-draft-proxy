@@ -1,0 +1,19 @@
+mutation GiftCardDebitPayloadGiftCardRejected($id: ID!, $input: GiftCardDebitInput!) {
+  giftCardDebit(id: $id, debitInput: $input) {
+    giftCardDebitTransaction {
+      id
+    }
+    giftCard {
+      id
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}
