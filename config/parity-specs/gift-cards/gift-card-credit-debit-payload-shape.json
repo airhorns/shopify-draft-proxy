@@ -1,0 +1,103 @@
+{
+  "scenarioId": "gift-card-credit-debit-payload-shape",
+  "operationNames": ["giftCardCreate", "giftCardCredit", "giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "graphql-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-credit-debit-payload-shape.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-credit-debit-payload-shape-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL payload shape for giftCardCredit/giftCardDebit. Schema-valid credit/debit selections expose only their typed transaction payload and userErrors; selecting giftCard on either payload returns a top-level undefinedField validation error before resolver side effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup gift card creation succeeds",
+        "capturePath": "$.setup.create.response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors"
+      },
+      {
+        "name": "giftCardCredit exposes typed transaction without giftCard",
+        "capturePath": "$.operations.validCredit.response.payload.data.giftCardCredit",
+        "proxyPath": "$.data.giftCardCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-credit-payload-shape.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup gift card creation succeeds",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "input": { "fromCapturePath": "$.proxyVariables.credit.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCardCreditTransaction.id",
+            "matcher": "shopify-gid:GiftCardCreditTransaction",
+            "reason": "The proxy stages credit transactions locally and returns a synthetic transaction GID."
+          }
+        ]
+      },
+      {
+        "name": "giftCardDebit exposes typed transaction without giftCard",
+        "capturePath": "$.operations.validDebit.response.payload.data.giftCardDebit",
+        "proxyPath": "$.data.giftCardDebit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-debit-payload-shape.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup gift card creation succeeds",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "input": { "fromCapturePath": "$.proxyVariables.debit.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCardDebitTransaction.id",
+            "matcher": "shopify-gid:GiftCardDebitTransaction",
+            "reason": "The proxy stages debit transactions locally and returns a synthetic transaction GID."
+          }
+        ]
+      },
+      {
+        "name": "giftCardCredit rejects giftCard selection",
+        "capturePath": "$.operations.invalidCreditGiftCard.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-credit-payload-gift-card-rejected.graphql",
+          "documentCapturePath": "$.operations.invalidCreditGiftCard.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup gift card creation succeeds",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "input": { "fromCapturePath": "$.proxyVariables.credit.input" }
+          }
+        }
+      },
+      {
+        "name": "giftCardDebit rejects giftCard selection",
+        "capturePath": "$.operations.invalidDebitGiftCard.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-debit-payload-gift-card-rejected.graphql",
+          "documentCapturePath": "$.operations.invalidDebitGiftCard.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup gift card creation succeeds",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "input": { "fromCapturePath": "$.proxyVariables.debit.input" }
+          }
+        }
+      }
+    ]
+  }
+}

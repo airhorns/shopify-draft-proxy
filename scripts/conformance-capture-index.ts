@@ -7688,6 +7688,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-credit-debit-payload-shape',
+    scriptPath: 'scripts/capture-gift-card-credit-debit-payload-shape-conformance.ts',
+    purpose:
+      'Gift-card credit/debit payload shape for typed transaction selections and schema rejection when giftCard is selected on transaction payloads.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-credit-debit-payload-shape.json`,
+      'config/parity-specs/gift-cards/gift-card-credit-debit-payload-shape.json',
+      'config/parity-requests/gift-cards/gift-card-credit-debit-payload-shape-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-credit-payload-shape.graphql',
+      'config/parity-requests/gift-cards/gift-card-debit-payload-shape.graphql',
+      'config/parity-requests/gift-cards/gift-card-credit-payload-gift-card-rejected.graphql',
+      'config/parity-requests/gift-cards/gift-card-debit-payload-gift-card-rejected.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card, records valid credit/debit payloads and validation-only invalid selections, then deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-user-error-typename',
     scriptPath: 'scripts/capture-gift-card-user-error-typename-conformance.ts',
     purpose:
