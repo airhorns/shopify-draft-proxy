@@ -45,7 +45,7 @@ Capability handling is type- and owner-aware for the modeled capability slice. `
 
 Access input handling follows the public Admin GraphQL 2026-04 surface captured in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-access-validation.json`. The public schema does not expose `access.grants`, so inline grants are rejected as a top-level `argumentNotAccepted` schema error before resolver execution, and variable-bound grants are rejected by variable validation. Merchant-owned create/update access requires writable admin access; `access.admin: MERCHANT_READ` returns Shopify's captured `INVALID` create user error and `INVALID_INPUT` update user error at `field: ["definition"]` without staging. `MERCHANT_READ_WRITE` is accepted as the public input spelling for the stored/default `PUBLIC_READ_WRITE` access record.
 
-App-owned namespace forms follow Shopify's canonicalization rule. Mutation inputs, identifier lookups, catalog namespace filters, pin/unpin selectors, and standard-definition namespace selectors resolve `$app:<suffix>` through the request's `x-shopify-draft-proxy-api-client-id` identity before validation, persistence, lookup, and serialization. Stored and returned definitions use the canonical `app--<api_client_id>--<suffix>` namespace. Canonical `app--<other_id>--<suffix>` create/update inputs from another API client return Shopify's top-level `ACCESS_DENIED` error shape instead of staging a definition.
+App-owned namespace forms follow Shopify's canonicalization rule. Mutation inputs, identifier lookups, catalog namespace filters, pin/unpin selectors, standard-definition namespace selectors, and namespace-taking value mutation inputs resolve `$app:<suffix>` through the request's `x-shopify-draft-proxy-api-client-id` identity before validation, persistence, lookup, and serialization. Stored and returned definitions and metafield values use the canonical `app--<api_client_id>--<suffix>` namespace. `metafieldsSet` also defaults an omitted or blank namespace to the current app's canonical namespace. `metafieldsDelete` resolves `$app:<suffix>` before constructing delete identifiers, so it can delete canonical values written through the shorthand. The compatibility `metafieldDelete(input: { id })` path deletes the canonical staged record by id; modern public Shopify schemas no longer expose a namespace-taking singular value-delete input. Canonical `app--<other_id>--<suffix>` create/update inputs from another API client return Shopify's top-level `ACCESS_DENIED` error shape instead of staging a definition, while value mutation roots return Shopify's captured payload-level user error shape.
 
 Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph for `PRODUCT` definitions only; it does not invent broad async job state for other owner families.
 
@@ -129,6 +129,7 @@ Validation entry points:
 - `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
 - `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
+- `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldDelete-parity-plan.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
@@ -137,6 +138,7 @@ Validation entry points:
 - `corepack pnpm conformance:capture -- --run metafield-definition-lifecycle`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
+- `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
 
 ### HAR-450 coverage review gaps
 

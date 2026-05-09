@@ -1,0 +1,53 @@
+{
+  "scenarioId": "functions-create-guardrails",
+  "operationNames": ["validationCreate", "cartTransformCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "side-effect-boundary",
+    "local-runtime-backed",
+    "functions-create-guardrails"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions/functions-create-guardrails.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-create-guardrails.graphql",
+    "variables": {},
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-plan-eligibility",
+        "capturePath": "$.primary.response.data.validationPlan",
+        "proxyPath": "$.data.validationPlan"
+      },
+      {
+        "name": "validation-create-required-input",
+        "capturePath": "$.primary.response.data.validationRequiredInput",
+        "proxyPath": "$.data.validationRequiredInput"
+      },
+      {
+        "name": "cart-transform-create-plan-eligibility",
+        "capturePath": "$.primary.response.data.cartTransformPlan",
+        "proxyPath": "$.data.cartTransformPlan"
+      },
+      {
+        "name": "cart-transform-create-pending-deletion",
+        "capturePath": "$.primary.response.data.cartTransformPendingDeletion",
+        "proxyPath": "$.data.cartTransformPendingDeletion"
+      },
+      {
+        "name": "cart-transform-create-plus-only",
+        "capturePath": "$.primary.response.data.cartTransformPlusOnly",
+        "proxyPath": "$.data.cartTransformPlusOnly"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for Function-backed create guardrails. The configured live conformance shop is a partner-development non-Plus shop and accepts custom-app validationCreate, so the CUSTOM_APP_FUNCTION_NOT_ELIGIBLE branch cannot be captured there today. This scenario earns all state through cassette-backed Function and shop-plan hydration: custom-app plan eligibility is derived from a hydrated non-Plus, non-partner shop plus owner app metadata, while pending-deletion, Plus-only, and required-input guardrails come from internal createGuardrailCode/createGuardrailMessage metadata on the hydrated ShopifyFunction rows. Strict comparison covers the mutation payload userError code, field, message, null resource, and no local staging."
+}

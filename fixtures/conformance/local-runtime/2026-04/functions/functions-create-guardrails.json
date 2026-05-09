@@ -1,0 +1,323 @@
+{
+  "scenarioId": "functions-create-guardrails",
+  "capturedAt": "2026-05-08T13:10:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "summary": "Executable local-runtime fixture for validationCreate and cartTransformCreate Function-backed guardrail userErrors.",
+  "notes": [
+    "The live harry-test-heelo.myshopify.com harness is a partner-development non-Plus shop and accepted custom-app validationCreate during the 2026-05-08 probe, so CUSTOM_APP_FUNCTION_NOT_ELIGIBLE is not capturable there today.",
+    "This fixture models resolver guardrail metadata that the public ShopifyFunction schema does not expose by using cassette-backed createGuardrailCode/createGuardrailMessage fields consumed only by the proxy hydration path."
+  ],
+  "storeDomain": "local-runtime.invalid",
+  "primary": {
+    "response": {
+      "data": {
+        "validationPlan": {
+          "validation": null,
+          "userErrors": [
+            {
+              "code": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
+              "field": ["validation", "functionId"],
+              "message": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
+            }
+          ]
+        },
+        "validationRequiredInput": {
+          "validation": null,
+          "userErrors": [
+            {
+              "code": "REQUIRED_INPUT_FIELD",
+              "field": ["validation", "functionHandle"],
+              "message": "Required input field must be present."
+            }
+          ]
+        },
+        "cartTransformPlan": {
+          "cartTransform": null,
+          "userErrors": [
+            {
+              "code": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
+              "field": ["functionHandle"],
+              "message": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
+            }
+          ]
+        },
+        "cartTransformPendingDeletion": {
+          "cartTransform": null,
+          "userErrors": [
+            {
+              "code": "FUNCTION_PENDING_DELETION",
+              "field": ["functionHandle"],
+              "message": "Function is pending deletion."
+            }
+          ]
+        },
+        "cartTransformPlusOnly": {
+          "cartTransform": null,
+          "userErrors": [
+            {
+              "code": "FUNCTION_IS_PLUS_ONLY",
+              "field": ["functionId"],
+              "message": "Shop must be on a Shopify Plus plan to activate this function."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "runtimeContract": {
+    "supportedMutationsStageLocally": false,
+    "customAppPlanEligibilityHydratedFromShopPlan": true,
+    "explicitFunctionCreateGuardrailMetadata": true,
+    "externalShopifyFunctionsExecuted": false
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "gid://shopify/ShopifyFunction/guardrail-validation-plan"
+      },
+      "query": "local-runtime cassette for validationCreate custom-app plan guardrail",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "gid://shopify/ShopifyFunction/guardrail-validation-plan",
+              "title": "Guardrail validation plan",
+              "handle": "guardrail-validation-plan",
+              "apiType": "cart_checkout_validation",
+              "description": "Custom-app validation Function requiring a Plus-eligible shop",
+              "appKey": "guardrail-custom-app-key",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/guardrail-custom-app",
+                "title": "Guardrail Custom App",
+                "handle": "guardrail-custom-app",
+                "apiKey": "guardrail-custom-app-key"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionCreateShopPlanHydrate",
+      "variables": {},
+      "query": "local-runtime non-Plus, non-partner shop plan hydration for create guardrails",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/guardrail",
+              "name": "Guardrail Shop",
+              "myshopifyDomain": "guardrail.myshopify.com",
+              "url": "https://guardrail.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/guardrail",
+                "host": "guardrail.myshopify.com",
+                "url": "https://guardrail.myshopify.com",
+                "sslEnabled": true
+              },
+              "contactEmail": "owner@example.com",
+              "email": "owner@example.com",
+              "currencyCode": "USD",
+              "enabledPresentmentCurrencies": ["USD"],
+              "ianaTimezone": "UTC",
+              "timezoneAbbreviation": "UTC",
+              "timezoneOffset": "+0000",
+              "timezoneOffsetMinutes": 0,
+              "taxesIncluded": false,
+              "taxShipping": false,
+              "unitSystem": "IMPERIAL_SYSTEM",
+              "weightUnit": "POUNDS",
+              "shopAddress": {
+                "id": "gid://shopify/ShopAddress/guardrail",
+                "address1": null,
+                "address2": null,
+                "city": null,
+                "company": null,
+                "coordinatesValidated": false,
+                "country": null,
+                "countryCodeV2": null,
+                "formatted": [],
+                "formattedArea": null,
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": null,
+                "provinceCode": null,
+                "zip": null
+              },
+              "plan": {
+                "partnerDevelopment": false,
+                "publicDisplayName": "Basic",
+                "shopifyPlus": false
+              },
+              "resourceLimits": {
+                "locationLimit": 0,
+                "maxProductOptions": 0,
+                "maxProductVariants": 0,
+                "redirectLimitReached": false
+              },
+              "features": {
+                "avalaraAvatax": false,
+                "branding": "SHOPIFY",
+                "bundles": {
+                  "eligibleForBundles": false,
+                  "ineligibilityReason": null,
+                  "sellsBundles": false
+                },
+                "captcha": false,
+                "cartTransform": {
+                  "eligibleOperations": {
+                    "expandOperation": false,
+                    "mergeOperation": false,
+                    "updateOperation": false
+                  }
+                },
+                "dynamicRemarketing": false,
+                "eligibleForSubscriptionMigration": false,
+                "eligibleForSubscriptions": false,
+                "giftCards": false,
+                "harmonizedSystemCode": false,
+                "legacySubscriptionGatewayEnabled": false,
+                "liveView": false,
+                "paypalExpressSubscriptionGatewayStatus": "DISABLED",
+                "reports": false,
+                "sellsSubscriptions": false,
+                "showMetrics": false,
+                "storefront": false,
+                "unifiedMarkets": true
+              },
+              "paymentSettings": {
+                "supportedDigitalWallets": []
+              },
+              "shopPolicies": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "guardrail-validation-required-input",
+        "apiType": "VALIDATION"
+      },
+      "query": "local-runtime cassette for validationCreate required-input guardrail",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/guardrail-validation-required-input",
+                  "title": "Guardrail validation required input",
+                  "handle": "guardrail-validation-required-input",
+                  "apiType": "cart_checkout_validation",
+                  "description": "Validation Function whose target requires an input field",
+                  "appKey": null,
+                  "app": null,
+                  "createGuardrailCode": "REQUIRED_INPUT_FIELD",
+                  "createGuardrailMessage": "Required input field must be present."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "guardrail-cart-transform-plan",
+        "apiType": "CART_TRANSFORM"
+      },
+      "query": "local-runtime cassette for cartTransformCreate custom-app plan guardrail",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plan",
+                  "title": "Guardrail cart transform plan",
+                  "handle": "guardrail-cart-transform-plan",
+                  "apiType": "cart_transform",
+                  "description": "Custom-app cart transform Function requiring a Plus-eligible shop",
+                  "appKey": "guardrail-custom-app-key",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/guardrail-custom-app",
+                    "title": "Guardrail Custom App",
+                    "handle": "guardrail-custom-app",
+                    "apiKey": "guardrail-custom-app-key"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "guardrail-cart-transform-pending-deletion",
+        "apiType": "CART_TRANSFORM"
+      },
+      "query": "local-runtime cassette for cartTransformCreate pending-deletion guardrail",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-pending-deletion",
+                  "title": "Guardrail cart transform pending deletion",
+                  "handle": "guardrail-cart-transform-pending-deletion",
+                  "apiType": "cart_transform",
+                  "description": "Cart transform Function scheduled for deletion",
+                  "appKey": null,
+                  "app": null,
+                  "createGuardrailCode": "FUNCTION_PENDING_DELETION",
+                  "createGuardrailMessage": "Function is pending deletion."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plus-only"
+      },
+      "query": "local-runtime cassette for cartTransformCreate Plus-only guardrail",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plus-only",
+              "title": "Guardrail cart transform Plus only",
+              "handle": "guardrail-cart-transform-plus-only",
+              "apiType": "cart_transform",
+              "description": "Cart transform Function requiring Shopify Plus",
+              "appKey": null,
+              "app": null,
+              "createGuardrailCode": "FUNCTION_IS_PLUS_ONLY",
+              "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate this function."
+            }
+          }
+        }
+      }
+    }
+  ]
+}

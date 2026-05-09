@@ -30,7 +30,9 @@ Local staged mutations:
   mode. It serializes the supported Return detail slice from the same record used by nested `Order.returns`.
 - `returnCreate` stages a local `OPEN` return for a known order and known fulfillment line items. The local return stores a
   stable synthetic Return ID, ReturnLineItem IDs, status, name, timestamps, quantity, reason, reason note, order linkage,
-  and reverse fulfillment order work for the returned quantities. Return line quantity validation subtracts quantities
+  return shipping fee, note, refund intent, location, retail attribution, top-level unprocessed flag, and reverse
+  fulfillment order work for the returned quantities. `returnDelivery` input is retained as reverse-delivery tracking /
+  label metadata for downstream `Return.reverseDeliveries` reads. Return line quantity validation subtracts quantities
   already consumed by non-canceled returns on the same fulfillment line item before staging. The original raw mutation is
   retained in the meta log for explicit commit replay.
 - `returnRequest` stages the same order-backed shape with status `REQUESTED` and uses the same already-returned quantity
@@ -104,6 +106,12 @@ Local staged mutations:
 - Live recorded parity now covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success
   transitions, idempotent no-op branches, and processed-return cancel rejection in
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
+- Live recorded parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
+  `unprocessed`, plus read-after-write `Return.returnShippingFees` / `Order.returns.returnShippingFees`, in
+  `config/parity-specs/orders/return-shipping-fee-recorded.json`. The same fixture records the current public-schema
+  boundary: `returnDelivery`, `note`, `refundIntent`, `locationId`, and `retailAttribution` are rejected during GraphQL
+  variable coercion on this Admin API version, so those hidden/internal fields are backed by local runtime tests rather
+  than public success-path parity.
 
 ### Blocked roots
 
@@ -140,6 +148,9 @@ Local staged mutations:
 - Return status precondition parity:
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`, backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
+- Return shipping fee parity:
+  `config/parity-specs/orders/return-shipping-fee-recorded.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json`.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

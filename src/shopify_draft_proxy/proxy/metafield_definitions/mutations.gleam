@@ -326,6 +326,7 @@ pub fn dispatch_mutation_field(
         identity,
         field,
         variables,
+        requesting_api_client_id,
       ))
     "metafieldsDelete" ->
       no_top_level_errors(serialize_metafields_delete_root(
@@ -333,6 +334,7 @@ pub fn dispatch_mutation_field(
         identity,
         field,
         variables,
+        requesting_api_client_id,
       ))
     "metafieldDelete" ->
       no_top_level_errors(serialize_metafield_delete_root(
@@ -340,6 +342,7 @@ pub fn dispatch_mutation_field(
         identity,
         field,
         variables,
+        requesting_api_client_id,
       ))
     _ -> #(json.null(), store_in, identity, [], [])
   }
@@ -3523,11 +3526,31 @@ pub fn serialize_metafields_delete_root(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let inputs = definition_types.read_input_objects(args, "metafields")
-  let result =
-    definition_types.delete_metafields_by_identifiers(store_in, inputs)
+  let inputs =
+    definition_types.read_input_objects(args, "metafields")
+    |> list.map(fn(input) {
+      definition_types.resolve_metafields_delete_namespace_input(
+        input,
+        requesting_api_client_id,
+      )
+    })
+  let access_errors =
+    definition_types.validate_metafields_delete_namespace_access(
+      inputs,
+      requesting_api_client_id,
+    )
+  let result = case access_errors {
+    [_, ..] ->
+      definition_types.MetafieldsDeleteResult(
+        deleted_metafields: [],
+        user_errors: access_errors,
+        store: store_in,
+      )
+    [] -> definition_types.delete_metafields_by_identifiers(store_in, inputs)
+  }
   #(
     serializers.serialize_metafields_delete_payload(result, field),
     result.store,
@@ -3542,6 +3565,7 @@ pub fn serialize_metafield_delete_root(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  _requesting_api_client_id: Option(String),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
   let input = definition_types.read_object(args, "input")
@@ -3612,10 +3636,25 @@ pub fn serialize_metafields_set_root(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let inputs = definition_types.read_input_objects(args, "metafields")
-  let errors = definition_types.validate_metafields_set_inputs(store_in, inputs)
+  let inputs =
+    definition_types.read_input_objects(args, "metafields")
+    |> list.map(fn(input) {
+      definition_types.resolve_metafields_set_namespace_input(
+        input,
+        requesting_api_client_id,
+      )
+    })
+  let errors =
+    list.append(
+      definition_types.validate_metafields_set_namespace_access(
+        inputs,
+        requesting_api_client_id,
+      ),
+      definition_types.validate_metafields_set_inputs(store_in, inputs),
+    )
   case errors {
     [_, ..] -> #(
       serializers.serialize_metafields_set_payload([], errors, field),

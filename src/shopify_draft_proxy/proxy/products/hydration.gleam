@@ -45,17 +45,17 @@ import shopify_draft_proxy/state/types.{
   type ProductMetafieldRecord, type ProductOptionLinkedMetafieldRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type SellingPlanGroupRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, LocationRecord, ProductCategoryRecord,
-  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOptionLinkedMetafieldRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  type SellingPlanGroupRecord, type UnitPriceMeasurementRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  LocationRecord, ProductCategoryRecord, ProductCollectionRecord,
+  ProductMediaRecord, ProductMetafieldRecord, ProductOptionLinkedMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  SellingPlanGroupRecord,
+  SellingPlanGroupRecord, UnitPriceMeasurementRecord,
 }
 
 @internal
@@ -738,13 +738,19 @@ pub fn upsert_hydrated_inventory_level(
           barcode: None,
           price: None,
           compare_at_price: None,
+          requires_shipping: None,
           taxable: None,
+          tax_code: None,
           inventory_policy: None,
           inventory_quantity: json_int_field_at(node, [
             "item",
             "variant",
             "inventoryQuantity",
           ]),
+          position: None,
+          requires_components: None,
+          unit_price_measurement: None,
+          show_unit_price: None,
           selected_options: json_array_field(node, [
             "item",
             "variant",
@@ -872,12 +878,18 @@ pub fn upsert_hydrated_inventory_item_without_variant(
           barcode: None,
           price: None,
           compare_at_price: None,
+          requires_shipping: None,
           taxable: None,
+          tax_code: None,
           inventory_policy: None,
           inventory_quantity: json_int_field_at(node, [
             "variant",
             "inventoryQuantity",
           ]),
+          position: None,
+          requires_components: None,
+          unit_price_measurement: None,
+          show_unit_price: None,
           selected_options: json_array_field(node, [
             "variant",
             "selectedOptions",
@@ -1106,9 +1118,17 @@ pub fn product_variant_from_json(
         barcode: json_string_field(node, "barcode"),
         price: json_string_or_number_field(node, "price"),
         compare_at_price: json_string_or_number_field(node, "compareAtPrice"),
+        requires_shipping: json_bool_field(node, "requiresShipping"),
         taxable: json_bool_field(node, "taxable"),
+        tax_code: json_string_field(node, "taxCode"),
         inventory_policy: json_string_field(node, "inventoryPolicy"),
         inventory_quantity: json_int_field(node, "inventoryQuantity"),
+        position: json_int_field(node, "position"),
+        requires_components: json_bool_field(node, "requiresComponents"),
+        unit_price_measurement: unit_price_measurement_from_json(
+          json_field(node, ["unitPriceMeasurement"]),
+        ),
+        show_unit_price: json_bool_field(node, "showUnitPrice"),
         selected_options: json_array_field(node, ["selectedOptions"])
           |> list.map(selected_option_from_json),
         media_ids: json_array_field(node, ["media", "nodes"])
@@ -1130,6 +1150,26 @@ pub fn product_variant_from_json(
         cursor: None,
       ))
   }
+}
+
+fn unit_price_measurement_from_json(
+  node: Option(commit.JsonValue),
+) -> Option(UnitPriceMeasurementRecord) {
+  use value <- option.then(node)
+  Some(UnitPriceMeasurementRecord(
+    quantity_value: captured_json_field(value, "quantityValue"),
+    quantity_unit: json_string_field(value, "quantityUnit"),
+    reference_value: captured_json_field(value, "referenceValue"),
+    reference_unit: json_string_field(value, "referenceUnit"),
+  ))
+}
+
+fn captured_json_field(
+  node: commit.JsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  json_field(node, [name])
+  |> option.map(captured_json_from_commit)
 }
 
 @internal

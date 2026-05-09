@@ -1192,6 +1192,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'file-create-validation-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-file-create-validation-precedence-conformance.ts',
+    purpose:
+      'fileCreate per-input validation precedence for multi-fault source URL, filename extension, and duplicate-resolution-mode inputs.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-validation-precedence.json`,
+      'config/parity-specs/media/file_create_validation_precedence/media-file-create-validation-precedence.json',
+      'config/parity-requests/media/media-file-create-validation-precedence.graphql',
+    ],
+    cleanupBehavior: 'Deletes the disposable file created by the clean baseline branch.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-targets',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
@@ -1721,6 +1737,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafields-set-delete-app-namespace-resolution',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafields-set-delete-app-namespace-resolution-conformance.mts',
+    purpose:
+      'metafieldsSet and metafieldsDelete app namespace resolution for value mutations, omitted namespace defaulting, and cross-app access denial.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-set-delete-app-namespace-resolution.json`,
+      'config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json',
+      'config/parity-requests/metafield-definitions/metafields-set-app-namespace-resolution.graphql',
+      'config/parity-requests/metafield-definitions/metafields-delete-app-namespace-resolution.graphql',
+      'config/parity-requests/metafield-definitions/metafields-app-namespace-product-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, writes app-owned metafields, deletes the product-owned app-prefixed metafield through metafieldsDelete, and deletes the product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
@@ -1901,6 +1936,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-query-grammar-validation.json`,
+      `${CAPTURE_ROOT}saved-search-incompatible-filter-aggregation.json`,
+      'config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json',
+      'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
       'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
@@ -2005,7 +2043,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-required-input-validation-conformance.ts',
     purpose:
-      'savedSearchCreate and savedSearchUpdate required input coercion plus explicit empty-query create success.',
+      'savedSearchCreate and savedSearchUpdate required input coercion, including variable-supplied create input, plus explicit empty-query create success.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-required-input-validation.json`,
@@ -2014,6 +2052,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql',
+      'config/parity-specs/saved-searches/saved-search-required-input-variable-validation.json',
     ],
     cleanupBehavior: 'Creates one disposable product saved search for the empty-query branch and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -6372,6 +6413,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-shipping-fee',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-shipping-fee-conformance.mts',
+    purpose:
+      'returnCreate ReturnInput.returnShippingFee and read-after-write Return.returnShippingFees behavior, plus public-schema evidence for hidden ReturnInput field boundaries.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-shipping-fee-recorded.json`,
+      'config/parity-specs/orders/return-shipping-fee-recorded.json',
+      'config/parity-requests/orders/return-create-shipping-fee-recorded.graphql',
+      'config/parity-requests/orders/return-shipping-fee-read-recorded.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable order, records returnCreate shipping-fee evidence and downstream reads, then cancels and deletes the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-reverse-logistics-introspection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-reverse-logistics-introspection-conformance.ts',
@@ -7057,6 +7116,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records deprecated dedicated roots that synthesize cloud destination addresses before delegating to the shared webhook subscription resolver path.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-pub-sub-required-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-pub-sub-required-fields-conformance.ts',
+    purpose:
+      'Pub/Sub dedicated webhook subscription create/update required pubSubProject/pubSubTopic input-field validation.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-pub-sub-required-fields.json`,
+      'config/parity-specs/webhooks/webhook-subscription-pub-sub-required-fields.json',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-topic.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project-topic.graphql',
+    ],
+    cleanupBehavior:
+      'All captured branches fail GraphQL variable validation before resolver execution; no webhook subscriptions are created, updated, deleted, or delivered.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records top-level INVALID_VARIABLE errors for missing Pub/Sub project/topic fields on deprecated dedicated Pub/Sub roots.',
   },
   {
     domain: 'webhooks',

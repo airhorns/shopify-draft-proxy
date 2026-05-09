@@ -1,0 +1,9 @@
+query CustomerSegmentMembersQueryNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on CustomerSegmentMembersQuery {
+      id
+      currentCount
+      done
+    }
+  }
+}
