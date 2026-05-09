@@ -147,6 +147,24 @@ Unknown countries and country-specific province mismatches still return payload
 local address. The executable evidence is
 `config/parity-specs/customers/customer_address_country_province_validation.json`.
 
+## Current: customerCreate defaults verifiedEmail to true on public Admin API 2025-01
+
+HAR-1201 arrived with internal-source notes claiming public `customerCreate`
+should default a fresh email-only customer to `verifiedEmail: false`. A live
+Admin GraphQL 2025-01 probe against `harry-test-heelo.myshopify.com` on
+2026-05-09 contradicted that expectation: `customerCreate(input: { email })`
+returned `verifiedEmail: true`, immediate `customer(id:)` and
+`customerByIdentifier(identifier: { emailAddress })` reads also returned
+`true`, and `customers(query: "verified_email:false")` still returned the new
+customer among other recently created customers whose selected `verifiedEmail`
+values were all `true`.
+
+Practical rule: keep the public Admin proxy aligned to the captured public API
+behavior and do not flip customer-create defaults to false without a newer
+version-specific capture showing public Admin changed. The existing checked-in
+anchor is `config/parity-specs/customers/customerCreate-parity-plan.json`,
+whose fixture records `customerCreate.customer.verifiedEmail: true`.
+
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
 HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.
