@@ -1,0 +1,22 @@
+mutation GiftCardNotificationTrialErrorMessages($customerTrialId: ID!, $recipientTrialId: ID!) {
+  customerTrial: giftCardSendNotificationToCustomer(id: $customerTrialId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientTrial: giftCardSendNotificationToRecipient(id: $recipientTrialId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

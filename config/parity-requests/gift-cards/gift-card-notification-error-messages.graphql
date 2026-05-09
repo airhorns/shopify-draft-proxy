@@ -1,0 +1,113 @@
+mutation GiftCardNotificationErrorMessages(
+  $customerNotifyDisabledId: ID!
+  $recipientNotifyDisabledId: ID!
+  $customerExpiredId: ID!
+  $recipientExpiredId: ID!
+  $customerDeactivatedId: ID!
+  $recipientDeactivatedId: ID!
+  $customerNoCustomerId: ID!
+  $recipientNoRecipientId: ID!
+  $customerUnreachableId: ID!
+  $recipientUnreachableId: ID!
+) {
+  customerNotifyDisabled: giftCardSendNotificationToCustomer(id: $customerNotifyDisabledId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientNotifyDisabled: giftCardSendNotificationToRecipient(id: $recipientNotifyDisabledId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerExpired: giftCardSendNotificationToCustomer(id: $customerExpiredId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientExpired: giftCardSendNotificationToRecipient(id: $recipientExpiredId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerDeactivated: giftCardSendNotificationToCustomer(id: $customerDeactivatedId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientDeactivated: giftCardSendNotificationToRecipient(id: $recipientDeactivatedId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerNoCustomer: giftCardSendNotificationToCustomer(id: $customerNoCustomerId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientNoRecipient: giftCardSendNotificationToRecipient(id: $recipientNoRecipientId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerUnreachable: giftCardSendNotificationToCustomer(id: $customerUnreachableId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  recipientUnreachable: giftCardSendNotificationToRecipient(id: $recipientUnreachableId) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

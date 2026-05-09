@@ -2377,7 +2377,7 @@ fn gift_card_create_customer_user_error(
 fn notification_trial_user_error() -> gift_card_types.UserError {
   invalid_user_error(
     ["base"],
-    "Gift card notifications are not available for trial shops.",
+    "Notifications are not available on trial shops.",
   )
 }
 

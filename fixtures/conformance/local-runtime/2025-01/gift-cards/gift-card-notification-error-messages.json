@@ -1,0 +1,712 @@
+{
+  "scenarioId": "gift-card-notification-error-messages",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-09T17:15:00.000Z",
+  "notes": [
+    "Executable local-runtime fixture for notification error message drift on branches that are not all constructible through the public Admin GraphQL harness.",
+    "Trial-shop wording follows the Shopify locale evidence copied into the issue. Expired, deactivated, no-owner, and no-contact wording is also covered by the live gift-card-notification-validation fixture.",
+    "The configured live conformance shop is not a trial shop, and public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/GiftCardUpdate notify input, so trial and notify-disabled are runtime-backed here."
+  ],
+  "proxyVariables": {
+    "direct": {
+      "customerNotifyDisabledId": "gid://shopify/GiftCard/notification-disabled",
+      "recipientNotifyDisabledId": "gid://shopify/GiftCard/notification-recipient-disabled",
+      "customerExpiredId": "gid://shopify/GiftCard/notification-expired",
+      "recipientExpiredId": "gid://shopify/GiftCard/notification-recipient-expired",
+      "customerDeactivatedId": "gid://shopify/GiftCard/notification-deactivated",
+      "recipientDeactivatedId": "gid://shopify/GiftCard/notification-recipient-deactivated",
+      "customerNoCustomerId": "gid://shopify/GiftCard/notification-no-customer",
+      "recipientNoRecipientId": "gid://shopify/GiftCard/notification-no-recipient",
+      "customerUnreachableId": "gid://shopify/GiftCard/notification-customer-unreachable",
+      "recipientUnreachableId": "gid://shopify/GiftCard/notification-recipient-unreachable"
+    },
+    "trialSetup": {
+      "input": {
+        "initialValue": "5.00",
+        "customerId": "gid://shopify/Customer/notification-trial-setup"
+      }
+    },
+    "trial": {
+      "customerTrialId": "gid://shopify/GiftCard/notification-trial",
+      "recipientTrialId": "gid://shopify/GiftCard/notification-recipient-trial"
+    }
+  },
+  "expected": {
+    "data": {
+      "customerNotifyDisabled": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "Gift card notifications are disabled."
+          }
+        ]
+      },
+      "recipientNotifyDisabled": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "Gift card notifications are disabled."
+          }
+        ]
+      },
+      "customerExpired": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "The gift card has expired."
+          }
+        ]
+      },
+      "recipientExpired": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "The gift card has expired."
+          }
+        ]
+      },
+      "customerDeactivated": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "The gift card is deactivated."
+          }
+        ]
+      },
+      "recipientDeactivated": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "INVALID",
+            "message": "The gift card is deactivated."
+          }
+        ]
+      },
+      "customerNoCustomer": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "The gift card has no customer."
+          }
+        ]
+      },
+      "recipientNoRecipient": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "The gift card has no recipient."
+          }
+        ]
+      },
+      "customerUnreachable": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "The customer has no contact information (e.g. email address or phone number)."
+          }
+        ]
+      },
+      "recipientUnreachable": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "The recipient has no contact information (e.g. email address or phone number)."
+          }
+        ]
+      }
+    },
+    "trialSetup": {
+      "giftCard": null,
+      "giftCardCode": null,
+      "userErrors": [
+        {
+          "field": ["input", "customerId"],
+          "code": "INVALID",
+          "message": "A trial shop cannot assign a customer to a gift card."
+        }
+      ]
+    },
+    "trial": {
+      "customerTrial": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "Notifications are not available on trial shops."
+          }
+        ]
+      },
+      "recipientTrial": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["base"],
+            "code": "INVALID",
+            "message": "Notifications are not available on trial shops."
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-disabled" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-disabled",
+              "lastCharacters": "bled",
+              "maskedCode": "**** **** **** bled",
+              "enabled": true,
+              "notify": false,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "Notification disabled customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": {
+                "id": "gid://shopify/Customer/notification-disabled",
+                "email": "disabled@example.com",
+                "defaultEmailAddress": { "emailAddress": "disabled@example.com" },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-recipient-disabled" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-recipient-disabled",
+              "lastCharacters": "bled",
+              "maskedCode": "**** **** **** bled",
+              "enabled": true,
+              "notify": false,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "Notification disabled recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Notification disabled",
+                "preferredName": "Recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/notification-recipient-disabled",
+                  "email": "recipient-disabled@example.com",
+                  "defaultEmailAddress": { "emailAddress": "recipient-disabled@example.com" },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-expired" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-expired",
+              "lastCharacters": "ired",
+              "maskedCode": "**** **** **** ired",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": "2000-01-01",
+              "note": "Expired customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": {
+                "id": "gid://shopify/Customer/notification-expired",
+                "email": "expired@example.com",
+                "defaultEmailAddress": { "emailAddress": "expired@example.com" },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-recipient-expired" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-recipient-expired",
+              "lastCharacters": "ired",
+              "maskedCode": "**** **** **** ired",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": "2000-01-01",
+              "note": "Expired recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Expired",
+                "preferredName": "Recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/notification-recipient-expired",
+                  "email": "recipient-expired@example.com",
+                  "defaultEmailAddress": { "emailAddress": "recipient-expired@example.com" },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-deactivated" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-deactivated",
+              "lastCharacters": "ated",
+              "maskedCode": "**** **** **** ated",
+              "enabled": false,
+              "notify": true,
+              "deactivatedAt": "2024-01-02T00:00:00Z",
+              "expiresOn": null,
+              "note": "Deactivated customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-02T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": {
+                "id": "gid://shopify/Customer/notification-deactivated",
+                "email": "deactivated@example.com",
+                "defaultEmailAddress": { "emailAddress": "deactivated@example.com" },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-recipient-deactivated" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-recipient-deactivated",
+              "lastCharacters": "ated",
+              "maskedCode": "**** **** **** ated",
+              "enabled": false,
+              "notify": true,
+              "deactivatedAt": "2024-01-02T00:00:00Z",
+              "expiresOn": null,
+              "note": "Deactivated recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-02T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Deactivated",
+                "preferredName": "Recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/notification-recipient-deactivated",
+                  "email": "recipient-deactivated@example.com",
+                  "defaultEmailAddress": { "emailAddress": "recipient-deactivated@example.com" },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-no-customer" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-no-customer",
+              "lastCharacters": "omer",
+              "maskedCode": "**** **** **** omer",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "No customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-no-recipient" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-no-recipient",
+              "lastCharacters": "ient",
+              "maskedCode": "**** **** **** ient",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "No recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-customer-unreachable" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-customer-unreachable",
+              "lastCharacters": "able",
+              "maskedCode": "**** **** **** able",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "No contact customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": {
+                "id": "gid://shopify/Customer/notification-customer-unreachable",
+                "email": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-recipient-unreachable" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-recipient-unreachable",
+              "lastCharacters": "able",
+              "maskedCode": "**** **** **** able",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "No contact recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "No contact",
+                "preferredName": "Recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/notification-recipient-unreachable",
+                  "email": null,
+                  "defaultEmailAddress": null,
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesShopBaselineHydrate",
+      "variables": {},
+      "query": "synthetic trial shop baseline for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/notification-trial",
+              "name": "Notification Trial Shop",
+              "myshopifyDomain": "notification-trial.myshopify.com",
+              "url": "https://notification-trial.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/notification-trial",
+                "host": "notification-trial.myshopify.com",
+                "url": "https://notification-trial.myshopify.com",
+                "sslEnabled": true
+              },
+              "contactEmail": "shop@example.com",
+              "email": "shop@example.com",
+              "currencyCode": "CAD",
+              "enabledPresentmentCurrencies": ["CAD"],
+              "ianaTimezone": "America/Toronto",
+              "timezoneAbbreviation": "EST",
+              "timezoneOffset": "-0500",
+              "timezoneOffsetMinutes": -300,
+              "taxesIncluded": false,
+              "taxShipping": false,
+              "unitSystem": "METRIC_SYSTEM",
+              "weightUnit": "KILOGRAMS",
+              "shopAddress": {},
+              "plan": {
+                "partnerDevelopment": false,
+                "publicDisplayName": "Trial",
+                "shopifyPlus": false
+              },
+              "resourceLimits": {},
+              "features": {
+                "giftCards": true
+              },
+              "entitlements": {
+                "giftCards": {
+                  "enabled": true
+                }
+              },
+              "paymentSettings": {
+                "supportedDigitalWallets": []
+              },
+              "shopPolicies": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-trial" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-trial",
+              "lastCharacters": "rial",
+              "maskedCode": "**** **** **** rial",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "Trial customer card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": {
+                "id": "gid://shopify/Customer/notification-trial",
+                "email": "trial@example.com",
+                "defaultEmailAddress": { "emailAddress": "trial@example.com" },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": { "id": "gid://shopify/GiftCard/notification-recipient-trial" },
+      "query": "synthetic gift card hydrate for notification message local-runtime fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/notification-recipient-trial",
+              "lastCharacters": "rial",
+              "maskedCode": "**** **** **** rial",
+              "enabled": true,
+              "notify": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "Trial recipient card",
+              "templateSuffix": null,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "initialValue": { "amount": "20.0", "currencyCode": "CAD" },
+              "balance": { "amount": "20.0", "currencyCode": "CAD" },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Trial",
+                "preferredName": "Recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/notification-recipient-trial",
+                  "email": "recipient-trial@example.com",
+                  "defaultEmailAddress": { "emailAddress": "recipient-trial@example.com" },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": { "nodes": [] }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+              "purchaseLimit": { "amount": "3000.0", "currencyCode": "CAD" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

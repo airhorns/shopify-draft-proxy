@@ -1,0 +1,68 @@
+{
+  "scenarioId": "gift-card-notification-error-messages",
+  "operationNames": ["giftCardCreate", "giftCardSendNotificationToCustomer", "giftCardSendNotificationToRecipient"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "notification-validation-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2025-01/gift-cards/gift-card-notification-error-messages.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-notification-error-messages.graphql",
+    "variablesCapturePath": "$.proxyVariables.direct",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer notification error message matrix",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerNotifyDisabled.userErrors",
+          "$.customerExpired.userErrors",
+          "$.customerDeactivated.userErrors",
+          "$.customerNoCustomer.userErrors",
+          "$.customerUnreachable.userErrors"
+        ]
+      },
+      {
+        "name": "recipient notification error message matrix",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.recipientNotifyDisabled.userErrors",
+          "$.recipientExpired.userErrors",
+          "$.recipientDeactivated.userErrors",
+          "$.recipientNoRecipient.userErrors",
+          "$.recipientUnreachable.userErrors"
+        ]
+      },
+      {
+        "name": "trial setup hydrates trial shop before notification checks",
+        "capturePath": "$.expected.trialSetup",
+        "proxyPath": "$.data.giftCardCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-trial-setup.graphql",
+          "variablesCapturePath": "$.proxyVariables.trialSetup",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "trial notification error messages",
+        "capturePath": "$.expected.trial",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.customerTrial.userErrors", "$.recipientTrial.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-trial-error-messages.graphql",
+          "variablesCapturePath": "$.proxyVariables.trial",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for gift-card notification userErrors message strings. Existing live fixture config/parity-specs/gift-cards/gift-card-notification-validation.json strictly compares captured Shopify messages for deactivated, expired, no-customer, and no-contact branches. This companion fixture pins the full local notification message matrix, including trial-shop wording from the issue's Shopify locale evidence and notify-disabled branches that public Admin GraphQL 2025-01 cannot construct because GiftCard exposes no notify field or create/update notify input."
+}
