@@ -2505,6 +2505,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-recreate-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-recreate-conformance.ts',
+    purpose:
+      'Metaobject definition delete and recreate with the same type/name, proving old fields/rows are not retained and post-recreate rows use the new field set.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-recreate-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-recreate-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-definition-recreate-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-recreate-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and row, deletes that definition during the scenario, recreates the same type/name with a different field set and two rows, then best-effort deletes remaining rows/definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-update-error-codes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-update-error-codes-conformance.ts',
