@@ -1559,6 +1559,149 @@ pub fn definition_create_rejects_more_than_forty_admin_filterable_fields_test() 
   assert read_after == "{\"data\":{\"metaobjectDefinitionByType\":null}}"
 }
 
+pub fn definition_create_field_cap_uses_forms_api_client_id_test() {
+  let wrong_prefix =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "shopify--form-codex_rows_too_many",
+        "field_1",
+        int_range(from: 1, to: 41)
+          |> list.map(fn(index) { "field_" <> int.to_string(index) }),
+      ),
+    )
+  assert json.to_string(wrong_prefix.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Not authorized. This type is reserved for use by another application.\",\"code\":\"NOT_AUTHORIZED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert wrong_prefix.staged_resource_ids == []
+  assert wrong_prefix.log_drafts == []
+
+  let other_app =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "app--999001--codex_rows_too_many",
+        "field_1",
+        int_range(from: 1, to: 41)
+          |> list.map(fn(index) { "field_" <> int.to_string(index) }),
+      ),
+    )
+  assert json.to_string(other_app.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert other_app.staged_resource_ids == []
+  assert other_app.log_drafts == []
+
+  let actual_forms =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "app--6171699--codex_rows_forms",
+        "field_1",
+        int_range(from: 1, to: 41)
+          |> list.map(fn(index) { "field_" <> int.to_string(index) }),
+      ),
+    )
+  assert string.contains(json.to_string(actual_forms.data), "\"userErrors\":[]")
+  assert actual_forms.staged_resource_ids
+    == ["gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic"]
+
+  let read_after =
+    run_query(
+      actual_forms.store,
+      "{ metaobjectDefinitionByType(type: \"app--6171699--codex_rows_forms\") { type fieldDefinitions { key } } }",
+    )
+  assert string.contains(
+    read_after,
+    "\"type\":\"app--6171699--codex_rows_forms\"",
+  )
+  assert string.contains(read_after, "\"key\":\"field_41\"")
+}
+
+pub fn definition_update_field_cap_uses_forms_api_client_id_test() {
+  let other_app_store =
+    store.upsert_base_metaobject_definitions(store.new(), [
+      state_types.MetaobjectDefinitionRecord(
+        ..definition_record(
+          "other-app-client",
+          "app--999001--codex_update_cap",
+          False,
+          0,
+        ),
+        field_definitions: int_range(from: 1, to: 40)
+          |> list.map(fn(index) {
+            text_field_definition("field_" <> int.to_string(index))
+          }),
+        display_name_key: Some("field_1"),
+      ),
+    ])
+  let other_app =
+    run_mutation(
+      other_app_store,
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/other-app-client\",
+          definition: {
+            fieldDefinitions: [{ create: { key: \"field_41\", name: \"Field 41\", type: \"single_line_text_field\" } }]
+          }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(other_app.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert other_app.staged_resource_ids == []
+  assert other_app.log_drafts == []
+
+  let forms_store =
+    store.upsert_base_metaobject_definitions(store.new(), [
+      state_types.MetaobjectDefinitionRecord(
+        ..definition_record(
+          "forms-api-client",
+          "app--6171699--codex_update_cap",
+          False,
+          0,
+        ),
+        field_definitions: int_range(from: 1, to: 40)
+          |> list.map(fn(index) {
+            text_field_definition("field_" <> int.to_string(index))
+          }),
+        display_name_key: Some("field_1"),
+      ),
+    ])
+  let forms_update =
+    run_mutation(
+      forms_store,
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/forms-api-client\",
+          definition: {
+            fieldDefinitions: [{ create: { key: \"field_41\", name: \"Field 41\", type: \"single_line_text_field\" } }]
+          }
+        ) {
+          metaobjectDefinition { id type fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert string.contains(json.to_string(forms_update.data), "\"userErrors\":[]")
+  assert string.contains(
+    json.to_string(forms_update.data),
+    "\"type\":\"app--6171699--codex_update_cap\"",
+  )
+  assert string.contains(
+    json.to_string(forms_update.data),
+    "\"key\":\"field_41\"",
+  )
+  assert forms_update.staged_resource_ids
+    == ["gid://shopify/MetaobjectDefinition/forms-api-client"]
+}
+
 pub fn definition_create_rejects_default_merchant_definition_cap_test() {
   let seeded = seed_definitions(store.new(), "merchant_seed_", 128, False)
   let outcome =

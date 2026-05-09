@@ -68,6 +68,16 @@
           "variablesCapturePath": "$.tooManyFields.request.variables",
           "apiVersion": "2026-04"
         }
+      },
+      {
+        "name": "reserved-shopify-form-too-many-field-definitions",
+        "capturePath": "$.reservedShopifyFormTooManyFields.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.reservedShopifyFormTooManyFields.request.variables",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   }
