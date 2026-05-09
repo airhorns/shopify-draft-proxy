@@ -675,6 +675,7 @@ pub fn translations_register_accepts_market_id_and_read_filters_by_market_test()
   let market_id = "gid://shopify/Market/123"
   let s =
     seed_shop_locale(store.new(), "es", False, True)
+    |> seed_market(market_id, "Spain")
     |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
   let register =
     run_outcome(
@@ -704,6 +705,74 @@ pub fn translations_register_accepts_market_id_and_read_filters_by_market_test()
     )
   assert json.to_string(default_read_data)
     == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[]}}"
+}
+
+pub fn translations_register_rejects_unknown_market_id_test() {
+  let market_id = "gid://shopify/Market/999999999999"
+  let s =
+    seed_shop_locale(store.new(), "es", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"es\", key: \"title\", value: \"Hola\", marketId: \""
+        <> market_id
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"marketId\"],\"message\":\"The market corresponding to the `marketId` argument doesn't exist\",\"code\":\"MARKET_DOES_NOT_EXIST\"}]}}}"
+
+  let stored =
+    store.list_effective_translations(
+      register.store,
+      "gid://shopify/Product/1",
+      "es",
+      Some(market_id),
+    )
+  assert stored == []
+}
+
+pub fn translations_register_persists_valid_market_rows_alongside_unknown_market_errors_test() {
+  let valid_market_id = "gid://shopify/Market/123"
+  let missing_market_id = "gid://shopify/Market/999999999999"
+  let s =
+    seed_shop_locale(store.new(), "es", False, True)
+    |> seed_market(valid_market_id, "Spain")
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"es\", key: \"title\", value: \"Hola\", marketId: \""
+        <> valid_market_id
+        <> "\", translatableContentDigest: \"abc\" }, { locale: \"es\", key: \"title\", value: \"Falso\", marketId: \""
+        <> missing_market_id
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key value locale market { id } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"title\",\"value\":\"Hola\",\"locale\":\"es\",\"market\":{\"id\":\"gid://shopify/Market/123\"}}],\"userErrors\":[{\"field\":[\"translations\",\"1\",\"marketId\"],\"message\":\"The market corresponding to the `marketId` argument doesn't exist\",\"code\":\"MARKET_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn translations_register_rejects_market_scope_for_non_customizable_resource_test() {
+  let market_id = "gid://shopify/Market/123"
+  let resource_id = "gid://shopify/PackingSlipTemplate/1"
+  let s =
+    seed_shop_locale(store.new(), "es", False, True)
+    |> seed_market(market_id, "Spain")
+    |> seed_source_content_marker(resource_id, "body", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \""
+        <> resource_id
+        <> "\", translations: [{ locale: \"es\", key: \"body\", value: \"Hola\", marketId: \""
+        <> market_id
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"key\"],\"message\":\"Key body cannot be customized for a market; it can only be translated.\",\"code\":\"RESOURCE_NOT_MARKET_CUSTOMIZABLE\"}]}}}"
 }
 
 pub fn translations_register_projects_captured_market_fields_test() {
@@ -1031,6 +1100,7 @@ pub fn translations_remove_accepts_market_ids_and_clears_market_read_test() {
   let market_id = "gid://shopify/Market/123"
   let s =
     seed_shop_locale(store.new(), "es", False, True)
+    |> seed_market(market_id, "Spain")
     |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
   let register =
     run_outcome(

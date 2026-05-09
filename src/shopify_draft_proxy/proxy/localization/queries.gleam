@@ -17,10 +17,11 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type LocaleRecord, type ShopLocaleRecord,
-  type WebPresenceRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, LocaleRecord,
-  ShopLocaleRecord, TranslationRecord, WebPresenceRecord,
+  type CapturedJsonValue, type LocaleRecord, type MarketRecord,
+  type ShopLocaleRecord, type WebPresenceRecord, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  LocaleRecord, MarketRecord, ShopLocaleRecord, TranslationRecord,
+  WebPresenceRecord,
 }
 
 @internal
@@ -240,6 +241,7 @@ fn hydrate_from_upstream_response(
       |> hydrate_available_locales(data)
       |> hydrate_shop_locale_web_presences(data)
       |> hydrate_shop_locales(data)
+      |> hydrate_markets(data)
       |> hydrate_translatable_resources(data)
     None -> store_in
   }
@@ -279,6 +281,15 @@ fn hydrate_shop_locale_web_presences(
   case records {
     [] -> store_in
     _ -> store.upsert_base_web_presences(store_in, records)
+  }
+}
+
+fn hydrate_markets(store_in: Store, data: commit.JsonValue) -> Store {
+  let records =
+    record_nodes_from_field(data, "markets", market_record_from_json)
+  case records {
+    [] -> store_in
+    _ -> store.upsert_base_markets(store_in, records)
   }
 }
 
@@ -346,6 +357,38 @@ fn resources_from_connection_field(
         _ -> []
       }
     None -> []
+  }
+}
+
+fn record_nodes_from_field(
+  data: commit.JsonValue,
+  key: String,
+  decoder: fn(commit.JsonValue) -> Result(a, Nil),
+) -> List(a) {
+  case json_get(data, key) {
+    Some(connection) ->
+      case json_get(connection, "nodes") {
+        Some(commit.JsonArray(items)) ->
+          items
+          |> non_null_json_values
+          |> list.filter_map(decoder)
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn market_record_from_json(
+  value: commit.JsonValue,
+) -> Result(MarketRecord, Nil) {
+  use id <- result.try(option_to_result(json_get_string(value, "id")))
+  Ok(MarketRecord(id: id, cursor: None, data: captured_from_json_value(value)))
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(inner) -> Ok(inner)
+    None -> Error(Nil)
   }
 }
 
