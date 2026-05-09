@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -16,7 +16,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-variant-mutation-conformance-scope-blocker.md');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -90,14 +90,18 @@ const initialVariantQuery = `#graphql
   }
 `;
 
-const bulkUpdateMutation = `#graphql
-  mutation ProductVariantsBulkUpdateParityPlan($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-      product {
-        id
+const productHydrateNodesQuery = `#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on Product {
+        title
+        handle
+        status
         totalInventory
         tracksInventory
-        variants(first: 10) {
+        variants(first: 250) {
           nodes {
             id
             title
@@ -106,91 +110,128 @@ const bulkUpdateMutation = `#graphql
             price
             compareAtPrice
             taxable
+            taxCode
             inventoryPolicy
             inventoryQuantity
+            position
+            requiresComponents
+            showUnitPrice
+            unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
+            selectedOptions { name value }
+            metafields(first: 250) {
+              nodes {
+                id
+                namespace
+                key
+                type
+                value
+                compareDigest
+                jsonValue
+                createdAt
+                updatedAt
+                ownerType
+              }
+            }
             inventoryItem {
               id
               tracked
               requiresShipping
+              countryCodeOfOrigin
+              provinceCodeOfOrigin
+              harmonizedSystemCode
+              measurement { weight { unit value } }
             }
           }
         }
       }
-      productVariants {
-        id
+      ... on ProductVariant {
         title
         sku
         barcode
         price
         compareAtPrice
         taxable
+        taxCode
         inventoryPolicy
         inventoryQuantity
+        position
+        requiresComponents
+        showUnitPrice
+        unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
+        selectedOptions { name value }
+        metafields(first: 250) {
+          nodes {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            jsonValue
+            createdAt
+            updatedAt
+            ownerType
+          }
+        }
         inventoryItem {
           id
           tracked
           requiresShipping
+          countryCodeOfOrigin
+          provinceCodeOfOrigin
+          harmonizedSystemCode
+          measurement { weight { unit value } }
         }
-      }
-      userErrors {
-        field
-        message
+        product {
+          id
+          title
+          handle
+          status
+          totalInventory
+          tracksInventory
+          variants(first: 250) {
+            nodes {
+              id
+              title
+              sku
+              barcode
+              price
+              compareAtPrice
+              taxable
+              taxCode
+              inventoryPolicy
+              inventoryQuantity
+              position
+              requiresComponents
+              showUnitPrice
+              unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
+              selectedOptions { name value }
+              inventoryItem {
+                id
+                tracked
+                requiresShipping
+                countryCodeOfOrigin
+                provinceCodeOfOrigin
+                harmonizedSystemCode
+                measurement { weight { unit value } }
+              }
+            }
+          }
+        }
       }
     }
   }
 `;
 
-const bulkCreateMutation = `#graphql
-  mutation ProductVariantsBulkCreateParityPlan($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-    productVariantsBulkCreate(productId: $productId, variants: $variants) {
-      product {
-        id
-        totalInventory
-        tracksInventory
-        variants(first: 10) {
-          nodes {
-            id
-            title
-            sku
-            barcode
-            price
-            inventoryQuantity
-            selectedOptions {
-              name
-              value
-            }
-            inventoryItem {
-              id
-              tracked
-              requiresShipping
-            }
-          }
-        }
-      }
-      productVariants {
-        id
-        title
-        sku
-        barcode
-        price
-        inventoryQuantity
-        selectedOptions {
-          name
-          value
-        }
-        inventoryItem {
-          id
-          tracked
-          requiresShipping
-        }
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
+const bulkUpdateMutation = await readFile(
+  'config/parity-requests/products/productVariantsBulkUpdate-parity-plan.graphql',
+  'utf8',
+);
+
+const bulkCreateMutation = await readFile(
+  'config/parity-requests/products/productVariantsBulkCreate-parity-plan.graphql',
+  'utf8',
+);
 
 const bulkDeleteMutation = `#graphql
   mutation ProductVariantsBulkDeleteParityPlan($productId: ID!, $variantsIds: [ID!]!) {
@@ -220,48 +261,15 @@ const bulkDeleteMutation = `#graphql
   }
 `;
 
-const bulkDownstreamQuery = `#graphql
-  query ProductVariantBulkConformanceRead($id: ID!, $query: String!) {
-    product(id: $id) {
-      id
-      totalInventory
-      tracksInventory
-      variants(first: 10) {
-        nodes {
-          id
-          title
-          sku
-          barcode
-          price
-          compareAtPrice
-          taxable
-          inventoryPolicy
-          inventoryQuantity
-          selectedOptions {
-            name
-            value
-          }
-          inventoryItem {
-            id
-            tracked
-            requiresShipping
-          }
-        }
-      }
-    }
-    products(first: 10, query: $query) {
-      nodes {
-        id
-        totalInventory
-        tracksInventory
-      }
-    }
-    skuCount: productsCount(query: $query) {
-      count
-      precision
-    }
-  }
-`;
+const bulkUpdateDownstreamQuery = await readFile(
+  'config/parity-requests/products/productVariantsBulkUpdate-downstream-read.graphql',
+  'utf8',
+);
+
+const bulkCreateDownstreamQuery = await readFile(
+  'config/parity-requests/products/productVariantsBulkCreate-downstream-read.graphql',
+  'utf8',
+);
 
 function buildProductVariables(title) {
   return {
@@ -281,13 +289,39 @@ function buildBulkUpdateVariables(productId, defaultVariantId, skuPrefix) {
         barcode: '1111111111111',
         price: '24.00',
         compareAtPrice: '30.00',
-        taxable: true,
+        taxable: false,
+        taxCode: 'P0000000',
+        requiresComponents: true,
+        showUnitPrice: true,
+        unitPriceMeasurement: {
+          quantityValue: 1.5,
+          quantityUnit: 'L',
+          referenceValue: 1,
+          referenceUnit: 'L',
+        },
         inventoryPolicy: 'DENY',
         inventoryItem: {
           sku: `${skuPrefix}-RED`,
           tracked: true,
-          requiresShipping: true,
+          requiresShipping: false,
+          countryCodeOfOrigin: 'US',
+          provinceCodeOfOrigin: 'CA',
+          harmonizedSystemCode: '1234.56',
+          measurement: {
+            weight: {
+              value: 0.5,
+              unit: 'KILOGRAMS',
+            },
+          },
         },
+        metafields: [
+          {
+            namespace: 'specs',
+            key: 'bulkUpdateTier',
+            type: 'single_line_text_field',
+            value: 'premium',
+          },
+        ],
       },
     ],
   };
@@ -301,13 +335,58 @@ function buildBulkCreateVariables(productId, skuPrefix) {
         optionValues: [{ optionName: 'Color', name: 'Blue' }],
         barcode: '2222222222222',
         price: '26.00',
+        compareAtPrice: '30.00',
+        taxable: false,
+        taxCode: 'P0000000',
+        requiresComponents: true,
+        showUnitPrice: true,
+        unitPriceMeasurement: {
+          quantityValue: 2.5,
+          quantityUnit: 'L',
+          referenceValue: 1,
+          referenceUnit: 'L',
+        },
         inventoryItem: {
           sku: `${skuPrefix}-BLUE`,
           tracked: true,
           requiresShipping: false,
+          countryCodeOfOrigin: 'US',
+          provinceCodeOfOrigin: 'CA',
+          harmonizedSystemCode: '1234.56',
+          measurement: {
+            weight: {
+              value: 0.25,
+              unit: 'KILOGRAMS',
+            },
+          },
         },
+        metafields: [
+          {
+            namespace: 'specs',
+            key: 'bulkCreateTier',
+            type: 'single_line_text_field',
+            value: 'standard',
+          },
+        ],
       },
     ],
+  };
+}
+
+async function recordProductHydrationCall(ids) {
+  const variables = { ids };
+  const response = await runGraphqlRaw(productHydrateNodesQuery, variables);
+  if (response.status < 200 || response.status >= 300 || response.payload.errors) {
+    throw new Error(`ProductsHydrateNodes failed: ${JSON.stringify(response, null, 2)}`);
+  }
+  return {
+    operationName: 'ProductsHydrateNodes',
+    variables,
+    query: 'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration',
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
   };
 }
 
@@ -362,31 +441,37 @@ try {
   }
 
   const bulkUpdateVariables = buildBulkUpdateVariables(productId, defaultVariantId, skuPrefix);
+  const bulkUpdateHydrationCall = await recordProductHydrationCall([productId, defaultVariantId]);
   const bulkUpdateResponse = await runGraphql(bulkUpdateMutation, bulkUpdateVariables);
   expectNoUserErrors('productVariantsBulkUpdate', bulkUpdateResponse.data?.productVariantsBulkUpdate?.userErrors);
-  const bulkUpdateRead = await runGraphql(bulkDownstreamQuery, {
+  const bulkUpdateReadVariables = {
     id: productId,
     query: `sku:${bulkUpdateVariables.variants[0].inventoryItem.sku}`,
-  });
+  };
+  const bulkUpdateRead = await runGraphql(bulkUpdateDownstreamQuery, bulkUpdateReadVariables);
 
   const bulkCreateVariables = buildBulkCreateVariables(productId, skuPrefix);
+  const bulkCreateHydrationCall = await recordProductHydrationCall([productId]);
   const bulkCreateResponse = await runGraphql(bulkCreateMutation, bulkCreateVariables);
   expectNoUserErrors('productVariantsBulkCreate', bulkCreateResponse.data?.productVariantsBulkCreate?.userErrors);
-  const bulkCreateRead = await runGraphql(bulkDownstreamQuery, {
+  const bulkCreateReadVariables = {
     id: productId,
     query: `sku:${bulkCreateVariables.variants[0].inventoryItem.sku}`,
-  });
+  };
+  const bulkCreateRead = await runGraphql(bulkCreateDownstreamQuery, bulkCreateReadVariables);
 
   const bulkDeleteVariables = {
     productId,
     variantsIds: [defaultVariantId],
   };
+  const bulkDeleteHydrationCall = await recordProductHydrationCall([productId, defaultVariantId]);
   const bulkDeleteResponse = await runGraphql(bulkDeleteMutation, bulkDeleteVariables);
   expectNoUserErrors('productVariantsBulkDelete', bulkDeleteResponse.data?.productVariantsBulkDelete?.userErrors);
-  const bulkDeleteRead = await runGraphql(bulkDownstreamQuery, {
+  const bulkDeleteReadVariables = {
     id: productId,
     query: `sku:${bulkUpdateVariables.variants[0].inventoryItem.sku}`,
-  });
+  };
+  const bulkDeleteRead = await runGraphql(bulkUpdateDownstreamQuery, bulkDeleteReadVariables);
 
   const captures = {
     'product-variants-bulk-update-parity.json': {
@@ -394,21 +479,33 @@ try {
         variables: bulkUpdateVariables,
         response: bulkUpdateResponse,
       },
-      downstreamRead: bulkUpdateRead,
+      downstreamRead: {
+        requestVariables: bulkUpdateReadVariables,
+        ...bulkUpdateRead,
+      },
+      upstreamCalls: [bulkUpdateHydrationCall],
     },
     'product-variants-bulk-create-parity.json': {
       mutation: {
         variables: bulkCreateVariables,
         response: bulkCreateResponse,
       },
-      downstreamRead: bulkCreateRead,
+      downstreamRead: {
+        requestVariables: bulkCreateReadVariables,
+        ...bulkCreateRead,
+      },
+      upstreamCalls: [bulkCreateHydrationCall],
     },
     'product-variants-bulk-delete-parity.json': {
       mutation: {
         variables: bulkDeleteVariables,
         response: bulkDeleteResponse,
       },
-      downstreamRead: bulkDeleteRead,
+      downstreamRead: {
+        requestVariables: bulkDeleteReadVariables,
+        ...bulkDeleteRead,
+      },
+      upstreamCalls: [bulkDeleteHydrationCall],
     },
   };
 
