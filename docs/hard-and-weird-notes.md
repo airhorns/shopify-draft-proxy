@@ -92,6 +92,25 @@ new version-specific capture proves Shopify changed the public API branch. The
 checked-in anchor is
 `config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
 
+## Current: paymentTermsUpdate reuses paid Order eligibility, channel policy remains hard to capture
+
+A 2026-04 `paymentTermsUpdate` capture against a disposable unpaid Order with
+existing payment terms showed that after `orderMarkAsPaid` sets the owner Order
+to `PAID`, Shopify rejects the update with `field: null`,
+`PAYMENT_TERMS_UPDATE_UNSUCCESSFUL`, and the same paid-in-full message used by
+the create path. The proxy parity replay starts cold, hydrates the
+`PaymentTerms` node by ID, then applies the local eligibility guard without
+runtime mutation passthrough.
+
+Practical rule: apply Order-only paid-status eligibility to both create and
+update; keep DraftOrder owners outside this guard. Channel-policy update
+rejection is modeled only from explicit staged/hydrated hints for now. A bounded
+public API probe on the conformance shop could not create a channel-disallowed
+Order: protected source names were rejected before order creation, `shopify_pos`
+accepted payment terms, and later rapid attempts hit Shopify's order-create rate
+guard. The checked-in paid-update anchor is
+`config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
+
 ## Current: productCreate legacy ProductInput key guard differs from internal notes
 
 A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed
