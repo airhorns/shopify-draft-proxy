@@ -235,6 +235,13 @@ pub fn shop_b2b_deposits_enabled(store: Store) -> Bool {
   }
 }
 
+pub fn shop_gift_cards_entitlement_enabled(store: Store) -> Bool {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.entitlements.gift_cards.enabled
+    None -> True
+  }
+}
+
 pub fn shop_markets_home_enabled(store: Store) -> Bool {
   case get_effective_shop(store) {
     Some(shop) -> shop.features.unified_markets
@@ -371,6 +378,31 @@ pub fn set_shop_b2b_deposits_enabled(
   }
 }
 
+pub fn set_shop_gift_cards_entitlement_enabled(
+  store: Store,
+  enabled: Bool,
+) -> Store {
+  case store.staged_state.shop {
+    Some(shop) -> {
+      let shop = shop_with_gift_cards_entitlement_enabled(shop, enabled)
+      Store(
+        ..store,
+        staged_state: StagedState(..store.staged_state, shop: Some(shop)),
+      )
+    }
+    None -> {
+      let shop =
+        store.base_state.shop
+        |> option.unwrap(default_synthetic_shop())
+        |> shop_with_gift_cards_entitlement_enabled(enabled)
+      Store(
+        ..store,
+        base_state: BaseState(..store.base_state, shop: Some(shop)),
+      )
+    }
+  }
+}
+
 fn shop_with_sells_subscriptions(
   shop: ShopRecord,
   sells_subscriptions: Bool,
@@ -409,6 +441,18 @@ fn shop_with_b2b_deposits_enabled(
     features: types_mod.ShopFeaturesRecord(
       ..features,
       b2b_deposits_enabled: b2b_deposits_enabled,
+    ),
+  )
+}
+
+fn shop_with_gift_cards_entitlement_enabled(
+  shop: ShopRecord,
+  enabled: Bool,
+) -> ShopRecord {
+  types_mod.ShopRecord(
+    ..shop,
+    entitlements: types_mod.ShopEntitlementsRecord(
+      gift_cards: types_mod.ShopGiftCardsEntitlementRecord(enabled: enabled),
     ),
   )
 }
@@ -481,6 +525,7 @@ fn default_synthetic_shop() -> ShopRecord {
       redirect_limit_reached: False,
     ),
     features: default_shop_features(),
+    entitlements: default_shop_entitlements(),
     payment_settings: types_mod.PaymentSettingsRecord(
       supported_digital_wallets: [],
       payment_gateways: [],
@@ -522,6 +567,12 @@ fn default_shop_features() -> types_mod.ShopFeaturesRecord {
     show_metrics: False,
     storefront: False,
     unified_markets: True,
+  )
+}
+
+fn default_shop_entitlements() -> types_mod.ShopEntitlementsRecord {
+  types_mod.ShopEntitlementsRecord(
+    gift_cards: types_mod.ShopGiftCardsEntitlementRecord(enabled: True),
   )
 }
 

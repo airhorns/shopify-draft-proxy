@@ -37,7 +37,8 @@ import shopify_draft_proxy/state/types.{
   ProductVariantSelectedOptionRecord, PublicationRecord, SellingPlanGroupRecord,
   ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopDomainRecord, ShopEntitlementsRecord, ShopFeaturesRecord,
+  ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord, StorePropertyBool, StorePropertyRecord,
   StorePropertyString,
 }
@@ -7115,6 +7116,9 @@ fn product_publication_shop() -> ShopRecord {
       show_metrics: True,
       storefront: True,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

@@ -31,7 +31,8 @@ import shopify_draft_proxy/state/types.{
   CustomerRecord, GiftCardConfigurationRecord, GiftCardRecord, Money,
   PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopDomainRecord, ShopEntitlementsRecord, ShopFeaturesRecord,
+  ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord,
 }
 
@@ -367,6 +368,9 @@ fn trial_shop() -> ShopRecord {
       storefront: True,
       unified_markets: False,
     ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
+    ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],
       payment_gateways: [],
@@ -407,6 +411,21 @@ pub fn process_mutation_returns_data_envelope_test() {
   // Always wraps in `{"data": {...}}`.
   assert body
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\",\"initialValue\":{\"amount\":\"50.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_mutations_short_circuit_when_entitlement_disabled_test() {
+  let disabled_store =
+    store.new() |> store.set_shop_gift_cards_entitlement_enabled(False)
+  let outcome =
+    run_mutation_outcome(
+      disabled_store,
+      "mutation { createError: giftCardCreate(input: { initialValue: \"0\" }) { giftCard { id } giftCardCode userErrors { field code message } } updateError: giftCardUpdate(id: \"gid://shopify/GiftCard/missing\", input: { note: \"x\" }) { giftCard { id } userErrors { field code message } } creditError: giftCardCredit(id: \"gid://shopify/GiftCard/missing\", creditInput: { creditAmount: { amount: \"-1\", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } } debitError: giftCardDebit(id: \"gid://shopify/GiftCard/missing\", debitInput: { debitAmount: { amount: \"9999\", currencyCode: CAD } }) { giftCardDebitTransaction { id } userErrors { field code message } } deactivateError: giftCardDeactivate(id: \"gid://shopify/GiftCard/missing\") { giftCard { id } userErrors { field code message } } notificationCustomerError: giftCardSendNotificationToCustomer(giftCardId: \"gid://shopify/GiftCard/missing\") { giftCard { id } userErrors { field code message } } notificationRecipientError: giftCardSendNotificationToRecipient(giftCardId: \"gid://shopify/GiftCard/missing\") { giftCard { id } userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"createError\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"updateError\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"creditError\":{\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"debitError\":{\"giftCardDebitTransaction\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"deactivateError\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"notificationCustomerError\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]},\"notificationRecipientError\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":null,\"message\":\"Gift cards are not available on this plan.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
 }
 
 // ----------- giftCardCreate -----------

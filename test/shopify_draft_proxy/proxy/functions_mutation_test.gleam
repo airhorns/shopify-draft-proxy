@@ -24,9 +24,10 @@ import shopify_draft_proxy/state/types.{
   type ValidationRecord, AccessScopeRecord, AppInstallationRecord, AppRecord,
   CartTransformRecord, PaymentSettingsRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord, ValidationMetafieldRecord, ValidationRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopEntitlementsRecord,
+  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord, ShopifyFunctionAppRecord, ShopifyFunctionRecord,
+  ValidationMetafieldRecord, ValidationRecord,
 }
 
 // ----------- Helpers -----------
@@ -364,6 +365,9 @@ fn non_plus_custom_app_shop() -> ShopRecord {
       show_metrics: False,
       storefront: False,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

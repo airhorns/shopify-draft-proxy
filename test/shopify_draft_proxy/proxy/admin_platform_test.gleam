@@ -23,8 +23,9 @@ import shopify_draft_proxy/state/types.{
   MarketRecord, Money, PaymentSettingsRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopEntitlementsRecord,
+  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 import simplifile
 
@@ -659,6 +660,9 @@ fn make_shop() -> ShopRecord {
       show_metrics: True,
       storefront: True,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

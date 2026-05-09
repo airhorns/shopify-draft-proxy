@@ -466,6 +466,8 @@ pub const shop_discounts_by_market_enabled = admin_platform.shop_discounts_by_ma
 
 pub const shop_b2b_deposits_enabled = admin_platform.shop_b2b_deposits_enabled
 
+pub const shop_gift_cards_entitlement_enabled = admin_platform.shop_gift_cards_entitlement_enabled
+
 pub const shop_markets_home_enabled = admin_platform.shop_markets_home_enabled
 
 pub const shop_market_plan_limit = admin_platform.shop_market_plan_limit
@@ -479,6 +481,8 @@ pub const set_shop_sells_subscriptions = admin_platform.set_shop_sells_subscript
 pub const set_shop_discounts_by_market_enabled = admin_platform.set_shop_discounts_by_market_enabled
 
 pub const set_shop_b2b_deposits_enabled = admin_platform.set_shop_b2b_deposits_enabled
+
+pub const set_shop_gift_cards_entitlement_enabled = admin_platform.set_shop_gift_cards_entitlement_enabled
 
 pub const upsert_base_b2b_company = b2b.upsert_base_b2b_company
 
