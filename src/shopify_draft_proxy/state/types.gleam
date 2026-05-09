@@ -921,6 +921,14 @@ pub type ShopFeaturesRecord {
   )
 }
 
+pub type ShopGiftCardsEntitlementRecord {
+  ShopGiftCardsEntitlementRecord(enabled: Bool)
+}
+
+pub type ShopEntitlementsRecord {
+  ShopEntitlementsRecord(gift_cards: ShopGiftCardsEntitlementRecord)
+}
+
 pub type PaymentGatewayRecord {
   PaymentGatewayRecord(id: String, name: String, active: Bool)
 }
@@ -968,6 +976,7 @@ pub type ShopRecord {
     plan: ShopPlanRecord,
     resource_limits: ShopResourceLimitsRecord,
     features: ShopFeaturesRecord,
+    entitlements: ShopEntitlementsRecord,
     payment_settings: PaymentSettingsRecord,
     shop_policies: List(ShopPolicyRecord),
   )
@@ -1301,6 +1310,7 @@ pub type BulkOperationRecord {
     url: Option(String),
     partial_data_url: Option(String),
     query: Option(String),
+    client_identifier: Option(String),
     cursor: Option(String),
     result_jsonl: Option(String),
   )

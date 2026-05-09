@@ -156,6 +156,7 @@ fn bulk_operation(
     url: None,
     partial_data_url: None,
     query: None,
+    client_identifier: None,
     cursor: None,
     result_jsonl: None,
   )
@@ -508,6 +509,131 @@ pub fn run_query_returns_operation_in_progress_for_non_terminal_query_test() {
   let assert [_] = store.list_effective_bulk_operations(outcome.store)
 }
 
+pub fn run_query_validates_and_stores_client_identifier_test() {
+  let too_short =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\", clientIdentifier: \"abc\") { bulkOperation { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_short.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"clientIdentifier\"],\"message\":\"is too short (minimum is 10 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert too_short.staged_resource_ids == []
+
+  let too_long = string.repeat("x", times: 256)
+  let too_long_result =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Probe($clientIdentifier: String) { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\", clientIdentifier: $clientIdentifier) { bulkOperation { id } userErrors { field message code } } }",
+      dict.from_list([
+        #("clientIdentifier", root_field.StringVal(too_long)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_long_result.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"clientIdentifier\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+
+  let valid =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\", clientIdentifier: \"client-one\") { bulkOperation { id status } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(valid.data)
+  assert string.contains(
+    response,
+    "\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"CREATED\"}",
+  )
+  assert string.contains(response, "\"userErrors\":[]")
+  let assert Some(operation) =
+    store.get_effective_bulk_operation_by_id(
+      valid.store,
+      "gid://shopify/BulkOperation/1",
+    )
+  assert operation.client_identifier == Some("client-one")
+  let read_after =
+    run(
+      valid.store,
+      "{ byId: bulkOperation(id: \"gid://shopify/BulkOperation/1\") { id status } list: bulkOperations(first: 5) { nodes { id status } } }",
+    )
+  assert string.contains(
+    read_after,
+    "\"byId\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\"}",
+  )
+  assert string.contains(
+    read_after,
+    "\"list\":{\"nodes\":[{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\"}]}",
+  )
+}
+
+pub fn run_query_client_identifier_scopes_in_progress_checks_test() {
+  let running =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/721",
+        "RUNNING",
+        "QUERY",
+        "2026-04-27T00:00:04Z",
+      ),
+      client_identifier: Some("client-one"),
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), running)
+  let fields = "bulkOperation { id status } userErrors { field message code }"
+  let query = "{ products { edges { node { id } } } }"
+
+  let same_identifier =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \""
+        <> query
+        <> "\", clientIdentifier: \"client-one\") { "
+        <> fields
+        <> " } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(
+    json.to_string(same_identifier.data),
+    "\"code\":\"OPERATION_IN_PROGRESS\"",
+  )
+
+  let distinct_identifier =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationRunQuery(query: \""
+        <> query
+        <> "\", clientIdentifier: \"client-two\") { "
+        <> fields
+        <> " } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let distinct_response = json.to_string(distinct_identifier.data)
+  assert string.contains(
+    distinct_response,
+    "\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"CREATED\"}",
+  )
+  assert string.contains(distinct_response, "\"userErrors\":[]")
+  let assert Some(operation) =
+    store.get_effective_bulk_operation_by_id(
+      distinct_identifier.store,
+      "gid://shopify/BulkOperation/1",
+    )
+  assert operation.client_identifier == Some("client-two")
+}
+
 pub fn run_query_canceling_operation_still_blocks_new_query_test() {
   let running =
     bulk_operation(
@@ -832,6 +958,91 @@ pub fn run_mutation_missing_upload_returns_no_such_file_user_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn run_mutation_validates_client_identifier_after_upload_lookup_test() {
+  let inner =
+    "mutation($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let upload_path = "/bulk/client-identifier-validation.jsonl"
+  let source =
+    store.stage_staged_upload_content(
+      store.new(),
+      upload_path,
+      "{\"product\":{\"title\":\"Client Identifier Validation\"}}\n",
+    )
+  let too_short =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: \"abc\") { bulkOperation { id } userErrors { field message code } } }",
+      dict.from_list([
+        #("mutation", root_field.StringVal(inner)),
+        #("path", root_field.StringVal(upload_path)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_short.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"clientIdentifier\"],\"message\":\"is too short (minimum is 10 characters)\",\"code\":\"INVALID_MUTATION\"}]}}}"
+  assert too_short.staged_resource_ids == []
+
+  let too_long = string.repeat("x", times: 256)
+  let too_long_result =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation BulkImport($mutation: String!, $path: String!, $clientIdentifier: String) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) { bulkOperation { id } userErrors { field message code } } }",
+      dict.from_list([
+        #("mutation", root_field.StringVal(inner)),
+        #("path", root_field.StringVal(upload_path)),
+        #("clientIdentifier", root_field.StringVal(too_long)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_long_result.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"clientIdentifier\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":\"INVALID_MUTATION\"}]}}}"
+}
+
+pub fn run_mutation_blank_client_identifier_is_allowed_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let inner =
+    "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let upload_path = "/bulk/blank-client-identifier.jsonl"
+  let source =
+    store.stage_staged_upload_content(
+      store.new(),
+      upload_path,
+      "{\"product\":{\"title\":\"Blank Identifier Bulk Create\"}}\n",
+    )
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: \"\") { bulkOperation { id status type } userErrors { field message code } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  let outcome =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      document,
+      variables,
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  let assert [operation_id, ..] = outcome.staged_resource_ids
+  assert string.contains(
+    response,
+    "\"bulkOperation\":{\"id\":\""
+      <> operation_id
+      <> "\",\"status\":\"CREATED\",\"type\":\"MUTATION\"}",
+  )
+  assert string.contains(response, "\"userErrors\":[]")
+  let assert Some(operation) =
+    store.get_effective_bulk_operation_by_id(outcome.store, operation_id)
+  assert operation.client_identifier == None
+}
+
 pub fn run_mutation_inner_parse_error_matches_shopify_validator_test() {
   let outcome = run_mutation_import_validator("mutation { not parseable")
   let response = json.to_string(outcome.data)
@@ -1138,6 +1349,96 @@ pub fn run_mutation_returns_operation_in_progress_for_non_terminal_mutation_test
   assert outcome.staged_resource_ids == []
   assert store.list_effective_products(outcome.store) == []
   let assert [_] = store.list_effective_bulk_operations(outcome.store)
+}
+
+pub fn run_mutation_client_identifier_scopes_in_progress_checks_test() {
+  let running =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/811",
+        "RUNNING",
+        "MUTATION",
+        "2026-04-27T00:00:04Z",
+      ),
+      client_identifier: Some("client-one"),
+    )
+  let upload_path = "/bulk/scoped-products.jsonl"
+  let source =
+    store.new()
+    |> store.stage_bulk_operation(running)
+    |> fn(pair) { pair.1 }
+    |> store.stage_staged_upload_content(
+      upload_path,
+      "{\"product\":{\"title\":\"Scoped Bulk Create\"}}\n",
+    )
+  let inner =
+    "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!, $clientIdentifier: String) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) { bulkOperation { id status type } userErrors { field message code } } }"
+
+  let same_identifier =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([
+        #("mutation", root_field.StringVal(inner)),
+        #("path", root_field.StringVal(upload_path)),
+        #("clientIdentifier", root_field.StringVal("client-one")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert string.contains(
+    json.to_string(same_identifier.data),
+    "\"code\":\"OPERATION_IN_PROGRESS\"",
+  )
+
+  let distinct_identifier =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([
+        #("mutation", root_field.StringVal(inner)),
+        #("path", root_field.StringVal(upload_path)),
+        #("clientIdentifier", root_field.StringVal("client-two")),
+      ]),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(distinct_identifier.data)
+  let assert [operation_id, ..] = distinct_identifier.staged_resource_ids
+  assert string.contains(
+    response,
+    "\"bulkOperation\":{\"id\":\""
+      <> operation_id
+      <> "\",\"status\":\"CREATED\",\"type\":\"MUTATION\"}",
+  )
+  assert string.contains(response, "\"userErrors\":[]")
+  let assert Some(operation) =
+    store.get_effective_bulk_operation_by_id(
+      distinct_identifier.store,
+      operation_id,
+    )
+  assert operation.client_identifier == Some("client-two")
+  let read_after =
+    run(
+      distinct_identifier.store,
+      "{ bulkOperation(id: \""
+        <> operation_id
+        <> "\") { id status } bulkOperations(first: 5, query: \"operation_type:MUTATION\") { nodes { id status } } }",
+    )
+  assert string.contains(
+    read_after,
+    "\"bulkOperation\":{\"id\":\""
+      <> operation_id
+      <> "\",\"status\":\"COMPLETED\"}",
+  )
+  assert string.contains(
+    read_after,
+    "{\"id\":\"" <> operation_id <> "\",\"status\":\"COMPLETED\"}",
+  )
 }
 
 pub fn cancel_staged_terminal_and_missing_operations_test() {

@@ -115,6 +115,7 @@ pub fn shop_json(record: types.ShopRecord) -> Json {
     #("plan", shop_plan_json(record.plan)),
     #("resourceLimits", shop_resource_limits_json(record.resource_limits)),
     #("features", shop_features_json(record.features)),
+    #("entitlements", shop_entitlements_json(record.entitlements)),
     #("paymentSettings", payment_settings_json(record.payment_settings)),
     #("shopPolicies", json.array(record.shop_policies, shop_policy_json)),
   ])
@@ -207,6 +208,18 @@ pub fn shop_features_json(record: types.ShopFeaturesRecord) -> Json {
     #("storefront", json.bool(record.storefront)),
     #("unifiedMarkets", json.bool(record.unified_markets)),
   ])
+}
+
+fn shop_entitlements_json(record: types.ShopEntitlementsRecord) -> Json {
+  json.object([
+    #("giftCards", shop_gift_cards_entitlement_json(record.gift_cards)),
+  ])
+}
+
+fn shop_gift_cards_entitlement_json(
+  record: types.ShopGiftCardsEntitlementRecord,
+) -> Json {
+  json.object([#("enabled", json.bool(record.enabled))])
 }
 
 @internal
@@ -1108,6 +1121,7 @@ pub fn bulk_operation_json(record: types.BulkOperationRecord) -> Json {
     #("url", optional_string(record.url)),
     #("partialDataUrl", optional_string(record.partial_data_url)),
     #("query", optional_string(record.query)),
+    #("clientIdentifier", optional_string(record.client_identifier)),
     #("cursor", optional_string(record.cursor)),
     #("resultJsonl", optional_string(record.result_jsonl)),
   ])

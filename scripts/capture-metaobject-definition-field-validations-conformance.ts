@@ -114,6 +114,14 @@ function field(key: string): Record<string, unknown> {
   };
 }
 
+function typedField(key: string, type: string): Record<string, unknown> {
+  return {
+    key,
+    name: key,
+    type,
+  };
+}
+
 function definition(
   type: string,
   name: string,
@@ -161,6 +169,20 @@ const missingDisplayNameKey = await captureGraphql('missing-display-name-key', c
   definition: definition(`field_validation_display_${runId}`, 'Missing Display Name Key', 'missing', [field('title')]),
 });
 assertHasUserErrors(missingDisplayNameKey);
+
+const unknownFieldType = await captureGraphql('unknown-field-type', createDefinitionMutation, {
+  definition: definition(`field_validation_unknown_type_${runId}`, 'Unknown Field Type', 'title', [
+    typedField('title', 'garbage_type'),
+  ]),
+});
+assertHasUserErrors(unknownFieldType);
+
+const unsupportedListFieldType = await captureGraphql('unsupported-list-field-type', createDefinitionMutation, {
+  definition: definition(`field_validation_list_type_${runId}`, 'Unsupported List Field Type', 'title', [
+    typedField('title', 'list.boolean'),
+  ]),
+});
+assertHasUserErrors(unsupportedListFieldType);
 
 const hyphenKey = await captureGraphql('hyphen-field-key', createDefinitionMutation, {
   definition: definition(`field_validation_hyphen_${runId}`, 'Hyphen Field Key', 'field-key', [field('field-key')]),
@@ -215,6 +237,8 @@ await writeFile(
       reservedHandle,
       duplicateKey,
       missingDisplayNameKey,
+      unknownFieldType,
+      unsupportedListFieldType,
       hyphenKey,
       tooManyFields,
       reservedShopifyFormTooManyFields,

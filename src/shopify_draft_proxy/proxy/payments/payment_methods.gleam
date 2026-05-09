@@ -294,6 +294,9 @@ fn shop_from_hydrate_node(
         storefront: False,
         unified_markets: False,
       ),
+      entitlements: state_types.ShopEntitlementsRecord(
+        gift_cards: state_types.ShopGiftCardsEntitlementRecord(enabled: True),
+      ),
       payment_settings: state_types.PaymentSettingsRecord(
         supported_digital_wallets: [],
         payment_gateways: [],

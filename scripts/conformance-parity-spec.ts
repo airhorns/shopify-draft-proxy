@@ -130,10 +130,15 @@ export function validateComparisonContract(comparison: unknown): string[] {
         if (typeof target['capturePath'] !== 'string' || target['capturePath'].length === 0) {
           errors.push(`${label} must declare a non-empty capturePath.`);
         }
+        const isProxyUploadSetup = isPlainObject(target['proxyUpload']);
         const outputPaths = ['proxyPath', 'proxyStatePath', 'proxyLogPath'].filter(
           (pathKey) => typeof target[pathKey] === 'string' && (target[pathKey] as string).length > 0,
         );
-        if (outputPaths.length !== 1) {
+        if (isProxyUploadSetup) {
+          if (outputPaths.length > 1) {
+            errors.push(`${label} proxyUpload setup must declare at most one output path.`);
+          }
+        } else if (outputPaths.length !== 1) {
           errors.push(`${label} must declare exactly one non-empty proxyPath, proxyStatePath, or proxyLogPath.`);
         }
         if ('selectedPaths' in target) {

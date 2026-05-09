@@ -23,8 +23,9 @@ import shopify_draft_proxy/state/types.{
   MarketRecord, Money, PaymentSettingsRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopEntitlementsRecord,
+  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 import simplifile
 
@@ -186,6 +187,7 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
       url: Some("https://example.test/bulk.jsonl"),
       partial_data_url: None,
       query: Some("{ products { edges { node { id } } } }"),
+      client_identifier: None,
       cursor: None,
       result_jsonl: None,
     )
@@ -658,6 +660,9 @@ fn make_shop() -> ShopRecord {
       show_metrics: True,
       storefront: True,
       unified_markets: True,
+    ),
+    entitlements: ShopEntitlementsRecord(
+      gift_cards: ShopGiftCardsEntitlementRecord(enabled: True),
     ),
     payment_settings: PaymentSettingsRecord(
       supported_digital_wallets: [],

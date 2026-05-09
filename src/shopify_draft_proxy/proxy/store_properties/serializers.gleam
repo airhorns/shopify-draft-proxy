@@ -29,15 +29,17 @@ import shopify_draft_proxy/state/types.{
   type ShopAddressRecord, type ShopBundlesFeatureRecord,
   type ShopCartTransformEligibleOperationsRecord,
   type ShopCartTransformFeatureRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type StorePropertyRecord,
-  type StorePropertyValue, PaymentSettingsRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
-  StorePropertyNull, StorePropertyObject, StorePropertyRecord,
-  StorePropertyString,
+  type ShopEntitlementsRecord, type ShopFeaturesRecord,
+  type ShopGiftCardsEntitlementRecord, type ShopPlanRecord,
+  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
+  type StorePropertyRecord, type StorePropertyValue, PaymentSettingsRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopEntitlementsRecord, ShopFeaturesRecord,
+  ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopPolicyRecord, ShopRecord,
+  ShopResourceLimitsRecord, StorePropertyBool, StorePropertyFloat,
+  StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
+  StorePropertyRecord, StorePropertyString,
 }
 
 @internal
@@ -959,6 +961,10 @@ pub fn shop_from_json(value: commit.JsonValue) -> Option(ShopRecord) {
           "resourceLimits",
         )),
         features: shop_features_from_json(json_object(value, "features")),
+        entitlements: shop_entitlements_from_json(json_object(
+          value,
+          "entitlements",
+        )),
         payment_settings: payment_settings_from_json(json_object(
           value,
           "paymentSettings",
@@ -1066,6 +1072,23 @@ fn shop_features_from_json(value: commit.JsonValue) -> ShopFeaturesRecord {
     storefront: json_bool(value, "storefront", False),
     unified_markets: json_bool(value, "unifiedMarkets", False),
   )
+}
+
+fn shop_entitlements_from_json(
+  value: commit.JsonValue,
+) -> ShopEntitlementsRecord {
+  ShopEntitlementsRecord(
+    gift_cards: shop_gift_cards_entitlement_from_json(json_object(
+      value,
+      "giftCards",
+    )),
+  )
+}
+
+fn shop_gift_cards_entitlement_from_json(
+  value: commit.JsonValue,
+) -> ShopGiftCardsEntitlementRecord {
+  ShopGiftCardsEntitlementRecord(enabled: json_bool(value, "enabled", True))
 }
 
 fn shop_bundles_feature_from_json(

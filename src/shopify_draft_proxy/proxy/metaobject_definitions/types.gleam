@@ -17,6 +17,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull, SrcObject,
   SrcString, source_to_json,
 }
+import shopify_draft_proxy/proxy/metafield_definitions/types as metafield_definition_types
 import shopify_draft_proxy/proxy/metafield_values
 import shopify_draft_proxy/proxy/metaobject_standard_templates_data as standard_templates
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -592,7 +593,91 @@ pub fn append_create_field_definition_input_errors(
     values,
     normalized_type |> option.unwrap(""),
   )
+  |> list.append(validate_create_field_definition_input_types(values))
   |> append_display_name_key_user_errors(display_name_key, keys)
+}
+
+fn validate_create_field_definition_input_types(
+  values: List(root_field.ResolvedValue),
+) -> List(UserError) {
+  values
+  |> enumerate_values
+  |> list.flat_map(fn(pair) {
+    let #(index, value) = pair
+    case value {
+      root_field.ObjectVal(input) ->
+        case read_type_name(input) {
+          Some(type_name) ->
+            field_definition_type_user_errors(
+              index,
+              type_name,
+              read_string(input, "key"),
+              [],
+            )
+          None -> []
+        }
+      _ -> []
+    }
+  })
+}
+
+fn validate_operation_field_definition_type(
+  index: Int,
+  input: Dict(String, root_field.ResolvedValue),
+  field_suffix: List(String),
+) -> List(UserError) {
+  case read_type_name(input) {
+    Some(type_name) ->
+      field_definition_type_user_errors(
+        index,
+        type_name,
+        read_string(input, "key"),
+        field_suffix,
+      )
+    None -> []
+  }
+}
+
+fn validate_existing_field_definition_type_update(
+  index: Int,
+  input: Dict(String, root_field.ResolvedValue),
+  field_suffix: List(String),
+) -> List(UserError) {
+  case read_type_name(input) {
+    Some(_) -> [
+      UserError(
+        Some(field_definition_error_path(
+          index,
+          list.append(field_suffix, ["type"]),
+        )),
+        "Type can't be changed",
+        "INVALID",
+        None,
+        None,
+      ),
+    ]
+    None -> []
+  }
+}
+
+fn field_definition_type_user_errors(
+  index: Int,
+  type_name: String,
+  element_key: Option(String),
+  field_suffix: List(String),
+) -> List(UserError) {
+  case metafield_definition_types.valid_definition_type_name(type_name) {
+    True -> []
+    False -> [
+      UserError(
+        Some(field_definition_error_path(index, field_suffix)),
+        metafield_definition_types.invalid_definition_type_message(type_name),
+        "INCLUSION",
+        element_key,
+        None,
+      ),
+    ]
+  }
 }
 
 @internal
@@ -1740,9 +1825,21 @@ pub fn apply_field_operation(
           ordered_keys,
         )
         None ->
-          case read_field_definition_input(input) {
-            Some(field) -> #(list.append(fields, [field]), errors, ordered_keys)
-            None -> #(fields, errors, ordered_keys)
+          case
+            read_field_definition_input(input),
+            validate_operation_field_definition_type(index, input, ["create"])
+          {
+            Some(field), [] -> #(
+              list.append(fields, [field]),
+              errors,
+              ordered_keys,
+            )
+            None, [] -> #(fields, errors, ordered_keys)
+            _, type_errors -> #(
+              fields,
+              list.append(errors, type_errors),
+              ordered_keys,
+            )
           }
       }
     FieldUpdate(input) ->
@@ -1766,23 +1863,63 @@ pub fn apply_field_operation(
           ]),
           ordered_keys,
         )
-        Some(field) -> #(
-          replace_field_definition(fields, merge_field_definition(field, input)),
-          errors,
-          ordered_keys,
-        )
+        Some(field) ->
+          case
+            validate_existing_field_definition_type_update(index, input, [
+              "update",
+            ])
+          {
+            [] -> #(
+              replace_field_definition(
+                fields,
+                merge_field_definition(field, input),
+              ),
+              errors,
+              ordered_keys,
+            )
+            type_errors -> #(
+              fields,
+              list.append(errors, type_errors),
+              ordered_keys,
+            )
+          }
       }
     FieldUpsert(input) ->
       case existing {
-        Some(field) -> #(
-          replace_field_definition(fields, merge_field_definition(field, input)),
-          errors,
-          ordered_keys,
-        )
+        Some(field) ->
+          case
+            validate_existing_field_definition_type_update(index, input, [])
+          {
+            [] -> #(
+              replace_field_definition(
+                fields,
+                merge_field_definition(field, input),
+              ),
+              errors,
+              ordered_keys,
+            )
+            type_errors -> #(
+              fields,
+              list.append(errors, type_errors),
+              ordered_keys,
+            )
+          }
         None ->
-          case read_field_definition_input(input) {
-            Some(field) -> #(list.append(fields, [field]), errors, ordered_keys)
-            None -> #(fields, errors, ordered_keys)
+          case
+            read_field_definition_input(input),
+            validate_operation_field_definition_type(index, input, [])
+          {
+            Some(field), [] -> #(
+              list.append(fields, [field]),
+              errors,
+              ordered_keys,
+            )
+            None, [] -> #(fields, errors, ordered_keys)
+            _, type_errors -> #(
+              fields,
+              list.append(errors, type_errors),
+              ordered_keys,
+            )
           }
       }
   }
