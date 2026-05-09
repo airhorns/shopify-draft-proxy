@@ -43,6 +43,8 @@ Custom-app plan eligibility is modeled only when the proxy can make the decision
 
 For known non-cart-transform `ShopifyFunction` references, Shopify distinguishes the two identifier branches even though the message copy is the same: the `functionId` branch returns `FUNCTION_NOT_FOUND` with `field: ["functionId"]`, while the `functionHandle` branch returns `FUNCTION_DOES_NOT_IMPLEMENT` with `field: ["functionHandle"]`. Both branches leave `cartTransforms` unchanged.
 
+`cartTransformDelete` authorizes deletes against the staged cart transform's resolved `ShopifyFunction` owner. A normal delete succeeds only when the current app installation's `appId` matches the owning `ShopifyFunction.app.id`; if that id is absent, the proxy falls back to matching `ShopifyFunction.appKey`/`app.apiKey` through known local app records. Missing current installation, missing Function, or missing owner metadata returns `UNAUTHORIZED_APP_SCOPE` with `field: ["base"]` and message `The app is not authorized to access this Function resource.`. The local `all_cart_transforms` access-scope record and `x-shopify-draft-proxy-internal-visibility` header model Shopify's privileged visibility bypass for admin/internal callers.
+
 HAR-416 added live Shopify evidence for the conformance app's released Function catalog rows. On Admin API `2026-04`, `ShopifyFunction.id` is returned as a raw Function string ID, `apiType` is returned as lowercase strings such as `cart_checkout_validation` and `cart_transform`, and app ownership is exposed through `appKey` plus selected `app` fields. The local model preserves those exact values when they are seeded from conformance evidence; it does not normalize them to synthetic GIDs or enum-like uppercase values.
 
 Local validation guardrails currently cover missing/multiple Function identifiers, unknown or API-mismatched `validationCreate` Function references, unknown validation/cart-transform update or delete IDs, `validationUpdate` attempts to pass non-input Function rebinding fields, and activation beyond the 25-active-validation cap. These branches return GraphQL errors or `userErrors` locally and still avoid runtime Shopify writes.
@@ -55,12 +57,12 @@ Local validation guardrails currently cover missing/multiple Function identifier
 
 ### Boundaries
 
-- Live store authorization and app ownership checks are not reproduced locally. Tests should use this domain for draft proxy metadata behavior, not to validate app-extension deployment, released Function availability beyond captured/hydrated Function metadata, or tax app installation authority.
+- `cartTransformDelete` models the local Function-owner access check once the current installation and Function owner metadata are available. Tests should not use this domain to validate real app-extension deployment, released Function availability beyond captured/hydrated Function metadata, FunctionService visibility side effects, or tax app installation authority.
 - Function execution outcomes remain out of scope. A future conformance-backed increment should capture checkout/cart/tax runtime side effects separately if the proxy ever needs to model them.
 
 ### HAR-455 fidelity review notes
 
-Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform configuration centered on Function references plus metadata such as `blockOnFailure` and optional metafields. The proxy models those Admin metadata rows and downstream catalog/detail reads only; except for `validationCreate` rejecting a known non-validation `ShopifyFunction.apiType`, it does not validate extension release state, cross-app ownership, or Partner Dashboard deployment authority.
+Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform configuration centered on Function references plus metadata such as `blockOnFailure` and optional metafields. The proxy models those Admin metadata rows and downstream catalog/detail reads only; except for `validationCreate` rejecting a known non-validation `ShopifyFunction.apiType` and `cartTransformDelete` checking known local Function owner metadata, it does not validate extension release state or Partner Dashboard deployment authority.
 
 `shopifyFunctions` remains metadata-only evidence. It can prove that Function identity, handle, API type, and app ownership fields are preserved from seeded/captured metadata, but it does not prove that the corresponding Function code can run in checkout, cart transforms, or tax callbacks.
 
