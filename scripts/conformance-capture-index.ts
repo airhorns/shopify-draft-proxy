@@ -4480,6 +4480,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-add-resource-limit-reached',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-add-resource-limit-reached-conformance.mts',
+    purpose:
+      'locationAdd public Admin API userError shape when the shop has reached its active merchant-managed location cap.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-add-resource-limit-reached.json`,
+      'config/parity-specs/store-properties/location-add-resource-limit-reached.json',
+      'config/parity-requests/store-properties/location-add-resource-limit-reached.graphql',
+    ],
+    cleanupBehavior:
+      'Counts current active merchant-managed locations, creates disposable active locations until the shop reaches the captured locationLimit, records the first over-cap locationAdd response, then deactivates and deletes every disposable location created by the recorder.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-add-metafields',
     scriptPath: 'scripts/capture-location-add-metafields-conformance.mts',
     purpose:

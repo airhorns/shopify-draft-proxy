@@ -984,6 +984,87 @@ pub fn location_add_blank_name_user_error_includes_code_test() {
     == "{\"entries\":[]}"
 }
 
+pub fn location_add_limit_reached_rejects_without_staging_test() {
+  let limit_location =
+    location_with_extra_bool(
+      "gid://shopify/Location/add-limit",
+      "Limit Warehouse",
+      "reachedLocationLimit",
+      True,
+    )
+  let alternate_limit_location =
+    location_with_extra_bool(
+      "gid://shopify/Location/add-alternate-limit",
+      "Alternate Limit Warehouse",
+      "locationLimitReached",
+      True,
+    )
+  let nested_limit_location =
+    StorePropertyRecord(
+      ..make_location(
+        "gid://shopify/Location/add-nested-limit",
+        "Nested Limit Warehouse",
+        False,
+        True,
+        True,
+        False,
+      ),
+      data: make_location(
+          "gid://shopify/Location/add-nested-limit",
+          "Nested Limit Warehouse",
+          False,
+          True,
+          True,
+          False,
+        ).data
+        |> dict.insert(
+          "shop",
+          StorePropertyObject(
+            dict.from_list([
+              #(
+                "resourceLimits",
+                StorePropertyObject(
+                  dict.from_list([
+                    #("locationLimitReached", StorePropertyBool(True)),
+                    #("locationLimit", StorePropertyInt(200)),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: proxy.store
+        |> store.upsert_base_store_property_location(limit_location)
+        |> store.upsert_base_store_property_location(alternate_limit_location)
+        |> store.upsert_base_store_property_location(nested_limit_location),
+    )
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Overflow\\\", address: { countryCode: US, address1: \\\"1 St\\\", city: \\\"NYC\\\", zip: \\\"10001\\\" } }) { location { id name } userErrors { field code message } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(serialized, "\"field\":[\"input\"]")
+  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"You have reached the maximum number of locations (200)\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  assert !string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(proxy)),
+    "Overflow",
+  )
+}
+
 pub fn location_add_rejects_duplicate_and_too_long_fields_without_staging_test() {
   let existing =
     make_raw_record("gid://shopify/Location/1", "Location", [
