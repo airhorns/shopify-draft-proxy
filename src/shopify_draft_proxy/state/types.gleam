@@ -1272,6 +1272,8 @@ pub type ShopifyFunctionRecord {
     description: Option(String),
     app_key: Option(String),
     app: Option(ShopifyFunctionAppRecord),
+    create_guardrail_code: Option(String),
+    create_guardrail_message: Option(String),
   )
 }
 
