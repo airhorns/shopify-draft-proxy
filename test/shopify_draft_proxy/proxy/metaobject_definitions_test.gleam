@@ -1292,6 +1292,52 @@ pub fn definition_update_rejects_top_level_reset_field_order_test() {
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"fieldDefinitions\":[{\"key\":\"summary\"},{\"key\":\"title\"},{\"key\":\"body\"}]},\"userErrors\":[]}}}"
 }
 
+pub fn definition_update_rejects_field_definition_type_mutation_input_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_field_type_schema_boundary"),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: created.store,
+      synthetic_identity: created.identity,
+    )
+  let update =
+    "mutation {
+      metaobjectDefinitionUpdate(
+        id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+        definition: {
+          fieldDefinitions: [
+            { update: { key: \"title\", type: \"number_integer\" } }
+          ]
+        }
+      ) {
+        metaobjectDefinition { id fieldDefinitions { key type { name } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), after_reject) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert !string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"update\",\"type\"]",
+  )
+  assert string.contains(serialized, "\"message\":\"Type can't be changed\"")
+  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  assert run_query(
+      after_reject.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { fieldDefinitions { key type { name } } } }",
+    )
+    == "{\"data\":{\"metaobjectDefinition\":{\"fieldDefinitions\":[{\"key\":\"title\",\"type\":{\"name\":\"single_line_text_field\"}},{\"key\":\"body\",\"type\":{\"name\":\"multi_line_text_field\"}}]}}}"
+}
+
 pub fn definition_update_rejects_standard_template_definition_test() {
   let enabled =
     run_mutation(
@@ -1533,6 +1579,74 @@ pub fn definition_create_validates_field_definition_input_test() {
     )
   assert json.to_string(too_many.data)
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_rejects_invalid_field_definition_types_test() {
+  let unknown =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_invalid_field_type_unknown\",
+          name: \"Invalid Field Type\",
+          displayNameKey: \"title\",
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"garbage_type\", required: false }
+          ]
+        }) {
+          metaobjectDefinition { id fieldDefinitions { key type { name } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  let unknown_body = json.to_string(unknown.data)
+  assert string.contains(unknown_body, "\"metaobjectDefinition\":null")
+  assert string.contains(
+    unknown_body,
+    "\"field\":[\"definition\",\"fieldDefinitions\",\"0\"]",
+  )
+  assert string.contains(
+    unknown_body,
+    "Type name garbage_type is not a valid type.",
+  )
+  assert string.contains(unknown_body, "\"code\":\"INCLUSION\"")
+  assert string.contains(unknown_body, "\"elementKey\":\"title\"")
+  assert unknown.staged_resource_ids == []
+  assert unknown.log_drafts == []
+
+  let unsupported_list =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_invalid_field_type_list\",
+          name: \"Invalid List Type\",
+          displayNameKey: \"title\",
+          fieldDefinitions: [
+            { key: \"title\", name: \"Title\", type: \"list.boolean\", required: false }
+          ]
+        }) {
+          metaobjectDefinition { id fieldDefinitions { key type { name } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  let unsupported_list_body = json.to_string(unsupported_list.data)
+  assert string.contains(unsupported_list_body, "\"metaobjectDefinition\":null")
+  assert string.contains(
+    unsupported_list_body,
+    "\"field\":[\"definition\",\"fieldDefinitions\",\"0\"]",
+  )
+  assert string.contains(
+    unsupported_list_body,
+    "Type name list.boolean is not a valid type.",
+  )
+  assert string.contains(unsupported_list_body, "\"code\":\"INCLUSION\"")
+  assert string.contains(unsupported_list_body, "\"elementKey\":\"title\"")
+  assert unsupported_list.staged_resource_ids == []
+  assert unsupported_list.log_drafts == []
 }
 
 pub fn definition_create_rejects_more_than_forty_admin_filterable_fields_test() {
@@ -2056,6 +2170,68 @@ pub fn definition_update_validates_field_definition_input_test() {
       }")
   assert json.to_string(too_many.data)
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_update_rejects_invalid_field_definition_types_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query(
+        "codex_update_invalid_field_type",
+        "title",
+      ),
+    )
+
+  let invalid_create =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { fieldDefinitions: [{ create: { key: \"flag\", name: \"Flag\", type: \"list.boolean\" } }] }
+        ) {
+          metaobjectDefinition { id fieldDefinitions { key type { name } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  let invalid_create_body = json.to_string(invalid_create.data)
+  assert string.contains(invalid_create_body, "\"metaobjectDefinition\":null")
+  assert string.contains(
+    invalid_create_body,
+    "\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"create\"]",
+  )
+  assert string.contains(
+    invalid_create_body,
+    "Type name list.boolean is not a valid type.",
+  )
+  assert string.contains(invalid_create_body, "\"code\":\"INCLUSION\"")
+  assert string.contains(invalid_create_body, "\"elementKey\":\"flag\"")
+
+  let type_update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { fieldDefinitions: [{ update: { key: \"title\", name: \"Title\", type: \"number_integer\" } }] }
+        ) {
+          metaobjectDefinition { id fieldDefinitions { key type { name } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(type_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"update\",\"type\"],\"message\":\"Type can't be changed\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  assert run_query(
+      created.store,
+      "{ metaobjectDefinitionByType(type: \"codex_update_invalid_field_type\") { fieldDefinitions { key type { name } } } }",
+    )
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"fieldDefinitions\":[{\"key\":\"title\",\"type\":{\"name\":\"single_line_text_field\"}}]}}}"
 }
 
 pub fn definition_update_field_operation_conflicts_match_shopify_user_errors_test() {
