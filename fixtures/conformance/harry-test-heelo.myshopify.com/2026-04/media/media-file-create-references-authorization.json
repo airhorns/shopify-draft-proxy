@@ -1,0 +1,238 @@
+{
+  "capturedAt": "2026-05-09T18:04:45.388Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "document": "mutation MediaFileCreateReferencesAuthorization($files: [FileUpdateInput!]!) {\n  fileUpdate(files: $files) {\n    files {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+  "notes": [
+    "Captured fileUpdate referencesToAdd authorization with a short-lived delegate token that has read_files/write_files/read_products but lacks product write permission.",
+    "Public Admin GraphQL 2026-04 does not expose referencesToAdd on FileCreateInput, so fileCreate reference authorization remains covered by local runtime tests using the same manage-products affordance."
+  ],
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Media references authorization 1778349882303"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10181422874930"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fileCreate": {
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "contentType": "IMAGE",
+            "filename": "media-references-authorization-1778349882303.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43693628424498",
+                "fileStatus": "UPLOADED"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readyFile": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43693628424498",
+            "fileStatus": "READY"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delegateSetup": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "delegateAccessTokenCreate": {
+            "delegateAccessToken": {
+              "accessToken": "[redacted-live-delegate-token]",
+              "accessScopes": ["read_files", "write_files", "read_products"],
+              "createdAt": "2026-05-09T18:04:45Z",
+              "expiresIn": 29
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "files": [
+        {
+          "id": "gid://shopify/MediaImage/43693628424498",
+          "referencesToAdd": ["gid://shopify/Product/10181422874930"]
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied: Missing permission to manage products.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes"
+            },
+            "path": ["fileUpdate"]
+          }
+        ],
+        "data": {
+          "fileUpdate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "delegateDestroy": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "delegateAccessTokenDestroy": {
+            "status": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fileDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fileDelete": {
+            "deletedFileIds": ["gid://shopify/MediaImage/43693628424498"],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10181422874930",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

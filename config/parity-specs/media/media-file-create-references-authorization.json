@@ -1,0 +1,36 @@
+{
+  "scenarioId": "media-file-create-references-authorization",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["authorization-parity", "payload-shape", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-references-authorization.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-references-authorization.graphql",
+    "variablesCapturePath": "$.mutation.variables",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-manage-products": "false"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 fileUpdate.referencesToAdd authorization by using a short-lived delegate token with read_files/write_files/read_products but without product write permission. Public 2026-04 schemas do not expose referencesToAdd on FileCreateInput, so fileCreate uses the same local manage-products affordance in runtime tests without a live public-schema reference capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "references-authorization-errors",
+        "capturePath": "$.mutation.response.payload.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "references-authorization-data",
+        "capturePath": "$.mutation.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
