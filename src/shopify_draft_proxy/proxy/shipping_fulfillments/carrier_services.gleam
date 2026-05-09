@@ -14,7 +14,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/delivery_profiles.{
   make_delivery_profile, update_delivery_profile,
-  validate_delivery_profile_create_input,
+  validate_delivery_profile_create_input, validate_delivery_profile_update_input,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers.{
   synthetic_timestamp_string,
@@ -39,15 +39,15 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   delivery_profile_update_not_found, find_active_store_property_location,
   flat_rate_shipping_package_not_updatable,
   fulfillment_service_destination_location_should_not_be_present,
-  fulfillment_service_location_record, fulfillment_service_name_taken_error,
-  fulfillment_service_not_found,
+  fulfillment_service_location_record, fulfillment_service_name_reserved_error,
+  fulfillment_service_name_taken_error, fulfillment_service_not_found,
   invalid_fulfillment_service_destination_location,
   invalid_shipping_package_result, is_active_location,
   is_flat_rate_shipping_package, is_fulfillment_service_location,
   local_pickup_custom_pickup_time_not_allowed, local_pickup_location_not_found,
-  normalize_fulfillment_service_handle, strip_query_from_gid,
-  validate_carrier_service_create_callback_url, validate_carrier_service_name,
-  validate_carrier_service_update_callback_url,
+  normalize_fulfillment_service_handle, reserved_fulfillment_service_handle,
+  strip_query_from_gid, validate_carrier_service_create_callback_url,
+  validate_carrier_service_name, validate_carrier_service_update_callback_url,
   validate_fulfillment_service_callback_url, validate_fulfillment_service_name,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
@@ -433,17 +433,8 @@ pub fn handle_delivery_profile_update(
   }
   case existing, input {
     Some(profile), Some(profile_input) -> {
-      case read_string(profile_input, "name") {
-        Some("") ->
-          delivery_profile_validation_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            "DeliveryProfileUpdatePayload",
-            [blank_delivery_profile_name_error()],
-          )
-        _ -> {
+      case validate_delivery_profile_update_input(draft_store, profile_input) {
+        [] -> {
           let #(updated, next_identity) =
             update_delivery_profile(
               draft_store,
@@ -470,6 +461,15 @@ pub fn handle_delivery_profile_update(
             next_identity,
           )
         }
+        user_errors ->
+          delivery_profile_validation_result(
+            draft_store,
+            identity,
+            field,
+            fragments,
+            "DeliveryProfileUpdatePayload",
+            user_errors,
+          )
       }
     }
     _, _ ->
@@ -746,7 +746,8 @@ pub fn update_existing_fulfillment_service(
   existing: FulfillmentServiceRecord,
   upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let next_name = case read_trimmed_string(args, "name") {
+  let submitted_name = read_trimmed_string(args, "name")
+  let next_name = case submitted_name {
     Some(value) -> Some(value)
     None -> Some(existing.service_name)
   }
@@ -762,7 +763,7 @@ pub fn update_existing_fulfillment_service(
       ),
       validate_fulfillment_service_uniqueness(
         draft_store,
-        next_name,
+        submitted_name,
         Some(existing.id),
       ),
     )
@@ -839,25 +840,29 @@ fn validate_fulfillment_service_uniqueness(
           let wanted_handle =
             normalize_fulfillment_service_handle(trimmed)
             |> string.lowercase
-          case
-            store.list_effective_fulfillment_services(draft_store)
-            |> list.any(fn(service) {
-              case exclude_id {
-                Some(id) ->
-                  case same_fulfillment_service_id(service.id, id) {
-                    True -> False
-                    False ->
+          case reserved_fulfillment_service_handle(wanted_handle) {
+            True -> [fulfillment_service_name_reserved_error()]
+            False ->
+              case
+                store.list_effective_fulfillment_services(draft_store)
+                |> list.any(fn(service) {
+                  case exclude_id {
+                    Some(id) ->
+                      case same_fulfillment_service_id(service.id, id) {
+                        True -> False
+                        False ->
+                          string.lowercase(service.service_name) == wanted_name
+                          || string.lowercase(service.handle) == wanted_handle
+                      }
+                    _ ->
                       string.lowercase(service.service_name) == wanted_name
                       || string.lowercase(service.handle) == wanted_handle
                   }
-                _ ->
-                  string.lowercase(service.service_name) == wanted_name
-                  || string.lowercase(service.handle) == wanted_handle
+                })
+              {
+                True -> [fulfillment_service_name_taken_error()]
+                False -> []
               }
-            })
-          {
-            True -> [fulfillment_service_name_taken_error()]
-            False -> []
           }
         }
       }

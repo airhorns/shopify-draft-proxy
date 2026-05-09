@@ -767,10 +767,14 @@ fn validate_file_input(
     Some(value) -> validate_original_source_url(value, index)
     None -> []
   }
-  source_errors
-  |> list.append(validate_references_to_add(input, index))
-  |> list.append(validate_create_filename_extension(input, index))
-  |> list.append(validate_duplicate_resolution_mode(input, index))
+  case source_errors {
+    [] ->
+      case validate_create_filename_extension(input, index) {
+        [] -> validate_duplicate_resolution_mode(input, index)
+        filename_errors -> filename_errors
+      }
+    _ -> source_errors
+  }
 }
 
 fn validate_original_source_url(
@@ -789,22 +793,6 @@ fn validate_original_source_url(
         },
       ),
     ]
-  }
-}
-
-fn validate_references_to_add(
-  input: Dict(String, ResolvedValue),
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  case list.length(read_string_list_field(input, "referencesToAdd")) > 1 {
-    True -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "referencesToAdd"],
-        "Too many product ids specified.",
-        "TOO_MANY_PRODUCT_IDS_SPECIFIED",
-      ),
-    ]
-    False -> []
   }
 }
 
@@ -975,8 +963,13 @@ fn validate_file_update_input_fields(
   {
     Some(original), Some(preview) if original != "" && preview != "" -> [
       media_types.FilesUserError(
-        ["files", int.to_string(index)],
-        "Specify either originalSource or previewImageSource, not both.",
+        ["files", int.to_string(index), "previewImageSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
+        "INVALID",
+      ),
+      media_types.FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
         "INVALID",
       ),
     ]

@@ -26,8 +26,9 @@ import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft}
 import shopify_draft_proxy/proxy/orders/common.{
   captured_field_or_null, captured_int_field, captured_string_field,
   field_arguments, inferred_user_error, optional_captured_string, read_bool,
-  read_int, read_object, read_object_list, read_string, read_string_argument,
-  replace_captured_object_fields, user_error, valid_email_address,
+  read_int, read_number, read_object, read_object_list, read_string,
+  read_string_argument, replace_captured_object_fields, user_error,
+  valid_email_address,
 }
 
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
@@ -388,10 +389,12 @@ pub fn apply_return_create(
         inferred_user_error(["input"], "Input is required."),
       ])
     Some(input) -> {
-      let payload_user_errors = case status {
-        "REQUESTED" -> validate_return_notify_customer(input)
-        _ -> []
-      }
+      let payload_user_errors =
+        validate_return_create_metadata(input)
+        |> list.append(case status {
+          "REQUESTED" -> validate_return_notify_customer(input)
+          _ -> []
+        })
       case payload_user_errors {
         [_, ..] ->
           ReturnMutationResult(None, None, store, identity, payload_user_errors)
@@ -452,6 +455,91 @@ pub fn apply_return_create(
         }
       }
     }
+  }
+}
+
+fn validate_return_create_metadata(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  list.append(
+    validate_return_shipping_fee(input),
+    validate_return_delivery(input),
+  )
+}
+
+fn validate_return_shipping_fee(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case read_object(input, "returnShippingFee") {
+    None -> []
+    Some(shipping_fee) -> {
+      case read_return_shipping_fee_amount(shipping_fee) {
+        Some(amount) if amount <. 0.0 -> [
+          user_error(
+            ["input", "returnShippingFee", "amount"],
+            "Amount must be greater than or equal to 0",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        Some(_) -> []
+        None -> [
+          user_error(
+            ["input", "returnShippingFee", "amount"],
+            "Amount is required",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn read_return_shipping_fee_amount(
+  shipping_fee: Dict(String, root_field.ResolvedValue),
+) -> Option(Float) {
+  case read_object(shipping_fee, "amount") {
+    Some(money_input) -> read_number(money_input, "amount")
+    None -> read_number(shipping_fee, "amount")
+  }
+}
+
+fn validate_return_delivery(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case read_object(input, "returnDelivery") {
+    None -> []
+    Some(delivery) -> {
+      case read_object(delivery, "trackingInfo") {
+        Some(tracking_info) -> validate_return_delivery_tracking(tracking_info)
+        None -> [
+          user_error(
+            ["input", "returnDelivery", "trackingInfo"],
+            "Tracking info is required",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn validate_return_delivery_tracking(
+  tracking_info: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  let has_number =
+    read_string(tracking_info, "number")
+    |> option.or(read_string(tracking_info, "trackingNumber"))
+    |> option.map(fn(value) { string.trim(value) != "" })
+    |> option.unwrap(False)
+  case has_number {
+    True -> []
+    False -> [
+      user_error(
+        ["input", "returnDelivery", "trackingInfo", "number"],
+        "Tracking number is required",
+        Some(user_error_codes.invalid),
+      ),
+    ]
   }
 }
 

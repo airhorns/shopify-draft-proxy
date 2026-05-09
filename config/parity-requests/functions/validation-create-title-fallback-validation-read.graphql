@@ -2,5 +2,9 @@ query ValidationCreateTitleFallbackValidationRead($id: ID!) {
   validation(id: $id) {
     id
     title
+    shopifyFunction {
+      id
+      handle
+    }
   }
 }

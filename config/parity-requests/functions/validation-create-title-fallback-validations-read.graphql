@@ -2,6 +2,10 @@ query ValidationCreateTitleFallbackValidationsRead {
   validations(first: 3) {
     nodes {
       title
+      shopifyFunction {
+        id
+        handle
+      }
     }
   }
 }

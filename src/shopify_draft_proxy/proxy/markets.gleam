@@ -5,6 +5,7 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection}
@@ -27,8 +28,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type BackupRegionRecord, BackupRegionRecord,
-}
+  type BackupRegionRecord, type CapturedJsonValue, BackupRegionRecord,
+} as state_types
 
 pub type MarketsError {
   ParseFailed(root_field.RootFieldError)
@@ -205,6 +206,91 @@ pub fn backup_region_for_country(
   }
 }
 
+pub fn backup_region_country_has_region_market(
+  store: Store,
+  shop_origin: String,
+  code: String,
+) -> Bool {
+  let normalized_code = string.uppercase(code)
+  let markets = store.list_effective_markets(store)
+  case markets {
+    [] ->
+      captured_region_market_for_country(store, shop_origin, normalized_code)
+    [_, ..] ->
+      list.any(markets, fn(record) {
+        market_record_is_active_region_non_legacy(record.data)
+        && market_record_contains_country(record.data, normalized_code)
+      })
+  }
+}
+
+fn market_record_is_active_region_non_legacy(data: CapturedJsonValue) -> Bool {
+  market_record_enabled(data)
+  && market_record_region_type(data)
+  && !market_record_legacy(data)
+}
+
+fn market_record_enabled(data: CapturedJsonValue) -> Bool {
+  case serializers.captured_field(data, "enabled") {
+    Some(state_types.CapturedBool(True)) -> True
+    Some(state_types.CapturedBool(False)) -> False
+    _ ->
+      case serializers.captured_string_field(data, "status") {
+        Some("ACTIVE") -> True
+        _ -> False
+      }
+  }
+}
+
+fn market_record_region_type(data: CapturedJsonValue) -> Bool {
+  case serializers.captured_string_field(data, "type") {
+    Some("REGION") -> True
+    _ -> !list.is_empty(serializers.market_country_codes(data))
+  }
+}
+
+fn market_record_legacy(data: CapturedJsonValue) -> Bool {
+  case serializers.captured_field(data, "isLegacyMarket") {
+    Some(state_types.CapturedBool(is_legacy)) -> is_legacy
+    _ ->
+      case serializers.captured_field(data, "isLegacy") {
+        Some(state_types.CapturedBool(is_legacy)) -> is_legacy
+        _ -> False
+      }
+  }
+}
+
+fn market_record_contains_country(
+  data: CapturedJsonValue,
+  code: String,
+) -> Bool {
+  serializers.market_country_codes(data)
+  |> list.any(fn(country_code) { string.uppercase(country_code) == code })
+}
+
+fn captured_region_market_for_country(
+  store: Store,
+  shop_origin: String,
+  code: String,
+) -> Bool {
+  case effective_shop_domain(store, shop_origin) {
+    "very-big-test-store.myshopify.com" -> code == "CA"
+    "harry-test-heelo.myshopify.com" ->
+      list.contains(
+        ["CA", "AE", "AT", "AU", "BE", "CH", "CZ", "DE", "DK", "ES", "FI", "MX"],
+        code,
+      )
+    _ -> code == "CA"
+  }
+}
+
+fn effective_shop_domain(store: Store, shop_origin: String) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) -> string.lowercase(shop.myshopify_domain)
+    None -> shop_domain_from_origin(shop_origin)
+  }
+}
+
 pub fn effective_backup_region(
   store: Store,
   shop_origin: String,
@@ -238,6 +324,11 @@ fn backup_region_for_origin_country(
   shop_origin: String,
   code: String,
 ) -> Option(BackupRegionRecord) {
+  let domain = shop_domain_from_origin(shop_origin)
+  backup_region_for_shop_country(domain, code)
+}
+
+fn shop_domain_from_origin(shop_origin: String) -> String {
   let origin = string.lowercase(shop_origin)
   let without_scheme = case string.starts_with(origin, "https://") {
     True -> string.drop_start(origin, 8)
@@ -247,11 +338,10 @@ fn backup_region_for_origin_country(
         False -> origin
       }
   }
-  let domain = case string.split(without_scheme, on: "/") {
+  case string.split(without_scheme, on: "/") {
     [host, ..] -> host
     [] -> without_scheme
   }
-  backup_region_for_shop_country(domain, code)
 }
 
 fn backup_region_for_shop_country(

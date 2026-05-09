@@ -13,12 +13,35 @@ mutation ProductVariantsBulkUpdateParityPlan($productId: ID!, $variants: [Produc
           price
           compareAtPrice
           taxable
+          taxCode
+          position
+          requiresComponents
+          showUnitPrice
+          unitPriceMeasurement {
+            quantityValue
+            quantityUnit
+            referenceValue
+            referenceUnit
+          }
           inventoryPolicy
           inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
           inventoryItem {
             id
             tracked
             requiresShipping
+            countryCodeOfOrigin
+            provinceCodeOfOrigin
+            harmonizedSystemCode
+            measurement {
+              weight {
+                value
+                unit
+              }
+            }
           }
         }
       }
@@ -31,17 +54,41 @@ mutation ProductVariantsBulkUpdateParityPlan($productId: ID!, $variants: [Produc
       price
       compareAtPrice
       taxable
+      taxCode
+      position
+      requiresComponents
+      showUnitPrice
+      unitPriceMeasurement {
+        quantityValue
+        quantityUnit
+        referenceValue
+        referenceUnit
+      }
       inventoryPolicy
       inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
       inventoryItem {
         id
         tracked
         requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
+        measurement {
+          weight {
+            value
+            unit
+          }
+        }
       }
     }
     userErrors {
       field
       message
+      code
     }
   }
 }

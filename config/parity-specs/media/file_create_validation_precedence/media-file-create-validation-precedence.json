@@ -1,0 +1,60 @@
+{
+  "scenarioId": "media-file-create-validation-precedence",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-precedence.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-validation-precedence.graphql",
+    "variablesCapturePath": "$.scenarios[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 fileCreate validation precedence for multi-fault inputs. Shopify emits at most one userError per input: URL validation wins before filename extension checks, and filename extension mismatch wins before duplicate-resolution mode checks. The success branch proves the same request document still stages a clean file locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "url-before-filename-mismatch",
+        "capturePath": "$.scenarios[0].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "filename-mismatch-before-duplicate-mode",
+        "capturePath": "$.scenarios[1].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-precedence.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "successful-create-baseline",
+        "capturePath": "$.scenarios[2].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.files[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-precedence.graphql",
+          "variablesCapturePath": "$.scenarios[2].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

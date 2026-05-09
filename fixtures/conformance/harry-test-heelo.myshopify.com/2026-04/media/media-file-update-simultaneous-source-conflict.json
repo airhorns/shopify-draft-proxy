@@ -1,0 +1,385 @@
+{
+  "capturedAt": "2026-05-08T11:39:21.376Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-simultaneous-source-conflict",
+  "setup": {
+    "imageCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "simultaneous-source-a-1778240358718.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Simultaneous source conflict seed A"
+          },
+          {
+            "contentType": "IMAGE",
+            "filename": "simultaneous-source-b-1778240358718.jpg",
+            "originalSource": "https://placehold.co/640x480.jpg",
+            "alt": "Simultaneous source conflict seed B"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43688000094514",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed A",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              },
+              {
+                "id": "gid://shopify/MediaImage/43688000127282",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed B",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstReadyImageRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/43688000094514",
+          "__typename": "MediaImage",
+          "alt": "Simultaneous source conflict seed A",
+          "createdAt": "2026-05-08T11:39:18Z",
+          "fileStatus": "READY",
+          "image": {
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+            "width": 600,
+            "height": 400
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+              "width": 600,
+              "height": 400
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "secondReadyImageRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/43688000127282",
+          "__typename": "MediaImage",
+          "alt": "Simultaneous source conflict seed B",
+          "createdAt": "2026-05-08T11:39:18Z",
+          "fileStatus": "READY",
+          "image": {
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+            "width": 640,
+            "height": 480
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+              "width": 640,
+              "height": 480
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "oneInput": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43688000094514",
+            "originalSource": "https://placehold.co/800x600.jpg",
+            "previewImageSource": "https://placehold.co/320x240.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files", "0", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              },
+              {
+                "field": ["files", "0", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "twoInput": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43688000094514",
+            "originalSource": "https://placehold.co/801x601.jpg",
+            "previewImageSource": "https://placehold.co/321x241.jpg"
+          },
+          {
+            "id": "gid://shopify/MediaImage/43688000127282",
+            "originalSource": "https://placehold.co/802x602.jpg",
+            "previewImageSource": "https://placehold.co/322x242.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files", "0", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              },
+              {
+                "field": ["files", "0", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              },
+              {
+                "field": ["files", "1", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              },
+              {
+                "field": ["files", "1", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43688000094514"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43688000094514",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed A",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43688000094514",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed A",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-a-1778240358718.jpg?v=1778240360",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/MediaImage/43688000127282",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed B",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+                  "width": 640,
+                  "height": 480
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+                    "width": 640,
+                    "height": 480
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43688000127282"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43688000127282",
+                "__typename": "MediaImage",
+                "alt": "Simultaneous source conflict seed B",
+                "createdAt": "2026-05-08T11:39:18Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+                  "width": 640,
+                  "height": 480
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/simultaneous-source-b-1778240358718.jpg?v=1778240360",
+                    "width": 640,
+                    "height": 480
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

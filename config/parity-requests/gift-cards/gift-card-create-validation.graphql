@@ -43,6 +43,17 @@ mutation GiftCardCreateValidation($validCode: String!, $tooLongCode: String!, $m
       message
     }
   }
+  shortCodeMissingCustomer: giftCardCreate(input: { initialValue: "10", code: "abc", customerId: $missingCustomerId }) {
+    giftCard {
+      id
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
   missingCustomer: giftCardCreate(input: { initialValue: "10", customerId: $missingCustomerId }) {
     giftCard {
       id

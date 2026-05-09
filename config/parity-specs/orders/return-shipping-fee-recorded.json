@@ -1,0 +1,94 @@
+{
+  "scenarioId": "return-shipping-fee-recorded",
+  "operationNames": ["return", "order", "returnCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["lifecycle-transition-parity", "downstream-read-parity", "schema-introspection"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-create-shipping-fee-recorded.graphql",
+    "variablesCapturePath": "$.returnCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL evidence for returnCreate returnShippingFee and read-after-write Return.returnShippingFees. Public schema evidence in the fixture shows returnDelivery, note, refundIntent, locationId, and retailAttribution are rejected before resolver execution on this Admin API version.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.return.id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.return.returnShippingFees[*].id",
+        "matcher": "shopify-gid:ReturnShippingFee",
+        "reason": "Shopify and the proxy allocate independent return shipping fee IDs."
+      },
+      {
+        "path": "$.return.returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.return.reverseFulfillmentOrders.nodes[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrder",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order IDs."
+      },
+      {
+        "path": "$.return.reverseFulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+      },
+      {
+        "path": "$.return.id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Downstream return(id:) reads use the proxy-created synthetic return ID."
+      },
+      {
+        "path": "$.return.returnShippingFees[*].id",
+        "matcher": "shopify-gid:ReturnShippingFee",
+        "reason": "Downstream return(id:) reads use proxy-created synthetic return shipping fee IDs."
+      },
+      {
+        "path": "$.return.returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Downstream return(id:) reads use proxy-created synthetic return line item IDs."
+      },
+      {
+        "path": "$.order.returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Downstream order return lists use proxy-created synthetic return IDs."
+      },
+      {
+        "path": "$.order.returns.nodes[*].returnShippingFees[*].id",
+        "matcher": "shopify-gid:ReturnShippingFee",
+        "reason": "Downstream order return lists use proxy-created synthetic return shipping fee IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "return-create-shipping-fee-payload",
+        "capturePath": "$.returnCreate.response.payload.data.returnCreate",
+        "proxyPath": "$.data.returnCreate"
+      },
+      {
+        "name": "return-shipping-fee-downstream-read",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-shipping-fee-read-recorded.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "orderId": {
+              "fromCapturePath": "$.returnCreate.variables.returnInput.orderId"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

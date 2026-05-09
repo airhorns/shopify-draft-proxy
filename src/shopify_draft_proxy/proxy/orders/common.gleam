@@ -1069,6 +1069,26 @@ pub fn read_string_list(
 }
 
 @internal
+pub fn read_optional_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(List(String)) {
+  case dict.get(input, name) {
+    Ok(root_field.ListVal(values)) ->
+      Some(
+        values
+        |> list.filter_map(fn(value) {
+          case value {
+            root_field.StringVal(value) -> Ok(value)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> None
+  }
+}
+
+@internal
 pub fn read_int(
   input: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -1201,6 +1221,121 @@ pub fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
     Some(value) -> CapturedString(value)
     None -> CapturedNull
   }
+}
+
+@internal
+pub fn captured_tracking_info_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  default_company: Option(String),
+) -> CapturedJsonValue {
+  let company =
+    read_string(input, "company")
+    |> option.or(default_company)
+  let scalar_number = read_string(input, "number")
+  let scalar_url = read_string(input, "url")
+  let numbers = read_optional_string_list(input, "numbers")
+  let urls = read_optional_string_list(input, "urls")
+
+  case numbers, urls {
+    Some(numbers), Some(urls) ->
+      captured_tracking_info_pairs(numbers, urls, company)
+    Some(numbers), None -> captured_tracking_info_numbers(numbers, company)
+    None, Some(urls) -> captured_tracking_info_urls(urls, company)
+    None, None ->
+      case scalar_number, scalar_url, company {
+        None, None, None -> CapturedArray([])
+        _, _, _ ->
+          CapturedArray([
+            captured_tracking_info_entry(scalar_number, scalar_url, company),
+          ])
+      }
+  }
+}
+
+@internal
+pub fn captured_tracking_info_from_details(
+  details: List(Dict(String, root_field.ResolvedValue)),
+  default_company: Option(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    details
+    |> list.map(fn(detail) {
+      let company =
+        read_string(detail, "company")
+        |> option.or(default_company)
+      captured_tracking_info_entry(
+        read_string(detail, "number"),
+        read_string(detail, "url"),
+        company,
+      )
+    }),
+  )
+}
+
+fn captured_tracking_info_pairs(
+  numbers: List(String),
+  urls: List(String),
+  company: Option(String),
+) -> CapturedJsonValue {
+  CapturedArray(captured_tracking_info_pair_entries(numbers, urls, company))
+}
+
+fn captured_tracking_info_pair_entries(
+  numbers: List(String),
+  urls: List(String),
+  company: Option(String),
+) -> List(CapturedJsonValue) {
+  case numbers, urls {
+    [], [] -> []
+    [number, ..rest_numbers], [url, ..rest_urls] -> [
+      captured_tracking_info_entry(Some(number), Some(url), company),
+      ..captured_tracking_info_pair_entries(rest_numbers, rest_urls, company)
+    ]
+    [number, ..rest_numbers], [] -> [
+      captured_tracking_info_entry(Some(number), None, company),
+      ..captured_tracking_info_pair_entries(rest_numbers, [], company)
+    ]
+    [], [url, ..rest_urls] -> [
+      captured_tracking_info_entry(None, Some(url), company),
+      ..captured_tracking_info_pair_entries([], rest_urls, company)
+    ]
+  }
+}
+
+fn captured_tracking_info_numbers(
+  numbers: List(String),
+  company: Option(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    numbers
+    |> list.map(fn(number) {
+      captured_tracking_info_entry(Some(number), None, company)
+    }),
+  )
+}
+
+fn captured_tracking_info_urls(
+  urls: List(String),
+  company: Option(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    urls
+    |> list.map(fn(url) {
+      captured_tracking_info_entry(None, Some(url), company)
+    }),
+  )
+}
+
+fn captured_tracking_info_entry(
+  number: Option(String),
+  url: Option(String),
+  company: Option(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("number", optional_captured_string(number)),
+    #("url", optional_captured_string(url)),
+    #("company", optional_captured_string(company)),
+  ])
 }
 
 @internal

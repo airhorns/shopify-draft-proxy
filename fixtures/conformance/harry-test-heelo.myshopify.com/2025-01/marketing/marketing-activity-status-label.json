@@ -1,0 +1,502 @@
+{
+  "scenarioId": "marketing-activity-status-label",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-08T11:19:24.815Z",
+  "setup": {
+    "disposableRemoteIds": {
+      "activePost": "status-label-active-post-1778239162992-omlkvm",
+      "activeNewsletter": "status-label-active-newsletter-1778239162992-omlkvm",
+      "inactivePost": "status-label-inactive-post-1778239162992-omlkvm",
+      "inactiveNewsletter": "status-label-inactive-newsletter-1778239162992-omlkvm",
+      "inactiveAd": "status-label-inactive-ad-1778239162992-omlkvm",
+      "deletedExternally": "status-label-deleted-externally-1778239162992-omlkvm"
+    },
+    "cleanup": "Each disposable external marketing activity is deleted by remoteId in the finally block."
+  },
+  "blockedBranches": {
+    "pendingAd": {
+      "reason": "The current conformance API rejects MarketingActivityCreateExternalInput.status = PENDING, and the disposable shop has no readable PENDING+AD marketing activity to use as existing evidence.",
+      "attemptedCreate": {
+        "request": {
+          "query": "#graphql\n  mutation MarketingActivityStatusLabelPendingAdProbe($input: MarketingActivityCreateExternalInput!) {\n    marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n        title\n        status\n        statusLabel\n        tactic\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "title": "Status label pending ad 1778239162992-omlkvm",
+              "remoteId": "status-label-pending-ad-1778239162992-omlkvm",
+              "status": "PENDING",
+              "remoteUrl": "https://example.com/status-label-pending-ad-1778239162992-omlkvm",
+              "tactic": "AD",
+              "marketingChannelType": "SEARCH",
+              "urlParameterValue": "utm_campaign=status-label-pending-ad-1778239162992-omlkvm",
+              "utm": {
+                "campaign": "status-label-pending-ad-1778239162992-omlkvm",
+                "source": "search",
+                "medium": "ad"
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "errors": [
+              {
+                "message": "Variable $input of type MarketingActivityCreateExternalInput! was provided invalid value for status (Expected \"PENDING\" to be one of: ACTIVE, INACTIVE, PAUSED, SCHEDULED, DELETED_EXTERNALLY, UNDEFINED)",
+                "locations": [
+                  {
+                    "line": 2,
+                    "column": 55
+                  }
+                ],
+                "extensions": {
+                  "code": "INVALID_VARIABLE",
+                  "value": {
+                    "title": "Status label pending ad 1778239162992-omlkvm",
+                    "remoteId": "status-label-pending-ad-1778239162992-omlkvm",
+                    "status": "PENDING",
+                    "remoteUrl": "https://example.com/status-label-pending-ad-1778239162992-omlkvm",
+                    "tactic": "AD",
+                    "marketingChannelType": "SEARCH",
+                    "urlParameterValue": "utm_campaign=status-label-pending-ad-1778239162992-omlkvm",
+                    "utm": {
+                      "campaign": "status-label-pending-ad-1778239162992-omlkvm",
+                      "source": "search",
+                      "medium": "ad"
+                    }
+                  },
+                  "problems": [
+                    {
+                      "path": ["status"],
+                      "explanation": "Expected \"PENDING\" to be one of: ACTIVE, INACTIVE, PAUSED, SCHEDULED, DELETED_EXTERNALLY, UNDEFINED"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "inventoryProbe": {
+        "request": {
+          "query": "#graphql\n  query MarketingActivityStatusLabelInventory($first: Int!, $query: String) {\n    marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true, query: $query) {\n      nodes {\n        id\n        title\n        status\n        statusLabel\n        tactic\n        targetStatus\n      }\n    }\n  }\n",
+          "variables": {
+            "first": 100,
+            "query": "tactic:AD"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "marketingActivities": {
+                "nodes": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "primary": {
+      "request": {
+        "query": "mutation MarketingActivityStatusLabel(\n  $activePostInput: MarketingActivityCreateExternalInput!\n  $activeNewsletterInput: MarketingActivityCreateExternalInput!\n  $inactivePostInput: MarketingActivityCreateExternalInput!\n  $inactiveNewsletterInput: MarketingActivityCreateExternalInput!\n  $inactiveAdInput: MarketingActivityCreateExternalInput!\n  $deletedSeedInput: MarketingActivityCreateExternalInput!\n  $deletedRemoteId: String!\n  $deletedExternallyInput: MarketingActivityUpdateExternalInput!\n) {\n  activePost: marketingActivityCreateExternal(input: $activePostInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  activeNewsletter: marketingActivityCreateExternal(input: $activeNewsletterInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  inactivePost: marketingActivityCreateExternal(input: $inactivePostInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  inactiveNewsletter: marketingActivityCreateExternal(input: $inactiveNewsletterInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  inactiveAd: marketingActivityCreateExternal(input: $inactiveAdInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  deletedSeed: marketingActivityCreateExternal(input: $deletedSeedInput) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  deletedExternally: marketingActivityUpdateExternal(\n    remoteId: $deletedRemoteId\n    input: $deletedExternallyInput\n  ) {\n    marketingActivity {\n      ...MarketingActivityStatusLabelFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n\nfragment MarketingActivityStatusLabelFields on MarketingActivity {\n  id\n  title\n  status\n  statusLabel\n  tactic\n  targetStatus\n}\n",
+        "variables": {
+          "activePostInput": {
+            "title": "Status label active post 1778239162992-omlkvm",
+            "remoteId": "status-label-active-post-1778239162992-omlkvm",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/status-label-active-post-1778239162992-omlkvm",
+            "tactic": "POST",
+            "marketingChannelType": "SOCIAL",
+            "urlParameterValue": "utm_campaign=status-label-active-post-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-active-post-1778239162992-omlkvm",
+              "source": "social",
+              "medium": "post"
+            }
+          },
+          "activeNewsletterInput": {
+            "title": "Status label active newsletter 1778239162992-omlkvm",
+            "remoteId": "status-label-active-newsletter-1778239162992-omlkvm",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/status-label-active-newsletter-1778239162992-omlkvm",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "utm_campaign=status-label-active-newsletter-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-active-newsletter-1778239162992-omlkvm",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          },
+          "inactivePostInput": {
+            "title": "Status label inactive post 1778239162992-omlkvm",
+            "remoteId": "status-label-inactive-post-1778239162992-omlkvm",
+            "status": "INACTIVE",
+            "remoteUrl": "https://example.com/status-label-inactive-post-1778239162992-omlkvm",
+            "tactic": "POST",
+            "marketingChannelType": "SOCIAL",
+            "urlParameterValue": "utm_campaign=status-label-inactive-post-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-inactive-post-1778239162992-omlkvm",
+              "source": "social",
+              "medium": "post"
+            }
+          },
+          "inactiveNewsletterInput": {
+            "title": "Status label inactive newsletter 1778239162992-omlkvm",
+            "remoteId": "status-label-inactive-newsletter-1778239162992-omlkvm",
+            "status": "INACTIVE",
+            "remoteUrl": "https://example.com/status-label-inactive-newsletter-1778239162992-omlkvm",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "utm_campaign=status-label-inactive-newsletter-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-inactive-newsletter-1778239162992-omlkvm",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          },
+          "inactiveAdInput": {
+            "title": "Status label inactive ad 1778239162992-omlkvm",
+            "remoteId": "status-label-inactive-ad-1778239162992-omlkvm",
+            "status": "INACTIVE",
+            "remoteUrl": "https://example.com/status-label-inactive-ad-1778239162992-omlkvm",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "urlParameterValue": "utm_campaign=status-label-inactive-ad-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-inactive-ad-1778239162992-omlkvm",
+              "source": "search",
+              "medium": "ad"
+            }
+          },
+          "deletedSeedInput": {
+            "title": "Status label deleted externally 1778239162992-omlkvm",
+            "remoteId": "status-label-deleted-externally-1778239162992-omlkvm",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/status-label-deleted-externally-1778239162992-omlkvm",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "urlParameterValue": "utm_campaign=status-label-deleted-externally-1778239162992-omlkvm",
+            "utm": {
+              "campaign": "status-label-deleted-externally-1778239162992-omlkvm",
+              "source": "search",
+              "medium": "ad"
+            }
+          },
+          "deletedRemoteId": "status-label-deleted-externally-1778239162992-omlkvm",
+          "deletedExternallyInput": {
+            "status": "DELETED_EXTERNALLY"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "activePost": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091197234",
+                "title": "Status label active post 1778239162992-omlkvm",
+                "status": "ACTIVE",
+                "statusLabel": "Posting",
+                "tactic": "POST",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "activeNewsletter": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091230002",
+                "title": "Status label active newsletter 1778239162992-omlkvm",
+                "status": "ACTIVE",
+                "statusLabel": "Sending",
+                "tactic": "NEWSLETTER",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "inactivePost": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091262770",
+                "title": "Status label inactive post 1778239162992-omlkvm",
+                "status": "INACTIVE",
+                "statusLabel": "Posted",
+                "tactic": "POST",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "inactiveNewsletter": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091295538",
+                "title": "Status label inactive newsletter 1778239162992-omlkvm",
+                "status": "INACTIVE",
+                "statusLabel": "Sent",
+                "tactic": "NEWSLETTER",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "inactiveAd": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091328306",
+                "title": "Status label inactive ad 1778239162992-omlkvm",
+                "status": "INACTIVE",
+                "statusLabel": "Ended",
+                "tactic": "AD",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "deletedSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091361074",
+                "title": "Status label deleted externally 1778239162992-omlkvm",
+                "status": "ACTIVE",
+                "statusLabel": "Active",
+                "tactic": "AD",
+                "targetStatus": null
+              },
+              "userErrors": []
+            },
+            "deletedExternally": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197091361074",
+                "title": "Status label deleted externally 1778239162992-omlkvm",
+                "status": "DELETED_EXTERNALLY",
+                "statusLabel": "Deleted",
+                "tactic": "AD",
+                "targetStatus": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 70,
+              "actualQueryCost": 70,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1930,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "read": {
+      "request": {
+        "query": "query MarketingActivityStatusLabelRead(\n  $activePostId: ID!\n  $activeNewsletterId: ID!\n  $inactivePostId: ID!\n  $inactiveNewsletterId: ID!\n  $inactiveAdId: ID!\n  $deletedExternallyId: ID!\n) {\n  activePost: marketingActivity(id: $activePostId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n  activeNewsletter: marketingActivity(id: $activeNewsletterId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n  inactivePost: marketingActivity(id: $inactivePostId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n  inactiveNewsletter: marketingActivity(id: $inactiveNewsletterId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n  inactiveAd: marketingActivity(id: $inactiveAdId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n  deletedExternally: marketingActivity(id: $deletedExternallyId) {\n    ...MarketingActivityStatusLabelReadFields\n  }\n}\n\nfragment MarketingActivityStatusLabelReadFields on MarketingActivity {\n  title\n  status\n  statusLabel\n  tactic\n  targetStatus\n}\n",
+        "variables": {
+          "activePostId": "gid://shopify/MarketingActivity/197091197234",
+          "activeNewsletterId": "gid://shopify/MarketingActivity/197091230002",
+          "inactivePostId": "gid://shopify/MarketingActivity/197091262770",
+          "inactiveNewsletterId": "gid://shopify/MarketingActivity/197091295538",
+          "inactiveAdId": "gid://shopify/MarketingActivity/197091328306",
+          "deletedExternallyId": "gid://shopify/MarketingActivity/197091361074"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "activePost": {
+              "title": "Status label active post 1778239162992-omlkvm",
+              "status": "ACTIVE",
+              "statusLabel": "Posting",
+              "tactic": "POST",
+              "targetStatus": null
+            },
+            "activeNewsletter": {
+              "title": "Status label active newsletter 1778239162992-omlkvm",
+              "status": "ACTIVE",
+              "statusLabel": "Sending",
+              "tactic": "NEWSLETTER",
+              "targetStatus": null
+            },
+            "inactivePost": {
+              "title": "Status label inactive post 1778239162992-omlkvm",
+              "status": "INACTIVE",
+              "statusLabel": "Posted",
+              "tactic": "POST",
+              "targetStatus": null
+            },
+            "inactiveNewsletter": {
+              "title": "Status label inactive newsletter 1778239162992-omlkvm",
+              "status": "INACTIVE",
+              "statusLabel": "Sent",
+              "tactic": "NEWSLETTER",
+              "targetStatus": null
+            },
+            "inactiveAd": {
+              "title": "Status label inactive ad 1778239162992-omlkvm",
+              "status": "INACTIVE",
+              "statusLabel": "Ended",
+              "tactic": "AD",
+              "targetStatus": null
+            },
+            "deletedExternally": {
+              "title": "Status label deleted externally 1778239162992-omlkvm",
+              "status": "DELETED_EXTERNALLY",
+              "statusLabel": "Deleted",
+              "tactic": "AD",
+              "targetStatus": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "status-label-active-post-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091197234",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status-label-active-newsletter-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091230002",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status-label-inactive-post-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091262770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status-label-inactive-newsletter-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091295538",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status-label-inactive-ad-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091328306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status-label-deleted-externally-1778239162992-omlkvm": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091361074",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedLabels": {
+    "activePost": "Posting",
+    "activeNewsletter": "Sending",
+    "inactivePost": "Posted",
+    "inactiveNewsletter": "Sent",
+    "inactiveAd": "Ended",
+    "deletedExternally": "Deleted"
+  },
+  "upstreamCalls": []
+}

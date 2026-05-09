@@ -107,12 +107,18 @@ Local staged mutations:
   than 2048 characters return top-level `INVALID_FIELD_ARGUMENTS` errors with
   `data.fileCreate: null` and do not stage file records. Non-http(s) schemes,
   filename/originalSource extension mismatches, duplicate-resolution mode
-  compatibility, and the private-core `referencesToAdd` cardinality guardrail
-  remain resolver `userErrors` before staging. Successful creates derive a
-  filename from the source when no filename is supplied, create stable synthetic
-  Shopify GIDs by content type, and return uploaded file status. IMAGE files
-  sourced from a usable URL keep that URL available through `MediaImage.image`
-  and `preview.image` immediately; the proxy does not suppress the image payload
+  compatibility, and `REPLACE` filename requirements remain resolver
+  `userErrors` before staging. These resolver per-input validations follow
+  Shopify's early-next precedence, so a single `FileCreateInput` contributes at
+  most one `userError`: URL-scheme validation runs before filename extension
+  matching, which runs before duplicate-resolution-mode validation. Public Admin
+  GraphQL 2026-04 does not expose `referencesToAdd` on `FileCreateInput`, and
+  the proxy no longer treats it as a per-input validation surface. Successful
+  creates derive a filename from the source when no filename is supplied, create
+  stable synthetic Shopify GIDs by content type, and return uploaded file
+  status. IMAGE files sourced from a usable URL keep that URL available through
+  `MediaImage.image` and `preview.image` immediately; the proxy does not
+  suppress the image payload
   solely because the staged file is still `UPLOADED`. The proxy does not apply
   the older fabricated 512-character `alt` ceiling on `fileCreate`.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, missing `revertToVersionId` media versions, and typed-GID mismatches before updating staged records. Captured public Admin GraphQL 2026-04 behavior keeps the 512-character `alt` ceiling, reports non-URL source values as `INVALID_IMAGE_SOURCE_URL` on `previewImageSource`, rejects over-length `originalSource` as a top-level `INVALID_FIELD_ARGUMENTS` error, and accepts over-length `previewImageSource`. For a READY `MediaImage`, Shopify interprets `originalSource` as a preview image source update: the original `image.url` remains unchanged while `preview.image.url` moves to the replacement image. For a READY `GenericFile`, `originalSource` updates the file's direct `url`/source instead. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.

@@ -131,33 +131,34 @@ async function cleanup(id: string): Promise<void> {
 }
 
 const createDocument = await readRequest('saved-search-query-grammar-validation-create.graphql');
+const aggregationDocument = await readRequest('saved-search-incompatible-filter-aggregation-create.graphql');
 const updateDocument = await readRequest('saved-search-query-grammar-validation-update.graphql');
 const deleteDocument = await readRequest('saved-search-query-grammar-delete.graphql');
-const token = `H729-${Date.now().toString(36)}`;
+const token = `ssqv-${Date.now().toString(36)}`;
 const createVariables = {
   orderReserved: {
     resourceType: 'ORDER',
-    name: `H729 Reserved ${token}`.slice(0, 40),
+    name: `SDP Reserved ${token}`.slice(0, 40),
     query: 'reference_location_id:1',
   },
   productCollectionTag: {
     resourceType: 'PRODUCT',
-    name: `H729 Collection Tag ${token}`.slice(0, 40),
+    name: `SDP Collection Tag ${token}`.slice(0, 40),
     query: 'collection_id:"123" tag:"AAA"',
   },
   productCollectionPublished: {
     resourceType: 'PRODUCT',
-    name: `H729 Published ${token}`.slice(0, 40),
+    name: `SDP Published ${token}`.slice(0, 40),
     query: 'collection_id:"123" published_status:published',
   },
   productCollectionErrorFeedback: {
     resourceType: 'PRODUCT',
-    name: `H729 Error ${token}`.slice(0, 40),
+    name: `SDP Error ${token}`.slice(0, 40),
     query: 'collection_id:"123" error_feedback:"x"',
   },
   productPositive: {
     resourceType: 'PRODUCT',
-    name: `H729 Positive ${token}`.slice(0, 40),
+    name: `SDP Positive ${token}`.slice(0, 40),
     query: 'collection_id:"12345"',
   },
 };
@@ -195,6 +196,29 @@ assertUserError(
 assertPositiveCreate(savedSearchCreateValidation.payload);
 const createdId = readCreatedSavedSearchId(savedSearchCreateValidation.payload);
 
+const aggregationVariables = {
+  productCollectionTagPublished: {
+    resourceType: 'PRODUCT',
+    name: `SDP Aggregate ${token}`.slice(0, 40),
+    query: 'collection_id:1 tag:foo published_status:published',
+  },
+};
+const savedSearchIncompatibleFilterAggregation = await client.runGraphqlRequest(
+  aggregationDocument,
+  aggregationVariables,
+);
+assertNoTopLevelErrors(
+  savedSearchIncompatibleFilterAggregation,
+  'saved-search incompatible-filter aggregation create capture',
+);
+assertUserError(
+  savedSearchIncompatibleFilterAggregation.payload,
+  'productCollectionTagPublished',
+  ['input', 'query'],
+  'Query has incompatible filters: collection_id, tag, published_status',
+  'product collection_id+tag+published_status create',
+);
+
 let cleanupComplete = false;
 try {
   const updateVariables = {
@@ -219,7 +243,7 @@ try {
     apiVersion,
     token,
     notes: [
-      'HAR-729 capture for saved-search query grammar validation.',
+      'Saved-search query grammar validation capture.',
       'ORDER savedSearchCreate rejects reference_location_id as a reserved filter with field ["input", "query"].',
       'PRODUCT savedSearchCreate rejects collection_id combined with tag, error_feedback, or published_status.',
       'PRODUCT savedSearchCreate accepts collection_id alone and cleanup deletes that disposable saved search.',
@@ -246,7 +270,26 @@ try {
   await mkdir(outputDir, { recursive: true });
   const fixturePath = path.join(outputDir, 'saved-search-query-grammar-validation.json');
   await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
-  console.log(JSON.stringify({ ok: true, storeDomain, apiVersion, fixturePath }, null, 2));
+
+  const aggregationFixture = {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    token,
+    notes: [
+      'PRODUCT savedSearchCreate with collection_id, tag, and published_status returns one deduped incompatible-filter userError.',
+      'The userError message lists every conflicting field in Shopify order.',
+    ],
+    savedSearchIncompatibleFilterAggregation: {
+      documentPath: 'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
+      variables: aggregationVariables,
+      payload: savedSearchIncompatibleFilterAggregation.payload,
+    },
+    upstreamCalls: [],
+  };
+  const aggregationFixturePath = path.join(outputDir, 'saved-search-incompatible-filter-aggregation.json');
+  await writeFile(aggregationFixturePath, `${JSON.stringify(aggregationFixture, null, 2)}\n`, 'utf8');
+  console.log(JSON.stringify({ ok: true, storeDomain, apiVersion, fixturePath, aggregationFixturePath }, null, 2));
 } finally {
   if (!cleanupComplete) {
     await cleanup(createdId);
