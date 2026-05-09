@@ -2647,6 +2647,8 @@ pub fn shopify_function_record_from_node(
         description: json_get_string(value, "description"),
         app_key: json_get_string(value, "appKey"),
         app: shopify_function_app_record_from_node(json_get(value, "app")),
+        create_guardrail_code: None,
+        create_guardrail_message: None,
       ))
     _ -> None
   }

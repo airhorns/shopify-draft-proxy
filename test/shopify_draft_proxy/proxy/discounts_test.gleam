@@ -80,6 +80,8 @@ fn shopify_function(
     description: Some(handle <> " description"),
     app_key: Some("app-key"),
     app: None,
+    create_guardrail_code: None,
+    create_guardrail_message: None,
   )
 }
 
@@ -146,9 +148,15 @@ fn discount_ref_variant(
     barcode: None,
     price: Some("10.00"),
     compare_at_price: None,
+    requires_shipping: None,
     taxable: None,
+    tax_code: None,
     inventory_policy: None,
     inventory_quantity: None,
+    position: None,
+    requires_components: None,
+    unit_price_measurement: None,
+    show_unit_price: None,
     selected_options: [],
     media_ids: [],
     inventory_item: None,

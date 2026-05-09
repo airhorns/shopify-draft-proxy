@@ -1,6 +1,6 @@
 {
   "scenarioId": "functions-validation-create-title-fallback",
-  "capturedAt": "2026-05-07T00:15:39.194Z",
+  "capturedAt": "2026-05-08T07:36:03.658Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -77,6 +77,21 @@
                   "handle": "hermes-conformance-products",
                   "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
                 }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
               }
             ]
           }
@@ -84,10 +99,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 12,
-            "actualQueryCost": 5,
+            "actualQueryCost": 6,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1995,
+              "currentlyAvailable": 1994,
               "restoreRate": 100
             }
           }
@@ -104,47 +119,16 @@
         "payload": {
           "data": {
             "validations": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Validation/86868274",
-                  "title": "t:name",
-                  "shopifyFunction": {
-                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
-                    "title": "conformance-validation",
-                    "handle": "conformance-validation",
-                    "apiType": "cart_checkout_validation"
-                  }
-                },
-                {
-                  "id": "gid://shopify/Validation/86901042",
-                  "title": "t:name",
-                  "shopifyFunction": {
-                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
-                    "title": "conformance-validation",
-                    "handle": "conformance-validation",
-                    "apiType": "cart_checkout_validation"
-                  }
-                },
-                {
-                  "id": "gid://shopify/Validation/86933810",
-                  "title": "",
-                  "shopifyFunction": {
-                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
-                    "title": "conformance-validation",
-                    "handle": "conformance-validation",
-                    "apiType": "cart_checkout_validation"
-                  }
-                }
-              ]
+              "nodes": []
             }
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 16,
-              "actualQueryCost": 3,
+              "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -152,95 +136,10 @@
         }
       }
     },
-    "deletes": [
-      {
-        "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/Validation/86868274"
-        },
-        "response": {
-          "status": 200,
-          "payload": {
-            "data": {
-              "validationDelete": {
-                "deletedId": "gid://shopify/Validation/86868274",
-                "userErrors": []
-              }
-            },
-            "extensions": {
-              "cost": {
-                "requestedQueryCost": 10,
-                "actualQueryCost": 10,
-                "throttleStatus": {
-                  "maximumAvailable": 2000,
-                  "currentlyAvailable": 1990,
-                  "restoreRate": 100
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/Validation/86901042"
-        },
-        "response": {
-          "status": 200,
-          "payload": {
-            "data": {
-              "validationDelete": {
-                "deletedId": "gid://shopify/Validation/86901042",
-                "userErrors": []
-              }
-            },
-            "extensions": {
-              "cost": {
-                "requestedQueryCost": 10,
-                "actualQueryCost": 10,
-                "throttleStatus": {
-                  "maximumAvailable": 2000,
-                  "currentlyAvailable": 1990,
-                  "restoreRate": 100
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/Validation/86933810"
-        },
-        "response": {
-          "status": 200,
-          "payload": {
-            "data": {
-              "validationDelete": {
-                "deletedId": "gid://shopify/Validation/86933810",
-                "userErrors": []
-              }
-            },
-            "extensions": {
-              "cost": {
-                "requestedQueryCost": 10,
-                "actualQueryCost": 10,
-                "throttleStatus": {
-                  "maximumAvailable": 2000,
-                  "currentlyAvailable": 1990,
-                  "restoreRate": 100
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
+    "deletes": []
   },
   "createTitleFallback": {
-    "query": "#graphql\n  mutation ValidationCreateTitleFallback($functionHandle: String!) {\n    omitted: validationCreate(validation: { functionHandle: $functionHandle }) {\n      validation {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    explicitNull: validationCreate(validation: { functionHandle: $functionHandle, title: null }) {\n      validation {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    emptyString: validationCreate(validation: { functionHandle: $functionHandle, title: \"\" }) {\n      validation {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "query": "#graphql\n  mutation ValidationCreateTitleFallback($functionHandle: String!) {\n    omitted: validationCreate(validation: { functionHandle: $functionHandle }) {\n      validation {\n        id\n        title\n        shopifyFunction {\n          id\n          handle\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    explicitNull: validationCreate(validation: { functionHandle: $functionHandle, title: null }) {\n      validation {\n        id\n        title\n        shopifyFunction {\n          id\n          handle\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    emptyString: validationCreate(validation: { functionHandle: $functionHandle, title: \"\" }) {\n      validation {\n        id\n        title\n        shopifyFunction {\n          id\n          handle\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
     "variables": {
       "functionHandle": "conformance-validation"
     },
@@ -250,33 +149,45 @@
         "data": {
           "omitted": {
             "validation": {
-              "id": "gid://shopify/Validation/86966578",
-              "title": "t:name"
+              "id": "gid://shopify/Validation/89194802",
+              "title": "t:name",
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation"
+              }
             },
             "userErrors": []
           },
           "explicitNull": {
             "validation": {
-              "id": "gid://shopify/Validation/86999346",
-              "title": "t:name"
+              "id": "gid://shopify/Validation/89227570",
+              "title": "t:name",
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation"
+              }
             },
             "userErrors": []
           },
           "emptyString": {
             "validation": {
-              "id": "gid://shopify/Validation/87032114",
-              "title": ""
+              "id": "gid://shopify/Validation/89260338",
+              "title": "",
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation"
+              }
             },
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 30,
-            "actualQueryCost": 30,
+            "requestedQueryCost": 33,
+            "actualQueryCost": 33,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1970,
+              "currentlyAvailable": 1967,
               "restoreRate": 100
             }
           }
@@ -285,26 +196,30 @@
     }
   },
   "postCreateValidationRead": {
-    "query": "#graphql\n  query ValidationCreateTitleFallbackValidationRead($id: ID!) {\n    validation(id: $id) {\n      id\n      title\n    }\n  }\n",
+    "query": "#graphql\n  query ValidationCreateTitleFallbackValidationRead($id: ID!) {\n    validation(id: $id) {\n      id\n      title\n      shopifyFunction {\n        id\n        handle\n      }\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/Validation/86966578"
+      "id": "gid://shopify/Validation/89194802"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validation": {
-            "id": "gid://shopify/Validation/86966578",
-            "title": "t:name"
+            "id": "gid://shopify/Validation/89194802",
+            "title": "t:name",
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "handle": "conformance-validation"
+            }
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 1,
-            "actualQueryCost": 1,
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1991,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -313,7 +228,7 @@
     }
   },
   "postCreateValidationsRead": {
-    "query": "#graphql\n  query ValidationCreateTitleFallbackValidationsRead {\n    validations(first: 3) {\n      nodes {\n        title\n      }\n    }\n  }\n",
+    "query": "#graphql\n  query ValidationCreateTitleFallbackValidationsRead {\n    validations(first: 3) {\n      nodes {\n        title\n        shopifyFunction {\n          id\n          handle\n        }\n      }\n    }\n  }\n",
     "variables": {},
     "response": {
       "status": 200,
@@ -322,24 +237,36 @@
           "validations": {
             "nodes": [
               {
-                "title": "t:name"
+                "title": "t:name",
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "handle": "conformance-validation"
+                }
               },
               {
-                "title": "t:name"
+                "title": "t:name",
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "handle": "conformance-validation"
+                }
               },
               {
-                "title": ""
+                "title": "",
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "handle": "conformance-validation"
+                }
               }
             ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 4,
-            "actualQueryCost": 4,
+            "requestedQueryCost": 6,
+            "actualQueryCost": 6,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1996,
+              "currentlyAvailable": 1994,
               "restoreRate": 100
             }
           }
@@ -351,14 +278,14 @@
     {
       "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Validation/86966578"
+        "id": "gid://shopify/Validation/89194802"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "validationDelete": {
-              "deletedId": "gid://shopify/Validation/86966578",
+              "deletedId": "gid://shopify/Validation/89194802",
               "userErrors": []
             }
           },
@@ -379,14 +306,14 @@
     {
       "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Validation/86999346"
+        "id": "gid://shopify/Validation/89227570"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "validationDelete": {
-              "deletedId": "gid://shopify/Validation/86999346",
+              "deletedId": "gid://shopify/Validation/89227570",
               "userErrors": []
             }
           },
@@ -407,14 +334,14 @@
     {
       "query": "#graphql\n  mutation ValidationCreateTitleFallbackCleanup($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Validation/87032114"
+        "id": "gid://shopify/Validation/89260338"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "validationDelete": {
-              "deletedId": "gid://shopify/Validation/87032114",
+              "deletedId": "gid://shopify/Validation/89260338",
               "userErrors": []
             }
           },
@@ -471,6 +398,7 @@
   ],
   "notes": {
     "lifecycle": "The script deletes disposable validations before capture, creates omitted-title/null-title/empty-string-title validations, verifies mutation payload titles and downstream reads, then deletes the created validations.",
-    "titleFallback": "Shopify persisted the same Function-derived fallback for omitted and explicit null title input. The current conformance extension stores raw name t:name while shopifyFunctions.title returns the localized name, so the cassette title uses the mutation-observed fallback for local replay. An explicit empty string stayed empty."
+    "titleFallback": "Shopify persisted the same Function-derived fallback for omitted and explicit null title input. The current conformance extension stores raw name t:name while shopifyFunctions.title returns the localized name, so the cassette title uses the mutation-observed fallback for local replay. An explicit empty string stayed empty.",
+    "functionReference": "Shopify persisted the resolved Function reference for handle-only validationCreate input and read it back through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields."
   }
 }

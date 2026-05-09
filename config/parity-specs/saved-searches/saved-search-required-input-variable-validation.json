@@ -1,0 +1,45 @@
+{
+  "scenarioId": "saved-search-required-input-variable-validation",
+  "operationNames": ["savedSearchCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-required-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateVariableMissingResourceType.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence for SavedSearchCreateInput variable coercion. Shopify returns top-level INVALID_VARIABLE GraphQL errors before resolver userErrors when variable-supplied create input omits required fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variable missing resourceType create top-level errors",
+        "capturePath": "$.savedSearchCreateVariableMissingResourceType.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql",
+          "variablesCapturePath": "$.savedSearchCreateVariableMissingResourceType.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "variable missing name create top-level errors",
+        "capturePath": "$.savedSearchCreateVariableMissingName.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql",
+          "variablesCapturePath": "$.savedSearchCreateVariableMissingName.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

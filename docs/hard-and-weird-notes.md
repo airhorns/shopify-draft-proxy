@@ -3528,3 +3528,30 @@ Practical rule:
 - model captured numeric bounds and coercion exactly, but do not add a
   non-divisible BXGY ratio rejection without newer live evidence proving Shopify
   changed this public Admin behavior
+
+## 84. deliveryProfileUpdate public 2026-04 accepts some guardrail probes
+
+Admin GraphQL 2026-04 live capture for `deliveryProfileUpdate` against
+`harry-test-heelo.myshopify.com` recorded update-side delivery profile
+validation behavior.
+
+Observed behavior:
+
+- update names of 128 characters or more returned a public `UserError` on
+  `["profile", "name"]`
+- unknown locations under `locationGroupsToCreate[*].locations` and
+  `locationGroupsToUpdate[*].locationsToAdd` returned public userErrors with
+  `field: null` and `The Location could not be found for this shop.`
+- empty `locationGroupsToCreate[*].zonesToCreate[*].countries` returned
+  `field: null` with Shopify's cannot-create-without-countries message
+- an unknown location under `profileLocationGroups[*].locationsToAdd` was
+  accepted by the public API in the captured probe
+- duplicate `US` countries across two `zonesToCreate` entries in an update were
+  accepted by the public API in the captured probe
+
+Practical rule:
+
+- keep public parity targets to the branches Shopify rejected in the capture;
+  keep ticket-required local guardrails for `profileLocationGroups` unknown
+  locations and overlapping zone countries covered by runtime tests unless newer
+  public evidence shows a different update-side rejection shape

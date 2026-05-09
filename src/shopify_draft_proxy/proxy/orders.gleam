@@ -215,6 +215,41 @@ pub fn serialize_order_node_by_id(
   }
 }
 
+pub fn serialize_abandoned_checkout_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_abandoned_checkout_by_id(store, id) {
+    Some(record) ->
+      order_serializers.serialize_abandoned_checkout_node(
+        synthetic_node_field("AbandonedCheckout", selections),
+        record,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_abandonment_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_abandonment_by_id(store, id) {
+    Some(record) ->
+      order_serializers.serialize_abandonment_node(
+        store,
+        synthetic_node_field("Abandonment", selections),
+        record,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
 pub fn serialize_draft_order_node_by_id(
   store: Store,
   id: String,

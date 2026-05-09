@@ -1,0 +1,74 @@
+{
+  "scenarioId": "fulfillment-multi-tracking-info-parity",
+  "operationNames": ["fulfillmentCreate", "fulfillmentTrackingInfoUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/fulfillment-multi-tracking-info.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCreate-multi-tracking.graphql",
+    "variablesCapturePath": "$.fulfillmentCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fulfillment-create-multi-tracking",
+        "capturePath": "$.fulfillmentCreate.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "selectedPaths": [
+          "$.fulfillment.status",
+          "$.fulfillment.displayStatus",
+          "$.fulfillment.trackingInfo",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "fulfillment-tracking-info-update-multi-tracking",
+        "capturePath": "$.fulfillmentTrackingInfoUpdate.response.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "selectedPaths": ["$.fulfillment.status", "$.fulfillment.trackingInfo", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentTrackingInfoUpdate-multi-tracking.graphql",
+          "variables": {
+            "fulfillmentId": {
+              "fromPrimaryProxyPath": "$.data.fulfillmentCreate.fulfillment.id"
+            },
+            "trackingInfoInput": {
+              "fromCapturePath": "$.fulfillmentTrackingInfoUpdate.variables.trackingInfoInput"
+            },
+            "notifyCustomer": {
+              "fromCapturePath": "$.fulfillmentTrackingInfoUpdate.variables.notifyCustomer"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "downstream-fulfillment-multi-tracking",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.displayFulfillmentStatus",
+          "$.fulfillments[0].status",
+          "$.fulfillments[0].displayStatus",
+          "$.fulfillments[0].trackingInfo"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillment-multi-tracking-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.orderId"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Captured fulfillmentCreate and fulfillmentTrackingInfoUpdate multi-package tracking behavior using the public FulfillmentTrackingInput numbers/urls fields. The live Admin schema for the configured API exposes number/url/company plus numbers/urls, while trackingDetails/trackingCompany are not accepted input fields."
+}

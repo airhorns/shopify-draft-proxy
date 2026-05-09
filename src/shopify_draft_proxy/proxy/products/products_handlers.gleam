@@ -98,8 +98,9 @@ import shopify_draft_proxy/proxy/products/variants_sources.{
   serialize_product_variants_for_product_connection,
 }
 import shopify_draft_proxy/proxy/products/variants_validation.{
-  product_create_variant_errors, product_set_scalar_variant_errors,
-  product_set_variant_records,
+  apply_variant_input_positions, apply_variant_metafield_inputs,
+  position_variants, product_create_variant_errors,
+  product_set_scalar_variant_errors, product_set_variant_records,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
@@ -180,13 +181,13 @@ pub fn apply_product_set_graph(
   }
   let #(store, identity, variant_ids) = case dict.has_key(input, "variants") {
     True -> {
+      let variant_inputs = read_object_list_field(input, "variants")
       let #(variants, next_identity, ids) =
-        product_set_variant_records(
-          store,
-          identity,
-          product_id,
-          read_object_list_field(input, "variants"),
-        )
+        product_set_variant_records(store, identity, product_id, variant_inputs)
+      let input_order_variants = variants
+      let variants =
+        apply_variant_input_positions(variants, variants, variant_inputs)
+        |> position_variants
       let synced_options =
         sync_product_options_with_variants(
           store.get_effective_options_by_product_id(store, product_id),
@@ -196,7 +197,14 @@ pub fn apply_product_set_graph(
         store
         |> store.replace_staged_variants_for_product(product_id, variants)
         |> store.replace_staged_options_for_product(product_id, synced_options)
-      #(next_store, next_identity, ids)
+      let #(next_store, next_identity, metafield_ids) =
+        apply_variant_metafield_inputs(
+          next_store,
+          next_identity,
+          input_order_variants,
+          variant_inputs,
+        )
+      #(next_store, next_identity, list.append(ids, metafield_ids))
     }
     False ->
       case existing {
