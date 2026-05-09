@@ -17,7 +17,7 @@ HAR-241 promotes the first metaobject runtime slice from registry-only coverage 
 The supported fields are limited to the captured 2026-04 definition payload:
 
 - definition identity and display metadata: `id`, `type`, `name`, `description`, `displayNameKey`
-- `access.admin` and `access.storefront`
+- `access.admin`, `access.storefront`, and `access.customerAccount`
 - `capabilities.publishable.enabled`, `translatable.enabled`, `renderable.enabled`, and `onlineStore.enabled`
 - ordered `fieldDefinitions` with `key`, `name`, `description`, `required`, `type.name`, `type.category`, and `validations`
 - `hasThumbnailField`, `metaobjectsCount`, and `standardTemplate.type` / `standardTemplate.name`
@@ -79,10 +79,12 @@ Supported definition mutations never proxy to Shopify at runtime. They append th
 Create support models the captured merchant-owned definition shape:
 
 - `type`, `name`, `description`, and `displayNameKey`
-- default merchant access `admin: PUBLIC_READ_WRITE` and `storefront: NONE`
+- default merchant access `admin: PUBLIC_READ_WRITE`, `storefront: NONE`, and `customerAccount: NONE`
 - `capabilities.publishable`, `translatable`, `renderable`, and `onlineStore` with false defaults when omitted
 - ordered field definitions with `key`, `name`, `description`, `required`, scalar type name/category, and validations
 - `metaobjectsCount: 0`, `hasThumbnailField: false`, and `standardTemplate: null`
+
+Create and update persist `access.customerAccount` for the public 2026-04 `MetaobjectCustomerAccountAccess` enum values `NONE` and `READ`; downstream definition reads project the effective value after local writes. Invalid literal values are rejected by GraphQL enum coercion before resolver side effects, matching the captured Shopify top-level error shape.
 
 Captured guardrail: merchant-owned create input that specifies `access.admin` returns a local `ADMIN_ACCESS_INPUT_NOT_ALLOWED` userError with Shopify's captured message instead of staging or proxying.
 

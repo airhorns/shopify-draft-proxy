@@ -1,0 +1,184 @@
+{
+  "scenarioId": "metaobject-definition-customer-account-access",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectDefinitionUpdate", "metaobjectDefinitionByType"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "graphql-validation-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-customer-account-access.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql",
+    "variablesCapturePath": "$.cases.createRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-read-access",
+        "capturePath": "$.cases.createRead.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-read-access",
+        "capturePath": "$.cases.readAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinitionByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the staged synthetic definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-none-access",
+        "capturePath": "$.cases.updateNone.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.updateNone.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy updates the staged synthetic definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-update-none-access",
+        "capturePath": "$.cases.readAfterUpdateNone.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterUpdateNone.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinitionByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the staged synthetic definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "update-read-access",
+        "capturePath": "$.cases.updateRead.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.updateRead.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy updates the staged synthetic definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-update-read-access",
+        "capturePath": "$.cases.readAfterUpdateRead.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterUpdateRead.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinitionByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the staged synthetic definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-none-access",
+        "capturePath": "$.cases.createNone.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql",
+          "variablesCapturePath": "$.cases.createNone.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "invalid-create-access",
+        "capturePath": "$.cases.invalidCreate.response.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-create.graphql",
+          "variablesCapturePath": "$.cases.invalidCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-update-access",
+        "capturePath": "$.cases.invalidUpdate.response.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for MetaobjectDefinition.access.customerAccount. The capture creates with READ and NONE, updates the READ definition through NONE and back to READ, verifies read-after-write projection through metaobjectDefinitionByType, and captures GraphQL enum coercion errors for invalid create/update inputs before resolver side effects."
+}

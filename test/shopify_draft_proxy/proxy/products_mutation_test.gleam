@@ -694,9 +694,13 @@ pub fn product_feedback_invalid_state_uses_resource_feedback_enum_coercion_test(
   assert status == 200
   assert string.contains(
     body,
-    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+    "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
   )
   assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(
+    body,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"state\"",
+  )
   assert store.get_log(next_proxy.store) == []
 }
 
@@ -708,9 +712,13 @@ pub fn shop_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
   assert status == 200
   assert string.contains(
     body,
-    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+    "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
   )
   assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(
+    body,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"state\"",
+  )
   assert store.get_log(next_proxy.store) == []
 }
 
