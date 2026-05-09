@@ -24,8 +24,8 @@ import shopify_draft_proxy/state/types.{
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopEntitlementsRecord,
-  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord,
-  ShopRecord, ShopResourceLimitsRecord,
+  ShopFeaturesRecord, ShopGiftCardsEntitlementRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 import simplifile
 
