@@ -3550,6 +3550,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'markets',
+    captureId: 'catalog-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-delete-conformance.mts',
+    purpose:
+      'catalogDelete typed CatalogUserError shape for unknown IDs, successful delete payload shape, and captured-empty context-driver rejection exploration.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-delete-parity.json`,
+      'config/parity-specs/markets/catalog-delete-unknown-id-validation.json',
+      'config/parity-specs/markets/catalog-delete-success-payload.json',
+      'config/parity-requests/markets/catalog-delete-unknown-id-validation.graphql',
+      'config/parity-requests/markets/catalog-delete-success-setup-read.graphql',
+      'config/parity-requests/markets/catalog-delete-success.graphql',
+    ],
+    cleanupBehavior:
+      'Records unknown-ID validation, creates and deletes a disposable MarketCatalog for the success payload, and probes MarketCatalog plus CompanyLocationCatalog deletion; any disposable catalog/company state is deleted in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',

@@ -1,0 +1,364 @@
+{
+  "capturedAt": "2026-05-09T18:01:59.717Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "catalogDelete typed userErrors and payload shape",
+  "notFound": {
+    "name": "catalogDeleteUnknownId",
+    "query": "#graphql\nmutation CatalogDeleteUnknownId($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "request": {
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/999999999999"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "catalogDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "__typename": "CatalogUserError",
+                "field": ["id"],
+                "message": "Catalog does not exist",
+                "code": "CATALOG_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "success": {
+    "setupRead": {
+      "name": "catalogDeleteSuccessSetupRead",
+      "query": "query CatalogDeleteSuccessSetupRead($catalogId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "catalogId": "gid://shopify/MarketCatalog/146213929266"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/146213929266",
+              "title": "Catalog Delete moyni87r",
+              "status": "ACTIVE",
+              "markets": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Market/97997685042",
+                    "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "name": "catalogDeleteSuccess",
+      "query": "mutation CatalogDeleteSuccess($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "id": "gid://shopify/MarketCatalog/146213929266"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/146213929266",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "driverRejection": {
+    "status": "captured-empty",
+    "todo": "Capture a driver-owned catalogDelete rejection when the conformance store has a catalog context driver state that refuses deletion.",
+    "attempts": [
+      {
+        "name": "marketCatalogCreatedWithExistingMarketDeletesSuccessfully",
+        "operations": [
+          {
+            "name": "catalogDeleteSuccess",
+            "query": "mutation CatalogDeleteSuccess($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+            "request": {
+              "variables": {
+                "id": "gid://shopify/MarketCatalog/146213929266"
+              }
+            },
+            "response": {
+              "status": 200,
+              "payload": {
+                "data": {
+                  "catalogDelete": {
+                    "deletedId": "gid://shopify/MarketCatalog/146213929266",
+                    "userErrors": []
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 10,
+                    "actualQueryCost": 10,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1990,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "cleanup": [],
+        "outcome": "no-rejection"
+      },
+      {
+        "name": "companyLocationCatalogDeletesSuccessfully",
+        "operations": [
+          {
+            "name": "catalogDeleteCompanyCreate",
+            "query": "#graphql\nmutation CatalogDeleteCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      locations(first: 1) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+            "request": {
+              "variables": {
+                "input": {
+                  "company": {
+                    "name": "Catalog Delete moyni87r",
+                    "externalId": "catalog-delete-moyni87r"
+                  },
+                  "companyLocation": {
+                    "name": "Catalog Delete HQ",
+                    "billingAddress": {
+                      "address1": "1 Catalog Delete Way",
+                      "city": "Ottawa",
+                      "countryCode": "CA"
+                    }
+                  }
+                }
+              }
+            },
+            "response": {
+              "status": 200,
+              "payload": {
+                "data": {
+                  "companyCreate": {
+                    "company": {
+                      "id": "gid://shopify/Company/5460885810",
+                      "locations": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/CompanyLocation/8289091890"
+                          }
+                        ]
+                      }
+                    },
+                    "userErrors": []
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 13,
+                    "actualQueryCost": 13,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1987,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "catalogDeleteCompanyLocationCatalogCreate",
+            "query": "#graphql\nmutation CatalogDeleteCompanyLocationCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      __typename\n      id\n      title\n      status\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+            "request": {
+              "variables": {
+                "input": {
+                  "title": "Catalog Delete Company moyni87r",
+                  "status": "ACTIVE",
+                  "context": {
+                    "companyLocationIds": ["gid://shopify/CompanyLocation/8289091890"]
+                  }
+                }
+              }
+            },
+            "response": {
+              "status": 200,
+              "payload": {
+                "data": {
+                  "catalogCreate": {
+                    "catalog": {
+                      "__typename": "CompanyLocationCatalog",
+                      "id": "gid://shopify/CompanyLocationCatalog/146213962034",
+                      "title": "Catalog Delete Company moyni87r",
+                      "status": "ACTIVE"
+                    },
+                    "userErrors": []
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 10,
+                    "actualQueryCost": 10,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1990,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "catalogDeleteCompanyLocationCatalogDelete",
+            "query": "mutation CatalogDeleteSuccess($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+            "request": {
+              "variables": {
+                "id": "gid://shopify/CompanyLocationCatalog/146213962034"
+              }
+            },
+            "response": {
+              "status": 200,
+              "payload": {
+                "data": {
+                  "catalogDelete": {
+                    "deletedId": "gid://shopify/CompanyLocationCatalog/146213962034",
+                    "userErrors": []
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 10,
+                    "actualQueryCost": 10,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1990,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "cleanup": [
+          {
+            "type": "company",
+            "id": "gid://shopify/Company/5460885810",
+            "response": {
+              "status": 200,
+              "payload": {
+                "data": {
+                  "companyDelete": {
+                    "deletedCompanyId": "gid://shopify/Company/5460885810",
+                    "userErrors": []
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 10,
+                    "actualQueryCost": 10,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1990,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "outcome": "no-rejection"
+      }
+    ]
+  },
+  "cleanup": [],
+  "upstreamCalls": [
+    {
+      "operationName": "CatalogDeleteSuccessSetupRead",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/146213929266"
+      },
+      "query": "query CatalogDeleteSuccessSetupRead($catalogId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/146213929266",
+              "title": "Catalog Delete moyni87r",
+              "status": "ACTIVE",
+              "markets": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Market/97997685042",
+                    "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

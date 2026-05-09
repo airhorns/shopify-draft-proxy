@@ -68,6 +68,15 @@ pub fn user_error(
 }
 
 @internal
+pub fn catalog_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("CatalogUserError"))
+}
+
+@internal
 pub fn user_error_null_code(
   field: List(String),
   message: String,
@@ -761,7 +770,7 @@ fn catalog_price_list_errors(
 ) -> List(CapturedJsonValue) {
   case store.get_effective_price_list_by_id(store, price_list_id) {
     None -> [
-      user_error(
+      catalog_user_error(
         ["input", "priceListId"],
         "Price list not found.",
         "PRICE_LIST_NOT_FOUND",
@@ -772,7 +781,7 @@ fn catalog_price_list_errors(
         catalog_referencing_price_list(store, price_list_id, current_catalog_id)
       {
         Some(_) -> [
-          user_error(
+          catalog_user_error(
             ["input", "priceListId"],
             "Price list has already been taken",
             "TAKEN",
@@ -790,7 +799,7 @@ fn catalog_publication_errors(
 ) -> List(CapturedJsonValue) {
   case store.get_effective_publication_by_id(store, publication_id) {
     None -> [
-      user_error(
+      catalog_user_error(
         ["input", "publicationId"],
         "Publication not found.",
         "PUBLICATION_NOT_FOUND",
@@ -802,7 +811,7 @@ fn catalog_publication_errors(
           case same_optional_catalog(current_catalog_id, catalog_id) {
             True -> []
             False -> [
-              user_error(
+              catalog_user_error(
                 ["input", "publicationId"],
                 "Publication is already attached to another catalog",
                 "PUBLICATION_TAKEN",
@@ -818,7 +827,7 @@ fn catalog_publication_errors(
             )
           {
             Some(_) -> [
-              user_error(
+              catalog_user_error(
                 ["input", "publicationId"],
                 "Publication is already attached to another catalog",
                 "PUBLICATION_TAKEN",
@@ -886,11 +895,13 @@ fn catalog_publication_id(data: CapturedJsonValue) -> Option(String) {
 @internal
 pub fn catalog_title_errors(title: String) -> List(CapturedJsonValue) {
   case string.trim(title) {
-    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
+    "" -> [
+      catalog_user_error(["input", "title"], "Title can't be blank", "BLANK"),
+    ]
     trimmed ->
       case string.length(trimmed) < 2 {
         True -> [
-          user_error(
+          catalog_user_error(
             ["input", "title"],
             "Title is too short (minimum is 2 characters)",
             "TOO_SHORT",
@@ -907,13 +918,17 @@ pub fn catalog_status_errors(
 ) -> List(CapturedJsonValue) {
   case read_arg_string_allow_empty(input, "status") {
     None -> [
-      user_error(["input", "status"], "Status is required", "REQUIRED"),
+      catalog_user_error(["input", "status"], "Status is required", "REQUIRED"),
     ]
     Some(status) ->
       case list.contains(["ACTIVE", "ARCHIVED", "DRAFT"], status) {
         True -> []
         False -> [
-          user_error(["input", "status"], "Status is invalid", "INVALID"),
+          catalog_user_error(
+            ["input", "status"],
+            "Status is invalid",
+            "INVALID",
+          ),
         ]
       }
   }
@@ -926,7 +941,7 @@ pub fn catalog_context_errors(
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_object(input, "context") {
     None -> [
-      user_error(["input", "context"], "Context is required", "INVALID"),
+      catalog_user_error(["input", "context"], "Context is required", "INVALID"),
     ]
     Some(context) -> catalog_context_object_errors(store, context)
   }
@@ -983,7 +998,7 @@ pub fn catalog_context_object_errors(
           }
         }
         _ -> [
-          user_error(
+          catalog_user_error(
             ["input", "context", "driverType"],
             "Driver type is invalid",
             "INVALID",
@@ -1014,7 +1029,7 @@ pub fn unsupported_catalog_context_errors(
   driver_type: String,
 ) -> List(CapturedJsonValue) {
   [
-    user_error(
+    catalog_user_error(
       ["input", "context", "driverType"],
       "Catalog context driverType "
         <> driver_type
@@ -1035,13 +1050,17 @@ pub fn require_catalog_context_ids(
       case ids {
         [] ->
           Error([
-            user_error(["input", "context", field_name], message, "INVALID"),
+            catalog_user_error(
+              ["input", "context", field_name],
+              message,
+              "INVALID",
+            ),
           ])
         [_, ..] -> Ok(ids)
       }
     None ->
       Error([
-        user_error(["input", "context", field_name], message, "INVALID"),
+        catalog_user_error(["input", "context", field_name], message, "INVALID"),
       ])
   }
 }
@@ -1058,7 +1077,7 @@ pub fn missing_market_context_errors(
     case store.get_effective_market_by_id(store, id) {
       Some(_) -> Error(Nil)
       None ->
-        Ok(user_error(
+        Ok(catalog_user_error(
           ["input", "context", "marketIds", int.to_string(index)],
           "Market does not exist",
           "INVALID",
@@ -1079,7 +1098,7 @@ pub fn missing_company_location_context_errors(
     case store.get_effective_b2b_company_location_by_id(store, id) {
       Some(_) -> Error(Nil)
       None ->
-        Ok(user_error(
+        Ok(catalog_user_error(
           ["input", "context", "companyLocationIds", int.to_string(index)],
           "Company location does not exist",
           "INVALID",

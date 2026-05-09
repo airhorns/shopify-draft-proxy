@@ -3197,6 +3197,28 @@ pub fn catalog_delete_detaches_surviving_price_list_test() {
     == "{\"data\":{\"catalog\":null,\"priceList\":{\"id\":\"gid://shopify/PriceList/attached\",\"catalog\":null}}}"
 }
 
+pub fn catalog_delete_unknown_id_includes_catalog_user_error_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogDelete(id: \"gid://shopify/MarketCatalog/missing\") { deletedId userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"CatalogUserError\",\"field\":[\"id\"],\"message\":\"Catalog does not exist\",\"code\":\"CATALOG_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_validation_includes_catalog_user_error_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/missing\"] } }) { catalog { id } userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"__typename\":\"CatalogUserError\",\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+}
+
 pub fn price_list_delete_detaches_catalog_and_clears_fixed_prices_test() {
   let proxy = attached_catalog_price_list_proxy()
   let #(Response(status: update_status, body: update_body, ..), proxy) =
