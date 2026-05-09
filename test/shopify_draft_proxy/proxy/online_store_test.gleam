@@ -1468,21 +1468,39 @@ pub fn server_pixel_state_keeps_webhook_endpoint_address_test() {
     "mutation { serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { field message } } }"
   let #(body, proxy) = run_graphql(proxy(), query)
   assert body
-    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"CONNECTED\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
 
   let state = read_state(proxy)
   assert string.contains(state, "onlineStoreServerPixels")
   assert string.contains(state, "webhookEndpointAddress")
 }
 
+pub fn server_pixel_duplicate_create_returns_taken_error_test() {
+  let query =
+    "mutation { serverPixelCreate { serverPixel { id status } userErrors { __typename code field message } } }"
+  let #(first, proxy) = run_graphql(proxy(), query)
+  assert first
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\"},\"userErrors\":[]}}}"
+
+  let #(second, proxy) = run_graphql(proxy, query)
+  assert second
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":null,\"userErrors\":[{\"__typename\":\"ServerPixelUserError\",\"code\":\"TAKEN\",\"field\":[\"input\"],\"message\":\"Server pixel already exists\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "serverPixel",
+    )
+    |> list.length
+    == 1
+}
+
 pub fn server_pixel_endpoint_updates_stage_valid_addresses_test() {
   let #(create_body, proxy) =
     run_graphql(
       proxy(),
-      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { code field message } } }",
+      "mutation { serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { code field message } } }",
     )
   assert create_body
-    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
 
   let arn = "arn:aws:events:us-east-1:123456789012:event-bus/local"
   let #(eventbridge_body, proxy) =
@@ -1490,21 +1508,30 @@ pub fn server_pixel_endpoint_updates_stage_valid_addresses_test() {
       proxy,
       "mutation { eventBridgeServerPixelUpdate(arn: \""
         <> arn
-        <> "\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+        <> "\") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } } }",
     )
   assert eventbridge_body
-    == "{\"data\":{\"eventBridgeServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"arn:aws:events:us-east-1:123456789012:event-bus/local\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"eventBridgeServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"CONNECTED\",\"webhookEndpointAddress\":\"arn:aws:events:us-east-1:123456789012:event-bus/local\"},\"userErrors\":[]}}}"
+
+  let #(read_body, proxy) =
+    run_graphql(
+      proxy,
+      "query { serverPixel { id status webhookEndpointAddress } }",
+    )
+  assert read_body
+    == "{\"data\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"CONNECTED\",\"webhookEndpointAddress\":\"arn:aws:events:us-east-1:123456789012:event-bus/local\"}}}"
 
   let #(pubsub_body, proxy) =
     run_graphql(
       proxy,
-      "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+      "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } } }",
     )
   assert pubsub_body
-    == "{\"data\":{\"pubSubServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"project/topic\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"pubSubServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"CONNECTED\",\"webhookEndpointAddress\":\"project/topic\"},\"userErrors\":[]}}}"
 
   let state = read_state(proxy)
   assert string.contains(state, "\"webhookEndpointAddress\":\"project/topic\"")
+  assert string.contains(state, "\"status\":\"CONNECTED\"")
   let log = read_log(proxy)
   assert string.contains(log, "eventBridgeServerPixelUpdate")
   assert string.contains(log, "pubSubServerPixelUpdate")

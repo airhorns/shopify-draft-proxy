@@ -1378,6 +1378,16 @@ pub fn web_pixel_taken_error() -> graphql_helpers.SourceValue {
 }
 
 @internal
+pub fn server_pixel_taken_error() -> graphql_helpers.SourceValue {
+  integration_user_error(
+    "serverPixel",
+    ["input"],
+    "Server pixel already exists",
+    "TAKEN",
+  )
+}
+
+@internal
 pub type IntegrationLookup {
   IntegrationFound(OnlineStoreIntegrationRecord)
   IntegrationInvalidId
@@ -1489,6 +1499,13 @@ pub fn web_pixel_status_source(
 
 @internal
 pub fn same_current_app_web_pixel(
+  record: OnlineStoreIntegrationRecord,
+) -> Bool {
+  same_current_app_integration(record)
+}
+
+@internal
+pub fn same_current_app_integration(
   record: OnlineStoreIntegrationRecord,
 ) -> Bool {
   current_app_key(captured_to_source(record.data)) == current_app_key(SrcNull)
