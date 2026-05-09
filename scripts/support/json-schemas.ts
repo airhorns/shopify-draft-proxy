@@ -79,7 +79,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   documentCapturePath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
-  variables: graphqlVariablesSchema.optional(),
+  variables: jsonObjectSchema.optional(),
   apiVersion: z
     .string()
     .regex(/^\d{4}-\d{2}$/u)
@@ -88,6 +88,13 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   waitBeforeMs: z.number().int().nonnegative().optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
+
+export const paritySetupRequestSchema = z.strictObject({
+  kind: z.literal('staged-upload-content'),
+  path: jsonValueSchema,
+  byteSizeCapturePath: z.string(),
+});
+export type ParitySetupRequest = z.infer<typeof paritySetupRequestSchema>;
 
 export const matcherSchema = z.union([
   z.literal('any-string'),
@@ -148,6 +155,7 @@ export const paritySpecSchema = z
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
+    setupRequests: z.array(paritySetupRequestSchema).optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
     runtimeTestFiles: z.array(z.string()).optional(),

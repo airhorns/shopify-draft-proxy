@@ -180,6 +180,7 @@ pub fn process_request(
     MetaState -> #(ok_json_response(get_state_snapshot(proxy)), proxy)
     MetaReset -> #(reset_response(), reset(proxy))
     MetaCommit -> dispatch_meta_commit_sync(proxy, request)
+    StagedUpload -> dispatch_staged_upload(proxy, request)
     GraphQL(version: _) -> dispatch_graphql(proxy, request)
     NotFound -> #(not_found_response(), proxy)
     MethodNotAllowed -> #(method_not_allowed_response(), proxy)
@@ -193,6 +194,7 @@ type Route {
   MetaState
   MetaReset
   MetaCommit
+  StagedUpload
   GraphQL(version: String)
   NotFound
   MethodNotAllowed
@@ -208,9 +210,14 @@ fn route(request: Request) -> Route {
     "/__meta/reset" -> only_method("POST", method, MetaReset)
     "/__meta/commit" -> only_method("POST", method, MetaCommit)
     other ->
-      case is_admin_graphql_path(other) {
-        Ok(version) -> only_method("POST", method, GraphQL(version: version))
-        Error(_) -> NotFound
+      case is_staged_upload_path(other) {
+        True -> upload_method(method)
+        False ->
+          case is_admin_graphql_path(other) {
+            Ok(version) ->
+              only_method("POST", method, GraphQL(version: version))
+            Error(_) -> NotFound
+          }
       }
   }
 }
@@ -222,6 +229,17 @@ fn only_method(expected: String, actual: String, route: Route) -> Route {
   }
 }
 
+fn upload_method(method: String) -> Route {
+  case method {
+    "POST" | "PUT" -> StagedUpload
+    _ -> MethodNotAllowed
+  }
+}
+
+fn is_staged_upload_path(path: String) -> Bool {
+  string.starts_with(path, "/staged-uploads/")
+}
+
 fn is_admin_graphql_path(path: String) -> Result(String, Nil) {
   // Match /admin/api/{version}/graphql.json without pulling in a regex
   // dependency. Splits cheaply into segments and walks the prefix.
@@ -229,6 +247,25 @@ fn is_admin_graphql_path(path: String) -> Result(String, Nil) {
     ["", "admin", "api", version, "graphql.json"] -> Ok(version)
     _ -> Error(Nil)
   }
+}
+
+fn dispatch_staged_upload(
+  proxy: DraftProxy,
+  request: Request,
+) -> #(Response, DraftProxy) {
+  let resource_url = "https://shopify-draft-proxy.local" <> request.path
+  let next =
+    proxy
+    |> stage_staged_upload_content(request.path, request.body)
+    |> stage_staged_upload_content(resource_url, request.body)
+  #(
+    Response(
+      status: 201,
+      body: json.object([#("ok", json.bool(True))]),
+      headers: [],
+    ),
+    next,
+  )
 }
 
 fn health_response() -> Response {

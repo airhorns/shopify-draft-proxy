@@ -27,12 +27,12 @@ import gleam/set
 import gleam/string
 import parity/cassette
 import parity/diff.{type Mismatch}
-import parity/json_value.{type JsonValue, JArray, JObject, JString}
+import parity/json_value.{type JsonValue, JArray, JInt, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type ProxyRequest, type Spec, type Target, NoVariables, OverrideRequest,
-  ProxyLog, ProxyResponse, ProxyState, ReusePrimary, VariablesFromCapture,
-  VariablesFromFile, VariablesInline,
+  type ProxyRequest, type SetupRequest, type Spec, type Target, NoVariables,
+  OverrideRequest, ProxyLog, ProxyResponse, ProxyState, ReusePrimary,
+  StagedUploadSetup, VariablesFromCapture, VariablesFromFile, VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -172,6 +172,13 @@ pub fn run_with_config(
     config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
+  use proxy <- result.try(run_setup_requests(
+    parsed.setup_requests,
+    capture,
+    primary_value,
+    proxy,
+    config.debug,
+  ))
   use #(_proxy, target_reports, target_ops) <- result.try(run_targets(
     config,
     parsed,
@@ -298,6 +305,116 @@ fn first_customer_gid(value: JsonValue) -> Option(String) {
   case found {
     Ok(id) -> Some(id)
     Error(_) -> None
+  }
+}
+
+fn run_setup_requests(
+  requests: List(SetupRequest),
+  capture: JsonValue,
+  primary_response: JsonValue,
+  proxy: DraftProxy,
+  debug: Bool,
+) -> Result(DraftProxy, RunError) {
+  list.try_fold(requests, proxy, fn(proxy, request) {
+    run_setup_request(request, capture, primary_response, proxy, debug)
+  })
+}
+
+fn run_setup_request(
+  request: SetupRequest,
+  capture: JsonValue,
+  primary_response: JsonValue,
+  proxy: DraftProxy,
+  debug: Bool,
+) -> Result(DraftProxy, RunError) {
+  case request {
+    StagedUploadSetup(path_template, byte_size_capture_path) ->
+      run_staged_upload_setup(
+        path_template,
+        byte_size_capture_path,
+        capture,
+        primary_response,
+        proxy,
+        debug,
+      )
+  }
+}
+
+fn run_staged_upload_setup(
+  path_template: JsonValue,
+  byte_size_capture_path: String,
+  capture: JsonValue,
+  primary_response: JsonValue,
+  proxy: DraftProxy,
+  debug: Bool,
+) -> Result(DraftProxy, RunError) {
+  use path_value <- result.try(substitute(
+    path_template,
+    Some(primary_response),
+    None,
+    dict.new(),
+    capture,
+  ))
+  use upload_path <- result.try(setup_string_value(
+    path_value,
+    "staged-upload path",
+  ))
+  use byte_size <- result.try(capture_int(capture, byte_size_capture_path))
+  let request_path = local_staged_upload_path(upload_path)
+  let body = string.repeat("x", times: byte_size)
+  case debug {
+    True ->
+      io.println_error(
+        "[runner] -> setup staged-upload bytes="
+        <> int.to_string(byte_size)
+        <> " path="
+        <> request_path,
+      )
+    False -> Nil
+  }
+  let #(response, next_proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "PUT",
+        path: request_path,
+        headers: dict.new(),
+        body: body,
+      ),
+    )
+  case response.status {
+    201 -> Ok(next_proxy)
+    status ->
+      Error(ProxyStatus(
+        target: "<setup staged-upload>",
+        status: status,
+        body: json.to_string(response.body),
+      ))
+  }
+}
+
+fn setup_string_value(
+  value: JsonValue,
+  label: String,
+) -> Result(String, RunError) {
+  case value {
+    JString(value) -> Ok(value)
+    _ -> Error(SpecError(reason: label <> " must resolve to a string"))
+  }
+}
+
+fn capture_int(capture: JsonValue, path: String) -> Result(Int, RunError) {
+  case jsonpath.lookup(capture, path) {
+    Some(JInt(value)) -> Ok(value)
+    _ -> Error(CaptureRefUnresolved(path: path))
+  }
+}
+
+fn local_staged_upload_path(value: String) -> String {
+  let origin = "https://shopify-draft-proxy.local"
+  case string.starts_with(value, origin) {
+    True -> string.drop_start(value, string.length(origin))
+    False -> value
   }
 }
 

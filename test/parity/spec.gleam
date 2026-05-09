@@ -42,7 +42,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import parity/diff.{type ExpectedDifference}
-import parity/json_value.{type JsonValue}
+import parity/json_value.{type JsonValue, JString}
 
 pub type ParityVariables {
   /// Resolve variables by following a JSONPath into the primary capture.
@@ -65,6 +65,10 @@ pub type ProxyRequest {
     api_version: Option(String),
     headers: List(#(String, String)),
   )
+}
+
+pub type SetupRequest {
+  StagedUploadSetup(path_template: JsonValue, byte_size_capture_path: String)
 }
 
 pub type TargetRequest {
@@ -102,6 +106,7 @@ pub type Spec {
     scenario_id: String,
     capture_file: String,
     proxy_request: ProxyRequest,
+    setup_requests: List(SetupRequest),
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
     operation_names: List(String),
@@ -123,6 +128,11 @@ fn spec_decoder() -> Decoder(Spec) {
   use scenario_id <- decode.field("scenarioId", decode.string)
   use captures <- decode.field("liveCaptureFiles", decode.list(decode.string))
   use proxy_request <- decode.field("proxyRequest", proxy_request_decoder())
+  use setup_requests <- decode.optional_field(
+    "setupRequests",
+    [],
+    decode.list(setup_request_decoder()),
+  )
   use comparison <- decode.field("comparison", comparison_decoder())
   use operation_names <- decode.optional_field(
     "operationNames",
@@ -135,6 +145,7 @@ fn spec_decoder() -> Decoder(Spec) {
         scenario_id: scenario_id,
         capture_file: first,
         proxy_request: proxy_request,
+        setup_requests: setup_requests,
         targets: comparison.0,
         expected_differences: comparison.1,
         operation_names: operation_names,
@@ -148,6 +159,7 @@ fn empty_spec() -> Spec {
     scenario_id: "",
     capture_file: "",
     proxy_request: empty_proxy_request(),
+    setup_requests: [],
     targets: [],
     expected_differences: [],
     operation_names: [],
@@ -209,6 +221,36 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     api_version: api_version,
     headers: headers,
   ))
+}
+
+fn setup_request_decoder() -> Decoder(SetupRequest) {
+  use kind <- decode.field("kind", decode.string)
+  case kind {
+    "staged-upload-content" -> {
+      use path_dyn <- decode.field("path", decode.dynamic)
+      use byte_size_capture_path <- decode.field(
+        "byteSizeCapturePath",
+        decode.string,
+      )
+      case json_value.from_dynamic(path_dyn) {
+        Ok(path_template) ->
+          decode.success(StagedUploadSetup(
+            path_template: path_template,
+            byte_size_capture_path: byte_size_capture_path,
+          ))
+        Error(_) ->
+          decode.failure(
+            StagedUploadSetup(JString(""), ""),
+            "setupRequests[].path must be a JSON value",
+          )
+      }
+    }
+    _ ->
+      decode.failure(
+        StagedUploadSetup(JString(""), ""),
+        "unknown setup request kind",
+      )
+  }
 }
 
 fn variables_from_fields(

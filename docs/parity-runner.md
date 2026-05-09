@@ -61,6 +61,13 @@ billing interval and `trialDays`. The executable local-runtime proof is
     "apiVersion": "2025-01",
     "variables": { "id": "gid://shopify/Customer/123" },
   },
+  "setupRequests": [
+    {
+      "kind": "staged-upload-content",
+      "path": { "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl" },
+      "byteSizeCapturePath": "$.upload.byteSize",
+    },
+  ],
   "comparison": {
     "targets": [{ "name": "primary", "capturePath": "$.cases[0].response.payload", "proxyPath": "$" }],
   },
@@ -71,12 +78,22 @@ billing interval and `trialDays`. The executable local-runtime proof is
 is distinct from proxy runtime read mode, which the runner owns.
 
 Parity specs must not include `proxyRequest.localSetups` or any other
-runner setup hook that pre-seeds proxy state before the request is
-executed. If the proxy needs existing Shopify state to answer a request,
-the operation handler must model that state from earlier scenario
-requests or from cassette-backed upstream reads. If that is not
-implemented yet, keep the gap out of the checked-in parity spec and
-track the missing fidelity work outside the scenario corpus.
+runner hook that pre-seeds proxy state before the scenario is executed.
+If the proxy needs existing Shopify state to answer a request, the
+operation handler must model that state from earlier scenario requests or
+from cassette-backed upstream reads. If that is not implemented yet, keep
+the gap out of the checked-in parity spec and track the missing fidelity
+work outside the scenario corpus.
+
+`setupRequests` is reserved for replaying request-visible non-GraphQL
+handoffs that the primary GraphQL request created, not for arbitrary
+state writes. The only supported setup request today is
+`staged-upload-content`: after a primary `stagedUploadsCreate` response,
+the runner resolves a local staged-upload URL from the primary proxy
+response, generates a text body with a byte length taken from the capture,
+and sends a PUT through `draft_proxy.process_request` to the
+`/staged-uploads/...` route. This lets parity scenarios exercise
+staged-upload byte gates without checking large upload bodies into git.
 
 ## Cassette shape
 

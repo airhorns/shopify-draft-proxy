@@ -1,12 +1,60 @@
 {
   "scenarioId": "bulk-operation-run-mutation-oversized-upload",
-  "operationNames": ["bulkOperationRunMutation"],
+  "operationNames": ["stagedUploadsCreate", "bulkOperationRunMutation"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "side-effect-boundary", "runtime-test-backed-lifecycle"],
+  "assertionKinds": ["user-errors-parity", "side-effect-boundary", "payload-shape", "runtime-test-backed-lifecycle"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-oversized-upload.json"
   ],
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
-  "comparisonMode": "captured-fixture",
-  "notes": "Captures Shopify Admin GraphQL 2026-04 rejecting a BULK_MUTATION_VARIABLES JSONL upload larger than 100 MiB with INVALID_STAGED_UPLOAD_FILE before returning or enqueueing a BulkOperation. The generic parity runner cannot replay multipart staged-upload byte handoff, so the fixture is enforced by the focused runtime test that stages local upload bytes with a lowered config limit and asserts the same response shape plus no bulk job, mutation log, or per-line mutation side effect."
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-oversized-upload-staged-upload.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": [
+        {
+          "filename": "oversized-bulk-mutation-upload.jsonl",
+          "mimeType": "text/jsonl",
+          "resource": "BULK_MUTATION_VARIABLES",
+          "httpMethod": "PUT",
+          "fileSize": "104858624"
+        }
+      ]
+    }
+  },
+  "setupRequests": [
+    {
+      "kind": "staged-upload-content",
+      "path": {
+        "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+      },
+      "byteSizeCapturePath": "$.oversizedInputFileSizeBytes"
+    }
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "oversized-upload-rejected-before-job",
+        "capturePath": "$.run.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
+          "documentCapturePath": "$.run.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.run.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL 2026-04 rejecting a BULK_MUTATION_VARIABLES JSONL upload larger than 100 MiB with INVALID_STAGED_UPLOAD_FILE before returning or enqueueing a BulkOperation. The parity runner now executes the local staged-upload flow: stagedUploadsCreate returns an inert proxy upload URL, setupRequests PUTs generated oversized bytes to that URL without checking a 100 MiB payload into git, and bulkOperationRunMutation compares the oversized rejection payload against the live Shopify capture. Focused runtime tests continue to assert no bulk job, mutation log, or per-line mutation side effect using a lowered config limit."
 }
