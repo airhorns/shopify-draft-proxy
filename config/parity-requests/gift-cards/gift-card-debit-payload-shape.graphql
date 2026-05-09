@@ -1,0 +1,17 @@
+mutation GiftCardDebitPayloadShape($id: ID!, $input: GiftCardDebitInput!) {
+  giftCardDebit(id: $id, debitInput: $input) {
+    giftCardDebitTransaction {
+      id
+      __typename
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

@@ -947,6 +947,12 @@ fn schema_validation_errors(
               query,
               fragments,
             ))
+            |> list.append(gift_card_transaction_payload_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            ))
             |> list.append(staged_upload_resource_enum_errors(
               name.value,
               variables,
@@ -1353,6 +1359,41 @@ fn staged_uploads_create_user_error_selection_errors(
   }
 }
 
+fn gift_card_transaction_payload_selection_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+  fragments: FragmentMap,
+) -> List(Json) {
+  case field {
+    Field(name: name, ..)
+      if name.value == "giftCardCredit" || name.value == "giftCardDebit"
+    -> {
+      let payload_typename = case name.value {
+        "giftCardDebit" -> "GiftCardDebitPayload"
+        _ -> "GiftCardCreditPayload"
+      }
+      collect_payload_field_selections(field, fragments)
+      |> list.filter_map(fn(selected) {
+        let #(field_name, loc) = selected
+        case field_name {
+          "giftCard" ->
+            Ok(build_undefined_gift_card_transaction_payload_field_error(
+              field_name,
+              loc,
+              operation_path,
+              name.value,
+              payload_typename,
+              source_body,
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    }
+    _ -> []
+  }
+}
+
 fn collect_payload_field_selections(
   field: Selection,
   fragments: FragmentMap,
@@ -1714,6 +1755,48 @@ fn build_undefined_staged_upload_user_error_field_error(
         json.object([
           #("code", json.string("undefinedField")),
           #("typeName", json.string("UserError")),
+          #("fieldName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_undefined_gift_card_transaction_payload_field_error(
+  field_name: String,
+  field_loc: Option(Location),
+  operation_path: String,
+  root_field_name: String,
+  payload_typename: String,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '"
+        <> field_name
+        <> "' doesn't exist on type '"
+        <> payload_typename
+        <> "'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array([operation_path, root_field_name, field_name], json.string),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("undefinedField")),
+          #("typeName", json.string(payload_typename)),
           #("fieldName", json.string(field_name)),
         ]),
       ),
