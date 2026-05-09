@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-fixed-prices-update-variant-not-found",
+  "operationNames": ["priceListFixedPricesUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-update-validation.graphql",
+    "variablesCapturePath": "$.cases.updateVariantNotFound.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-variant-not-found",
+        "capturePath": "$.cases.updateVariantNotFound.response.payload.data.priceListFixedPricesUpdate",
+        "proxyPath": "$.data.priceListFixedPricesUpdate"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesUpdate unknown variant validation. Shopify returns VARIANT_NOT_FOUND at pricesToAdd[0].variantId while preserving non-null priceList and empty result arrays."
+}

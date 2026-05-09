@@ -744,7 +744,7 @@ pub fn price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test() 
   ) =
     graphql_with_proxy(
       proxy_after_update,
-      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/beta\", \"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { field message code } } }",
+      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { field message code } } }",
     )
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql_with_proxy(
@@ -783,7 +783,7 @@ pub fn price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test() 
   assert !string.contains(read_json, "\"variant\":{\"id\"")
 }
 
-pub fn price_list_fixed_prices_validates_target_variant_currency_and_duplicates_test() {
+pub fn price_list_fixed_prices_validates_target_variant_and_currency_test() {
   let #(Response(status: missing_status, body: missing_body, ..), _) =
     graphql_with_proxy(
       price_list_fixed_price_proxy(),
@@ -805,34 +805,78 @@ pub fn price_list_fixed_prices_validates_target_variant_currency_and_duplicates_
   )
   assert string.contains(
     missing_json,
-    "\"field\":[\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"",
+    "\"field\":[\"priceListId\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"",
   )
   assert string.contains(
     input_json,
-    "\"field\":[\"prices\",\"0\",\"variantId\"],\"message\":\"Variant not found.\",\"code\":\"VARIANT_NOT_FOUND\"",
+    "\"field\":[\"prices\",\"0\",\"variantId\"],\"message\":\"Product variant ID does not exist.\",\"code\":\"VARIANT_NOT_FOUND\"",
   )
   assert string.contains(
     input_json,
-    "\"field\":[\"prices\",\"1\",\"price\",\"currencyCode\"],\"message\":\"Currency must match price list currency.\",\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
+    "\"field\":[\"prices\",\"1\",\"price\",\"currencyCode\"],\"message\":\"The specified currency does not match the price list's currency.\",\"code\":\"PRICE_LIST_CURRENCY_MISMATCH\"",
   )
-  assert string.contains(
-    input_json,
-    "\"field\":[\"prices\",\"2\",\"variantId\"],\"message\":\"Duplicate variant ID in input.\",\"code\":\"DUPLICATE_ID_IN_INPUT\"",
-  )
-  assert string.contains(input_json, "\"prices\":null")
+  assert !string.contains(input_json, "DUPLICATE_ID_IN_INPUT")
+  assert string.contains(input_json, "\"prices\":[]")
 }
 
-pub fn price_list_fixed_prices_update_rejects_missing_fixed_price_test() {
+pub fn price_list_fixed_prices_add_and_update_duplicate_variant_last_wins_test() {
+  let #(Response(status: add_status, body: add_body, ..), proxy_after_add) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/fixed\", prices: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"12.50\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"13.75\", currencyCode: EUR } }]) { prices { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy_after_add,
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"14.00\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { pricesAdded { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+
+  let add_json = json.to_string(add_body)
+  let update_json = json.to_string(update_body)
+  assert add_status == 200
+  assert update_status == 200
+  assert string.contains(add_json, "\"userErrors\":[]")
+  assert string.contains(
+    add_json,
+    "\"amount\":\"13.75\",\"currencyCode\":\"EUR\"",
+  )
+  assert !string.contains(add_json, "\"amount\":\"12.5\"")
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(
+    update_json,
+    "\"amount\":\"15.0\",\"currencyCode\":\"EUR\"",
+  )
+  assert !string.contains(update_json, "DUPLICATE_ID_IN_INPUT")
+}
+
+pub fn price_list_fixed_prices_update_adds_missing_fixed_price_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       price_list_fixed_price_proxy(),
-      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { priceList { id } userErrors { __typename field message code } } }",
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { priceList { id fixedPricesCount } pricesAdded { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"fixedPricesCount\":1")
+  assert string.contains(
+    serialized,
+    "\"amount\":\"15.0\",\"currencyCode\":\"EUR\"",
+  )
+}
+
+pub fn price_list_fixed_prices_delete_rejects_missing_fixed_price_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { __typename field message code } } }",
     )
 
   assert status == 200
   assert string.contains(
     json.to_string(body),
-    "\"field\":[\"pricesToAdd\",\"0\",\"variantId\"],\"message\":\"Price is not fixed.\",\"code\":\"PRICE_NOT_FIXED\"",
+    "\"field\":[\"variantIds\",\"0\"],\"message\":\"Only fixed prices can be deleted.\",\"code\":\"PRICE_NOT_FIXED\"",
   )
 }
 

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-fixed-prices-update-price-list-not-found",
+  "operationNames": ["priceListFixedPricesUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-update-validation.graphql",
+    "variablesCapturePath": "$.cases.updatePriceListNotFound.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-price-list-not-found",
+        "capturePath": "$.cases.updatePriceListNotFound.response.payload.data.priceListFixedPricesUpdate",
+        "proxyPath": "$.data.priceListFixedPricesUpdate"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesUpdate unknown price list validation. Shopify returns PRICE_LIST_NOT_FOUND and null mutation payload fields."
+}
