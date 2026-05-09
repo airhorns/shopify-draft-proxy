@@ -901,10 +901,37 @@ pub fn validate_fulfillment_service_name(
     Some(value) ->
       case string.trim(value) {
         "" -> blank_fulfillment_service_name_errors()
-        _ -> []
+        _ -> fulfillment_service_name_whitespace_errors(value)
       }
     None -> blank_fulfillment_service_name_errors()
   }
+}
+
+fn fulfillment_service_name_whitespace_errors(
+  value: String,
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  list.append(
+    case string.trim_start(value) == value {
+      True -> []
+      False -> [
+        shipping_types.FulfillmentServiceUserError(
+          field: Some(["name"]),
+          message: "Name cannot begin with a whitespace character",
+          code: None,
+        ),
+      ]
+    },
+    case string.trim_end(value) == value {
+      True -> []
+      False -> [
+        shipping_types.FulfillmentServiceUserError(
+          field: Some(["name"]),
+          message: "Name cannot end with a whitespace character",
+          code: None,
+        ),
+      ]
+    },
+  )
 }
 
 @internal
