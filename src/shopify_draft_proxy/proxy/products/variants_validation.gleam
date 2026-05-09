@@ -28,10 +28,13 @@ import shopify_draft_proxy/proxy/products/product_types.{
   BulkVariantUserError, ProductUserError, RecomputeProductTotalInventory,
   VariantValidationProblem, max_product_variants, product_set_option_limit,
 }
-import shopify_draft_proxy/proxy/products/products_core.{enumerate_items}
+import shopify_draft_proxy/proxy/products/products_core.{
+  enumerate_items, product_set_metafield_records_for_owner,
+}
 import shopify_draft_proxy/proxy/products/products_records.{product_source}
 import shopify_draft_proxy/proxy/products/shared.{
-  mutation_result, read_object_list_field, read_string_field,
+  mutation_result, read_int_field, read_list_field_length,
+  read_object_list_field, read_string_field,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   find_variant_update, has_variant_id, has_variant_option_input,
@@ -44,7 +47,8 @@ import shopify_draft_proxy/proxy/products/variants_options.{
   variant_validation_problems,
 }
 import shopify_draft_proxy/proxy/products/variants_options_core.{
-  bulk_variant_error_from_problem, product_set_variant_defaults,
+  bulk_variant_error_from_problem, move_variant_to_position,
+  product_set_variant_defaults,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -54,6 +58,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type ProductOperationUserErrorRecord, type ProductOptionRecord,
   type ProductVariantRecord, ProductOperationUserErrorRecord,
+  ProductVariantRecord,
 }
 
 // ===== from variants_l06 =====
@@ -83,6 +88,23 @@ pub fn product_set_scalar_variant_errors(
         code: Some("INVALID_VARIANT"),
       )
     })
+    |> list.append(product_set_variant_media_input_errors(variant_input, index))
+  })
+}
+
+fn product_set_variant_media_input_errors(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(ProductOperationUserErrorRecord) {
+  variant_media_input_problems(input)
+  |> list.map(fn(problem) {
+    let VariantMediaInputProblem(suffix: suffix, message: message, code: code) =
+      problem
+    ProductOperationUserErrorRecord(
+      field: Some(["input", "variants", int.to_string(index), ..suffix]),
+      message: message,
+      code: Some(code),
+    )
   })
 }
 
@@ -232,14 +254,199 @@ pub fn make_created_variant_records(
 }
 
 @internal
+pub fn apply_variant_metafield_inputs(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  apply_variant_metafield_inputs_loop(store, identity, variants, inputs, [])
+}
+
+@internal
+pub fn apply_variant_metafield_inputs_by_id(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let input_variants =
+    inputs
+    |> list.filter_map(fn(input) {
+      case read_string_field(input, "id") {
+        Some(id) ->
+          variants
+          |> list.find(fn(variant) { variant.id == id })
+          |> option.from_result
+          |> option.to_result(Nil)
+        None -> Error(Nil)
+      }
+    })
+  apply_variant_metafield_inputs(store, identity, input_variants, inputs)
+}
+
+fn apply_variant_metafield_inputs_loop(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+  collected_ids: List(String),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  case variants, inputs {
+    [variant, ..rest_variants], [input, ..rest_inputs] ->
+      case dict.has_key(input, "metafields") {
+        True -> {
+          let #(metafields, next_identity, ids) =
+            product_set_metafield_records_for_owner(
+              store,
+              identity,
+              variant.id,
+              "PRODUCTVARIANT",
+              read_object_list_field(input, "metafields"),
+            )
+          let next_store =
+            store.replace_staged_metafields_for_owner(
+              store,
+              variant.id,
+              metafields,
+            )
+          apply_variant_metafield_inputs_loop(
+            next_store,
+            next_identity,
+            rest_variants,
+            rest_inputs,
+            list.append(collected_ids, ids),
+          )
+        }
+        False ->
+          apply_variant_metafield_inputs_loop(
+            store,
+            identity,
+            rest_variants,
+            rest_inputs,
+            collected_ids,
+          )
+      }
+    _, _ -> #(store, identity, collected_ids)
+  }
+}
+
+@internal
+pub fn apply_variant_input_positions(
+  variants: List(ProductVariantRecord),
+  positioned_variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductVariantRecord) {
+  case positioned_variants, inputs {
+    [variant, ..rest_variants], [input, ..rest_inputs] -> {
+      let next_variants = case read_int_field(input, "position") {
+        Some(position) if position > 0 ->
+          move_variant_to_position(variants, variant.id, position - 1)
+        _ -> variants
+      }
+      apply_variant_input_positions(next_variants, rest_variants, rest_inputs)
+    }
+    _, _ -> variants
+  }
+}
+
+@internal
+pub fn position_variants(
+  variants: List(ProductVariantRecord),
+) -> List(ProductVariantRecord) {
+  position_variants_loop(variants, 1, [])
+}
+
+fn position_variants_loop(
+  variants: List(ProductVariantRecord),
+  position: Int,
+  reversed: List(ProductVariantRecord),
+) -> List(ProductVariantRecord) {
+  case variants {
+    [] -> list.reverse(reversed)
+    [variant, ..rest] ->
+      position_variants_loop(rest, position + 1, [
+        ProductVariantRecord(..variant, position: Some(position)),
+        ..reversed
+      ])
+  }
+}
+
+@internal
+pub fn select_matching_variants(
+  variants: List(ProductVariantRecord),
+  selected: List(ProductVariantRecord),
+) -> List(ProductVariantRecord) {
+  selected
+  |> list.filter_map(fn(target) {
+    variants
+    |> list.find(fn(variant) { variant.id == target.id })
+    |> option.from_result
+    |> option.to_result(Nil)
+  })
+}
+
+@internal
 pub fn validate_bulk_variant_scalar_input(
   input: Dict(String, ResolvedValue),
   variant_index: Int,
 ) -> List(BulkVariantUserError) {
-  variant_validation_problems(input)
-  |> list.flat_map(fn(problem) {
-    bulk_variant_error_from_problem(problem, variant_index)
+  list.append(
+    variant_validation_problems(input)
+      |> list.flat_map(fn(problem) {
+        bulk_variant_error_from_problem(problem, variant_index)
+      }),
+    validate_bulk_variant_media_input(input, variant_index),
+  )
+}
+
+fn validate_bulk_variant_media_input(
+  input: Dict(String, ResolvedValue),
+  variant_index: Int,
+) -> List(BulkVariantUserError) {
+  variant_media_input_problems(input)
+  |> list.map(fn(problem) {
+    let VariantMediaInputProblem(suffix: suffix, message: message, code: code) =
+      problem
+    BulkVariantUserError(
+      Some(["variants", int.to_string(variant_index), ..suffix]),
+      message,
+      Some(code),
+    )
   })
+}
+
+type VariantMediaInputProblem {
+  VariantMediaInputProblem(suffix: List(String), message: String, code: String)
+}
+
+fn variant_media_input_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantMediaInputProblem) {
+  let conflict_errors = case
+    dict.has_key(input, "mediaId"),
+    dict.has_key(input, "mediaSrc")
+  {
+    True, True -> [
+      VariantMediaInputProblem(
+        suffix: [],
+        message: "cannot specify both `mediaId` and `mediaSrc`",
+        code: "INVALID_INPUT",
+      ),
+    ]
+    _, _ -> []
+  }
+  let count_errors = case read_list_field_length(input, "mediaSrc") {
+    Some(count) if count > 1 -> [
+      VariantMediaInputProblem(
+        suffix: ["mediaSrc"],
+        message: "Can only specify a maximum of 1 media src of type image",
+        code: "INVALID_INPUT",
+      ),
+    ]
+    _ -> []
+  }
+  list.append(conflict_errors, count_errors)
 }
 
 @internal

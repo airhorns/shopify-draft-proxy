@@ -376,9 +376,15 @@ pub fn make_default_variant_for_options(
       barcode: None,
       price: Some("0.00"),
       compare_at_price: None,
+      requires_shipping: Some(True),
       taxable: None,
+      tax_code: None,
       inventory_policy: None,
       inventory_quantity: Some(0),
+      position: None,
+      requires_components: None,
+      unit_price_measurement: None,
+      show_unit_price: None,
       selected_options: selected_options,
       media_ids: [],
       inventory_item: Some(
@@ -1041,12 +1047,26 @@ pub fn make_variant_for_combination(
       compare_at_price: option.then(template, fn(variant) {
         variant.compare_at_price
       }),
+      requires_shipping: option.then(template, fn(variant) {
+        variant.requires_shipping
+      }),
       taxable: option.then(template, fn(variant) { variant.taxable }),
+      tax_code: option.then(template, fn(variant) { variant.tax_code }),
       inventory_policy: option.then(template, fn(variant) {
         variant.inventory_policy
       }),
       inventory_quantity: option.then(template, fn(variant) {
         variant.inventory_quantity
+      }),
+      position: None,
+      requires_components: option.then(template, fn(variant) {
+        variant.requires_components
+      }),
+      unit_price_measurement: option.then(template, fn(variant) {
+        variant.unit_price_measurement
+      }),
+      show_unit_price: option.then(template, fn(variant) {
+        variant.show_unit_price
       }),
       selected_options: combination,
       media_ids: [],

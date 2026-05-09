@@ -1,0 +1,162 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-08T12:17:37.516Z",
+  "operations": ["fileCreate"],
+  "notes": [
+    "Captured fileCreate validation precedence for multi-fault inputs that public Admin GraphQL 2026-04 accepts for resolver execution.",
+    "Each invalid scenario returns exactly one userError for the input: URL validation short-circuits filename validation, and filename validation short-circuits duplicate-resolution-mode validation."
+  ],
+  "requestPath": "config/parity-requests/media/media-file-create-validation-precedence.graphql",
+  "scenarios": [
+    {
+      "name": "url-before-filename-mismatch",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "data:image/jpeg;base64,abc",
+            "filename": "file-create-validation-precedence-source.png"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "originalSource"],
+                  "message": "File URL is invalid",
+                  "code": "INVALID_IMAGE_SOURCE_URL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filename-mismatch-before-duplicate-mode",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/file-create-validation-precedence-mismatch.png",
+            "filename": "file-create-validation-precedence-mismatch.gif",
+            "contentType": "VIDEO",
+            "duplicateResolutionMode": "REPLACE"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "filename"],
+                  "message": "Provided filename extension must match original source.",
+                  "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "successful-create-baseline",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/file-create-validation-precedence-1778242656270.png",
+            "filename": "file-create-validation-precedence-1778242656270.png",
+            "contentType": "IMAGE",
+            "duplicateResolutionMode": "RAISE_ERROR",
+            "alt": "fileCreate validation precedence baseline 1778242656270"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [
+                {
+                  "id": "gid://shopify/MediaImage/43688245330226",
+                  "alt": "fileCreate validation precedence baseline 1778242656270",
+                  "createdAt": "2026-05-08T12:17:36Z",
+                  "fileStatus": "UPLOADED"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "fileIds": ["gid://shopify/MediaImage/43688245330226"],
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43688245330226"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1967,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

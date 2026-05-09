@@ -23,9 +23,9 @@ import shopify_draft_proxy/state/types.{
   type StorePropertyRecord, CalculatedOrderRecord, CapturedArray, CapturedBool,
   CapturedInt, CapturedNull, CapturedObject, CapturedString,
   CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
-  FulfillmentRecord, LocationRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ReverseFulfillmentOrderRecord, ShippingOrderRecord,
-  ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  FulfillmentRecord, FulfillmentServiceRecord, LocationRecord, ProductRecord,
+  ProductSeoRecord, ProductVariantRecord, ReverseFulfillmentOrderRecord,
+  ShippingOrderRecord, ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
 }
@@ -99,6 +99,12 @@ fn fulfillment_service_name_taken_payload(root: String) -> String {
   "{\"data\":{\""
   <> root
   <> "\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\",\"code\":null}]}}}"
+}
+
+fn fulfillment_service_name_reserved_payload(root: String) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name is reserved\",\"code\":null}]}}}"
 }
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
@@ -349,9 +355,15 @@ fn delivery_profile_lifecycle_store() -> store.Store {
       barcode: None,
       price: None,
       compare_at_price: None,
+      requires_shipping: None,
       taxable: None,
+      tax_code: None,
       inventory_policy: None,
       inventory_quantity: None,
+      position: None,
+      requires_components: None,
+      unit_price_measurement: None,
+      show_unit_price: None,
       selected_options: [],
       media_ids: [],
       inventory_item: None,
@@ -2398,6 +2410,57 @@ pub fn fulfillment_service_create_rejects_generated_handle_collision_test() {
   assert store.list_effective_fulfillment_services(duplicate.store) == [created]
 }
 
+pub fn fulfillment_service_create_normalizes_generated_handle_like_shopify_test() {
+  let outcome =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Café__3PL!!!",
+    )
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(outcome.store)
+
+  assert created.handle == "cafe__3pl"
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":{\"id\":\""
+    <> created.id
+    <> "\",\"handle\":\"cafe__3pl\",\"serviceName\":\"Café__3PL!!!\",\"location\":{\"id\":\""
+    <> option.unwrap(created.location_id, "")
+    <> "\",\"name\":\"Café__3PL!!!\",\"isFulfillmentService\":true}},\"userErrors\":[]}}}"
+
+  let punctuation =
+    fulfillment_service_create(
+      outcome.store,
+      outcome.identity,
+      "Crème Brûlée & Co",
+    )
+  let assert [_, punctuation_service] =
+    store.list_effective_fulfillment_services(punctuation.store)
+
+  assert punctuation_service.handle == "creme-brulee-co"
+}
+
+pub fn fulfillment_service_create_rejects_reserved_generated_handle_test() {
+  let manual =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "Manual")
+
+  assert json.to_string(manual.data)
+    == fulfillment_service_name_reserved_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(manual.store) == []
+  assert store.get_log(manual.store) == []
+
+  let gift_card =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Gift_Card",
+    )
+
+  assert json.to_string(gift_card.data)
+    == fulfillment_service_name_reserved_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(gift_card.store) == []
+}
+
 pub fn fulfillment_service_update_rejects_name_or_handle_collision_with_other_service_test() {
   let first =
     fulfillment_service_create(
@@ -2442,6 +2505,57 @@ pub fn fulfillment_service_update_rejects_name_or_handle_collision_with_other_se
       service_a.id,
     )
     == Some(service_a_after_second)
+}
+
+pub fn fulfillment_service_update_rejects_reserved_generated_handle_when_name_changes_test() {
+  let first =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Hermes Mutable",
+    )
+  let assert [created] = store.list_effective_fulfillment_services(first.store)
+
+  let reserved =
+    fulfillment_service_update(
+      first.store,
+      first.identity,
+      created.id,
+      "Shopify",
+    )
+
+  assert json.to_string(reserved.data)
+    == fulfillment_service_name_reserved_payload("fulfillmentServiceUpdate")
+  assert store.list_effective_fulfillment_services(reserved.store) == [created]
+}
+
+pub fn fulfillment_service_update_without_name_does_not_revalidate_existing_reserved_handle_test() {
+  let service =
+    FulfillmentServiceRecord(
+      id: "gid://shopify/FulfillmentService/legacy",
+      handle: "manual",
+      service_name: "Manual",
+      callback_url: None,
+      inventory_management: False,
+      location_id: None,
+      requires_shipping_method: True,
+      tracking_support: False,
+      type_: "THIRD_PARTY",
+    )
+  let #(_, seeded_store) =
+    store.stage_create_fulfillment_service(store.new(), service)
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation UpdateFs($id: ID!) { fulfillmentServiceUpdate(id: $id, trackingSupport: true) { fulfillmentService { id handle serviceName trackingSupport } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(service.id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":{\"id\":\"gid://shopify/FulfillmentService/legacy\",\"handle\":\"manual\",\"serviceName\":\"Manual\",\"trackingSupport\":true},\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_service_create_rejects_upstream_catalog_name_collision_test() {

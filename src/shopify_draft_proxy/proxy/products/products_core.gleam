@@ -322,8 +322,13 @@ query ProductsHydrateNodes($ids: [ID!]!) {
           price
           compareAtPrice
           taxable
+          taxCode
           inventoryPolicy
           inventoryQuantity
+          position
+          requiresComponents
+          showUnitPrice
+          unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
           selectedOptions { name value }
           metafields(first: 250) {
             nodes {
@@ -343,6 +348,9 @@ query ProductsHydrateNodes($ids: [ID!]!) {
             id
             tracked
             requiresShipping
+            countryCodeOfOrigin
+            provinceCodeOfOrigin
+            harmonizedSystemCode
             measurement { weight { unit value } }
             inventoryLevels(first: 50) {
               nodes {
@@ -408,8 +416,13 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       price
       compareAtPrice
       taxable
+      taxCode
       inventoryPolicy
       inventoryQuantity
+      position
+      requiresComponents
+      showUnitPrice
+      unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
       selectedOptions { name value }
       product { id title handle status totalInventory tracksInventory }
       product {
@@ -422,13 +435,21 @@ query ProductsHydrateNodes($ids: [ID!]!) {
             price
             compareAtPrice
             taxable
+            taxCode
             inventoryPolicy
             inventoryQuantity
+            position
+            requiresComponents
+            showUnitPrice
+            unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
             selectedOptions { name value }
             inventoryItem {
               id
               tracked
               requiresShipping
+              countryCodeOfOrigin
+              provinceCodeOfOrigin
+              harmonizedSystemCode
               measurement { weight { unit value } }
             }
           }
@@ -452,6 +473,9 @@ query ProductsHydrateNodes($ids: [ID!]!) {
         id
         tracked
         requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
         measurement { weight { unit value } }
       }
       sellingPlanGroups(first: 50) {
@@ -461,6 +485,9 @@ query ProductsHydrateNodes($ids: [ID!]!) {
     ... on InventoryItem {
       tracked
       requiresShipping
+      countryCodeOfOrigin
+      provinceCodeOfOrigin
+      harmonizedSystemCode
       measurement { weight { unit value } }
       variant {
         id
@@ -1326,8 +1353,25 @@ pub fn product_set_metafield_records(
   product_id: String,
   inputs: List(Dict(String, ResolvedValue)),
 ) -> #(List(ProductMetafieldRecord), SyntheticIdentityRegistry, List(String)) {
+  product_set_metafield_records_for_owner(
+    store,
+    identity,
+    product_id,
+    "PRODUCT",
+    inputs,
+  )
+}
+
+@internal
+pub fn product_set_metafield_records_for_owner(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  owner_type: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductMetafieldRecord), SyntheticIdentityRegistry, List(String)) {
   let existing_metafields =
-    store.get_effective_metafields_by_owner_id(store, product_id)
+    store.get_effective_metafields_by_owner_id(store, owner_id)
   let #(reversed, final_identity, ids) =
     list.fold(inputs, #([], identity, []), fn(acc, input) {
       let #(records, current_identity, collected_ids) = acc
@@ -1355,7 +1399,7 @@ pub fn product_set_metafield_records(
       let metafield =
         ProductMetafieldRecord(
           id: metafield_id,
-          owner_id: product_id,
+          owner_id: owner_id,
           namespace: read_string_field(input, "namespace")
             |> option.unwrap(
               option.map(existing, fn(metafield) { metafield.namespace })
@@ -1376,7 +1420,7 @@ pub fn product_set_metafield_records(
           updated_at: option.then(existing, fn(metafield) {
             metafield.updated_at
           }),
-          owner_type: Some("PRODUCT"),
+          owner_type: Some(owner_type),
           market_localizable_content: option.map(existing, fn(metafield) {
             metafield.market_localizable_content
           })

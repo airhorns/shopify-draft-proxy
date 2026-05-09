@@ -1,0 +1,56 @@
+mutation FunctionsCreateGuardrails {
+  validationPlan: validationCreate(
+    validation: { functionId: "gid://shopify/ShopifyFunction/guardrail-validation-plan", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  validationRequiredInput: validationCreate(validation: { functionHandle: "guardrail-validation-required-input" }) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  cartTransformPlan: cartTransformCreate(functionHandle: "guardrail-cart-transform-plan") {
+    cartTransform {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  cartTransformPendingDeletion: cartTransformCreate(functionHandle: "guardrail-cart-transform-pending-deletion") {
+    cartTransform {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  cartTransformPlusOnly: cartTransformCreate(
+    functionId: "gid://shopify/ShopifyFunction/guardrail-cart-transform-plus-only"
+  ) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

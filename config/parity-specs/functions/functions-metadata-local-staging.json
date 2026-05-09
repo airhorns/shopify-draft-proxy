@@ -9,6 +9,7 @@
     "cartTransforms",
     "cartTransformCreate",
     "cartTransformDelete",
+    "node",
     "shopifyFunction",
     "shopifyFunctions",
     "taxAppConfigure"
@@ -69,6 +70,19 @@
         }
       },
       {
+        "name": "cart-transform-node-read-after-create",
+        "capturePath": "$.downstreamRead.data.cartTransforms.nodes[0]",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.cartTransformCreate.cartTransform.id"
+            }
+          }
+        }
+      },
+      {
         "name": "validation-delete-data",
         "capturePath": "$.validationDelete.response.data.validationDelete",
         "proxyPath": "$.data.validationDelete",
@@ -87,9 +101,6 @@
         "proxyPath": "$.data.cartTransformDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-metadata-delete-cart-transform.graphql",
-          "headers": {
-            "x-shopify-draft-proxy-internal-visibility": "true"
-          },
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.cartTransformCreate.cartTransform.id"
@@ -112,5 +123,5 @@
       }
     ]
   },
-  "notes": "HAR-325 covers Function-backed Admin metadata roots with executable local parity validation in the generic proxy harness. The local proxy stages validation/cart transform/tax app metadata, exposes downstream validation(s), cartTransforms, and shopifyFunction(s) reads, preserves raw mutation request bodies in the meta log, and verifies runtime requests do not hit Shopify. Root availability is backed by the checked-in 2025-01 Admin GraphQL root introspection fixture; live success-path Shopify Function execution remains intentionally out of scope. The cartTransformDelete replay uses the proxy's internal-visibility header because this legacy local-runtime fixture does not model current app installation/Function owner metadata; owner-scoped delete authorization is covered by HAR-1190 runtime tests."
+  "notes": "HAR-325 covers Function-backed Admin metadata roots with executable local parity validation in the generic proxy harness. The local proxy stages validation/cart transform/tax app metadata, exposes downstream validation(s), cartTransforms, generic node(id:) CartTransform read-after-write, and shopifyFunction(s) reads, preserves raw mutation request bodies in the meta log, and verifies runtime requests do not hit Shopify. Root availability is backed by the checked-in 2025-01 Admin GraphQL root introspection fixture; live success-path Shopify Function execution remains intentionally out of scope."
 }

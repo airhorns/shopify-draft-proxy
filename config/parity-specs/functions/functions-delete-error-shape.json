@@ -70,9 +70,6 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-metadata-delete-cart-transform.graphql",
           "apiVersion": "2026-04",
-          "headers": {
-            "x-shopify-draft-proxy-internal-visibility": "true"
-          },
           "variables": {
             "id": {
               "fromProxyResponse": "cart-transform-create-data",
@@ -93,5 +90,5 @@
       }
     ]
   },
-  "notes": "HAR-701 delete error-shape parity. The missing-delete legs are live Shopify captures from harry-test-heelo on Admin GraphQL 2026-04. The create/delete leg is cassette-backed local runtime evidence because the current unattended conformance shop no longer exposes released validation/cart-transform Function handles, but the fixture still hydrates a CART_TRANSFORM ShopifyFunction through the same upstream cassette path used by live-hybrid parity. The delete replay uses the proxy's internal-visibility header because this legacy local-runtime fixture does not model current app installation/Function owner metadata; HAR-1190 separately verifies owner-scoped delete authorization."
+  "notes": "HAR-701 delete error-shape parity. The missing-delete legs are live Shopify captures from harry-test-heelo on Admin GraphQL 2026-04. The create/delete leg is cassette-backed local runtime evidence because the current unattended conformance shop no longer exposes released validation/cart-transform Function handles, but the fixture still hydrates a CART_TRANSFORM ShopifyFunction through the same upstream cassette path used by live-hybrid parity. Owner-scoped delete authorization is covered by HAR-1190 runtime tests; the replayed create/delete lifecycle earns same-app ownership through the modeled current installation rather than a request bypass."
 }

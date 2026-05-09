@@ -1,0 +1,53 @@
+query ReturnShippingFeeReadRecorded($returnId: ID!, $orderId: ID!) {
+  return(id: $returnId) {
+    id
+    name
+    status
+    totalQuantity
+    returnShippingFees {
+      id
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    returnLineItems(first: 5) {
+      nodes {
+        id
+        quantity
+        processedQuantity
+        unprocessedQuantity
+      }
+    }
+  }
+  order(id: $orderId) {
+    id
+    returns(first: 5) {
+      nodes {
+        id
+        name
+        status
+        totalQuantity
+        returnShippingFees {
+          id
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  }
+}

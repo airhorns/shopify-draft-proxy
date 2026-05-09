@@ -12,16 +12,39 @@ query ProductVariantsBulkCreateDownstreamRead($id: ID!, $query: String!) {
         price
         compareAtPrice
         taxable
+        taxCode
+        position
+        requiresComponents
+        showUnitPrice
+        unitPriceMeasurement {
+          quantityValue
+          quantityUnit
+          referenceValue
+          referenceUnit
+        }
         inventoryPolicy
         inventoryQuantity
         selectedOptions {
           name
           value
         }
+        metafield(namespace: "specs", key: "bulkCreateTier") {
+          value
+          ownerType
+        }
         inventoryItem {
           id
           tracked
           requiresShipping
+          countryCodeOfOrigin
+          provinceCodeOfOrigin
+          harmonizedSystemCode
+          measurement {
+            weight {
+              value
+              unit
+            }
+          }
         }
       }
     }
