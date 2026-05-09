@@ -6410,6 +6410,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-shipping-fee',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-shipping-fee-conformance.mts',
+    purpose:
+      'returnCreate ReturnInput.returnShippingFee and read-after-write Return.returnShippingFees behavior, plus public-schema evidence for hidden ReturnInput field boundaries.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-shipping-fee-recorded.json`,
+      'config/parity-specs/orders/return-shipping-fee-recorded.json',
+      'config/parity-requests/orders/return-create-shipping-fee-recorded.graphql',
+      'config/parity-requests/orders/return-shipping-fee-read-recorded.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable order, records returnCreate shipping-fee evidence and downstream reads, then cancels and deletes the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-reverse-logistics-introspection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-reverse-logistics-introspection-conformance.ts',
