@@ -1,0 +1,15 @@
+mutation SegmentQueryWhitespaceUpdate($id: ID!, $query: String) {
+  segmentUpdate(id: $id, query: $query) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

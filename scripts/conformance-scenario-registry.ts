@@ -41,6 +41,7 @@ export type ConformanceStatusDocument = {
   declaredGapOperationNames: string[];
   capturedScenarioIds: string[];
   strictComparisonScenarioIds: string[];
+  runtimeFixtureScenarioIds: string[];
   captureOnlyScenarioIds: string[];
   plannedScenarioIds: string[];
   regrettableDivergences: Array<{
@@ -166,7 +167,17 @@ function isCaptureOnlyScenario(repoRoot: string, scenario: ConformanceScenario):
     return false;
   }
 
-  return readParitySpec(repoRoot, scenario).comparisonMode === 'captured-fixture';
+  const paritySpec = readParitySpec(repoRoot, scenario);
+  return paritySpec.comparisonMode === 'captured-fixture' && (paritySpec.runtimeTestFiles?.length ?? 0) === 0;
+}
+
+function isRuntimeFixtureScenario(repoRoot: string, scenario: ConformanceScenario): boolean {
+  if (scenario.status !== 'captured') {
+    return false;
+  }
+
+  const paritySpec = readParitySpec(repoRoot, scenario);
+  return paritySpec.comparisonMode === 'captured-fixture' && (paritySpec.runtimeTestFiles?.length ?? 0) > 0;
 }
 
 function listRegrettableDivergences(repoRoot: string, scenarios: ConformanceScenario[]) {
@@ -204,7 +215,10 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
   const scenarios = loadConformanceScenarios(repoRoot);
   const capturedScenarios = scenarios.filter((scenario) => scenario.status === 'captured');
   const captureOnlyScenarios = capturedScenarios.filter((scenario) => isCaptureOnlyScenario(repoRoot, scenario));
-  const strictComparisonScenarios = capturedScenarios.filter((scenario) => !captureOnlyScenarios.includes(scenario));
+  const runtimeFixtureScenarios = capturedScenarios.filter((scenario) => isRuntimeFixtureScenario(repoRoot, scenario));
+  const strictComparisonScenarios = capturedScenarios.filter((scenario) => {
+    return !captureOnlyScenarios.includes(scenario) && !runtimeFixtureScenarios.includes(scenario);
+  });
   const implementedEntries = loadOperationRegistry(repoRoot).filter((entry) => entry.implemented);
   const scenariosByOperation = groupScenariosByOperation(scenarios, implementedEntries);
   const coveredEntries = implementedEntries.filter((entry) => {
@@ -233,6 +247,7 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
     declaredGapOperationNames: gapEntries.map((entry) => entry.name),
     capturedScenarioIds: capturedScenarios.map((scenario) => scenario.id),
     strictComparisonScenarioIds: strictComparisonScenarios.map((scenario) => scenario.id),
+    runtimeFixtureScenarioIds: runtimeFixtureScenarios.map((scenario) => scenario.id),
     captureOnlyScenarioIds: captureOnlyScenarios.map((scenario) => scenario.id),
     plannedScenarioIds: scenarios.filter((scenario) => scenario.status === 'planned').map((scenario) => scenario.id),
     regrettableDivergences: listRegrettableDivergences(repoRoot, scenarios),

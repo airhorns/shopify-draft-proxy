@@ -3887,6 +3887,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-query-whitespace-preservation',
+    scriptPath: 'scripts/capture-segment-query-whitespace-preservation-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate query storage fidelity where leading and trailing query whitespace is preserved in mutation payloads and downstream segment reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-query-whitespace-preservation.json`,
+      'config/parity-specs/segments/segment-query-whitespace-preservation.json',
+      'config/parity-requests/segments/segment-query-whitespace-create.graphql',
+      'config/parity-requests/segments/segment-query-whitespace-read.graphql',
+      'config/parity-requests/segments/segment-query-whitespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment, reads it back, updates its query with a different padded string, and deletes the disposable segment during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-update-delete-malformed-gid',
     scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
     purpose:
@@ -4477,6 +4495,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable locations for default and explicit non-online fulfillment branches, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-add-resource-limit-reached',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-add-resource-limit-reached-conformance.mts',
+    purpose:
+      'locationAdd public Admin API userError shape when the shop has reached its active merchant-managed location cap.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-add-resource-limit-reached.json`,
+      'config/parity-specs/store-properties/location-add-resource-limit-reached.json',
+      'config/parity-requests/store-properties/location-add-resource-limit-reached.graphql',
+    ],
+    cleanupBehavior:
+      'Counts current active merchant-managed locations, creates disposable active locations until the shop reaches the captured locationLimit, records the first over-cap locationAdd response, then deactivates and deletes every disposable location created by the recorder.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6361,6 +6396,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-platform-flow-trigger-receive-property-size-boundary',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-flow-trigger-property-size-boundary-conformance.ts',
+    purpose:
+      'flowTriggerReceive property byte-size validation for body-only bloated resources, oversized parsed properties, and near-limit handle payload branches.',
+    requiredAuthScopes: [
+      'active Admin API token; validation-only Flow trigger receive branches short-circuit before delivery',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-flow-trigger-receive-property-size-boundary.json`,
+      'config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-property-size-boundary.json',
+      'config/parity-requests/admin-platform/admin-platform-flow-trigger-receive-property-size-boundary.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no external Flow trigger delivery and no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform-backup-region-update-extended',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
@@ -6862,6 +6915,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable fulfillment services for uniqueness probes, records rejected duplicate create/update branches, then deletes all created services.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-name-whitespace-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-name-whitespace-validation-conformance.ts',
+    purpose: 'fulfillmentServiceCreate and fulfillmentServiceUpdate name leading/trailing whitespace validation.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-name-whitespace-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-name-whitespace-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-primary.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Records one validation-only create, creates one disposable fulfillment service for update validation, records rejected update, then deletes the created service.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

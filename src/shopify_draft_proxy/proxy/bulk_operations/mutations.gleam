@@ -113,8 +113,13 @@ type MutationFieldResult {
     payload: Json,
     staged_resource_ids: List(String),
     log_drafts: List(LogDraft),
+    suppress_outer_log: Bool,
   )
 }
+
+const default_run_mutation_max_input_file_size_bytes = 104_857_600
+
+const bytes_per_mebibyte = 1_048_576
 
 @internal
 pub fn process_mutation(
@@ -124,6 +129,27 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+) -> MutationOutcome {
+  process_mutation_with_max_input_file_size(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+    default_run_mutation_max_input_file_size_bytes,
+  )
+}
+
+@internal
+pub fn process_mutation_with_max_input_file_size(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  max_input_file_size_bytes: Int,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -137,6 +163,7 @@ pub fn process_mutation(
         fragments,
         variables,
         upstream,
+        max_input_file_size_bytes,
       )
     }
   }
@@ -150,11 +177,26 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  max_input_file_size_bytes: Int,
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [], [])
-  let #(data_entries, final_store, final_identity, all_staged, field_drafts) =
+  let initial = #([], store, identity, [], [], False)
+  let #(
+    data_entries,
+    final_store,
+    final_identity,
+    all_staged,
+    field_drafts,
+    suppress_outer_log,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
+      let #(
+        entries,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+        suppressed,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -176,6 +218,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                max_input_file_size_bytes,
               ))
             "bulkOperationCancel" ->
               Some(handle_bulk_operation_cancel(
@@ -196,6 +239,7 @@ fn handle_mutation_fields(
               next_identity,
               list.append(staged_ids, result.staged_resource_ids),
               list.append(drafts, result.log_drafts),
+              suppressed || result.suppress_outer_log,
             )
           }
         }
@@ -229,6 +273,7 @@ fn handle_mutation_fields(
   ]
   let log_drafts = case primary_root, field_drafts {
     Some("bulkOperationRunMutation"), [_, ..] -> field_drafts
+    Some("bulkOperationRunMutation"), [] if suppress_outer_log -> []
     _, _ -> outer_log_drafts
   }
   MutationOutcome(
@@ -280,6 +325,7 @@ fn handle_bulk_operation_run_query(
         ),
         staged_resource_ids: [],
         log_drafts: [],
+        suppress_outer_log: False,
       ),
       store,
       identity,
@@ -292,6 +338,7 @@ fn handle_bulk_operation_run_query(
             payload: serialize_run_query_payload(field, None, errors, fragments),
             staged_resource_ids: [],
             log_drafts: [],
+            suppress_outer_log: False,
           ),
           store,
           identity,
@@ -316,6 +363,7 @@ fn handle_bulk_operation_run_query(
                 ),
                 staged_resource_ids: [],
                 log_drafts: [],
+                suppress_outer_log: False,
               ),
               store,
               identity,
@@ -369,6 +417,7 @@ fn handle_bulk_operation_run_query(
                   ),
                   staged_resource_ids: [staged.id],
                   log_drafts: [],
+                  suppress_outer_log: False,
                 ),
                 next_store,
                 identity_after_completed,
@@ -1092,6 +1141,7 @@ fn handle_bulk_operation_run_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  max_input_file_size_bytes: Int,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1118,6 +1168,7 @@ fn handle_bulk_operation_run_mutation(
         ),
         staged_resource_ids: [],
         log_drafts: [],
+        suppress_outer_log: False,
       ),
       store,
       identity,
@@ -1139,6 +1190,7 @@ fn handle_bulk_operation_run_mutation(
         ),
         staged_resource_ids: [],
         log_drafts: [],
+        suppress_outer_log: False,
       ),
       store,
       identity,
@@ -1185,6 +1237,7 @@ fn handle_bulk_operation_run_mutation(
                     mutation_string,
                     path,
                     valid_client_identifier,
+                    max_input_file_size_bytes,
                     LookupInProgressBeforeUpload,
                   )
               }
@@ -1199,6 +1252,7 @@ fn handle_bulk_operation_run_mutation(
                     key,
                     path,
                     Error(errors),
+                    max_input_file_size_bytes,
                   )
                 Ok(valid_client_identifier) ->
                   continue_run_mutation_with_present_client_identifier(
@@ -1215,6 +1269,7 @@ fn handle_bulk_operation_run_mutation(
                       mutation_string,
                       valid_client_identifier,
                     )),
+                    max_input_file_size_bytes,
                   )
               }
           }
@@ -1246,41 +1301,55 @@ fn continue_run_mutation_with_present_client_identifier(
     #(UpstreamContext, String, String, String, Option(String)),
     List(UserError),
   ),
+  max_input_file_size_bytes: Int,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case store.get_staged_upload_content(store, path) {
     None ->
       return_run_mutation_no_such_file(store, identity, field, fragments, key)
     Some(content) ->
-      case validation {
-        Error(errors) ->
-          return_run_mutation_user_errors(
+      case upload_content_too_large(content, max_input_file_size_bytes) {
+        True ->
+          return_run_mutation_oversized_upload(
             store,
             identity,
             field,
             fragments,
             key,
-            errors,
+            max_input_file_size_bytes,
           )
-        Ok(#(
-          upstream,
-          request_path,
-          inner_root,
-          mutation_string,
-          valid_client_identifier,
-        )) ->
-          continue_run_mutation_after_upload(
-            store,
-            identity,
-            upstream,
-            request_path,
-            field,
-            fragments,
-            key,
-            inner_root,
-            mutation_string,
-            valid_client_identifier,
-            content,
-          )
+        False ->
+          case validation {
+            Error(errors) ->
+              return_run_mutation_user_errors(
+                store,
+                identity,
+                field,
+                fragments,
+                key,
+                errors,
+              )
+            Ok(#(
+              upstream,
+              request_path,
+              inner_root,
+              mutation_string,
+              valid_client_identifier,
+            )) ->
+              continue_run_mutation_after_upload(
+                store,
+                identity,
+                upstream,
+                request_path,
+                field,
+                fragments,
+                key,
+                inner_root,
+                mutation_string,
+                valid_client_identifier,
+                content,
+                max_input_file_size_bytes,
+              )
+          }
       }
   }
 }
@@ -1297,28 +1366,44 @@ fn continue_run_mutation_after_client_identifier_validation(
   mutation_string: String,
   path: String,
   valid_client_identifier: Option(String),
+  max_input_file_size_bytes: Int,
   ordering: RunMutationUploadOrdering,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case ordering {
     LookupInProgressBeforeUpload ->
-      case
-        find_in_progress_bulk_operation(
-          store,
-          "MUTATION",
-          valid_client_identifier,
-        )
-      {
-        Some(operation) ->
-          return_run_mutation_user_errors(
+      case store.get_staged_upload_content(store, path) {
+        Some(content) ->
+          continue_run_mutation_after_upload(
             store,
             identity,
+            upstream,
+            request_path,
             field,
             fragments,
             key,
-            [operation_in_progress_error(operation, "mutation")],
+            inner_root,
+            mutation_string,
+            valid_client_identifier,
+            content,
+            max_input_file_size_bytes,
           )
         None ->
-          case store.get_staged_upload_content(store, path) {
+          case
+            find_in_progress_bulk_operation(
+              store,
+              "MUTATION",
+              valid_client_identifier,
+            )
+          {
+            Some(operation) ->
+              return_run_mutation_user_errors(
+                store,
+                identity,
+                field,
+                fragments,
+                key,
+                [operation_in_progress_error(operation, "mutation")],
+              )
             None ->
               return_run_mutation_no_such_file(
                 store,
@@ -1326,20 +1411,6 @@ fn continue_run_mutation_after_client_identifier_validation(
                 field,
                 fragments,
                 key,
-              )
-            Some(content) ->
-              stage_supported_run_mutation(
-                store,
-                identity,
-                upstream,
-                request_path,
-                field,
-                fragments,
-                key,
-                inner_root,
-                mutation_string,
-                valid_client_identifier,
-                content,
               )
           }
       }
@@ -1366,6 +1437,7 @@ fn continue_run_mutation_after_client_identifier_validation(
             mutation_string,
             valid_client_identifier,
             content,
+            max_input_file_size_bytes,
           )
       }
   }
@@ -1383,28 +1455,52 @@ fn continue_run_mutation_after_upload(
   mutation_string: String,
   valid_client_identifier: Option(String),
   content: String,
+  max_input_file_size_bytes: Int,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  case
-    find_in_progress_bulk_operation(store, "MUTATION", valid_client_identifier)
-  {
-    Some(operation) ->
-      return_run_mutation_user_errors(store, identity, field, fragments, key, [
-        operation_in_progress_error(operation, "mutation"),
-      ])
-    None ->
-      stage_supported_run_mutation(
+  case upload_content_too_large(content, max_input_file_size_bytes) {
+    True ->
+      return_run_mutation_oversized_upload(
         store,
         identity,
-        upstream,
-        request_path,
         field,
         fragments,
         key,
-        inner_root,
-        mutation_string,
-        valid_client_identifier,
-        content,
+        max_input_file_size_bytes,
       )
+    False ->
+      case
+        find_in_progress_bulk_operation(
+          store,
+          "MUTATION",
+          valid_client_identifier,
+        )
+      {
+        Some(operation) ->
+          return_run_mutation_user_errors(
+            store,
+            identity,
+            field,
+            fragments,
+            key,
+            [
+              operation_in_progress_error(operation, "mutation"),
+            ],
+          )
+        None ->
+          stage_supported_run_mutation(
+            store,
+            identity,
+            upstream,
+            request_path,
+            field,
+            fragments,
+            key,
+            inner_root,
+            mutation_string,
+            valid_client_identifier,
+            content,
+          )
+      }
   }
 }
 
@@ -1422,10 +1518,55 @@ fn return_run_mutation_user_errors(
       payload: serialize_run_mutation_payload(field, None, errors, fragments),
       staged_resource_ids: [],
       log_drafts: [],
+      suppress_outer_log: False,
     ),
     store,
     identity,
   )
+}
+
+fn return_run_mutation_oversized_upload(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  max_input_file_size_bytes: Int,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(
+        field,
+        None,
+        [
+          UserError(
+            field: None,
+            message: "The input file size exceeds the maximum allowed size of "
+              <> int.to_string(max_input_file_size_mebibytes(
+              max_input_file_size_bytes,
+            ))
+              <> " MB.",
+            code: Some("INVALID_STAGED_UPLOAD_FILE"),
+          ),
+        ],
+        fragments,
+      ),
+      staged_resource_ids: [],
+      log_drafts: [],
+      suppress_outer_log: True,
+    ),
+    store,
+    identity,
+  )
+}
+
+fn upload_content_too_large(content: String, max_size_bytes: Int) -> Bool {
+  string.byte_size(content) > max_size_bytes
+}
+
+fn max_input_file_size_mebibytes(max_input_file_size_bytes: Int) -> Int {
+  int.max(1, max_input_file_size_bytes / bytes_per_mebibyte)
 }
 
 fn return_run_mutation_no_such_file(
@@ -1507,6 +1648,7 @@ fn return_run_mutation_validation_error(
       ),
       staged_resource_ids: [],
       log_drafts: [],
+      suppress_outer_log: False,
     ),
     store,
     identity,
@@ -1601,6 +1743,7 @@ fn stage_supported_run_mutation(
       ),
       staged_resource_ids: [operation.id, ..imported_ids],
       log_drafts: log_drafts,
+      suppress_outer_log: False,
     ),
     next_store,
     next_identity,
@@ -2382,6 +2525,7 @@ fn handle_bulk_operation_cancel(
         ),
         staged_resource_ids: [],
         log_drafts: [],
+        suppress_outer_log: False,
       ),
       store,
       identity,
@@ -2409,6 +2553,7 @@ fn handle_bulk_operation_cancel(
             ),
             staged_resource_ids: [],
             log_drafts: [],
+            suppress_outer_log: False,
           ),
           hydrated_store,
           identity,
@@ -2428,6 +2573,7 @@ fn handle_bulk_operation_cancel(
                 ),
                 staged_resource_ids: [operation.id],
                 log_drafts: [],
+                suppress_outer_log: False,
               ),
               hydrated_store,
               identity,
@@ -2454,6 +2600,7 @@ fn handle_bulk_operation_cancel(
                       ),
                       staged_resource_ids: [staged.id],
                       log_drafts: [],
+                      suppress_outer_log: False,
                     ),
                     next_store,
                     identity,
@@ -2477,6 +2624,7 @@ fn handle_bulk_operation_cancel(
                       ),
                       staged_resource_ids: staged_id,
                       log_drafts: [],
+                      suppress_outer_log: False,
                     ),
                     next_store,
                     identity,

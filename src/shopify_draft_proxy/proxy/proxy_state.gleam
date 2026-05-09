@@ -63,6 +63,7 @@ pub type Config {
   Config(
     read_mode: ReadMode,
     unsupported_mutation_mode: UnsupportedMutationMode,
+    bulk_operation_run_mutation_max_input_file_size_bytes: Int,
     port: Int,
     shopify_admin_origin: String,
     snapshot_path: Option(String),
@@ -99,6 +100,7 @@ pub fn default_config() -> Config {
   Config(
     read_mode: Snapshot,
     unsupported_mutation_mode: PassthroughUnsupportedMutations,
+    bulk_operation_run_mutation_max_input_file_size_bytes: 104_857_600,
     port: 4000,
     shopify_admin_origin: "https://shopify.com",
     snapshot_path: None,

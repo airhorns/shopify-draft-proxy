@@ -469,7 +469,8 @@ fn flow_trigger_invalid_handle_error(handle: String) -> SourceValue {
 }
 
 fn is_known_missing_flow_trigger_handle(handle: String) -> Bool {
-  handle == "har-374-missing"
+  handle == "missing-flow-trigger-handle"
+  || string.ends_with(handle, "-missing")
 }
 
 fn validate_flow_trigger_body(
@@ -531,13 +532,32 @@ fn validate_flow_trigger_properties(
   fields: List(#(String, commit.JsonValue)),
 ) -> List(String) {
   case json_object_field(fields, "properties") {
-    Some(commit.JsonObject(_)) -> []
+    Some(commit.JsonObject(_) as properties) ->
+      validate_flow_trigger_properties_size(properties)
     Some(value) -> [
       "Type error for field 'properties': "
       <> flow_trigger_json_error_value(value)
       <> " is not an Object.",
     ]
     None -> ["Required field missing: 'properties'."]
+  }
+}
+
+fn validate_flow_trigger_properties_size(
+  properties: commit.JsonValue,
+) -> List(String) {
+  let property_bytes =
+    properties
+    |> commit.json_value_to_json
+    |> json.to_string
+    |> string.byte_size
+  case property_bytes > flow_trigger_payload_limit_bytes {
+    True -> [
+      "Properties size exceeds the limit of "
+      <> int.to_string(flow_trigger_payload_limit_bytes)
+      <> " bytes.",
+    ]
+    False -> []
   }
 }
 

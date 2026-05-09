@@ -1,4 +1,9 @@
-query LocalizationTranslationsMarketScopedRead($resourceId: ID!, $marketId: ID!) {
+query LocalizationTranslationsMarketScopedRead(
+  $resourceId: ID!
+  $marketId: ID!
+  $resourceIds: [ID!]!
+  $marketsFirst: Int!
+) {
   translatableResource(resourceId: $resourceId) {
     resourceId
     translatableContent {
@@ -17,6 +22,27 @@ query LocalizationTranslationsMarketScopedRead($resourceId: ID!, $marketId: ID!)
       market {
         id
       }
+    }
+  }
+  byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {
+    nodes {
+      resourceId
+      translatableContent {
+        key
+        value
+        digest
+        locale
+        type
+      }
+    }
+  }
+  markets(first: $marketsFirst) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
     }
   }
   allShopLocales: shopLocales {

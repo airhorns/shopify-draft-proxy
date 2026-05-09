@@ -12,7 +12,7 @@ import shopify_draft_proxy/proxy/bulk_operations/queries
 import shopify_draft_proxy/proxy/bulk_operations/types
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response,
+  type Config, type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -89,5 +89,25 @@ pub fn process_mutation(
     document,
     variables,
     upstream,
+  )
+}
+
+pub fn process_mutation_with_config(
+  config: Config,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
+  mutations.process_mutation_with_max_input_file_size(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+    config.bulk_operation_run_mutation_max_input_file_size_bytes,
   )
 }

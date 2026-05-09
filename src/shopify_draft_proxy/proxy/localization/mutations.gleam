@@ -5,6 +5,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
@@ -17,9 +18,9 @@ import shopify_draft_proxy/proxy/localization/serializers
 import shopify_draft_proxy/proxy/localization/types.{
   type AnyUserError, type TranslatableResource, type TranslationErrorCode,
   FailsResourceValidation, InvalidKeyForModel, InvalidLocaleForShop,
-  InvalidTranslatableContent, ResourceNotFound, SameLocaleAsShopPrimary,
-  TooManyKeysForResource, max_keys_per_translation_mutation,
-  proxy_translation_error, translation_error,
+  InvalidTranslatableContent, MarketDoesNotExist, ResourceNotFound,
+  ResourceNotMarketCustomizable, SameLocaleAsShopPrimary, TooManyKeysForResource,
+  max_keys_per_translation_mutation, proxy_translation_error, translation_error,
 }
 import shopify_draft_proxy/proxy/markets/mutations as market_mutations
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -1013,10 +1014,15 @@ fn validate_and_build_translations(
         _, _ -> []
       }
       let market_id = graphql_helpers.read_arg_string(input, "marketId")
+      let market_errors =
+        validate_market_scope(store_in, resource.resource_id, market_id, prefix)
       let row_errors =
         list.append(
           locale_errs,
-          list.append(key_errors, list.append(value_errors, digest_errors)),
+          list.append(
+            key_errors,
+            list.append(value_errors, list.append(digest_errors, market_errors)),
+          ),
         )
       let new_errors = list.append(errors_acc, row_errors)
       let can_record = case row_errors, maybe_locale, value, content {
@@ -1064,5 +1070,56 @@ fn primary_locale_translation_error_code(
   case admin_api_versions.at_least(request_path, "2026-04") {
     True -> InvalidLocaleForShop
     False -> SameLocaleAsShopPrimary
+  }
+}
+
+fn validate_market_scope(
+  store_in: Store,
+  resource_id: String,
+  market_id: Option(String),
+  prefix: List(String),
+) -> List(AnyUserError) {
+  case market_id {
+    None -> []
+    Some(id) ->
+      case store.get_effective_market_by_id(store_in, id) {
+        None -> [
+          translation_error(
+            list.append(prefix, ["marketId"]),
+            "The market corresponding to the `marketId` argument doesn't exist",
+            MarketDoesNotExist,
+          ),
+        ]
+        Some(_) -> validate_resource_market_customizable(resource_id, prefix)
+      }
+  }
+}
+
+fn validate_resource_market_customizable(
+  resource_id: String,
+  prefix: List(String),
+) -> List(AnyUserError) {
+  case resource_gid_type(resource_id) {
+    "PackingSlipTemplate" -> [
+      translation_error(
+        list.append(prefix, ["key"]),
+        "Key body cannot be customized for a market; it can only be translated.",
+        ResourceNotMarketCustomizable,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn resource_gid_type(resource_id: String) -> String {
+  let prefix = "gid://shopify/"
+  case string.starts_with(resource_id, prefix) {
+    True ->
+      resource_id
+      |> string.drop_start(string.length(prefix))
+      |> string.split("/")
+      |> list.first
+      |> result.unwrap("")
+    False -> ""
   }
 }

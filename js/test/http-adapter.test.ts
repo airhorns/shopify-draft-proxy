@@ -63,6 +63,7 @@ describe('Node HTTP adapter', () => {
         SHOPIFY_ADMIN_ORIGIN: 'https://example.myshopify.com',
         SHOPIFY_DRAFT_PROXY_READ_MODE: 'snapshot',
         SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'reject',
+        SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: '1024',
         SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH: '/tmp/snapshot.json',
       }),
     ).toEqual({
@@ -70,6 +71,7 @@ describe('Node HTTP adapter', () => {
       shopifyAdminOrigin: 'https://example.myshopify.com',
       readMode: 'snapshot',
       unsupportedMutationMode: 'reject',
+      bulkOperationRunMutationMaxInputFileSizeBytes: 1024,
       snapshotPath: '/tmp/snapshot.json',
     });
   });
@@ -87,7 +89,11 @@ describe('Node HTTP adapter', () => {
       await expect(jsonRequest(origin, '/__meta/config')).resolves.toMatchObject({
         status: 200,
         body: {
-          runtime: { readMode: 'snapshot', unsupportedMutationMode: 'passthrough' },
+          runtime: {
+            readMode: 'snapshot',
+            unsupportedMutationMode: 'passthrough',
+            bulkOperationRunMutationMaxInputFileSizeBytes: 104857600,
+          },
           proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
           snapshot: { enabled: false, path: null },
         },

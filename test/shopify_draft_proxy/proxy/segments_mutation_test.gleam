@@ -566,6 +566,34 @@ pub fn segment_create_padded_name_reads_back_stripped_name_test() {
     == "{\"data\":{\"segmentsCount\":{\"count\":1,\"precision\":\"EXACT\"}}}"
 }
 
+pub fn segment_create_preserves_padded_query_on_reads_test() {
+  let create_document =
+    "mutation { segmentCreate(name: \"Padded Query\", query: \"   number_of_orders = 0   \") { segment { id query } userErrors { field message } } }"
+  let #(create_status, create_body, after_create) =
+    run_proxy_mutation(store.new(), create_document)
+  assert create_status == 200
+  assert create_body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"query\":\"   number_of_orders = 0   \"},\"userErrors\":[]}}}"
+
+  let #(segment_status, segment_body, after_segment) =
+    run_proxy_graphql(
+      after_create,
+      "{ segment(id: \"gid://shopify/Segment/1\") { id query } }",
+    )
+  assert segment_status == 200
+  assert segment_body
+    == "{\"data\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"query\":\"   number_of_orders = 0   \"}}}"
+
+  let #(segments_status, segments_body, _) =
+    run_proxy_graphql(
+      after_segment,
+      "{ segments(first: 5) { nodes { id query } } }",
+    )
+  assert segments_status == 200
+  assert segments_body
+    == "{\"data\":{\"segments\":{\"nodes\":[{\"id\":\"gid://shopify/Segment/1\",\"query\":\"   number_of_orders = 0   \"}]}}}"
+}
+
 pub fn segment_create_overlong_query_emits_length_error_before_grammar_test() {
   let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
   let outcome =
@@ -596,6 +624,19 @@ pub fn segment_create_rejects_query_when_raw_length_exceeds_limit_test() {
   let body = json.to_string(outcome.data)
   assert body
     == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_rejects_whitespace_only_query_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \"Blank\", query: \"   \") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query can't be blank\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert store.list_effective_segments(outcome.store) == []
 }
@@ -669,6 +710,37 @@ pub fn segment_update_accepts_broad_query_grammar_test() {
     )
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/106\",\"name\":\"Old\",\"query\":\"(number_of_orders >= 1) OR (number_of_orders = 0)\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_update_preserves_padded_query_on_reads_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/109", "Old", "number_of_orders >= 1")
+  let s = seed(store.new(), existing)
+  let update_document =
+    "mutation { segmentUpdate(id: \"gid://shopify/Segment/109\", query: \"   number_of_orders > 0   \") { segment { id name query } userErrors { field message } } }"
+  let #(update_status, update_body, after_update) =
+    run_proxy_mutation(s, update_document)
+  assert update_status == 200
+  assert update_body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/109\",\"name\":\"Old\",\"query\":\"   number_of_orders > 0   \"},\"userErrors\":[]}}}"
+
+  let #(segment_status, segment_body, after_segment) =
+    run_proxy_graphql(
+      after_update,
+      "{ segment(id: \"gid://shopify/Segment/109\") { id query } }",
+    )
+  assert segment_status == 200
+  assert segment_body
+    == "{\"data\":{\"segment\":{\"id\":\"gid://shopify/Segment/109\",\"query\":\"   number_of_orders > 0   \"}}}"
+
+  let #(segments_status, segments_body, _) =
+    run_proxy_graphql(
+      after_segment,
+      "{ segments(first: 5) { nodes { id query } } }",
+    )
+  assert segments_status == 200
+  assert segments_body
+    == "{\"data\":{\"segments\":{\"nodes\":[{\"id\":\"gid://shopify/Segment/109\",\"query\":\"   number_of_orders > 0   \"}]}}}"
 }
 
 pub fn segment_update_missing_id_emits_user_error_test() {
@@ -848,6 +920,21 @@ pub fn segment_update_rejects_query_when_raw_length_exceeds_limit_test() {
   let body = json.to_string(outcome.data)
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn segment_update_rejects_whitespace_only_query_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/110", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/110\", query: \"   \") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query can't be blank\"}]}}}"
   assert outcome.staged_resource_ids == []
 }
 

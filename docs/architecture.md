@@ -74,6 +74,9 @@ The runtime tree lives at `src/shopify_draft_proxy/`.
 - the `DraftProxy` record carries the active config, synthetic identity
   registry, store, operation registry, and an optional
   `upstream_transport` used to inject a cassette in parity tests
+- `process_request` accepts local staged-upload `POST`/`PUT` requests under
+  `/staged-uploads/...` and stores the body on the instance-owned store; the
+  JavaScript HTTP adapter uses the same route shape for app-facing uploads
 - routes parsed GraphQL operations through `route_query` / `route_mutation`
   and falls through to `dispatch_passthrough` for unimplemented or
   force-passthrough roots in `LiveHybrid` mode unless reject-unsupported mode

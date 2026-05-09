@@ -1,0 +1,20 @@
+mutation FlowTriggerReceivePropertySizeBoundary($bloatedBody: String, $oversizedBody: String, $nearLimitPayload: JSON) {
+  bloatedResources: flowTriggerReceive(body: $bloatedBody) {
+    userErrors {
+      field
+      message
+    }
+  }
+  oversizedBodyProperties: flowTriggerReceive(body: $oversizedBody) {
+    userErrors {
+      field
+      message
+    }
+  }
+  nearLimitHandlePayload: flowTriggerReceive(handle: "missing-flow-trigger-handle", payload: $nearLimitPayload) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

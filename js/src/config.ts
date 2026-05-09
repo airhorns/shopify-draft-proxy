@@ -25,6 +25,15 @@ function unsupportedMutationMode(raw: string | undefined): UnsupportedMutationMo
   throw new Error(`Invalid SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: ${raw}`);
 }
 
+function readPositiveInt(name: string, raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${name}: ${raw}`);
+  }
+  return parsed;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const shopifyAdminOrigin = env['SHOPIFY_ADMIN_ORIGIN'];
   if (!shopifyAdminOrigin) {
@@ -32,12 +41,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   const snapshotPath = env['SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH'];
+  const bulkOperationRunMutationMaxInputFileSizeBytes = readPositiveInt(
+    'SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES',
+    env['SHOPIFY_DRAFT_PROXY_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES'],
+  );
 
   return {
     port: readPort(env['PORT']),
     shopifyAdminOrigin,
     readMode: readMode(env['SHOPIFY_DRAFT_PROXY_READ_MODE']),
     unsupportedMutationMode: unsupportedMutationMode(env['SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE']),
+    ...(bulkOperationRunMutationMaxInputFileSizeBytes === undefined
+      ? {}
+      : { bulkOperationRunMutationMaxInputFileSizeBytes }),
     ...(snapshotPath ? { snapshotPath } : {}),
   };
 }
