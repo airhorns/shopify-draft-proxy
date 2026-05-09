@@ -885,6 +885,16 @@ pub fn graphql_saved_search_create_rejects_product_incompatible_filters_test() {
   assert error_status == 200
   assert json.to_string(error_body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, error_feedback\"}]}}}"
+
+  let tag_published_request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Collection tag published\\\", query: \\\"collection_id:1 tag:foo published_status:published\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: tag_published_status, body: tag_published_body, ..), _) =
+    draft_proxy.process_request(proxy, tag_published_request)
+  assert tag_published_status == 200
+  assert json.to_string(tag_published_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag, published_status\"}]}}}"
 }
 
 pub fn graphql_saved_search_create_allows_product_collection_id_alone_test() {
@@ -1086,13 +1096,13 @@ pub fn graphql_saved_search_create_aggregates_length_and_incompatible_filter_err
   let proxy = draft_proxy.new()
   let request =
     graphql_request(
-      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"collection_id:\\\\\\\"123\\\\\\\" tag:\\\\\\\"AAA\\\\\\\"\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"collection_id:\\\\\\\"123\\\\\\\" tag:\\\\\\\"AAA\\\\\\\" published_status:published\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
     )
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 40 characters)\"},{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag\"}]}}}"
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 40 characters)\"},{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag, published_status\"}]}}}"
 }
 
 pub fn graphql_saved_search_create_aggregates_reserved_and_unknown_query_errors_test() {
