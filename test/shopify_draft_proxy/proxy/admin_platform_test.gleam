@@ -186,6 +186,7 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
       url: Some("https://example.test/bulk.jsonl"),
       partial_data_url: None,
       query: Some("{ products { edges { node { id } } } }"),
+      client_identifier: None,
       cursor: None,
       result_jsonl: None,
     )

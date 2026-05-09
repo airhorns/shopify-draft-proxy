@@ -1,9 +1,10 @@
 //// Mirrors the public-API surface of `src/proxy-instance.ts` and the
 //// dispatcher spine of `src/proxy/routes.ts`.
 ////
-//// Routes real HTTP-shaped requests through the currently ported
-//// GraphQL domains plus the meta API (`/__meta/health`, `/__meta/config`,
-//// `/__meta/log`, `/__meta/state`, `/__meta/reset`, `/__meta/commit`).
+//// Routes real HTTP-shaped requests through the currently ported GraphQL
+//// domains, staged-upload handoff route, plus the meta API (`/__meta/health`,
+//// `/__meta/config`, `/__meta/log`, `/__meta/state`, `/__meta/reset`,
+//// `/__meta/commit`).
 //// Unsupported paths and unported roots keep returning Shopify-like
 //// HTTP/GraphQL error envelopes until their domains land.
 ////
@@ -189,6 +190,13 @@ pub fn process_request_at(
     MetaState -> #(ok_json_response(get_state_snapshot(proxy)), proxy)
     MetaReset -> #(reset_response(), reset(proxy))
     MetaCommit -> dispatch_meta_commit_sync(proxy, request)
+    StagedUpload(encoded_target_id, encoded_filename) ->
+      stage_staged_upload_request(
+        proxy,
+        encoded_target_id,
+        encoded_filename,
+        request.body,
+      )
     GraphQL(version: _) -> dispatch_graphql_at(proxy, request, now_iso)
     NotFound -> #(not_found_response(), proxy)
     MethodNotAllowed -> #(method_not_allowed_response(), proxy)
@@ -202,6 +210,7 @@ type Route {
   MetaState
   MetaReset
   MetaCommit
+  StagedUpload(encoded_target_id: String, encoded_filename: String)
   GraphQL(version: String)
   NotFound
   MethodNotAllowed
@@ -219,7 +228,15 @@ fn route(request: Request) -> Route {
     other ->
       case is_admin_graphql_path(other) {
         Ok(version) -> only_method("POST", method, GraphQL(version: version))
-        Error(_) -> NotFound
+        Error(_) ->
+          case staged_upload_path_segments(other) {
+            Ok(#(encoded_target_id, encoded_filename)) ->
+              case method == "POST" || method == "PUT" {
+                True -> StagedUpload(encoded_target_id, encoded_filename)
+                False -> MethodNotAllowed
+              }
+            Error(_) -> NotFound
+          }
       }
   }
 }
@@ -228,6 +245,14 @@ fn only_method(expected: String, actual: String, route: Route) -> Route {
   case actual == expected {
     True -> route
     False -> MethodNotAllowed
+  }
+}
+
+fn staged_upload_path_segments(path: String) -> Result(#(String, String), Nil) {
+  case string.split(path, "/") {
+    ["", "staged-uploads", encoded_target_id, encoded_filename] ->
+      Ok(#(encoded_target_id, encoded_filename))
+    _ -> Error(Nil)
   }
 }
 
@@ -344,8 +369,8 @@ pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
 
 /// Store staged-upload bytes under a caller-supplied lookup key.
 ///
-/// The JavaScript HTTP adapter owns URL decoding/route matching so this core
-/// helper can stay explicit and instance-scoped.
+/// The JavaScript HTTP adapter and core staged-upload route both call through
+/// this explicit, instance-scoped helper.
 pub fn stage_staged_upload_content(
   proxy: DraftProxy,
   staged_upload_path: String,
@@ -359,6 +384,43 @@ pub fn stage_staged_upload_content(
       content,
     ),
   )
+}
+
+fn stage_staged_upload_request(
+  proxy: DraftProxy,
+  encoded_target_id: String,
+  encoded_filename: String,
+  content: String,
+) -> #(Response, DraftProxy) {
+  let target_id = decode_upload_segment(encoded_target_id)
+  let filename = decode_upload_segment(encoded_filename)
+  let key = "shopify-draft-proxy/" <> target_id <> "/" <> filename
+  let path = "/staged-uploads/" <> encoded_target_id <> "/" <> encoded_filename
+  let resource_url = "https://shopify-draft-proxy.local" <> path
+  let next_proxy =
+    [key, path, resource_url]
+    |> list.fold(proxy, fn(acc, lookup_key) {
+      stage_staged_upload_content(acc, lookup_key, content)
+    })
+  #(
+    Response(
+      status: 201,
+      body: json.object([
+        #("ok", json.bool(True)),
+        #("key", json.string(key)),
+      ]),
+      headers: [],
+    ),
+    next_proxy,
+  )
+}
+
+fn decode_upload_segment(value: String) -> String {
+  value
+  |> string.replace("%3A", ":")
+  |> string.replace("%3a", ":")
+  |> string.replace("%2F", "/")
+  |> string.replace("%2f", "/")
 }
 
 pub fn get_bulk_operation_result_jsonl(proxy: DraftProxy, id: String) -> Json {

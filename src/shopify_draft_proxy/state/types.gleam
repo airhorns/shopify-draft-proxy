@@ -1301,6 +1301,7 @@ pub type BulkOperationRecord {
     url: Option(String),
     partial_data_url: Option(String),
     query: Option(String),
+    client_identifier: Option(String),
     cursor: Option(String),
     result_jsonl: Option(String),
   )

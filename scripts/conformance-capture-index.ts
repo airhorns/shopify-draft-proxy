@@ -7109,6 +7109,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-client-identifier-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-client-identifier-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation clientIdentifier length validation after successful staged-upload byte handoff, plus public-schema observation for bulkOperationRunQuery clientIdentifier.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-client-identifier-validation.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json',
+      'config/parity-requests/bulk-operations/bulk-operation-client-identifier-staged-upload.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Cancels any pre-existing mutation bulk operation, uploads JSONL bytes, then records validation-only branches rejected before product creation. POS/product-feed allowlist throttle scoping requires a POS-class credential and is recorded as unavailable when absent.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-allowed-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',
