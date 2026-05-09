@@ -1252,6 +1252,16 @@ pub fn metafield_definition_decoder() -> Decoder(
     decode.optional(decode.int),
   )
   use validation_status <- decode.field("validationStatus", decode.string)
+  use app_config_managed <- optional_field(
+    "appConfigManaged",
+    False,
+    decode.bool,
+  )
+  use standard_template_app_dependent <- optional_field(
+    "standardTemplateAppDependent",
+    False,
+    decode.bool,
+  )
   decode.success(types.MetafieldDefinitionRecord(
     id: id,
     name: name,
@@ -1266,6 +1276,8 @@ pub fn metafield_definition_decoder() -> Decoder(
     constraints: constraints,
     pinned_position: pinned_position,
     validation_status: validation_status,
+    app_config_managed: app_config_managed,
+    standard_template_app_dependent: standard_template_app_dependent,
   ))
 }
 
