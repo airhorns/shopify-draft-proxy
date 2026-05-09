@@ -1,0 +1,51 @@
+{
+  "scenarioId": "gift-card-expiry-shop-timezone",
+  "operationNames": [
+    "giftCardCredit",
+    "giftCardDebit",
+    "giftCardSendNotificationToCustomer",
+    "giftCardSendNotificationToRecipient"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-parity", "local-runtime-backed"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/gift-cards/gift-card-expiry-shop-timezone.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "nowIso": "2026-01-01T03:00:00.000Z",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-expiry-shop-timezone.graphql",
+    "variablesCapturePath": "$.proxyVariables.boundary",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "credit succeeds on shop-local expiry date",
+        "capturePath": "$.expected.data.credit",
+        "proxyPath": "$.data.credit",
+        "selectedPaths": ["$.giftCardCreditTransaction.__typename", "$.userErrors"]
+      },
+      {
+        "name": "debit succeeds on shop-local expiry date",
+        "capturePath": "$.expected.data.debit",
+        "proxyPath": "$.data.debit",
+        "selectedPaths": ["$.giftCardDebitTransaction.__typename", "$.userErrors"]
+      },
+      {
+        "name": "customer notification reaches contact checks on shop-local expiry date",
+        "capturePath": "$.expected.data.customerNotification",
+        "proxyPath": "$.data.customerNotification",
+        "selectedPaths": ["$.giftCard", "$.userErrors"]
+      },
+      {
+        "name": "recipient notification reaches contact checks on shop-local expiry date",
+        "capturePath": "$.expected.data.recipientNotification",
+        "proxyPath": "$.data.recipientNotification",
+        "selectedPaths": ["$.giftCard", "$.userErrors"]
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for gift card expiry at a UTC/shop-local date boundary. The request starts cold, hydrates the gift cards and a non-UTC shop baseline through cassette-backed upstream reads, and verifies the four expired-card validation branches do not short-circuit while the fixed UTC clock has already crossed into the next date. The shop timezone fields are copied from the recorded very-big-test-store.myshopify.com StorePropertiesShopBaselineHydrate capture at fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/store-properties-baseline.json."
+}

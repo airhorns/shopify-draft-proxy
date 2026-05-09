@@ -85,3 +85,24 @@ pub fn process_mutation(
     upstream,
   )
 }
+
+@internal
+pub fn process_mutation_at(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  now_iso: String,
+) -> MutationOutcome {
+  mutations.process_mutation_at(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+    now_iso,
+  )
+}

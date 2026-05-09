@@ -694,9 +694,13 @@ pub fn product_feedback_invalid_state_uses_resource_feedback_enum_coercion_test(
   assert status == 200
   assert string.contains(
     body,
-    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+    "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
   )
   assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(
+    body,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"state\"",
+  )
   assert store.get_log(next_proxy.store) == []
 }
 
@@ -708,9 +712,13 @@ pub fn shop_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
   assert status == 200
   assert string.contains(
     body,
-    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+    "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
   )
   assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(
+    body,
+    "\"typeName\":\"InputObject\",\"argumentName\":\"state\"",
+  )
   assert store.get_log(next_proxy.store) == []
 }
 
@@ -2738,6 +2746,31 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
     == 1
 }
 
+pub fn product_update_stages_gift_card_ownership_and_metafields_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", giftCard: true, giftCardTemplateSuffix: \\\"birthday\\\", claimOwnership: { bundles: true }, metafields: [{ namespace: \\\"custom\\\", key: \\\"color\\\", type: \\\"single_line_text_field\\\", value: \\\"blue\\\" }] }) { product { id isGiftCard templateSuffix hasBundleOwnership } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id isGiftCard templateSuffix hasBundleOwnership metafield(namespace: \\\"custom\\\", key: \\\"color\\\") { namespace key type value ownerType } metafields(first: 5) { nodes { namespace key value } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"metafield\":{\"namespace\":\"custom\",\"key\":\"color\",\"type\":\"single_line_text_field\",\"value\":\"blue\",\"ownerType\":\"PRODUCT\"},\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\"}]}}}}"
+}
+
 pub fn product_update_stages_category_and_requires_selling_plan_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -2910,6 +2943,41 @@ pub fn product_create_and_set_normalize_tags_like_shopify_test() {
   assert set_status == 200
   assert json.to_string(set_body)
     == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_round_trips_extended_variant_fields_test() {
+  let proxy = draft_proxy.new()
+  let query =
+    "mutation { productSet(input: { title: \\\"Variant Field Set\\\", productOptions: [{ name: \\\"Title\\\", position: 1, values: [{ name: \\\"Digital\\\" }] }], variants: [{ optionValues: [{ optionName: \\\"Title\\\", name: \\\"Digital\\\" }], taxable: false, taxCode: \\\"P0000000\\\", showUnitPrice: true, unitPriceMeasurement: { quantityValue: 1.5, quantityUnit: L, referenceValue: 1, referenceUnit: L }, inventoryItem: { requiresShipping: false, harmonizedSystemCode: \\\"1234.56\\\" }, metafields: [{ namespace: \\\"specs\\\", key: \\\"format\\\", type: \\\"single_line_text_field\\\", value: \\\"download\\\" }] }] }, synchronous: true) { product { id variants(first: 10) { nodes { title taxable taxCode showUnitPrice unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit } inventoryItem { requiresShipping harmonizedSystemCode } metafield(namespace: \\\"specs\\\", key: \\\"format\\\") { value ownerType } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"requiresShipping\":false")
+  assert string.contains(body, "\"taxable\":false")
+  assert string.contains(body, "\"taxCode\":\"P0000000\"")
+  assert string.contains(body, "\"showUnitPrice\":true")
+  assert string.contains(
+    body,
+    "\"unitPriceMeasurement\":{\"quantityValue\":1.5,\"quantityUnit\":\"L\",\"referenceValue\":1,\"referenceUnit\":\"L\"}",
+  )
+  assert string.contains(body, "\"harmonizedSystemCode\":\"123456\"")
+  assert string.contains(
+    body,
+    "\"metafield\":{\"value\":\"download\",\"ownerType\":\"PRODUCTVARIANT\"}",
+  )
+
+  let assert [variant] =
+    store.get_effective_variants_by_product_id(
+      proxy.store,
+      "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+    )
+  let assert Some(inventory_item) = variant.inventory_item
+  assert inventory_item.requires_shipping == Some(False)
+  assert variant.tax_code == Some("P0000000")
+  assert variant.show_unit_price == Some(True)
 }
 
 pub fn product_set_stages_category_and_requires_selling_plan_test() {
@@ -3112,6 +3180,74 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_create_stages_gift_card_fields_variant_defaults_and_metafields_test() {
+  let proxy = draft_proxy.new()
+  let query =
+    "mutation { productCreate(product: { title: \\\"Gift Card Board\\\", giftCard: true, giftCardTemplateSuffix: \\\"birthday\\\", claimOwnership: { bundles: true }, metafields: [{ namespace: \\\"custom\\\", key: \\\"occasion\\\", type: \\\"single_line_text_field\\\", value: \\\"birthday\\\" }] }) { product { id isGiftCard templateSuffix hasBundleOwnership variants(first: 1) { nodes { id requiresShipping taxable fulfillmentService { serviceName type } inventoryItem { requiresShipping } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"requiresShipping\":false,\"taxable\":false,\"fulfillmentService\":{\"serviceName\":\"Gift Card\",\"type\":\"GIFT_CARD\"},\"inventoryItem\":{\"requiresShipping\":false}}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id isGiftCard templateSuffix hasBundleOwnership metafield(namespace: \\\"custom\\\", key: \\\"occasion\\\") { namespace key type value ownerType } variants(first: 1) { nodes { requiresShipping taxable fulfillmentService { serviceName type } inventoryItem { requiresShipping } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"metafield\":{\"namespace\":\"custom\",\"key\":\"occasion\",\"type\":\"single_line_text_field\",\"value\":\"birthday\",\"ownerType\":\"PRODUCT\"},\"variants\":{\"nodes\":[{\"requiresShipping\":false,\"taxable\":false,\"fulfillmentService\":{\"serviceName\":\"Gift Card\",\"type\":\"GIFT_CARD\"},\"inventoryItem\":{\"requiresShipping\":false}}]}}}}"
+}
+
+pub fn product_create_rejects_invalid_metafields_with_indexed_errors_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Bad Metafield\\\", metafields: [{ namespace: \\\"custom\\\", key: \\\"\\\", type: \\\"single_line_text_field\\\", value: \\\"x\\\" }] }) { product { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"key\"],\"message\":\"Key is required.\",\"code\":\"BLANK\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productCreate")
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_create_stages_product_publications_membership_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: product_publication_store(),
+    )
+  let query =
+    "mutation { productCreate(product: { title: \\\"Published Product\\\", productPublications: [{ publicationId: \\\"gid://shopify/Publication/1\\\" }] }) { product { id resourcePublicationsCount { count } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"resourcePublicationsCount\":{\"count\":1}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") resourcePublications(first: 5) { nodes { publication { id } isPublished } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"publishedOnPublication\":true,\"resourcePublications\":{\"nodes\":[{\"publication\":{\"id\":\"gid://shopify/Publication/1\"},\"isPublished\":true}]}}}}"
 }
 
 pub fn product_create_stages_category_requires_selling_plan_and_collections_test() {
@@ -4462,6 +4598,77 @@ pub fn product_variants_bulk_create_rejects_invalid_scalar_fields_test() {
   assert entry.staged_resource_ids == []
 }
 
+pub fn product_variants_bulk_create_round_trips_extended_variant_fields_test() {
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: option_update_store())
+  let mutation =
+    "mutation { productVariantsBulkCreate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ optionValues: [{ optionName: \\\"Color\\\", name: \\\"Green\\\" }, { optionName: \\\"Size\\\", name: \\\"Small\\\" }], taxable: false, taxCode: \\\"P0000000\\\", requiresComponents: true, showUnitPrice: true, unitPriceMeasurement: { quantityValue: 12.5, quantityUnit: ML, referenceValue: 100, referenceUnit: ML }, inventoryItem: { requiresShipping: false, countryCodeOfOrigin: US, provinceCodeOfOrigin: \\\"CA\\\", harmonizedSystemCode: \\\"1234.56\\\", measurement: { weight: { value: 0.5, unit: KILOGRAMS } } }, metafields: [{ namespace: \\\"specs\\\", key: \\\"format\\\", type: \\\"single_line_text_field\\\", value: \\\"digital\\\" }] }]) { productVariants { id title taxable taxCode requiresComponents showUnitPrice unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit } inventoryItem { id requiresShipping harmonizedSystemCode countryCodeOfOrigin provinceCodeOfOrigin measurement { weight { value unit } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"requiresShipping\":false")
+  assert string.contains(body, "\"taxable\":false")
+  assert string.contains(body, "\"taxCode\":\"P0000000\"")
+  assert string.contains(body, "\"requiresComponents\":true")
+  assert string.contains(body, "\"showUnitPrice\":true")
+  assert string.contains(
+    body,
+    "\"unitPriceMeasurement\":{\"quantityValue\":12.5,\"quantityUnit\":\"ML\",\"referenceValue\":100,\"referenceUnit\":\"ML\"}",
+  )
+  assert string.contains(body, "\"harmonizedSystemCode\":\"123456\"")
+  assert string.contains(body, "\"countryCodeOfOrigin\":\"US\"")
+  assert string.contains(body, "\"provinceCodeOfOrigin\":\"CA\"")
+  assert string.contains(
+    body,
+    "\"measurement\":{\"weight\":{\"value\":0.5,\"unit\":\"KILOGRAMS\"}}",
+  )
+  let assert Ok(created) =
+    store.get_effective_variants_by_product_id(
+      proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    |> list.find(fn(variant) { variant.title == "Green / Small" })
+  let read =
+    "query { productVariant(id: \\\""
+    <> created.id
+    <> "\\\") { id taxCode requiresComponents showUnitPrice metafield(namespace: \\\"specs\\\", key: \\\"format\\\") { value ownerType } inventoryItem { requiresShipping harmonizedSystemCode measurement { weight { value unit } } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  let read_body = json.to_string(read_body)
+
+  assert read_status == 200
+  assert string.contains(read_body, "\"taxCode\":\"P0000000\"")
+  assert string.contains(read_body, "\"requiresComponents\":true")
+  assert string.contains(read_body, "\"showUnitPrice\":true")
+  assert string.contains(read_body, "\"value\":\"digital\"")
+  assert string.contains(read_body, "\"harmonizedSystemCode\":\"123456\"")
+}
+
+pub fn product_variants_bulk_create_rejects_media_input_conflicts_test() {
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: option_update_store())
+  let valid_options =
+    "optionValues: [{ optionName: \\\"Color\\\", name: \\\"Green\\\" }, { optionName: \\\"Size\\\", name: \\\"Small\\\" }]"
+  let query =
+    "mutation { productVariantsBulkCreate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ "
+    <> valid_options
+    <> ", mediaId: \\\"gid://shopify/MediaImage/1\\\", mediaSrc: [\\\"https://example.com/a.jpg\\\"] }, { "
+    <> valid_options
+    <> ", mediaSrc: [\\\"https://example.com/b.jpg\\\", \\\"https://example.com/c.jpg\\\"] }]) { productVariants { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productVariantsBulkCreate\":{\"productVariants\":[],\"userErrors\":[{\"field\":[\"variants\",\"0\"],\"message\":\"cannot specify both `mediaId` and `mediaSrc`\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"1\",\"mediaSrc\"],\"message\":\"Can only specify a maximum of 1 media src of type image\",\"code\":\"INVALID_INPUT\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
 pub fn product_variants_bulk_create_rejects_oversized_input_test() {
   let proxy = draft_proxy.new()
   let variants = repeat_csv("{ price: \\\"1\\\" }", 2049)
@@ -4520,6 +4727,39 @@ pub fn product_variants_bulk_update_rejects_invalid_scalar_fields_test() {
   assert variant.inventory_quantity == Some(0)
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
+}
+
+pub fn product_variants_bulk_update_reorders_and_stages_variant_metafields_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: option_reorder_multi_variant_store(),
+    )
+  let query =
+    "mutation { productVariantsBulkUpdate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ id: \\\"gid://shopify/ProductVariant/optioned-green\\\", position: 1, taxCode: \\\"P0000000\\\", metafields: [{ namespace: \\\"specs\\\", key: \\\"tier\\\", type: \\\"single_line_text_field\\\", value: \\\"premium\\\" }] }]) { product { variants(first: 10) { nodes { id title position taxCode } } } productVariants { id position taxCode } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/optioned-green\",\"title\":\"Green / Small\",\"position\":1,\"taxCode\":\"P0000000\"},{\"id\":\"gid://shopify/ProductVariant/optioned\",\"title\":\"Red / Small\",\"position\":2,\"taxCode\":null}]",
+  )
+  assert string.contains(
+    body,
+    "\"productVariants\":[{\"id\":\"gid://shopify/ProductVariant/optioned-green\",\"position\":1,\"taxCode\":\"P0000000\"}]",
+  )
+
+  let read =
+    "query { product(id: \\\"gid://shopify/Product/optioned\\\") { variants(first: 10) { nodes { id position } } } productVariant(id: \\\"gid://shopify/ProductVariant/optioned-green\\\") { taxCode metafield(namespace: \\\"specs\\\", key: \\\"tier\\\") { value } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/optioned-green\",\"position\":1},{\"id\":\"gid://shopify/ProductVariant/optioned\",\"position\":2}]}},\"productVariant\":{\"taxCode\":\"P0000000\",\"metafield\":{\"value\":\"premium\"}}}}"
 }
 
 pub fn inventory_item_update_rejects_invalid_scalar_user_errors_test() {
@@ -6692,9 +6932,15 @@ fn tracked_inventory_variant_with_levels(
     barcode: None,
     price: Some("0.00"),
     compare_at_price: None,
+    requires_shipping: None,
     taxable: None,
+    tax_code: None,
     inventory_policy: None,
     inventory_quantity: Some(1),
+    position: None,
+    requires_components: None,
+    unit_price_measurement: None,
+    show_unit_price: None,
     selected_options: [
       ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
     ],
@@ -6737,6 +6983,9 @@ fn default_product() -> ProductRecord {
     description_html: "",
     online_store_preview_url: None,
     template_suffix: None,
+    is_gift_card: None,
+    gift_card_template_suffix: None,
+    has_bundle_ownership: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     requires_selling_plan: None,
@@ -6893,9 +7142,15 @@ fn option_update_variant() -> ProductVariantRecord {
     barcode: None,
     price: Some("0.00"),
     compare_at_price: None,
+    requires_shipping: None,
     taxable: None,
+    tax_code: None,
     inventory_policy: None,
     inventory_quantity: Some(0),
+    position: None,
+    requires_components: None,
+    unit_price_measurement: None,
+    show_unit_price: None,
     selected_options: [
       ProductVariantSelectedOptionRecord(name: "Color", value: "Red"),
       ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
@@ -6999,9 +7254,15 @@ fn default_variant() -> ProductVariantRecord {
     barcode: None,
     price: Some("0.00"),
     compare_at_price: None,
+    requires_shipping: None,
     taxable: None,
+    tax_code: None,
     inventory_policy: None,
     inventory_quantity: Some(0),
+    position: None,
+    requires_components: None,
+    unit_price_measurement: None,
+    show_unit_price: None,
     selected_options: [
       ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
     ],

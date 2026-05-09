@@ -151,6 +151,7 @@ export const paritySpecSchema = z
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
     runtimeTestFiles: z.array(z.string()).optional(),
+    nowIso: z.string().min(1).optional(),
     notes: z.string().optional(),
   })
   .superRefine((spec, ctx) => {

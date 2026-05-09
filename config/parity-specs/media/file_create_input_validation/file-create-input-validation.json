@@ -1,0 +1,71 @@
+{
+  "scenarioId": "media-file-create-input-validation",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["input-validation-parity", "payload-shape", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
+    "variablesCapturePath": "$.scenarios[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 FileCreateInput originalSource input-class validation. Missing originalSource is rejected as INVALID_VARIABLE during variable coercion; empty and 2049-character originalSource values return top-level INVALID_FIELD_ARGUMENTS errors with data.fileCreate null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-original-source-errors",
+        "capturePath": "$.scenarios[0].response.payload.errors",
+        "proxyPath": "$.errors",
+        "excludedPaths": ["$[0].locations"]
+      },
+      {
+        "name": "empty-original-source-data",
+        "capturePath": "$.scenarios[1].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "empty-original-source-errors",
+        "capturePath": "$.scenarios[1].response.payload.errors",
+        "proxyPath": "$.errors",
+        "excludedPaths": ["$[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-length-original-source-data",
+        "capturePath": "$.scenarios[2].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios[2].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-length-original-source-errors",
+        "capturePath": "$.scenarios[2].response.payload.errors",
+        "proxyPath": "$.errors",
+        "excludedPaths": ["$[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios[2].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

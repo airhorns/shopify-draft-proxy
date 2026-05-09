@@ -10,6 +10,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -58,6 +59,8 @@ const execution_name = "stage-locally"
 
 const metaobject_handle_max_length = 255
 
+const metaobject_generated_handle_code_length = 8
+
 pub const display_name_conflict_message = "The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts."
 
 const definition_column_size_limit = 255
@@ -77,6 +80,8 @@ pub const default_max_metaobjects_per_type = 1_000_000
 const default_max_fields_per_definition = 40
 
 const forms_max_fields_per_definition = 100
+
+const shopify_forms_api_client_id = "6171699"
 
 const min_field_key_length = 2
 
@@ -189,6 +194,7 @@ pub fn default_definition_access() -> Dict(String, Option(String)) {
   dict.from_list([
     #("admin", Some("PUBLIC_READ_WRITE")),
     #("storefront", Some("NONE")),
+    #("customerAccount", Some("NONE")),
   ])
 }
 
@@ -680,13 +686,18 @@ pub fn append_create_field_limit_user_errors(
   values: List(root_field.ResolvedValue),
   type_: String,
 ) -> List(UserError) {
-  let fields = read_field_definitions(values)
-  append_definition_field_limit_user_errors(
-    errors,
-    list.length(values),
-    fields,
-    type_,
-  )
+  case is_shopify_reserved_definition_type(type_) {
+    True -> errors
+    False -> {
+      let fields = read_field_definitions(values)
+      append_definition_field_limit_user_errors(
+        errors,
+        list.length(values),
+        fields,
+        type_,
+      )
+    }
+  }
 }
 
 @internal
@@ -915,9 +926,10 @@ pub fn admin_filterable_field_count_user_error() -> UserError {
 
 @internal
 pub fn max_fields_per_definition(type_: String) -> Int {
-  case string.starts_with(type_, "shopify--form-") {
-    True -> forms_max_fields_per_definition
-    False -> default_max_fields_per_definition
+  case app_controlled_api_client_id(type_) {
+    Some(api_client_id) if api_client_id == shopify_forms_api_client_id ->
+      forms_max_fields_per_definition
+    _ -> default_max_fields_per_definition
   }
 }
 
@@ -2167,12 +2179,30 @@ fn build_metaobject_from_valid_create_input(
     [_, ..] -> #(None, identity, errors)
     [] -> {
       let display_name = metaobject_display_name(definition, fields, None)
-      let preferred =
-        read_non_blank_string(input, "handle")
-        |> option.or(display_name)
-        |> option.unwrap(definition.type_)
-      let handle =
-        make_unique_metaobject_handle(store, definition.type_, preferred)
+      let explicit_handle = read_non_blank_string(input, "handle")
+      let handle = case explicit_handle {
+        Some(preferred) ->
+          make_unique_metaobject_handle(store, definition.type_, preferred)
+        None ->
+          case display_name {
+            Some(preferred) ->
+              make_unique_normalized_metaobject_handle(
+                store,
+                definition.type_,
+                preferred,
+              )
+            None ->
+              make_unique_generated_metaobject_handle(store, definition.type_)
+          }
+      }
+      let display_name = case display_name {
+        Some(_) -> display_name
+        None ->
+          Some(metaobject_handle_display_name_for_type(
+            definition.type_,
+            display_name_handle_source(explicit_handle, handle),
+          ))
+      }
       let #(id, after_id) =
         synthetic_identity.make_proxy_synthetic_gid(identity, "Metaobject")
       let #(now, after_time) =
@@ -2942,7 +2972,7 @@ pub fn metaobject_display_name(
   handle: Option(String),
 ) -> Option(String) {
   case definition.display_name_key {
-    None -> None
+    None -> metaobject_handle_fallback_display_name(definition, handle)
     Some(key) ->
       case list.find(fields, fn(field) { field.key == key }) {
         Ok(field) ->
@@ -2952,16 +2982,26 @@ pub fn metaobject_display_name(
                 is_display_measurement_metaobject_type(type_),
                 field.json_value
               {
-                True, MetaobjectNull -> field_value_or_handle(field, handle)
+                True, MetaobjectNull ->
+                  field_value_or_handle(field, handle, definition.type_)
                 True, json_value ->
                   Some(measurement_display_json_value_to_string(json_value))
-                _, _ -> field_value_or_handle(field, handle)
+                _, _ -> field_value_or_handle(field, handle, definition.type_)
               }
-            None -> field_value_or_handle(field, handle)
+            None -> field_value_or_handle(field, handle, definition.type_)
           }
-        Error(_) -> option.map(handle, metaobject_handle_display_name)
+        Error(_) -> metaobject_handle_fallback_display_name(definition, handle)
       }
   }
+}
+
+fn metaobject_handle_fallback_display_name(
+  definition: MetaobjectDefinitionRecord,
+  handle: Option(String),
+) -> Option(String) {
+  option.map(handle, fn(handle) {
+    metaobject_handle_display_name_for_type(definition.type_, handle)
+  })
 }
 
 @internal
@@ -2976,10 +3016,12 @@ pub fn is_display_measurement_metaobject_type(type_: String) -> Bool {
 pub fn field_value_or_handle(
   field: MetaobjectFieldRecord,
   handle: Option(String),
+  type_: String,
 ) -> Option(String) {
   case field.value {
     Some(value) -> Some(value)
-    None -> option.map(handle, metaobject_handle_display_name)
+    None ->
+      option.map(handle, metaobject_handle_display_name_for_type(type_, _))
   }
 }
 
@@ -3050,9 +3092,65 @@ pub fn metaobject_handle_display_name(handle: String) -> String {
   |> string.replace("-", " ")
   |> string.replace("_", " ")
   |> string.split(" ")
+  |> list.flat_map(split_camel_title_part)
   |> list.filter(fn(part) { part != "" })
   |> list.map(capitalise_handle_part)
   |> string.join(" ")
+}
+
+fn split_camel_title_part(part: String) -> List(String) {
+  case string.to_graphemes(part) {
+    [] -> []
+    [first, ..rest] -> split_camel_title_part_loop(rest, first, first, [])
+  }
+}
+
+fn split_camel_title_part_loop(
+  rest: List(String),
+  current: String,
+  previous: String,
+  parts: List(String),
+) -> List(String) {
+  case rest {
+    [] -> list.reverse([current, ..parts])
+    [grapheme, ..tail] -> {
+      let starts_new_word =
+        is_ascii_uppercase_grapheme(grapheme)
+        && is_ascii_lowercase_or_digit_grapheme(previous)
+      case starts_new_word {
+        True ->
+          split_camel_title_part_loop(tail, grapheme, grapheme, [
+            current,
+            ..parts
+          ])
+        False ->
+          split_camel_title_part_loop(
+            tail,
+            current <> grapheme,
+            grapheme,
+            parts,
+          )
+      }
+    }
+  }
+}
+
+fn is_ascii_uppercase_grapheme(grapheme: String) -> Bool {
+  case string.to_utf_codepoints(grapheme) {
+    [codepoint] ->
+      is_ascii_uppercase_letter(string.utf_codepoint_to_int(codepoint))
+    _ -> False
+  }
+}
+
+fn is_ascii_lowercase_or_digit_grapheme(grapheme: String) -> Bool {
+  case string.to_utf_codepoints(grapheme) {
+    [codepoint] -> {
+      let code = string.utf_codepoint_to_int(codepoint)
+      is_ascii_lowercase_letter(code) || is_ascii_digit(code)
+    }
+    _ -> False
+  }
 }
 
 @internal
@@ -3064,7 +3162,96 @@ pub fn capitalise_handle_part(part: String) -> String {
 }
 
 @internal
+pub fn metaobject_handle_display_name_for_type(
+  type_: String,
+  handle: String,
+) -> String {
+  let base = metaobject_random_handle_base(type_)
+  let prefix = base <> "-"
+  case string.starts_with(handle, prefix) {
+    True -> {
+      let suffix = string.drop_start(handle, string.length(prefix))
+      case is_generated_metaobject_handle_suffix(suffix) {
+        True ->
+          metaobject_handle_display_name(base)
+          <> " #"
+          <> string.uppercase(suffix)
+        False -> metaobject_handle_display_name(handle)
+      }
+    }
+    False -> metaobject_handle_display_name(handle)
+  }
+}
+
+fn is_generated_metaobject_handle_suffix(value: String) -> Bool {
+  string.length(value) == metaobject_generated_handle_code_length
+  && list.all(string.to_graphemes(value), is_metaobject_handle_word_grapheme)
+}
+
+fn is_metaobject_handle_word_grapheme(grapheme: String) -> Bool {
+  case string.to_utf_codepoints(grapheme) {
+    [codepoint] -> {
+      let code = string.utf_codepoint_to_int(codepoint)
+      is_ascii_lowercase_letter(code)
+      || is_ascii_uppercase_letter(code)
+      || is_ascii_digit(code)
+      || code == 95
+    }
+    _ -> False
+  }
+}
+
+@internal
 pub fn make_unique_metaobject_handle(
+  store: Store,
+  type_: String,
+  preferred: String,
+) -> String {
+  let base =
+    preferred
+    |> string.trim
+    |> string.lowercase
+    |> cap_metaobject_handle
+  let base = case string.trim(base) {
+    "" -> normalize_metaobject_handle(type_)
+    other -> other
+  }
+  unique_handle_loop(
+    store,
+    type_,
+    case base {
+      "" -> "metaobject"
+      other -> other
+    },
+    case base {
+      "" -> "metaobject"
+      other -> other
+    },
+    1,
+  )
+}
+
+fn display_name_handle_source(
+  explicit_handle: Option(String),
+  handle: String,
+) -> String {
+  case explicit_handle {
+    Some(preferred) -> {
+      let normalized =
+        preferred
+        |> string.trim
+        |> string.lowercase
+        |> cap_metaobject_handle
+      case handle == normalized {
+        True -> preferred
+        False -> handle
+      }
+    }
+    None -> handle
+  }
+}
+
+fn make_unique_normalized_metaobject_handle(
   store: Store,
   type_: String,
   preferred: String,
@@ -3087,6 +3274,44 @@ pub fn make_unique_metaobject_handle(
     },
     1,
   )
+}
+
+@internal
+pub fn make_unique_generated_metaobject_handle(
+  store: Store,
+  type_: String,
+) -> String {
+  let base = metaobject_random_handle_base(type_)
+  unique_generated_metaobject_handle_loop(store, type_, base, 0)
+}
+
+fn unique_generated_metaobject_handle_loop(
+  store: Store,
+  type_: String,
+  base: String,
+  attempt: Int,
+) -> String {
+  let handle = base <> "-" <> generated_metaobject_handle_suffix(type_, attempt)
+  case find_effective_metaobject_by_handle(store, type_, handle) {
+    None -> handle
+    Some(_) ->
+      unique_generated_metaobject_handle_loop(store, type_, base, attempt + 1)
+  }
+}
+
+fn generated_metaobject_handle_suffix(type_: String, attempt: Int) -> String {
+  let digest = crypto.sha256_hex(type_ <> ":" <> int.to_string(attempt))
+  digest
+  |> string.slice(0, metaobject_generated_handle_code_length)
+  |> string.lowercase
+}
+
+fn metaobject_random_handle_base(type_: String) -> String {
+  let base = normalize_metaobject_handle(type_)
+  case base {
+    "" -> "metaobject"
+    other -> other
+  }
 }
 
 @internal

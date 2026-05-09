@@ -262,6 +262,20 @@ fn project_cart_transform(
   }
 }
 
+@internal
+pub fn serialize_cart_transform_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_cart_transform_by_id(store, id) {
+    Some(record) ->
+      project_cart_transform_selections(record, selections, fragments)
+    None -> json.null()
+  }
+}
+
 fn project_shopify_function(
   record: ShopifyFunctionRecord,
   field: Selection,

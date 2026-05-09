@@ -1,0 +1,89 @@
+{
+  "scenarioId": "webhook-subscription-pub-sub-required-fields",
+  "operationNames": ["pubSubWebhookSubscriptionCreate", "pubSubWebhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-pub-sub-required-fields.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project.graphql",
+    "variablesCapturePath": "$.validation.createMissingProject.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for PubSubWebhookSubscriptionInput required pubSubProject/pubSubTopic validation on the dedicated Pub/Sub create/update roots. These branches return top-level GraphQL errors before resolver side effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-missing-project-errors",
+        "capturePath": "$.validation.createMissingProject.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project.graphql",
+          "variablesCapturePath": "$.validation.createMissingProject.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-missing-topic-errors",
+        "capturePath": "$.validation.createMissingTopic.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-topic.graphql",
+          "variablesCapturePath": "$.validation.createMissingTopic.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-missing-both-errors",
+        "capturePath": "$.validation.createMissingBoth.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project-topic.graphql",
+          "variablesCapturePath": "$.validation.createMissingBoth.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-missing-project-errors",
+        "capturePath": "$.validation.updateMissingProject.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project.graphql",
+          "variablesCapturePath": "$.validation.updateMissingProject.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-missing-topic-errors",
+        "capturePath": "$.validation.updateMissingTopic.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-topic.graphql",
+          "variablesCapturePath": "$.validation.updateMissingTopic.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-missing-both-errors",
+        "capturePath": "$.validation.updateMissingBoth.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project-topic.graphql",
+          "variablesCapturePath": "$.validation.updateMissingBoth.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

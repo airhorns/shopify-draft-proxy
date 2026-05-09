@@ -727,6 +727,50 @@ pub fn graphql_marketing_engagement_create_inline_input_requires_captured_fields
   assert !string.contains(missing_json, "\"data\"")
 }
 
+pub fn graphql_pubsub_webhook_create_inline_input_requires_project_and_topic_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request_for_version(
+      "2026-04",
+      "{\"query\":\"mutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { format: JSON }) { webhookSubscription { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'pubSubProject' on InputObject 'PubSubWebhookSubscriptionInput' is required. Expected type String!\",\"locations\":[{\"line\":1,\"column\":85}],\"path\":[\"mutation\",\"pubSubWebhookSubscriptionCreate\",\"webhookSubscription\",\"pubSubProject\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"pubSubProject\",\"argumentType\":\"String!\",\"inputObjectType\":\"PubSubWebhookSubscriptionInput\"}},{\"message\":\"Argument 'pubSubTopic' on InputObject 'PubSubWebhookSubscriptionInput' is required. Expected type String!\",\"locations\":[{\"line\":1,\"column\":85}],\"path\":[\"mutation\",\"pubSubWebhookSubscriptionCreate\",\"webhookSubscription\",\"pubSubTopic\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"pubSubTopic\",\"argumentType\":\"String!\",\"inputObjectType\":\"PubSubWebhookSubscriptionInput\"}}]}"
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  let serialized_state = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+}
+
+pub fn graphql_pubsub_webhook_update_variable_input_requires_project_and_topic_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation PubSubRequired($id: ID!, $webhookSubscription: PubSubWebhookSubscriptionInput!) { pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) { webhookSubscription { id } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"webhookSubscription\":{\"pubSubProject\":\"valid-project\"}}}"
+  let #(Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version("2026-04", body),
+    )
+  let serialized = json.to_string(response_body)
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "\"problems\":[{\"path\":[\"pubSubTopic\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  let serialized_state = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -885,6 +929,16 @@ pub fn graphql_saved_search_create_rejects_product_incompatible_filters_test() {
   assert error_status == 200
   assert json.to_string(error_body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, error_feedback\"}]}}}"
+
+  let tag_published_request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Collection tag published\\\", query: \\\"collection_id:1 tag:foo published_status:published\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: tag_published_status, body: tag_published_body, ..), _) =
+    draft_proxy.process_request(proxy, tag_published_request)
+  assert tag_published_status == 200
+  assert json.to_string(tag_published_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag, published_status\"}]}}}"
 }
 
 pub fn graphql_saved_search_create_allows_product_collection_id_alone_test() {
@@ -1086,13 +1140,13 @@ pub fn graphql_saved_search_create_aggregates_length_and_incompatible_filter_err
   let proxy = draft_proxy.new()
   let request =
     graphql_request(
-      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"collection_id:\\\\\\\"123\\\\\\\" tag:\\\\\\\"AAA\\\\\\\"\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"collection_id:\\\\\\\"123\\\\\\\" tag:\\\\\\\"AAA\\\\\\\" published_status:published\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
     )
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 40 characters)\"},{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag\"}]}}}"
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 40 characters)\"},{\"field\":[\"input\",\"query\"],\"message\":\"Query has incompatible filters: collection_id, tag, published_status\"}]}}}"
 }
 
 pub fn graphql_saved_search_create_aggregates_reserved_and_unknown_query_errors_test() {
@@ -1740,6 +1794,75 @@ pub fn graphql_saved_search_create_with_variables_test() {
   assert status == 200
   assert json.to_string(response_body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_saved_search_create_variable_missing_resource_type_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"name\":\"Variable missing resource type\",\"query\":\"tag:variable\"}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"resourceType\"]")
+}
+
+pub fn graphql_saved_search_create_variable_missing_name_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"query\":\"tag:variable\",\"resourceType\":\"PRODUCT\"}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"name\"]")
+}
+
+pub fn graphql_saved_search_create_variable_null_resource_type_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Create($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } } }\",\"variables\":{\"input\":{\"name\":\"Variable null resource type\",\"query\":\"tag:variable\",\"resourceType\":null}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"resourceType\"]")
+  assert string.contains(serialized, "\"resourceType\":null")
+}
+
+pub fn graphql_saved_search_delete_variable_missing_id_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation Delete($input: SavedSearchDeleteInput!) { savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } } }\",\"variables\":{\"input\":{}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert !string.contains(serialized, "\"data\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"id\"]")
 }
 
 pub fn graphql_saved_search_query_with_variables_test() {

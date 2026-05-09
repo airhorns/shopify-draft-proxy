@@ -1028,6 +1028,9 @@ fn stage_product_bundle_product(
           description_html: "",
           online_store_preview_url: None,
           template_suffix: None,
+          is_gift_card: None,
+          gift_card_template_suffix: None,
+          has_bundle_ownership: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
           requires_selling_plan: None,
@@ -1720,6 +1723,13 @@ pub fn product_source_with_relationships(
   currency_code: String,
   publication_id: Option(String),
 ) -> SourceValue {
+  let template_suffix = case
+    product.is_gift_card,
+    product.gift_card_template_suffix
+  {
+    Some(True), Some(suffix) -> Some(suffix)
+    _, _ -> product.template_suffix
+  }
   let visible_publication_count = case product.status == "ACTIVE" {
     True -> list.length(product.publication_ids)
     False -> 0
@@ -1773,9 +1783,19 @@ pub fn product_source_with_relationships(
       "onlineStorePreviewUrl",
       graphql_helpers.option_string_source(product.online_store_preview_url),
     ),
+    #("templateSuffix", graphql_helpers.option_string_source(template_suffix)),
     #(
-      "templateSuffix",
-      graphql_helpers.option_string_source(product.template_suffix),
+      "giftCardTemplateSuffix",
+      graphql_helpers.option_string_source(product.gift_card_template_suffix),
+    ),
+    #("isGiftCard", graphql_helpers.option_bool_source(product.is_gift_card)),
+    #(
+      "hasBundleOwnership",
+      graphql_helpers.option_bool_source(product.has_bundle_ownership),
+    ),
+    #(
+      "isBundle",
+      graphql_helpers.option_bool_source(product.has_bundle_ownership),
     ),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),

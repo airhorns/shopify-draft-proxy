@@ -1,0 +1,234 @@
+{
+  "capturedAt": "2026-05-08T11:45:10.350Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures PubSubWebhookSubscriptionInput required-field coercion errors for the deprecated dedicated Pub/Sub create/update roots.",
+    "All cases fail in GraphQL variable validation before the resolver runs, so no webhook subscription is created, updated, deleted, or delivered."
+  ],
+  "validation": {
+    "createMissingProject": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubTopic": "topic-1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubProject (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubTopic": "topic-1"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubProject"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "createMissingTopic": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-topic.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubProject": "valid-project"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "createMissingBoth": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-missing-project-topic.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubProject (Expected value to not be null), pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [
+                  {
+                    "path": ["pubSubProject"],
+                    "explanation": "Expected value to not be null"
+                  },
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "updateMissingProject": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1",
+        "webhookSubscription": {
+          "pubSubTopic": "topic-1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubProject (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubTopic": "topic-1"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubProject"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "updateMissingTopic": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-topic.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 64
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "pubSubProject": "valid-project"
+                },
+                "problems": [
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "updateMissingBoth": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-missing-project-topic.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1",
+        "webhookSubscription": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubProject (Expected value to not be null), pubSubTopic (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [
+                  {
+                    "path": ["pubSubProject"],
+                    "explanation": "Expected value to not be null"
+                  },
+                  {
+                    "path": ["pubSubTopic"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

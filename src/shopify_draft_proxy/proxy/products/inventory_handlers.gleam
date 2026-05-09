@@ -86,9 +86,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryLocationRecord,
-  type ProductVariantRecord, type StorePropertyRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryQuantityRecord, ProductVariantRecord,
-  StorePropertyString,
+  type ProductVariantRecord, type StorePropertyRecord,
+  type UnitPriceMeasurementRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, ProductVariantRecord, StorePropertyString,
 }
 
 // ===== from inventory_l07 =====
@@ -98,6 +98,7 @@ pub fn product_variant_source_with_inventory(
   variant: ProductVariantRecord,
   inventory_item: SourceValue,
 ) -> SourceValue {
+  let fulfillment_service = gift_card_fulfillment_service_source(store, variant)
   src_object([
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
@@ -109,7 +110,13 @@ pub fn product_variant_source_with_inventory(
       "compareAtPrice",
       graphql_helpers.option_string_source(variant.compare_at_price),
     ),
+    #(
+      "requiresShipping",
+      graphql_helpers.option_bool_source(variant.requires_shipping),
+    ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #("fulfillmentService", fulfillment_service),
+    #("taxCode", graphql_helpers.option_string_source(variant.tax_code)),
     #(
       "inventoryPolicy",
       graphql_helpers.option_string_source(variant.inventory_policy),
@@ -117,6 +124,19 @@ pub fn product_variant_source_with_inventory(
     #(
       "inventoryQuantity",
       graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
+    #("position", graphql_helpers.option_int_source(variant.position)),
+    #(
+      "requiresComponents",
+      graphql_helpers.option_bool_source(variant.requires_components),
+    ),
+    #(
+      "unitPriceMeasurement",
+      unit_price_measurement_source(variant.unit_price_measurement),
+    ),
+    #(
+      "showUnitPrice",
+      graphql_helpers.option_bool_source(variant.show_unit_price),
     ),
     #(
       "selectedOptions",
@@ -150,6 +170,45 @@ pub fn product_variant_source_with_inventory(
       optional_captured_json_source(variant.contextual_pricing),
     ),
   ])
+}
+
+fn gift_card_fulfillment_service_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  case store.get_effective_product_by_id(store, variant.product_id) {
+    Some(product) if product.is_gift_card == Some(True) ->
+      src_object([
+        #("__typename", SrcString("FulfillmentService")),
+        #("serviceName", SrcString("Gift Card")),
+        #("type", SrcString("GIFT_CARD")),
+      ])
+    _ -> SrcNull
+  }
+}
+
+fn unit_price_measurement_source(
+  measurement: Option(UnitPriceMeasurementRecord),
+) -> SourceValue {
+  case measurement {
+    Some(value) ->
+      src_object([
+        #("quantityValue", optional_captured_json_source(value.quantity_value)),
+        #(
+          "quantityUnit",
+          graphql_helpers.option_string_source(value.quantity_unit),
+        ),
+        #(
+          "referenceValue",
+          optional_captured_json_source(value.reference_value),
+        ),
+        #(
+          "referenceUnit",
+          graphql_helpers.option_string_source(value.reference_unit),
+        ),
+      ])
+    None -> SrcNull
+  }
 }
 
 @internal

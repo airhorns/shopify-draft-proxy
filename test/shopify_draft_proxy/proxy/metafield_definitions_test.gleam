@@ -1185,6 +1185,123 @@ pub fn metafield_definition_app_namespace_resolution_lifecycle_test() {
   assert string.contains(after_json, "\"appPrefix\":null")
 }
 
+pub fn metafields_set_delete_app_namespace_resolution_test() {
+  let proxy = draft_proxy.new()
+  let set =
+    "mutation {
+      metafieldsSet(metafields: [
+        {
+          ownerId: \"gid://shopify/Product/1\",
+          namespace: \"$app:loyalty\",
+          key: \"tier\",
+          type: \"single_line_text_field\",
+          value: \"gold\"
+        },
+        {
+          ownerId: \"gid://shopify/Product/1\",
+          key: \"vip\",
+          type: \"single_line_text_field\",
+          value: \"silver\"
+        }
+      ]) {
+        metafields { id namespace key type value }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql_with_api_client_id(proxy, set, "999001")
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"namespace\":\"app--999001--loyalty\"")
+  assert string.contains(set_json, "\"namespace\":\"app--999001\"")
+  assert string.contains(set_json, "\"userErrors\":[]")
+
+  let delete =
+    "mutation {
+      metafieldsDelete(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"$app:loyalty\",
+        key: \"tier\"
+      }]) {
+        deletedMetafields { ownerId namespace key }
+        userErrors { field message }
+      }
+    }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_api_client_id(proxy, delete, "999001")
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(
+    delete_json,
+    "\"deletedMetafields\":[{\"ownerId\":\"gid://shopify/Product/1\",\"namespace\":\"app--999001--loyalty\",\"key\":\"tier\"}]",
+  )
+  assert string.contains(delete_json, "\"userErrors\":[]")
+
+  let read =
+    "query {
+      product(id: \"gid://shopify/Product/1\") {
+        tier: metafield(namespace: \"app--999001--loyalty\", key: \"tier\") { id }
+        vip: metafield(namespace: \"app--999001\", key: \"vip\") { namespace key value }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_api_client_id(proxy, read, "999001")
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"tier\":null")
+  assert string.contains(
+    read_json,
+    "\"vip\":{\"namespace\":\"app--999001\",\"key\":\"vip\",\"value\":\"silver\"}",
+  )
+}
+
+pub fn metafields_value_mutations_reject_cross_app_namespace_test() {
+  let proxy = draft_proxy.new()
+  let set =
+    "mutation {
+      metafieldsSet(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"app--999002--loyalty\",
+        key: \"tier\",
+        type: \"single_line_text_field\",
+        value: \"gold\"
+      }]) {
+        metafields { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql_with_api_client_id(proxy, set, "999001")
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(
+    set_json,
+    "\"field\":[\"metafields\",\"0\"],\"message\":\"Access to this namespace and key on Metafields for this resource type is not allowed.\",\"code\":\"APP_NOT_AUTHORIZED\"",
+  )
+  assert string.contains(set_json, "\"metafields\":[]")
+
+  let delete =
+    "mutation {
+      metafieldsDelete(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"app--999002--loyalty\",
+        key: \"tier\"
+      }]) {
+        deletedMetafields { ownerId namespace key }
+        userErrors { field message }
+      }
+    }"
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql_with_api_client_id(proxy, delete, "999001")
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(
+    delete_json,
+    "\"field\":[\"metafields\"],\"message\":\"Access to this namespace and key on Metafields for this resource type is not allowed.\"",
+  )
+  assert string.contains(delete_json, "\"deletedMetafields\":[]")
+}
+
 pub fn metafield_definition_cross_app_namespace_rejected_test() {
   let proxy = draft_proxy.new()
   let create =

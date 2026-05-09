@@ -1,0 +1,290 @@
+{
+  "scenarioId": "productCreate-dropped-inputs-parity",
+  "capturedAt": "2026-05-08T02:45:14.073Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "giftCardAndMetafields": {
+    "mutation": {
+      "query": "mutation ProductCreateDroppedInputsParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      isGiftCard\n      giftCardTemplateSuffix\n      variants(first: 1) {\n        nodes {\n          id\n          taxable\n          inventoryItem {\n            id\n            requiresShipping\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Gift Card Product 1778208313089",
+          "status": "DRAFT",
+          "giftCard": true,
+          "giftCardTemplateSuffix": "birthday",
+          "claimOwnership": {
+            "bundles": true
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "occasion",
+              "type": "single_line_text_field",
+              "value": "birthday"
+            },
+            {
+              "namespace": "custom",
+              "key": "audience",
+              "type": "single_line_text_field",
+              "value": "friend"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10180318888242",
+                "title": "Hermes Gift Card Product 1778208313089",
+                "isGiftCard": true,
+                "giftCardTemplateSuffix": "birthday",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51137392804146",
+                      "taxable": false,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53240631099698",
+                        "requiresShipping": false
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "query": "query ProductCreateDroppedInputsDownstreamRead($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    isGiftCard\n    giftCardTemplateSuffix\n    metafield(namespace: \"custom\", key: \"occasion\") {\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n    variants(first: 1) {\n      nodes {\n        id\n        taxable\n        inventoryItem {\n          id\n          requiresShipping\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10180318888242"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10180318888242",
+              "title": "Hermes Gift Card Product 1778208313089",
+              "isGiftCard": true,
+              "giftCardTemplateSuffix": "birthday",
+              "metafield": {
+                "namespace": "custom",
+                "key": "occasion",
+                "type": "single_line_text_field",
+                "value": "birthday",
+                "ownerType": "PRODUCT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "namespace": "custom",
+                    "key": "occasion",
+                    "type": "single_line_text_field",
+                    "value": "birthday",
+                    "ownerType": "PRODUCT"
+                  },
+                  {
+                    "namespace": "custom",
+                    "key": "audience",
+                    "type": "single_line_text_field",
+                    "value": "friend",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              },
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51137392804146",
+                    "taxable": false,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53240631099698",
+                      "requiresShipping": false
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "productPublications": {
+    "publicationCatalog": {
+      "query": "query ProductCreatePublicationTargetsHydrate($first: Int!) {\n  publications(first: $first) {\n    nodes {\n      id\n      name\n    }\n  }\n}\n",
+      "variables": {
+        "first": 50
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/292074258738",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publicationId": "gid://shopify/Publication/268039389490",
+    "productPublicationsSchemaProbe": {
+      "query": "mutation ProductCreatePublicationsPublicSchemaProbe($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      resourcePublicationsCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Published Product 1778208313089",
+          "status": "DRAFT",
+          "productPublications": [
+            {
+              "publicationId": "gid://shopify/Publication/268039389490"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value for productPublications (Field is not defined on ProductCreateInput)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 53
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "Hermes Published Product 1778208313089",
+                  "status": "DRAFT",
+                  "productPublications": [
+                    {
+                      "publicationId": "gid://shopify/Publication/268039389490"
+                    }
+                  ]
+                },
+                "problems": [
+                  {
+                    "path": ["productPublications"],
+                    "explanation": "Field is not defined on ProductCreateInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "publicationsSchemaProbe": {
+      "query": "mutation ProductCreatePublicationsPublicSchemaProbe($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      resourcePublicationsCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Publications Alias Product 1778208313089",
+          "status": "DRAFT",
+          "publications": [
+            {
+              "publicationId": "gid://shopify/Publication/268039389490"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value for publications (Field is not defined on ProductCreateInput)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 53
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "Hermes Publications Alias Product 1778208313089",
+                  "status": "DRAFT",
+                  "publications": [
+                    {
+                      "publicationId": "gid://shopify/Publication/268039389490"
+                    }
+                  ]
+                },
+                "problems": [
+                  {
+                    "path": ["publications"],
+                    "explanation": "Field is not defined on ProductCreateInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
