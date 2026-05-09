@@ -17,9 +17,10 @@ mutation StandardMetafieldDefinitionEnableValidation(
       }
     }
     userErrors {
+      __typename
+      code
       field
       message
-      code
     }
   }
 }
