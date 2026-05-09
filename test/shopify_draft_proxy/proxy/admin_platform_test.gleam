@@ -1166,6 +1166,73 @@ pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
   )
 }
 
+pub fn flow_generate_signature_canonicalizes_payload_before_signing_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let id = "gid://shopify/FlowTrigger/374"
+  let compact_payload = "{\"foo\":1,\"bar\":2}"
+  let pretty_payload = "{\n  \"foo\": 1,\n  \"bar\": 2\n}"
+  let expected_signature =
+    crypto.sha256_hex(
+      "shopify-draft-proxy-flow-signature-local-secret-v1|"
+      <> id
+      <> "|"
+      <> compact_payload,
+    )
+  let document =
+    "mutation FlowGenerateSignaturePayloadCanonicalization($pretty: String!, $compact: String!) { pretty: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: $pretty) { payload signature userErrors { field message } } compact: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: $compact) { payload signature userErrors { field message } } }"
+  let outcome =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      dict.from_list([
+        #("pretty", root_field.StringVal(pretty_payload)),
+        #("compact", root_field.StringVal(compact_payload)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"pretty\":{\"payload\":\"{\\\"foo\\\":1,\\\"bar\\\":2}\",\"signature\":\""
+      <> expected_signature
+      <> "\",\"userErrors\":[]}",
+  )
+  assert string.contains(
+    body,
+    "\"compact\":{\"payload\":\"{\\\"foo\\\":1,\\\"bar\\\":2}\",\"signature\":\""
+      <> expected_signature
+      <> "\",\"userErrors\":[]}",
+  )
+  assert !string.contains(body, "\\n  ")
+  assert list.length(outcome.staged_resource_ids) == 2
+  let staged = outcome.store.staged_state
+  assert list.length(staged.admin_platform_flow_signature_order) == 2
+}
+
+pub fn flow_generate_signature_invalid_payload_returns_user_error_test() {
+  let outcome =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: \"oops\") { payload signature userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"payload\":null")
+  assert string.contains(body, "\"signature\":null")
+  assert string.contains(body, "\"field\":[\"payload\"]")
+  assert string.contains(body, "Errors validating schema:")
+  assert !string.contains(body, "\"signature\":\"")
+  assert outcome.staged_resource_ids == []
+  assert store.get_log(outcome.store) == []
+}
+
 pub fn flow_validation_branches_do_not_stage_test() {
   let outcome =
     admin_platform.process_mutation(
