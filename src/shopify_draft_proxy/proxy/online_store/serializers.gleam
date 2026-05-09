@@ -318,6 +318,17 @@ pub fn make_integration(
 }
 
 @internal
+pub fn with_api_permission(
+  entries: List(#(String, graphql_helpers.SourceValue)),
+  api_permission: Option(String),
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  case api_permission {
+    Some(value) -> list.append(entries, [#("apiPermission", SrcString(value))])
+    None -> entries
+  }
+}
+
+@internal
 pub fn mobile_platform_payload(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
@@ -1407,6 +1418,66 @@ pub fn lookup_integration_by_id(
 }
 
 @internal
+pub fn lookup_app_scoped_integration_by_id(
+  store_in: Store,
+  kind: String,
+  id: Option(String),
+  requesting_api_permission: Option(String),
+) -> IntegrationLookup {
+  case lookup_integration_by_id(store_in, kind, id) {
+    IntegrationFound(record) ->
+      case integration_visible_to_app(record, requesting_api_permission) {
+        True -> IntegrationFound(record)
+        False -> IntegrationMissing
+      }
+    other -> other
+  }
+}
+
+@internal
+pub fn first_app_scoped_integration(
+  store_in: Store,
+  kind: String,
+  requesting_api_permission: Option(String),
+) -> IntegrationLookup {
+  case
+    list.first(app_scoped_integrations(
+      store_in,
+      kind,
+      requesting_api_permission,
+    ))
+  {
+    Ok(record) -> IntegrationFound(record)
+    Error(_) -> IntegrationMissing
+  }
+}
+
+@internal
+pub fn app_scoped_integrations(
+  store_in: Store,
+  kind: String,
+  requesting_api_permission: Option(String),
+) -> List(OnlineStoreIntegrationRecord) {
+  store.list_effective_online_store_integrations(store_in, kind)
+  |> list.filter(integration_visible_to_app(_, requesting_api_permission))
+}
+
+@internal
+pub fn integration_visible_to_app(
+  record: OnlineStoreIntegrationRecord,
+  requesting_api_permission: Option(String),
+) -> Bool {
+  case
+    current_app_key(captured_to_source(record.data)),
+    requesting_api_permission
+  {
+    Some(owner), Some(requester) -> owner == requester
+    Some(_), None -> False
+    None, _ -> True
+  }
+}
+
+@internal
 pub fn valid_integration_gid(kind: String, id: String) -> Bool {
   case string.split(id, on: "/") {
     ["gid:", "", "shopify", type_name, tail] ->
@@ -1492,6 +1563,14 @@ pub fn same_current_app_web_pixel(
   record: OnlineStoreIntegrationRecord,
 ) -> Bool {
   current_app_key(captured_to_source(record.data)) == current_app_key(SrcNull)
+}
+
+@internal
+pub fn same_app_web_pixel(
+  record: OnlineStoreIntegrationRecord,
+  requesting_api_permission: Option(String),
+) -> Bool {
+  integration_visible_to_app(record, requesting_api_permission)
 }
 
 @internal
