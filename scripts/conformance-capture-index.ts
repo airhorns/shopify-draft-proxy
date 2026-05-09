@@ -7098,6 +7098,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-query-schema',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-query-schema.mts',
+    purpose: 'Admin GraphQL output-field connection/list/object schema facts used by bulkOperationRunQuery validation.',
+    requiredAuthScopes: ['schema introspection access through the active Admin token'],
+    fixtureOutputs: [
+      'config/admin-graphql-bulk-query-schema.json',
+      'src/shopify_draft_proxy/proxy/bulk_query_schema_data.gleam',
+    ],
+    cleanupBehavior: 'Read-only introspection; no cleanup expected.',
+    expectedStatusChecks: ['conformance:check', 'conformance:status'],
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-validators',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-validators-conformance.ts',
@@ -7108,6 +7122,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/bulk-operations/bulk-operation-run-query-validators.json',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-query-schema-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-query-schema-roots-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery success evidence for schema-known non-product roots and list-but-not-connection fields outside the former curated list.',
+    requiredAuthScopes: ['read_orders', 'read_draft_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-schema-roots.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-schema-roots.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-query-schema-roots.graphql',
+    ],
+    cleanupBehavior:
+      'Starts short-lived query bulk operations and cancels any active query bulk operation before/after each captured case.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
