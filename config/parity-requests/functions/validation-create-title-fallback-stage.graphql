@@ -3,6 +3,10 @@ mutation ValidationCreateTitleFallback($functionHandle: String!) {
     validation {
       id
       title
+      shopifyFunction {
+        id
+        handle
+      }
     }
     userErrors {
       field
@@ -14,6 +18,10 @@ mutation ValidationCreateTitleFallback($functionHandle: String!) {
     validation {
       id
       title
+      shopifyFunction {
+        id
+        handle
+      }
     }
     userErrors {
       field
@@ -25,6 +33,10 @@ mutation ValidationCreateTitleFallback($functionHandle: String!) {
     validation {
       id
       title
+      shopifyFunction {
+        id
+        handle
+      }
     }
     userErrors {
       field

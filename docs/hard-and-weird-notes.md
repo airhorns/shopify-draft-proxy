@@ -1476,6 +1476,7 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 
 - `metaobjectCreate` against an unknown definition type returns `UNDEFINED_OBJECT_TYPE` with message `No metaobject definition exists for type "<type>"`.
 - `metaobjectCreate` with a duplicate requested handle succeeds by auto-suffixing the handle, while `metaobjectUpdate` to another row's handle returns `TAKEN`.
+- A public 2026-04 `metaobjectCreate` capture without `handle` and without `displayNameKey` generated `<type-dasherized>-<8 lowercase alphanumeric>` handles and `Titleized Base #SUFFIX` fallback display names. The same capture showed explicit input `MyHandle` stored as `myhandle` while returning fallback `displayName: "My Handle"`; a follow-up `myhandle` create became `myhandle-1` with `displayName: "Myhandle 1"`.
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - `metaobjectUpdate` handle redirects use `redirectNewHandle` inside `MetaobjectUpdateInput`; Admin GraphQL 2026-04 rejects a top-level `redirectNewHandle` argument. Redirect creation requires an online-store-renderable definition and row-level `onlineStore` capability. Definition `onlineStore.data.urlHandle` is globally unique and becomes the `/pages/<urlHandle>/<handle>` path segment. `UrlRedirect` reads expose `id`, `path`, and `target`; captured 2026-04 schema rejected `createdAt` / `updatedAt` on `UrlRedirect`.
@@ -3528,3 +3529,30 @@ Practical rule:
 - model captured numeric bounds and coercion exactly, but do not add a
   non-divisible BXGY ratio rejection without newer live evidence proving Shopify
   changed this public Admin behavior
+
+## 84. deliveryProfileUpdate public 2026-04 accepts some guardrail probes
+
+Admin GraphQL 2026-04 live capture for `deliveryProfileUpdate` against
+`harry-test-heelo.myshopify.com` recorded update-side delivery profile
+validation behavior.
+
+Observed behavior:
+
+- update names of 128 characters or more returned a public `UserError` on
+  `["profile", "name"]`
+- unknown locations under `locationGroupsToCreate[*].locations` and
+  `locationGroupsToUpdate[*].locationsToAdd` returned public userErrors with
+  `field: null` and `The Location could not be found for this shop.`
+- empty `locationGroupsToCreate[*].zonesToCreate[*].countries` returned
+  `field: null` with Shopify's cannot-create-without-countries message
+- an unknown location under `profileLocationGroups[*].locationsToAdd` was
+  accepted by the public API in the captured probe
+- duplicate `US` countries across two `zonesToCreate` entries in an update were
+  accepted by the public API in the captured probe
+
+Practical rule:
+
+- keep public parity targets to the branches Shopify rejected in the capture;
+  keep ticket-required local guardrails for `profileLocationGroups` unknown
+  locations and overlapping zone countries covered by runtime tests unless newer
+  public evidence shows a different update-side rejection shape

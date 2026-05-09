@@ -1,0 +1,24 @@
+mutation ProductCreateDroppedInputsParity($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      isGiftCard
+      giftCardTemplateSuffix
+      variants(first: 1) {
+        nodes {
+          id
+          taxable
+          inventoryItem {
+            id
+            requiresShipping
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

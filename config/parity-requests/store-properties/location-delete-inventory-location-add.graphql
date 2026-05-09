@@ -1,0 +1,15 @@
+mutation LocationDeleteInventoryLocationAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      isActive
+      hasActiveInventory
+      fulfillsOnlineOrders
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

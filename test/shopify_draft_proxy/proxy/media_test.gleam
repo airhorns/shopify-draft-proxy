@@ -157,6 +157,9 @@ fn seeded_variant_media_proxy() {
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
+      is_gift_card: None,
+      gift_card_template_suffix: None,
+      has_bundle_ownership: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       requires_selling_plan: None,
@@ -192,9 +195,15 @@ fn seeded_variant_media_proxy() {
       barcode: None,
       price: None,
       compare_at_price: None,
+      requires_shipping: None,
       taxable: None,
+      tax_code: None,
       inventory_policy: None,
       inventory_quantity: None,
+      position: None,
+      requires_components: None,
+      unit_price_measurement: None,
+      show_unit_price: None,
       selected_options: [],
       media_ids: [media_id],
       inventory_item: None,
@@ -398,15 +407,6 @@ pub fn file_acknowledge_update_failed_after_rejected_update_keeps_state_test() {
 }
 
 pub fn file_create_rejects_shopify_validation_branches_test() {
-  let #(Response(status: references_status, body: references_body, ..), _) =
-    graphql(
-      registry_proxy(),
-      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", referencesToAdd: [\"gid://shopify/Product/1\", \"gid://shopify/Product/2\"] }]) { files { id } userErrors { field message code } } }",
-    )
-  assert references_status == 200
-  assert json.to_string(references_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"referencesToAdd\"],\"message\":\"Too many product ids specified.\",\"code\":\"TOO_MANY_PRODUCT_IDS_SPECIFIED\"}]}}}"
-
   let #(Response(status: data_status, body: data_body, ..), _) =
     graphql(
       registry_proxy(),
@@ -426,19 +426,54 @@ pub fn file_create_rejects_shopify_validation_branches_test() {
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
 }
 
+pub fn file_create_uses_shopify_validation_precedence_test() {
+  let #(Response(status: url_status, body: url_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"data:image/jpeg;base64,abc\", filename: \"source.png\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert url_status == 200
+  assert json.to_string(url_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"File URL is invalid\",\"code\":\"INVALID_IMAGE_SOURCE_URL\"}]}}}"
+
+  let #(Response(status: mismatch_status, body: mismatch_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/source.png\", filename: \"source.gif\", contentType: VIDEO, duplicateResolutionMode: REPLACE }]) { files { id } userErrors { field message code } } }",
+    )
+  assert mismatch_status == 200
+  assert json.to_string(mismatch_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
+}
+
+pub fn file_create_does_not_apply_per_input_references_to_add_validation_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", contentType: IMAGE, referencesToAdd: [\"gid://shopify/Product/1\", \"gid://shopify/Product/2\"] }]) { files { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert !string.contains(body_json, "TOO_MANY_PRODUCT_IDS_SPECIFIED")
+}
+
 pub fn file_create_validates_length_and_duplicate_modes_test() {
-  let #(Response(status: empty_status, body: empty_body, ..), _) =
+  let #(Response(status: empty_status, body: empty_body, ..), empty_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \"\" }]) { files { id } userErrors { field message code } } }",
     )
   assert empty_status == 200
   assert json.to_string(empty_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too short (minimum is 1)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too short (minimum is 1)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(empty_proxy))
+    == "{\"entries\":[]}"
 
   let long_source =
     "https://cdn.example.com/" <> string.repeat("a", times: 2050) <> ".png"
-  let #(Response(status: long_status, body: long_body, ..), _) =
+  let #(Response(status: long_status, body: long_body, ..), long_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \""
@@ -447,7 +482,9 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
     )
   assert long_status == 200
   assert json.to_string(long_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too long (maximum is 2048)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too long (maximum is 2048)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(long_proxy))
+    == "{\"entries\":[]}"
 
   let #(Response(status: mode_status, body: mode_body, ..), _) =
     graphql(
@@ -466,6 +503,48 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
   assert replace_status == 200
   assert json.to_string(replace_body)
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Missing filename argument when attempting to use REPLACE duplicate mode.\",\"code\":\"MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE\"}]}}}"
+}
+
+pub fn file_create_missing_original_source_is_top_level_validation_test() {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ contentType: IMAGE }]) { files { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"data\":{\"fileCreate\":null}")
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn file_create_variable_missing_original_source_stays_schema_error_test() {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"mutation Missing($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id } userErrors { field message code } } }\",\"variables\":{\"files\":[{\"contentType\":\"IMAGE\"}]}}",
+    )
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(registry_proxy(), request)
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "0.originalSource")
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn file_create_accepts_long_alt_and_valid_duplicate_mode_test() {
@@ -705,6 +784,35 @@ pub fn file_update_rejects_source_and_revert_version_conflict_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
+}
+
+pub fn file_update_rejects_original_and_preview_source_conflict_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/v2.jpg\", previewImageSource: \"https://cdn.example.com/preview-v2.jpg\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn file_update_rejects_multiple_original_and_preview_source_conflicts_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_image(),
+      FileRecord(..ready_image(), id: "gid://shopify/MediaImage/2"),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/first.jpg\", previewImageSource: \"https://cdn.example.com/first-preview.jpg\" }, { id: \"gid://shopify/MediaImage/2\", originalSource: \"https://cdn.example.com/second.jpg\", previewImageSource: \"https://cdn.example.com/second-preview.jpg\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn file_update_rejects_unknown_revert_version_id_test() {

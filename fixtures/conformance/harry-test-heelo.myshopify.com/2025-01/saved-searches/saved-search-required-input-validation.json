@@ -1,11 +1,12 @@
 {
-  "capturedAt": "2026-05-05T03:55:26.190Z",
+  "capturedAt": "2026-05-08T03:19:44.767Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "H718-mos3i62e",
+  "token": "ssri-mowcjtmz",
   "notes": [
-    "HAR-718 capture for savedSearchCreate/savedSearchUpdate required input coercion.",
+    "Capture for savedSearchCreate/savedSearchUpdate required input coercion.",
     "Missing inline SavedSearchCreateInput required fields return top-level GraphQL errors before a data payload is emitted.",
+    "Missing variable-supplied SavedSearchCreateInput required fields return top-level INVALID_VARIABLE GraphQL errors before resolver userErrors.",
     "An explicitly empty query string is accepted on savedSearchCreate and the disposable saved search is deleted during cleanup.",
     "Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors."
   ],
@@ -73,12 +74,82 @@
       ]
     }
   },
+  "savedSearchCreateVariableMissingResourceType": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql",
+    "variables": {
+      "input": {
+        "name": "Variable missing resource type ssri-mowc",
+        "query": "tag:variable-required"
+      }
+    },
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 55
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "name": "Variable missing resource type ssri-mowc",
+              "query": "tag:variable-required"
+            },
+            "problems": [
+              {
+                "path": ["resourceType"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "savedSearchCreateVariableMissingName": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "query": "tag:variable-required"
+      }
+    },
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 47
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "resourceType": "PRODUCT",
+              "query": "tag:variable-required"
+            },
+            "problems": [
+              {
+                "path": ["name"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
   "savedSearchCreateEmptyQuery": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-empty-query-create.graphql",
     "variables": {
       "input": {
         "resourceType": "PRODUCT",
-        "name": "H718 Empty Query H718-mos3i62e",
+        "name": "Required Input Empty Query ssri-mowcjtmz",
         "query": ""
       }
     },
@@ -86,9 +157,9 @@
       "data": {
         "savedSearchCreate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4007395787058",
-            "legacyResourceId": "4007395787058",
-            "name": "H718 Empty Query H718-mos3i62e",
+            "id": "gid://shopify/SavedSearch/4009417933106",
+            "legacyResourceId": "4009417933106",
+            "name": "Required Input Empty Query ssri-mowcjtmz",
             "query": "",
             "resourceType": "PRODUCT"
           },
@@ -136,13 +207,13 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4007395787058"
+        "id": "gid://shopify/SavedSearch/4009417933106"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4007395787058",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009417933106",
           "userErrors": []
         }
       },

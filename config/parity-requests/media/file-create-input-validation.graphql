@@ -1,0 +1,12 @@
+mutation MediaFileCreateInputValidation($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

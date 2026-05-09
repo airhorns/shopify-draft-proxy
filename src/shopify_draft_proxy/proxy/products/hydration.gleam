@@ -45,17 +45,17 @@ import shopify_draft_proxy/state/types.{
   type ProductMetafieldRecord, type ProductOptionLinkedMetafieldRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type SellingPlanGroupRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, LocationRecord, ProductCategoryRecord,
-  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOptionLinkedMetafieldRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  type SellingPlanGroupRecord, type UnitPriceMeasurementRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  LocationRecord, ProductCategoryRecord, ProductCollectionRecord,
+  ProductMediaRecord, ProductMetafieldRecord, ProductOptionLinkedMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  SellingPlanGroupRecord,
+  SellingPlanGroupRecord, UnitPriceMeasurementRecord,
 }
 
 @internal
@@ -514,6 +514,9 @@ pub fn upsert_hydrated_variant_without_product(
                   description_html: "",
                   online_store_preview_url: None,
                   template_suffix: None,
+                  is_gift_card: None,
+                  gift_card_template_suffix: None,
+                  has_bundle_ownership: None,
                   seo: ProductSeoRecord(title: None, description: None),
                   category: None,
                   requires_selling_plan: None,
@@ -713,6 +716,9 @@ pub fn upsert_hydrated_inventory_level(
           description_html: "",
           online_store_preview_url: None,
           template_suffix: None,
+          is_gift_card: None,
+          gift_card_template_suffix: None,
+          has_bundle_ownership: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: product_category_record_from_json(node),
           requires_selling_plan: json_bool_field(node, "requiresSellingPlan"),
@@ -738,13 +744,19 @@ pub fn upsert_hydrated_inventory_level(
           barcode: None,
           price: None,
           compare_at_price: None,
+          requires_shipping: None,
           taxable: None,
+          tax_code: None,
           inventory_policy: None,
           inventory_quantity: json_int_field_at(node, [
             "item",
             "variant",
             "inventoryQuantity",
           ]),
+          position: None,
+          requires_components: None,
+          unit_price_measurement: None,
+          show_unit_price: None,
           selected_options: json_array_field(node, [
             "item",
             "variant",
@@ -848,6 +860,9 @@ pub fn upsert_hydrated_inventory_item_without_variant(
           description_html: "",
           online_store_preview_url: None,
           template_suffix: None,
+          is_gift_card: None,
+          gift_card_template_suffix: None,
+          has_bundle_ownership: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: product_category_record_from_json(node),
           requires_selling_plan: json_bool_field(node, "requiresSellingPlan"),
@@ -872,12 +887,18 @@ pub fn upsert_hydrated_inventory_item_without_variant(
           barcode: None,
           price: None,
           compare_at_price: None,
+          requires_shipping: None,
           taxable: None,
+          tax_code: None,
           inventory_policy: None,
           inventory_quantity: json_int_field_at(node, [
             "variant",
             "inventoryQuantity",
           ]),
+          position: None,
+          requires_components: None,
+          unit_price_measurement: None,
+          show_unit_price: None,
           selected_options: json_array_field(node, [
             "variant",
             "selectedOptions",
@@ -942,6 +963,12 @@ pub fn product_record_from_json(
             "onlineStorePreviewUrl",
           ),
           template_suffix: json_string_field(node, "templateSuffix"),
+          is_gift_card: json_bool_field(node, "isGiftCard"),
+          gift_card_template_suffix: json_string_field(
+            node,
+            "giftCardTemplateSuffix",
+          ),
+          has_bundle_ownership: json_bool_field(node, "hasBundleOwnership"),
           seo: ProductSeoRecord(
             title: json_string_field_at(node, ["seo", "title"]),
             description: json_string_field_at(node, ["seo", "description"]),
@@ -1106,9 +1133,17 @@ pub fn product_variant_from_json(
         barcode: json_string_field(node, "barcode"),
         price: json_string_or_number_field(node, "price"),
         compare_at_price: json_string_or_number_field(node, "compareAtPrice"),
+        requires_shipping: json_bool_field(node, "requiresShipping"),
         taxable: json_bool_field(node, "taxable"),
+        tax_code: json_string_field(node, "taxCode"),
         inventory_policy: json_string_field(node, "inventoryPolicy"),
         inventory_quantity: json_int_field(node, "inventoryQuantity"),
+        position: json_int_field(node, "position"),
+        requires_components: json_bool_field(node, "requiresComponents"),
+        unit_price_measurement: unit_price_measurement_from_json(
+          json_field(node, ["unitPriceMeasurement"]),
+        ),
+        show_unit_price: json_bool_field(node, "showUnitPrice"),
         selected_options: json_array_field(node, ["selectedOptions"])
           |> list.map(selected_option_from_json),
         media_ids: json_array_field(node, ["media", "nodes"])
@@ -1130,6 +1165,26 @@ pub fn product_variant_from_json(
         cursor: None,
       ))
   }
+}
+
+fn unit_price_measurement_from_json(
+  node: Option(commit.JsonValue),
+) -> Option(UnitPriceMeasurementRecord) {
+  use value <- option.then(node)
+  Some(UnitPriceMeasurementRecord(
+    quantity_value: captured_json_field(value, "quantityValue"),
+    quantity_unit: json_string_field(value, "quantityUnit"),
+    reference_value: captured_json_field(value, "referenceValue"),
+    reference_unit: json_string_field(value, "referenceUnit"),
+  ))
+}
+
+fn captured_json_field(
+  node: commit.JsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  json_field(node, [name])
+  |> option.map(captured_json_from_commit)
 }
 
 @internal

@@ -389,6 +389,29 @@ fn project_customer_segment_members_query_record(
       selections
     _ -> []
   }
+  project_customer_segment_members_query_record_selections(record, selections)
+}
+
+@internal
+pub fn serialize_customer_segment_members_query_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+) -> Json {
+  case store.get_effective_customer_segment_members_query_by_id(store, id) {
+    Some(record) ->
+      project_customer_segment_members_query_record_selections(
+        record,
+        selections,
+      )
+    None -> json.null()
+  }
+}
+
+fn project_customer_segment_members_query_record_selections(
+  record: CustomerSegmentMembersQueryRecord,
+  selections: List(Selection),
+) -> Json {
   let entries =
     list.map(selections, fn(selection) {
       let key = get_field_response_key(selection)

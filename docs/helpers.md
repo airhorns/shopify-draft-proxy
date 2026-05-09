@@ -19,7 +19,8 @@ Shared helpers for Shopify-like handle normalization.
 
 - lowercases and dash-collapses captured separator runs
 - preserves Shopify-accepted non-Latin handle graphemes and underscores
-- applies captured Latin transliterations for localization handle translations
+- applies captured Latin transliterations for localization handle translations and
+  fulfillment-service generated handles
 - exposes the captured fallback handle used by punctuation-only handle translations
 
 Use this module before adding product-, collection-, localization-, or other resource-local handle slugification helpers. Resource-specific fallback families and uniqueness validation should stay in the owning mutation handler.

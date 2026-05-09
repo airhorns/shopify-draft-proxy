@@ -34,14 +34,24 @@ pub fn normalize(value: String, fallback: String) -> String {
 
 pub fn normalize_translation_handle(value: String) -> String {
   let normalized =
-    value
-    |> transliterate_captured_latin
-    |> normalize(generic_dynamic_content_translation_handle)
+    normalize_with_captured_latin_transliteration(
+      value,
+      generic_dynamic_content_translation_handle,
+    )
 
   case normalized {
     "/" -> generic_dynamic_content_translation_handle
     _ -> normalized
   }
+}
+
+pub fn normalize_with_captured_latin_transliteration(
+  value: String,
+  fallback: String,
+) -> String {
+  value
+  |> transliterate_captured_latin
+  |> normalize(fallback)
 }
 
 pub fn finish_handle_parts(parts_state: #(List(String), String)) -> String {

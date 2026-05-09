@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-05-05T19:34:38.751Z",
+  "capturedAt": "2026-05-08T12:27:00.846Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "H729-mot1202i",
+  "token": "ssqv-moww3m7d",
   "notes": [
-    "HAR-729 capture for saved-search query grammar validation.",
+    "Saved-search query grammar validation capture.",
     "ORDER savedSearchCreate rejects reference_location_id as a reserved filter with field [\"input\", \"query\"].",
     "PRODUCT savedSearchCreate rejects collection_id combined with tag, error_feedback, or published_status.",
     "PRODUCT savedSearchCreate accepts collection_id alone and cleanup deletes that disposable saved search.",
@@ -15,27 +15,27 @@
     "variables": {
       "orderReserved": {
         "resourceType": "ORDER",
-        "name": "H729 Reserved H729-mot1202i",
+        "name": "SDP Reserved ssqv-moww3m7d",
         "query": "reference_location_id:1"
       },
       "productCollectionTag": {
         "resourceType": "PRODUCT",
-        "name": "H729 Collection Tag H729-mot1202i",
+        "name": "SDP Collection Tag ssqv-moww3m7d",
         "query": "collection_id:\"123\" tag:\"AAA\""
       },
       "productCollectionPublished": {
         "resourceType": "PRODUCT",
-        "name": "H729 Published H729-mot1202i",
+        "name": "SDP Published ssqv-moww3m7d",
         "query": "collection_id:\"123\" published_status:published"
       },
       "productCollectionErrorFeedback": {
         "resourceType": "PRODUCT",
-        "name": "H729 Error H729-mot1202i",
+        "name": "SDP Error ssqv-moww3m7d",
         "query": "collection_id:\"123\" error_feedback:\"x\""
       },
       "productPositive": {
         "resourceType": "PRODUCT",
-        "name": "H729 Positive H729-mot1202i",
+        "name": "SDP Positive ssqv-moww3m7d",
         "query": "collection_id:\"12345\""
       }
     },
@@ -79,8 +79,8 @@
         },
         "productPositive": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4007869088050",
-            "name": "H729 Positive H729-mot1202i",
+            "id": "gid://shopify/SavedSearch/4009680863538",
+            "name": "SDP Positive ssqv-moww3m7d",
             "query": "collection_id:\"12345\"",
             "resourceType": "PRODUCT"
           },
@@ -104,7 +104,7 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4007869088050",
+        "id": "gid://shopify/SavedSearch/4009680863538",
         "query": "collection_id:\"123\" tag:\"AAA\""
       }
     },
@@ -112,8 +112,8 @@
       "data": {
         "savedSearchUpdate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4007869088050",
-            "name": "H729 Positive H729-mot1202i",
+            "id": "gid://shopify/SavedSearch/4009680863538",
+            "name": "SDP Positive ssqv-moww3m7d",
             "query": "collection_id:\"123\" tag:\"AAA\"",
             "resourceType": "PRODUCT"
           },
@@ -131,7 +131,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1959,
+            "currentlyAvailable": 1963,
             "restoreRate": 100
           }
         }
@@ -142,13 +142,13 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4007869088050"
+        "id": "gid://shopify/SavedSearch/4009680863538"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4007869088050",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009680863538",
           "userErrors": []
         }
       },
@@ -158,7 +158,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1961,
+            "currentlyAvailable": 1965,
             "restoreRate": 100
           }
         }

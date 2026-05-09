@@ -12,7 +12,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 
 import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, BoolVal, NullVal,
+  type ResolvedValue, BoolVal, NullVal, StringVal,
 }
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -28,6 +28,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/customers/hydration as customer_hydration
 import shopify_draft_proxy/proxy/customers/serializers as customer_serializers
+import shopify_draft_proxy/proxy/metafield_definitions/types as definition_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
   RequiredArgument, validate_required_field_arguments,
 }
@@ -69,6 +70,7 @@ import shopify_draft_proxy/proxy/products/products_validation.{
   resolve_product_set_existing_product,
 }
 import shopify_draft_proxy/proxy/products/publications_core.{
+  merge_publication_targets, read_product_create_publication_ids,
   selected_publication_id,
 }
 import shopify_draft_proxy/proxy/products/publications_feeds.{
@@ -98,8 +100,9 @@ import shopify_draft_proxy/proxy/products/variants_sources.{
   serialize_product_variants_for_product_connection,
 }
 import shopify_draft_proxy/proxy/products/variants_validation.{
-  product_create_variant_errors, product_set_scalar_variant_errors,
-  product_set_variant_records,
+  apply_variant_input_positions, apply_variant_metafield_inputs,
+  position_variants, product_create_variant_errors,
+  product_set_scalar_variant_errors, product_set_variant_records,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
@@ -110,10 +113,11 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CustomerRecord, type DraftOrderRecord,
   type OnlineStoreContentRecord, type OrderRecord, type ProductOperationRecord,
-  type ProductOperationUserErrorRecord, type ProductRecord, CapturedArray,
-  CapturedObject, CapturedString, CustomerRecord, DraftOrderRecord,
-  OnlineStoreContentRecord, OrderRecord, ProductOperationRecord,
-  ProductOperationUserErrorRecord, ProductRecord,
+  type ProductOperationUserErrorRecord, type ProductRecord,
+  type PublicationRecord, CapturedArray, CapturedObject, CapturedString,
+  CustomerRecord, DraftOrderRecord, OnlineStoreContentRecord, OrderRecord,
+  ProductOperationRecord, ProductOperationUserErrorRecord, ProductRecord,
+  PublicationRecord,
 }
 
 // ===== from products_l07 =====
@@ -180,13 +184,13 @@ pub fn apply_product_set_graph(
   }
   let #(store, identity, variant_ids) = case dict.has_key(input, "variants") {
     True -> {
+      let variant_inputs = read_object_list_field(input, "variants")
       let #(variants, next_identity, ids) =
-        product_set_variant_records(
-          store,
-          identity,
-          product_id,
-          read_object_list_field(input, "variants"),
-        )
+        product_set_variant_records(store, identity, product_id, variant_inputs)
+      let input_order_variants = variants
+      let variants =
+        apply_variant_input_positions(variants, variants, variant_inputs)
+        |> position_variants
       let synced_options =
         sync_product_options_with_variants(
           store.get_effective_options_by_product_id(store, product_id),
@@ -196,7 +200,14 @@ pub fn apply_product_set_graph(
         store
         |> store.replace_staged_variants_for_product(product_id, variants)
         |> store.replace_staged_options_for_product(product_id, synced_options)
-      #(next_store, next_identity, ids)
+      let #(next_store, next_identity, metafield_ids) =
+        apply_variant_metafield_inputs(
+          next_store,
+          next_identity,
+          input_order_variants,
+          variant_inputs,
+        )
+      #(next_store, next_identity, list.append(ids, metafield_ids))
     }
     False ->
       case existing {
@@ -849,6 +860,7 @@ pub fn handle_product_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -887,15 +899,28 @@ pub fn handle_product_create(
             [_, ..] as errors ->
               mutation_error_with_null_data_result(key, store, identity, errors)
             [] -> {
-              let user_errors =
-                list.append(
-                  product_create_validation_errors(store, input, input_root),
-                  product_create_smart_collections_to_join_errors(
-                    store,
-                    input,
-                    input_root,
-                  ),
+              let store =
+                hydrate_product_create_publication_catalog(
+                  store,
+                  input,
+                  upstream,
                 )
+              let user_errors =
+                product_create_validation_errors(store, input, input_root)
+                |> list.append(product_input_metafield_user_errors(
+                  store,
+                  input,
+                  "gid://shopify/Product/0",
+                ))
+                |> list.append(product_create_publication_user_errors(
+                  store,
+                  input,
+                ))
+                |> list.append(product_create_smart_collections_to_join_errors(
+                  store,
+                  input,
+                  input_root,
+                ))
               case user_errors {
                 [_, ..] ->
                   mutation_rejected_result(
@@ -945,10 +970,21 @@ pub fn handle_product_create(
                       read_string_list_field(input, "collectionsToJoin")
                         |> option.unwrap([]),
                     )
+                    |> stage_product_create_publication_memberships(
+                      product.id,
+                      input,
+                    )
+                  let #(next_store, identity_after_metafields, metafield_ids) =
+                    stage_product_input_metafields(
+                      next_store,
+                      identity_after_graph,
+                      product.id,
+                      input,
+                    )
                   let #(synced_product, next_store, final_identity) =
                     sync_product_inventory_summary(
                       next_store,
-                      identity_after_graph,
+                      identity_after_metafields,
                       product.id,
                       RecomputeProductTotalInventory,
                     )
@@ -964,7 +1000,7 @@ pub fn handle_product_create(
                     ),
                     next_store,
                     final_identity,
-                    [synced_product.id, ..graph_ids],
+                    [synced_product.id, ..list.append(graph_ids, metafield_ids)],
                   )
                 }
               }
@@ -1122,6 +1158,212 @@ fn stage_product_create_collection_memberships(
       }
     }
   })
+}
+
+fn product_input_metafield_user_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  owner_id: String,
+) -> List(ProductUserError) {
+  case dict.has_key(input, "metafields") {
+    False -> []
+    True ->
+      definition_types.validate_metafields_set_inputs(
+        store,
+        owner_scoped_metafield_inputs(
+          owner_id,
+          read_object_list_field(input, "metafields"),
+        ),
+      )
+      |> list.map(product_user_error_from_metafields_set_error)
+  }
+}
+
+fn product_user_error_from_metafields_set_error(
+  error: definition_types.MetafieldsSetUserError,
+) -> ProductUserError {
+  ProductUserError(error.field, error.message, error.code)
+}
+
+fn stage_product_input_metafields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  case dict.has_key(input, "metafields") {
+    False -> #(store, identity, [])
+    True -> {
+      let owner_inputs =
+        owner_scoped_metafield_inputs(
+          product_id,
+          read_object_list_field(input, "metafields"),
+        )
+      let #(_, next_store, next_identity) =
+        definition_types.upsert_metafields_set_inputs(
+          store,
+          identity,
+          owner_inputs,
+        )
+      let ids =
+        store.get_effective_metafields_by_owner_id(next_store, product_id)
+        |> list.map(fn(metafield) { metafield.id })
+      #(next_store, next_identity, ids)
+    }
+  }
+}
+
+fn owner_scoped_metafield_inputs(
+  owner_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(Dict(String, ResolvedValue)) {
+  list.map(inputs, fn(input) {
+    dict.insert(input, "ownerId", StringVal(owner_id))
+  })
+}
+
+const product_create_publication_targets_query: String = "query ProductCreatePublicationTargetsHydrate($first: Int!) {
+  publications(first: $first) {
+    nodes {
+      id
+      name
+    }
+  }
+}
+"
+
+fn hydrate_product_create_publication_catalog(
+  store_in: Store,
+  input: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    upstream.allow_upstream_reads
+    && product_create_publication_inputs_present(input)
+  {
+    False -> store_in
+    True ->
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "ProductCreatePublicationTargetsHydrate",
+          product_create_publication_targets_query,
+          json.object([#("first", json.int(50))]),
+        )
+      {
+        Ok(value) -> upsert_publication_catalog_response(store_in, value)
+        Error(_) -> store_in
+      }
+  }
+}
+
+fn product_create_publication_inputs_present(
+  input: Dict(String, ResolvedValue),
+) -> Bool {
+  dict.has_key(input, "productPublications")
+  || dict.has_key(input, "publications")
+}
+
+fn upsert_publication_catalog_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let publications = case orders_common.json_get(value, "data") {
+    Some(data) ->
+      case orders_common.json_get(data, "publications") {
+        Some(publications) -> publication_records_from_connection(publications)
+        None -> []
+      }
+    None -> []
+  }
+  case publications {
+    [] -> store_in
+    _ -> store.upsert_base_publications(store_in, publications)
+  }
+}
+
+fn publication_records_from_connection(
+  connection: commit.JsonValue,
+) -> List(PublicationRecord) {
+  let nodes = case orders_common.json_get(connection, "nodes") {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+  case nodes {
+    [] ->
+      case orders_common.json_get(connection, "edges") {
+        Some(commit.JsonArray(edges)) ->
+          edges
+          |> list.filter_map(fn(edge) {
+            case orders_common.json_get(edge, "node") {
+              Some(node) -> Ok(node)
+              None -> Error(Nil)
+            }
+          })
+          |> publication_records_from_nodes
+        _ -> []
+      }
+    _ -> publication_records_from_nodes(nodes)
+  }
+}
+
+fn publication_records_from_nodes(
+  nodes: List(commit.JsonValue),
+) -> List(PublicationRecord) {
+  nodes
+  |> list.filter_map(fn(node) {
+    case orders_common.json_get_string(node, "id") {
+      Some(id) ->
+        Ok(PublicationRecord(
+          id: id,
+          name: orders_common.json_get_string(node, "name"),
+          auto_publish: None,
+          supports_future_publishing: None,
+          catalog_id: None,
+          channel_id: None,
+          cursor: None,
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn product_create_publication_user_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let #(_, errors) = read_product_create_publication_ids(store, input)
+  errors
+}
+
+fn stage_product_create_publication_memberships(
+  store: Store,
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+) -> Store {
+  let #(publication_ids, _) = read_product_create_publication_ids(store, input)
+  case publication_ids {
+    [] -> store
+    _ ->
+      case store.get_effective_product_by_id(store, product_id) {
+        Some(product) -> {
+          let next_product =
+            ProductRecord(
+              ..product,
+              publication_ids: merge_publication_targets(
+                product.publication_ids,
+                publication_ids,
+              ),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_product(store, next_product)
+          next_store
+        }
+        None -> store
+      }
+  }
 }
 
 @internal
@@ -1297,8 +1539,15 @@ pub fn handle_product_update(
                         identity,
                         [],
                       )
-                    Some(product) ->
-                      case product_update_validation_errors(input) {
+                    Some(product) -> {
+                      let validation_errors =
+                        product_update_validation_errors(input)
+                        |> list.append(product_input_metafield_user_errors(
+                          store,
+                          input,
+                          product_id,
+                        ))
+                      case validation_errors {
                         [_, ..] as validation_errors ->
                           mutation_rejected_result(
                             key,
@@ -1322,6 +1571,13 @@ pub fn handle_product_update(
                             )
                           let #(_, next_store) =
                             store.upsert_staged_product(store, next_product)
+                          let #(next_store, next_identity, metafield_ids) =
+                            stage_product_input_metafields(
+                              next_store,
+                              next_identity,
+                              next_product.id,
+                              input,
+                            )
                           mutation_result(
                             key,
                             product_update_payload(
@@ -1333,10 +1589,11 @@ pub fn handle_product_update(
                             ),
                             next_store,
                             next_identity,
-                            [next_product.id],
+                            [next_product.id, ..metafield_ids],
                           )
                         }
                       }
+                    }
                   }
               }
             }

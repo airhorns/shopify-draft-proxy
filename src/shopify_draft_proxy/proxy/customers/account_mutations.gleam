@@ -1129,11 +1129,17 @@ pub fn store_credit_adjustment_input_errors(
   is_credit: Bool,
 ) -> List(UserError) {
   let amount_cents = parse_cents(money.amount)
+  let adjustment_kind = case is_credit {
+    True -> "credit"
+    False -> "debit"
+  }
   let amount_errors = case amount_cents <= 0 {
     True -> [
       UserError(
         [input_name, amount_key, "amount"],
-        "A positive amount must be used to credit a store credit account",
+        "A positive amount must be used to "
+          <> adjustment_kind
+          <> " a store credit account",
         Some("NEGATIVE_OR_ZERO_AMOUNT"),
       ),
     ]

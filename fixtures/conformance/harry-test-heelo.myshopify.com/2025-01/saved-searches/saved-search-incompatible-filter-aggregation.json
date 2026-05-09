@@ -1,0 +1,45 @@
+{
+  "capturedAt": "2026-05-08T12:27:00.847Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "ssqv-moww3m7d",
+  "notes": [
+    "PRODUCT savedSearchCreate with collection_id, tag, and published_status returns one deduped incompatible-filter userError.",
+    "The userError message lists every conflicting field in Shopify order."
+  ],
+  "savedSearchIncompatibleFilterAggregation": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql",
+    "variables": {
+      "productCollectionTagPublished": {
+        "resourceType": "PRODUCT",
+        "name": "SDP Aggregate ssqv-moww3m7d",
+        "query": "collection_id:1 tag:foo published_status:published"
+      }
+    },
+    "payload": {
+      "data": {
+        "productCollectionTagPublished": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, tag, published_status"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1963,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

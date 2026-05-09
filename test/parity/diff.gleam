@@ -14,6 +14,7 @@
 ////   * "storefront-access-token" – `shpat_` followed by 16+ lowercase
 ////                             alphanumeric characters.
 ////   * "any-number"          – any int or float.
+////   * "regex:<pattern>"     – any string matched by the supplied pattern.
 ////
 //// Anything else is treated as an exact-string match against the actual
 //// value (when the actual is itself a string).
@@ -21,6 +22,7 @@
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
 import gleam/string
 import parity/json_value.{
   type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
@@ -564,9 +566,13 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JString(s) -> is_shopify_gid(s, ty)
         _ -> False
       }
-    "regex:^" <> prefix ->
+    "regex:" <> pattern ->
       case value {
-        JString(s) -> string.starts_with(s, prefix)
+        JString(s) ->
+          case regexp.from_string(pattern) {
+            Ok(compiled) -> regexp.check(with: compiled, content: s)
+            Error(_) -> False
+          }
         _ -> False
       }
     "shop-policy-url-base:" <> base ->

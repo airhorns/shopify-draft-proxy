@@ -14,6 +14,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull, SrcObject,
   SrcString, get_field_response_key, src_object,
 }
+import shopify_draft_proxy/proxy/handles
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
   captured_array_field, captured_int_field, store_property_bool_field,
 }
@@ -956,6 +957,15 @@ pub fn fulfillment_service_name_taken_error() -> shipping_types.FulfillmentServi
 }
 
 @internal
+pub fn fulfillment_service_name_reserved_error() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["name"]),
+    message: "Name is reserved",
+    code: None,
+  )
+}
+
+@internal
 pub fn validate_fulfillment_service_callback_url(
   callback_url: Option(String),
   upstream_origin: String,
@@ -1191,8 +1201,15 @@ pub fn delivery_profile_default_remove_error() -> shipping_types.DeliveryProfile
 @internal
 pub fn normalize_fulfillment_service_handle(name: String) -> String {
   name
-  |> string.lowercase
-  |> string.replace(" ", "-")
+  |> handles.normalize_with_captured_latin_transliteration("")
+}
+
+@internal
+pub fn reserved_fulfillment_service_handle(handle: String) -> Bool {
+  case string.lowercase(handle) {
+    "shopify" | "amazon" | "manual" | "gift_card" -> True
+    _ -> False
+  }
 }
 
 @internal

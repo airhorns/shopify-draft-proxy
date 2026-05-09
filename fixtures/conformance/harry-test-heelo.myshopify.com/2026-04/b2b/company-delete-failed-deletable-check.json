@@ -1,0 +1,1731 @@
+{
+  "scenarioId": "company-delete-failed-deletable-check",
+  "capturedAt": "2026-05-08T03:03:34.705Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Record B2B companyDelete and companiesDelete failed-deletable checks for order, draft-order, and store-credit blockers against a disposable Shopify dev store.",
+    "cleanup": "Draft orders are deleted, store-credit balances are debited to zero, completed orders are cancelled and deleted when Shopify accepts it, then all disposable companies are deleted. Shopify may retain completed-order company history, so order-blocked cleanup companyDelete responses are recorded."
+  },
+  "singleOrderCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check single-order 1778209403053",
+            "note": "B2B company delete deletable-check single-order",
+            "externalId": "b2b-company-delete-check-1778209403053-single-order"
+          },
+          "companyLocation": {
+            "name": "single-order HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          },
+          "companyContact": {
+            "firstName": "Company",
+            "lastName": "Delete",
+            "email": "b2b-company-delete-check-1778209403053-single-order@example.com",
+            "title": "Buyer"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457740082",
+            "name": "B2B Company Delete Check single-order 1778209403053",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10166894898"
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285749554",
+                  "name": "single-order HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706780466",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706813234",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleOrderDraftOrderCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5457740082",
+              "companyContactId": "gid://shopify/CompanyContact/10166894898",
+              "companyLocationId": "gid://shopify/CompanyLocation/8285749554"
+            }
+          },
+          "email": "b2b-company-delete-check-1778209403053-single-order@example.com",
+          "note": "B2B company delete single-order precondition",
+          "tags": ["b2b-company-delete-check"],
+          "visibleToCustomer": false,
+          "lineItems": [
+            {
+              "title": "B2B company delete single-order custom item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200237874",
+            "status": "OPEN"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleOrderDraftOrderComplete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        status\n        order {\n          id\n          name\n          purchasingEntity {\n            ... on PurchasingCompany {\n              company {\n                id\n              }\n              contact {\n                id\n              }\n              location {\n                id\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1251200237874",
+        "paymentPending": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200237874",
+            "status": "COMPLETED",
+            "order": {
+              "id": "gid://shopify/Order/8735511871794",
+              "name": "#1396",
+              "purchasingEntity": {
+                "company": {
+                  "id": "gid://shopify/Company/5457740082"
+                },
+                "contact": {
+                  "id": "gid://shopify/CompanyContact/10166894898"
+                },
+                "location": {
+                  "id": "gid://shopify/CompanyLocation/8285749554"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleOrderCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5457740082"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSingleOrderCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BCompanyDeleteCheckSingleRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5457740082"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5457740082",
+          "name": "B2B Company Delete Check single-order 1778209403053",
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8285749554",
+                "name": "single-order HQ"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleDraftOrderCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check single-draft-order 1778209403053",
+            "note": "B2B company delete deletable-check single-draft-order",
+            "externalId": "b2b-company-delete-check-1778209403053-single-draft-order"
+          },
+          "companyLocation": {
+            "name": "single-draft-order HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          },
+          "companyContact": {
+            "firstName": "Company",
+            "lastName": "Delete",
+            "email": "b2b-company-delete-check-1778209403053-single-draft-order@example.com",
+            "title": "Buyer"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457772850",
+            "name": "B2B Company Delete Check single-draft-order 1778209403053",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10166927666"
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285782322",
+                  "name": "single-draft-order HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706846002",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706878770",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleDraftOrderCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5457772850",
+              "companyContactId": "gid://shopify/CompanyContact/10166927666",
+              "companyLocationId": "gid://shopify/CompanyLocation/8285782322"
+            }
+          },
+          "email": "b2b-company-delete-check-1778209403053-single-draft-order@example.com",
+          "note": "B2B company delete single-draft-order precondition",
+          "tags": ["b2b-company-delete-check"],
+          "visibleToCustomer": false,
+          "lineItems": [
+            {
+              "title": "B2B company delete single-draft-order custom item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200270642",
+            "status": "OPEN"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleDraftOrderCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5457772850"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSingleDraftOrderCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BCompanyDeleteCheckSingleRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5457772850"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5457772850",
+          "name": "B2B Company Delete Check single-draft-order 1778209403053",
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8285782322",
+                "name": "single-draft-order HQ"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleStoreCreditCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check single-store-credit 1778209403053",
+            "note": "B2B company delete deletable-check single-store-credit",
+            "externalId": "b2b-company-delete-check-1778209403053-single-store-credit"
+          },
+          "companyLocation": {
+            "name": "single-store-credit HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457805618",
+            "name": "B2B Company Delete Check single-store-credit 1778209403053",
+            "mainContact": null,
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285815090",
+                  "name": "single-store-credit HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706911538",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706944306",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleStoreCreditAccountCredit": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckStoreCreditCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on CompanyLocation {\n              id\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/8285815090",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "7.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "storeCreditAccountCredit": {
+          "storeCreditAccountTransaction": {
+            "amount": {
+              "amount": "7.0",
+              "currencyCode": "USD"
+            },
+            "balanceAfterTransaction": {
+              "amount": "7.0",
+              "currencyCode": "USD"
+            },
+            "event": "ADJUSTMENT",
+            "origin": null,
+            "account": {
+              "id": "gid://shopify/StoreCreditAccount/967868722",
+              "balance": {
+                "amount": "7.0",
+                "currencyCode": "USD"
+              },
+              "owner": {
+                "id": "gid://shopify/CompanyLocation/8285815090"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "singleStoreCreditCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5457805618"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSingleStoreCreditCompanyDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BCompanyDeleteCheckSingleRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5457805618"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5457805618",
+          "name": "B2B Company Delete Check single-store-credit 1778209403053",
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8285815090",
+                "name": "single-store-credit HQ"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkOrderCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check bulk-order 1778209403053",
+            "note": "B2B company delete deletable-check bulk-order",
+            "externalId": "b2b-company-delete-check-1778209403053-bulk-order"
+          },
+          "companyLocation": {
+            "name": "bulk-order HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          },
+          "companyContact": {
+            "firstName": "Company",
+            "lastName": "Delete",
+            "email": "b2b-company-delete-check-1778209403053-bulk-order@example.com",
+            "title": "Buyer"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457838386",
+            "name": "B2B Company Delete Check bulk-order 1778209403053",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10166960434"
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285847858",
+                  "name": "bulk-order HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10706977074",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707009842",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkOrderDraftOrderCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5457838386",
+              "companyContactId": "gid://shopify/CompanyContact/10166960434",
+              "companyLocationId": "gid://shopify/CompanyLocation/8285847858"
+            }
+          },
+          "email": "b2b-company-delete-check-1778209403053-bulk-order@example.com",
+          "note": "B2B company delete bulk-order precondition",
+          "tags": ["b2b-company-delete-check"],
+          "visibleToCustomer": false,
+          "lineItems": [
+            {
+              "title": "B2B company delete bulk-order custom item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200303410",
+            "status": "OPEN"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkOrderDraftOrderComplete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        status\n        order {\n          id\n          name\n          purchasingEntity {\n            ... on PurchasingCompany {\n              company {\n                id\n              }\n              contact {\n                id\n              }\n              location {\n                id\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1251200303410",
+        "paymentPending": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200303410",
+            "status": "COMPLETED",
+            "order": {
+              "id": "gid://shopify/Order/8735512002866",
+              "name": "#1397",
+              "purchasingEntity": {
+                "company": {
+                  "id": "gid://shopify/Company/5457838386"
+                },
+                "contact": {
+                  "id": "gid://shopify/CompanyContact/10166960434"
+                },
+                "location": {
+                  "id": "gid://shopify/CompanyLocation/8285847858"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkDraftOrderCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check bulk-draft-order 1778209403053",
+            "note": "B2B company delete deletable-check bulk-draft-order",
+            "externalId": "b2b-company-delete-check-1778209403053-bulk-draft-order"
+          },
+          "companyLocation": {
+            "name": "bulk-draft-order HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          },
+          "companyContact": {
+            "firstName": "Company",
+            "lastName": "Delete",
+            "email": "b2b-company-delete-check-1778209403053-bulk-draft-order@example.com",
+            "title": "Buyer"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457871154",
+            "name": "B2B Company Delete Check bulk-draft-order 1778209403053",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10166993202"
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285880626",
+                  "name": "bulk-draft-order HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707042610",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707075378",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkDraftOrderCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5457871154",
+              "companyContactId": "gid://shopify/CompanyContact/10166993202",
+              "companyLocationId": "gid://shopify/CompanyLocation/8285880626"
+            }
+          },
+          "email": "b2b-company-delete-check-1778209403053-bulk-draft-order@example.com",
+          "note": "B2B company delete bulk-draft-order precondition",
+          "tags": ["b2b-company-delete-check"],
+          "visibleToCustomer": false,
+          "lineItems": [
+            {
+              "title": "B2B company delete bulk-draft-order custom item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1251200336178",
+            "status": "OPEN"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkStoreCreditCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check bulk-store-credit 1778209403053",
+            "note": "B2B company delete deletable-check bulk-store-credit",
+            "externalId": "b2b-company-delete-check-1778209403053-bulk-store-credit"
+          },
+          "companyLocation": {
+            "name": "bulk-store-credit HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457903922",
+            "name": "B2B Company Delete Check bulk-store-credit 1778209403053",
+            "mainContact": null,
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285913394",
+                  "name": "bulk-store-credit HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707108146",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707140914",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkStoreCreditAccountCredit": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckStoreCreditCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        event\n        origin\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n          owner {\n            ... on CompanyLocation {\n              id\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/8285913394",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "8.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "storeCreditAccountCredit": {
+          "storeCreditAccountTransaction": {
+            "amount": {
+              "amount": "8.0",
+              "currencyCode": "USD"
+            },
+            "balanceAfterTransaction": {
+              "amount": "8.0",
+              "currencyCode": "USD"
+            },
+            "event": "ADJUSTMENT",
+            "origin": null,
+            "account": {
+              "id": "gid://shopify/StoreCreditAccount/967901490",
+              "balance": {
+                "amount": "8.0",
+                "currencyCode": "USD"
+              },
+              "owner": {
+                "id": "gid://shopify/CompanyLocation/8285913394"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkNormalCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n        contactRoles(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B Company Delete Check bulk-normal 1778209403053",
+            "note": "B2B company delete deletable-check bulk-normal",
+            "externalId": "b2b-company-delete-check-1778209403053-bulk-normal"
+          },
+          "companyLocation": {
+            "name": "bulk-normal HQ",
+            "phone": "+16135550814",
+            "billingAddress": {
+              "address1": "814 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5457936690",
+            "name": "B2B Company Delete Check bulk-normal 1778209403053",
+            "mainContact": null,
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8285946162",
+                  "name": "bulk-normal HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707173682",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10707206450",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkCompaniesDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompaniesDelete($companyIds: [ID!]!) {\n    companiesDelete(companyIds: $companyIds) {\n      deletedCompanyIds\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyIds": [
+          "gid://shopify/Company/5457838386",
+          "gid://shopify/Company/5457871154",
+          "gid://shopify/Company/5457903922",
+          "gid://shopify/Company/5457936690",
+          "gid://shopify/Company/999999999999999"
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companiesDelete": {
+          "deletedCompanyIds": ["gid://shopify/Company/5457936690"],
+          "userErrors": [
+            {
+              "field": ["companyIds", "0"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            },
+            {
+              "field": ["companyIds", "1"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            },
+            {
+              "field": ["companyIds", "2"],
+              "message": "Failed to delete the company.",
+              "code": "FAILED_TO_DELETE"
+            },
+            {
+              "field": ["companyIds", "4"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterBulkCompaniesDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BCompanyDeleteCheckBulkRead(\n    $orderCompanyId: ID!\n    $draftOrderCompanyId: ID!\n    $storeCreditCompanyId: ID!\n    $deletedCompanyId: ID!\n  ) {\n    orderBlocked: company(id: $orderCompanyId) {\n      id\n      name\n    }\n    draftOrderBlocked: company(id: $draftOrderCompanyId) {\n      id\n      name\n    }\n    storeCreditBlocked: company(id: $storeCreditCompanyId) {\n      id\n      name\n    }\n    deleted: company(id: $deletedCompanyId) {\n      id\n      name\n    }\n  }\n",
+      "variables": {
+        "orderCompanyId": "gid://shopify/Company/5457838386",
+        "draftOrderCompanyId": "gid://shopify/Company/5457871154",
+        "storeCreditCompanyId": "gid://shopify/Company/5457903922",
+        "deletedCompanyId": "gid://shopify/Company/5457936690"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "orderBlocked": {
+          "id": "gid://shopify/Company/5457838386",
+          "name": "B2B Company Delete Check bulk-order 1778209403053"
+        },
+        "draftOrderBlocked": {
+          "id": "gid://shopify/Company/5457871154",
+          "name": "B2B Company Delete Check bulk-draft-order 1778209403053"
+        },
+        "storeCreditBlocked": {
+          "id": "gid://shopify/Company/5457903922",
+          "name": "B2B Company Delete Check bulk-store-credit 1778209403053"
+        },
+        "deleted": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDeletegid://shopify/DraftOrder/1251200270642": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/DraftOrder/1251200270642"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1251200270642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "draftOrderDeletegid://shopify/DraftOrder/1251200336178": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckDraftOrderDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/DraftOrder/1251200336178"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1251200336178",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storeCreditAccountDebitgid://shopify/StoreCreditAccount/967868722": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckStoreCreditDebit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/StoreCreditAccount/967868722",
+          "debitInput": {
+            "debitAmount": {
+              "amount": "7.0",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "storeCreditAccountDebit": {
+            "storeCreditAccountTransaction": {
+              "amount": {
+                "amount": "-7.0",
+                "currencyCode": "USD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              },
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/967868722",
+                "balance": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storeCreditAccountDebitgid://shopify/StoreCreditAccount/967901490": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckStoreCreditDebit($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        amount {\n          amount\n          currencyCode\n        }\n        balanceAfterTransaction {\n          amount\n          currencyCode\n        }\n        account {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/StoreCreditAccount/967901490",
+          "debitInput": {
+            "debitAmount": {
+              "amount": "8.0",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "storeCreditAccountDebit": {
+            "storeCreditAccountTransaction": {
+              "amount": {
+                "amount": "-8.0",
+                "currencyCode": "USD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              },
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/967901490",
+                "balance": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderCancelgid://shopify/Order/8735511871794": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "orderId": "gid://shopify/Order/8735511871794",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/af443d6d-78c1-4da1-81a0-78a7d39db887",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderDeletegid://shopify/Order/8735511871794": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "orderId": "gid://shopify/Order/8735511871794"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "orderDelete": {
+            "deletedId": "gid://shopify/Order/8735511871794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderCancelgid://shopify/Order/8735512002866": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "orderId": "gid://shopify/Order/8735512002866",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/73f7e8d9-be69-4120-a5a4-dc92883221a9",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderDeletegid://shopify/Order/8735512002866": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "orderId": "gid://shopify/Order/8735512002866"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "orderDelete": {
+            "deletedId": "gid://shopify/Order/8735512002866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete1": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457740082"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Failed to delete the company.",
+                "code": "FAILED_TO_DELETE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete2": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457772850"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5457772850",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete3": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457805618"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5457805618",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete4": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457838386"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Failed to delete the company.",
+                "code": "FAILED_TO_DELETE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete5": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457871154"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5457871154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete6": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457903922"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5457903922",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete7": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCompanyDeleteCheckCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5457936690"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Company does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

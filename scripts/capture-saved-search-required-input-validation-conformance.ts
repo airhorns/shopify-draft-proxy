@@ -88,15 +88,33 @@ const missingNameDocument = await readRequest('saved-search-required-input-missi
 const missingResourceTypeDocument = await readRequest(
   'saved-search-required-input-missing-resource-type-create.graphql',
 );
+const variableMissingResourceTypeDocument = await readRequest(
+  'saved-search-required-input-variable-missing-resource-type-create.graphql',
+);
+const variableMissingNameDocument = await readRequest(
+  'saved-search-required-input-variable-missing-name-create.graphql',
+);
 const emptyQueryDocument = await readRequest('saved-search-required-input-empty-query-create.graphql');
 const missingUpdateIdDocument = await readRequest('saved-search-required-input-missing-id-update.graphql');
 
-const token = `H718-${Date.now().toString(36)}`;
+const token = `ssri-${Date.now().toString(36)}`;
 const emptyQueryVariables = {
   input: {
     resourceType: 'PRODUCT',
-    name: `H718 Empty Query ${token}`.slice(0, 40),
+    name: `Required Input Empty Query ${token}`.slice(0, 40),
     query: '',
+  },
+};
+const variableMissingResourceTypeVariables = {
+  input: {
+    name: `Variable missing resource type ${token}`.slice(0, 40),
+    query: 'tag:variable-required',
+  },
+};
+const variableMissingNameVariables = {
+  input: {
+    resourceType: 'PRODUCT',
+    query: 'tag:variable-required',
   },
 };
 
@@ -108,6 +126,26 @@ assertTopLevelCoercionError(
   savedSearchCreateMissingResourceType,
   'savedSearchCreate',
   'missing-resourceType create capture',
+);
+
+const savedSearchCreateVariableMissingResourceType = await client.runGraphqlRequest(
+  variableMissingResourceTypeDocument,
+  variableMissingResourceTypeVariables,
+);
+assertTopLevelCoercionError(
+  savedSearchCreateVariableMissingResourceType,
+  'savedSearchCreate',
+  'variable missing-resourceType create capture',
+);
+
+const savedSearchCreateVariableMissingName = await client.runGraphqlRequest(
+  variableMissingNameDocument,
+  variableMissingNameVariables,
+);
+assertTopLevelCoercionError(
+  savedSearchCreateVariableMissingName,
+  'savedSearchCreate',
+  'variable missing-name create capture',
 );
 
 const savedSearchCreateEmptyQuery = await client.runGraphqlRequest(emptyQueryDocument, emptyQueryVariables);
@@ -129,8 +167,9 @@ try {
     apiVersion,
     token,
     notes: [
-      'HAR-718 capture for savedSearchCreate/savedSearchUpdate required input coercion.',
+      'Capture for savedSearchCreate/savedSearchUpdate required input coercion.',
       'Missing inline SavedSearchCreateInput required fields return top-level GraphQL errors before a data payload is emitted.',
+      'Missing variable-supplied SavedSearchCreateInput required fields return top-level INVALID_VARIABLE GraphQL errors before resolver userErrors.',
       'An explicitly empty query string is accepted on savedSearchCreate and the disposable saved search is deleted during cleanup.',
       'Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors.',
     ],
@@ -144,6 +183,18 @@ try {
         'config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql',
       variables: {},
       payload: savedSearchCreateMissingResourceType.payload,
+    },
+    savedSearchCreateVariableMissingResourceType: {
+      documentPath:
+        'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql',
+      variables: variableMissingResourceTypeVariables,
+      payload: savedSearchCreateVariableMissingResourceType.payload,
+    },
+    savedSearchCreateVariableMissingName: {
+      documentPath:
+        'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql',
+      variables: variableMissingNameVariables,
+      payload: savedSearchCreateVariableMissingName.payload,
     },
     savedSearchCreateEmptyQuery: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-required-input-empty-query-create.graphql',
