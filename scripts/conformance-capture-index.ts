@@ -1192,6 +1192,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'file-create-validation-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-file-create-validation-precedence-conformance.ts',
+    purpose:
+      'fileCreate per-input validation precedence for multi-fault source URL, filename extension, and duplicate-resolution-mode inputs.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-validation-precedence.json`,
+      'config/parity-specs/media/file_create_validation_precedence/media-file-create-validation-precedence.json',
+      'config/parity-requests/media/media-file-create-validation-precedence.graphql',
+    ],
+    cleanupBehavior: 'Deletes the disposable file created by the clean baseline branch.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-targets',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
