@@ -5043,6 +5043,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-shipping-line-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-shipping-line-validation-conformance.ts',
+    purpose:
+      'orderEditAddShippingLine, orderEditUpdateShippingLine, orderEditRemoveShippingLine, and orderEditAddLineItemDiscount validation branches against a disposable order-edit session.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderEdit-shipping-line-validation.json`,
+      'config/parity-specs/orders/orderEdit-shipping-line-validation.json',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-add-missing-price.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-add.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-begin.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-discount-missing-currency.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-remove.graphql',
+      'config/parity-requests/orders/orderEdit-shipping-line-validation-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable CAD test order, begins an order edit, records rejected shipping-line and discount validation branches, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-quantity-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-quantity-validation-conformance.ts',

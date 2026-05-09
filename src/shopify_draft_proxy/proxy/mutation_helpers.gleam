@@ -617,6 +617,25 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "orderEditAddShippingLine" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "shippingLine",
+        "OrderEditAddShippingLineInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
+    "orderEditAddLineItemDiscount" ->
+      validate_order_edit_discount_literal_fixed_value(
+        arguments,
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
     "marketingEngagementCreate" ->
       validate_direct_literal_input_fields(
         mutation,
@@ -639,6 +658,50 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    _ -> []
+  }
+}
+
+fn validate_order_edit_discount_literal_fixed_value(
+  arguments: List(Argument),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case find_argument(arguments, "discount") {
+    Some(Argument(value: ast.ObjectValue(fields: discount_fields, ..), ..)) ->
+      case find_object_field(discount_fields, "fixedValue") {
+        Some(ast.ObjectField(
+          value: ast.ObjectValue(fields: fixed_value_fields, loc: loc),
+          ..,
+        )) ->
+          case mutation_schema_lookup.get_input_object(schema, "MoneyInput") {
+            Some(input_object) ->
+              list.flat_map(input_object.input_fields, fn(input_field) {
+                case
+                  mutation_schema.is_non_null(input_field.type_),
+                  input_field.default_value
+                {
+                  True, None ->
+                    validate_nested_literal_input_field(
+                      fixed_value_fields,
+                      ["discount", "fixedValue"],
+                      "MoneyInput",
+                      input_field.name,
+                      mutation_schema.render_signature(input_field.type_),
+                      operation_name,
+                      operation_path,
+                      loc,
+                      source_body,
+                    )
+                  _, _ -> []
+                }
+              })
+            None -> []
+          }
+        _ -> []
+      }
     _ -> []
   }
 }
@@ -1799,6 +1862,8 @@ fn top_level_required_input_field_problems(
     Some("GiftCardCreateInput"), root_field.ObjectVal(fields)
     | Some("GiftCardUpdateInput"), root_field.ObjectVal(fields)
     -> gift_card_recipient_required_field_problems(schema, fields)
+    Some("OrderEditAppliedDiscountInput"), root_field.ObjectVal(fields) ->
+      order_edit_discount_required_field_problems(schema, fields)
     Some(input_type_name), root_field.ObjectVal(fields) -> {
       case
         list.contains(
@@ -1812,6 +1877,22 @@ fn top_level_required_input_field_problems(
       }
     }
     _, _ -> []
+  }
+}
+
+fn order_edit_discount_required_field_problems(
+  schema: MutationSchema,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(ValueProblem) {
+  case dict.get(fields, "fixedValue") {
+    Ok(root_field.ObjectVal(fixed_value_fields)) ->
+      required_input_field_problems_for(
+        schema,
+        "MoneyInput",
+        fixed_value_fields,
+        [StringSegment("fixedValue")],
+      )
+    _ -> []
   }
 }
 
@@ -1835,6 +1916,7 @@ fn top_level_required_input_field_strict_types() -> List(String) {
   [
     "DeliveryCarrierServiceCreateInput",
     "CatalogCreateInput",
+    "OrderEditAddShippingLineInput",
     "PriceListCreateInput",
     "PubSubWebhookSubscriptionInput",
     "SavedSearchCreateInput",
