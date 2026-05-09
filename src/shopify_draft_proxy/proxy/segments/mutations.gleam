@@ -478,7 +478,7 @@ fn handle_segment_create(
             SegmentRecord(
               id: gid,
               name: Some(unique_name),
-              query: Some(string.trim(query_value)),
+              query: Some(query_value),
               creation_date: Some(timestamp),
               last_edit_date: Some(timestamp),
             )
@@ -644,7 +644,7 @@ fn handle_segment_update(
                 synthetic_identity.make_synthetic_timestamp(identity)
               let new_query = case raw_query {
                 None -> current.query
-                Some(s) -> Some(string.trim(s))
+                Some(s) -> Some(s)
               }
               let updated =
                 SegmentRecord(

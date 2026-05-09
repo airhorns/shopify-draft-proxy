@@ -1,0 +1,153 @@
+{
+  "capturedAt": "2026-05-08T13:50:03.389Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreatePreservesQueryWhitespace",
+      "request": {
+        "query": "#graphql\n  mutation SegmentQueryWhitespaceCreate($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query whitespace query-whitespace-1778248202793",
+          "query": "   number_of_orders = 0   "
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648672706866",
+                "name": "Query whitespace query-whitespace-1778248202793",
+                "query": "   number_of_orders = 0   ",
+                "creationDate": "2026-05-08T13:50:02Z",
+                "lastEditDate": "2026-05-08T13:50:02Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentReadPreservesCreatedQueryWhitespace",
+      "request": {
+        "query": "#graphql\n  query SegmentQueryWhitespaceRead($id: ID!) {\n    segment(id: $id) {\n      \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648672706866"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/648672706866",
+              "name": "Query whitespace query-whitespace-1778248202793",
+              "query": "   number_of_orders = 0   ",
+              "creationDate": "2026-05-08T13:50:02Z",
+              "lastEditDate": "2026-05-08T13:50:02Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdatePreservesQueryWhitespace",
+      "request": {
+        "query": "#graphql\n  mutation SegmentQueryWhitespaceUpdate($id: ID!, $query: String) {\n    segmentUpdate(id: $id, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648672706866",
+          "query": "   number_of_orders > 0   "
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648672706866",
+                "name": "Query whitespace query-whitespace-1778248202793",
+                "query": "   number_of_orders > 0   ",
+                "creationDate": "2026-05-08T13:50:02Z",
+                "lastEditDate": "2026-05-08T13:50:03Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteQueryWhitespaceCleanup",
+      "request": {
+        "query": "#graphql\n  mutation SegmentQueryWhitespaceCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648672706866"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648672706866",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence that segmentCreate and segmentUpdate preserve leading and trailing query whitespace when storing and returning Segment.query.",
+    "The script creates one disposable live segment, reads it back, updates its query with a different padded string, and deletes it during cleanup."
+  ],
+  "upstreamCalls": []
+}
