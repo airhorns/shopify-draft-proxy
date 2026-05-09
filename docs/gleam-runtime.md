@@ -119,7 +119,6 @@ The runtime recognizes:
 The remaining unsupported HTTP artifact surfaces are:
 
 - `GET /__meta` operator UI
-- staged-upload byte download/serving
 
 ## Runtime Modes
 
@@ -398,8 +397,6 @@ the offline smoke stays hermetic.
 
 - The package is not yet published to npm or Hex.
 - `GET /__meta` operator UI is not served by the Gleam HTTP adapter.
-- Staged-upload byte download/serving is not yet served by the Gleam HTTP
-  adapter.
 - Direct Elixir calls below the wrapper use Erlang-shaped tuples.
 - Some endpoint domains and Relay `node`/`nodes` serializers remain partial,
   as tracked by the generated port issues.

@@ -5,9 +5,24 @@
     "response": {
       "errors": [
         {
-          "message": "Expected \"BANANAS\" to be one of: ACCEPTED, REQUIRES_ACTION",
+          "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+          "locations": [
+            {
+              "line": 5,
+              "column": 7
+            }
+          ],
+          "path": [
+            "mutation ProductFeedbackInvalidState",
+            "bulkProductResourceFeedbackCreate",
+            "feedbackInput",
+            0,
+            "state"
+          ],
           "extensions": {
-            "code": "argumentLiteralsIncompatible"
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "state"
           }
         }
       ]
@@ -477,9 +492,18 @@
     "response": {
       "errors": [
         {
-          "message": "Expected \"BANANAS\" to be one of: ACCEPTED, REQUIRES_ACTION",
+          "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 30
+            }
+          ],
+          "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
           "extensions": {
-            "code": "argumentLiteralsIncompatible"
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "state"
           }
         }
       ]

@@ -1,0 +1,23 @@
+mutation MetaobjectDefinitionCustomerAccountAccessInvalidCreate($type: String!) {
+  metaobjectDefinitionCreate(
+    definition: {
+      type: $type
+      name: "Invalid Customer Account Access"
+      displayNameKey: "title"
+      access: { customerAccount: BANANA }
+      fieldDefinitions: [{ key: "title", name: "Title", type: "single_line_text_field", required: true }]
+    }
+  ) {
+    metaobjectDefinition {
+      id
+      access {
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

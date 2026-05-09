@@ -79,7 +79,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   documentCapturePath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
-  variables: jsonObjectSchema.optional(),
+  variables: graphqlVariablesSchema.optional(),
   apiVersion: z
     .string()
     .regex(/^\d{4}-\d{2}$/u)
@@ -89,12 +89,13 @@ export const parityProxyRequestSpecSchema = z.strictObject({
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
 
-export const paritySetupRequestSchema = z.strictObject({
-  kind: z.literal('staged-upload-content'),
+export const parityProxyUploadSpecSchema = z.strictObject({
+  method: z.string().min(1),
   path: jsonValueSchema,
-  byteSizeCapturePath: z.string(),
+  body: jsonValueSchema,
+  headers: z.record(z.string(), z.string()).optional(),
 });
-export type ParitySetupRequest = z.infer<typeof paritySetupRequestSchema>;
+export type ProxyUploadSpec = z.infer<typeof parityProxyUploadSpecSchema>;
 
 export const matcherSchema = z.union([
   z.literal('any-string'),
@@ -126,6 +127,7 @@ export const comparisonTargetSchema = z.strictObject({
   proxyLogPath: z.string().optional(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
+  proxyUpload: parityProxyUploadSpecSchema.optional(),
   selectedPaths: z.array(z.string()).optional(),
   excludedPaths: z.array(z.string()).optional(),
   expectedDifferences: z.array(expectedDifferenceSchema).optional(),
@@ -155,10 +157,10 @@ export const paritySpecSchema = z
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
-    setupRequests: z.array(paritySetupRequestSchema).optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
     runtimeTestFiles: z.array(z.string()).optional(),
+    nowIso: z.string().min(1).optional(),
     notes: z.string().optional(),
   })
   .superRefine((spec, ctx) => {

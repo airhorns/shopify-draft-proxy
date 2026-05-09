@@ -27,12 +27,13 @@ import gleam/set
 import gleam/string
 import parity/cassette
 import parity/diff.{type Mismatch}
-import parity/json_value.{type JsonValue, JArray, JInt, JObject, JString}
+import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type ProxyRequest, type SetupRequest, type Spec, type Target, NoVariables,
-  OverrideRequest, ProxyLog, ProxyResponse, ProxyState, ReusePrimary,
-  StagedUploadSetup, VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type ProxyRequest, type ProxyUploadRequest, type Spec, type Target,
+  NoVariables, OverrideRequest, ProxyLog, ProxyResponse, ProxySetup, ProxyState,
+  ReusePrimary, UploadRequest, VariablesFromCapture, VariablesFromFile,
+  VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -70,6 +71,8 @@ pub type RunError {
   ProxyUnresolved(target: String, path: String)
   /// Proxy returned a non-200 status.
   ProxyStatus(target: String, status: Int, body: String)
+  /// A non-GraphQL parity setup request could not be built.
+  ProxyUploadInvalid(target: String, reason: String)
 }
 
 pub type TargetReport {
@@ -169,16 +172,10 @@ pub fn run_with_config(
     "<primary>",
     parsed.proxy_request.api_version,
     parsed.proxy_request.headers,
+    parsed.now_iso,
     config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
-  use proxy <- result.try(run_setup_requests(
-    parsed.setup_requests,
-    capture,
-    primary_value,
-    proxy,
-    config.debug,
-  ))
   use #(_proxy, target_reports, target_ops) <- result.try(run_targets(
     config,
     parsed,
@@ -308,116 +305,6 @@ fn first_customer_gid(value: JsonValue) -> Option(String) {
   }
 }
 
-fn run_setup_requests(
-  requests: List(SetupRequest),
-  capture: JsonValue,
-  primary_response: JsonValue,
-  proxy: DraftProxy,
-  debug: Bool,
-) -> Result(DraftProxy, RunError) {
-  list.try_fold(requests, proxy, fn(proxy, request) {
-    run_setup_request(request, capture, primary_response, proxy, debug)
-  })
-}
-
-fn run_setup_request(
-  request: SetupRequest,
-  capture: JsonValue,
-  primary_response: JsonValue,
-  proxy: DraftProxy,
-  debug: Bool,
-) -> Result(DraftProxy, RunError) {
-  case request {
-    StagedUploadSetup(path_template, byte_size_capture_path) ->
-      run_staged_upload_setup(
-        path_template,
-        byte_size_capture_path,
-        capture,
-        primary_response,
-        proxy,
-        debug,
-      )
-  }
-}
-
-fn run_staged_upload_setup(
-  path_template: JsonValue,
-  byte_size_capture_path: String,
-  capture: JsonValue,
-  primary_response: JsonValue,
-  proxy: DraftProxy,
-  debug: Bool,
-) -> Result(DraftProxy, RunError) {
-  use path_value <- result.try(substitute(
-    path_template,
-    Some(primary_response),
-    None,
-    dict.new(),
-    capture,
-  ))
-  use upload_path <- result.try(setup_string_value(
-    path_value,
-    "staged-upload path",
-  ))
-  use byte_size <- result.try(capture_int(capture, byte_size_capture_path))
-  let request_path = local_staged_upload_path(upload_path)
-  let body = string.repeat("x", times: byte_size)
-  case debug {
-    True ->
-      io.println_error(
-        "[runner] -> setup staged-upload bytes="
-        <> int.to_string(byte_size)
-        <> " path="
-        <> request_path,
-      )
-    False -> Nil
-  }
-  let #(response, next_proxy) =
-    draft_proxy.process_request(
-      proxy,
-      Request(
-        method: "PUT",
-        path: request_path,
-        headers: dict.new(),
-        body: body,
-      ),
-    )
-  case response.status {
-    201 -> Ok(next_proxy)
-    status ->
-      Error(ProxyStatus(
-        target: "<setup staged-upload>",
-        status: status,
-        body: json.to_string(response.body),
-      ))
-  }
-}
-
-fn setup_string_value(
-  value: JsonValue,
-  label: String,
-) -> Result(String, RunError) {
-  case value {
-    JString(value) -> Ok(value)
-    _ -> Error(SpecError(reason: label <> " must resolve to a string"))
-  }
-}
-
-fn capture_int(capture: JsonValue, path: String) -> Result(Int, RunError) {
-  case jsonpath.lookup(capture, path) {
-    Some(JInt(value)) -> Ok(value)
-    _ -> Error(CaptureRefUnresolved(path: path))
-  }
-}
-
-fn local_staged_upload_path(value: String) -> String {
-  let origin = "https://shopify-draft-proxy.local"
-  case string.starts_with(value, origin) {
-    True -> string.drop_start(value, string.length(origin))
-    False -> value
-  }
-}
-
 fn replace_customer_one_value(
   value: JsonValue,
   customer_id: String,
@@ -522,11 +409,9 @@ fn run_target(
       proxy,
     ),
   )
-  let expected_opt = jsonpath.lookup(capture, target.capture_path)
-  let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
-  case expected_opt, actual_opt {
-    None, None -> {
-      log_target_assertion(config.debug, target, [], "no-op (paths absent)")
+  case target.proxy_source {
+    ProxySetup -> {
+      log_target_assertion(config.debug, target, [], "setup executed")
       Ok(#(
         next_proxy,
         #(
@@ -541,31 +426,61 @@ fn run_target(
         executed,
       ))
     }
-    None, _ ->
-      Error(CaptureUnresolved(target: target.name, path: target.capture_path))
-    _, None ->
-      Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
-    Some(expected), Some(actual) -> {
-      let rules = spec.rules_for(parsed, target)
-      let mismatches = case target.selected_paths {
-        [] -> diff.compare_payloads(expected, actual, rules)
-        selected_paths ->
-          diff.compare_selected_paths(expected, actual, selected_paths, rules)
+    _ -> {
+      let expected_opt = jsonpath.lookup(capture, target.capture_path)
+      let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
+      case expected_opt, actual_opt {
+        None, None -> {
+          log_target_assertion(config.debug, target, [], "no-op (paths absent)")
+          Ok(#(
+            next_proxy,
+            #(
+              TargetReport(
+                name: target.name,
+                capture_path: target.capture_path,
+                proxy_path: target.proxy_path,
+                mismatches: [],
+              ),
+              actual_response,
+            ),
+            executed,
+          ))
+        }
+        None, _ ->
+          Error(CaptureUnresolved(
+            target: target.name,
+            path: target.capture_path,
+          ))
+        _, None ->
+          Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
+        Some(expected), Some(actual) -> {
+          let rules = spec.rules_for(parsed, target)
+          let mismatches = case target.selected_paths {
+            [] -> diff.compare_payloads(expected, actual, rules)
+            selected_paths ->
+              diff.compare_selected_paths(
+                expected,
+                actual,
+                selected_paths,
+                rules,
+              )
+          }
+          log_target_assertion(config.debug, target, mismatches, "compared")
+          Ok(#(
+            next_proxy,
+            #(
+              TargetReport(
+                name: target.name,
+                capture_path: target.capture_path,
+                proxy_path: target.proxy_path,
+                mismatches: mismatches,
+              ),
+              actual_response,
+            ),
+            executed,
+          ))
+        }
       }
-      log_target_assertion(config.debug, target, mismatches, "compared")
-      Ok(#(
-        next_proxy,
-        #(
-          TargetReport(
-            name: target.name,
-            capture_path: target.capture_path,
-            proxy_path: target.proxy_path,
-            mismatches: mismatches,
-          ),
-          actual_response,
-        ),
-        executed,
-      ))
     }
   }
 }
@@ -634,6 +549,25 @@ fn actual_response_for(
       ))
       Ok(#(value, next_proxy, None))
     }
+    UploadRequest(request: request) -> {
+      use #(response, next_proxy) <- result.try(execute_upload(
+        proxy,
+        request,
+        primary_response,
+        previous_response,
+        named_responses,
+        capture,
+        target.name,
+        config.debug,
+      ))
+      use value <- result.try(parse_response_body(response))
+      use #(value, next_proxy) <- result.try(proxy_source_value(
+        target,
+        value,
+        next_proxy,
+      ))
+      Ok(#(value, next_proxy, None))
+    }
     OverrideRequest(request: request) -> {
       case
         target.upstream_capture_path,
@@ -666,6 +600,7 @@ fn actual_response_for(
             target.name,
             request.api_version,
             request.headers,
+            parsed.now_iso,
             config.debug,
           ))
           use value <- result.try(parse_response_body(response))
@@ -707,6 +642,7 @@ fn proxy_source_value(
       use state_value <- result.try(meta_response_value(proxy, "/__meta/state"))
       Ok(#(state_value, proxy))
     }
+    ProxySetup -> Ok(#(response_value, proxy))
     ProxyLog -> {
       use log_value <- result.try(meta_response_value(proxy, "/__meta/log"))
       Ok(#(log_value, proxy))
@@ -936,6 +872,118 @@ fn as_capture_ref(value: JsonValue) -> Option(String) {
   }
 }
 
+fn execute_upload(
+  proxy: DraftProxy,
+  upload: ProxyUploadRequest,
+  primary_response: JsonValue,
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
+  capture: JsonValue,
+  context: String,
+  debug: Bool,
+) -> Result(#(Response, DraftProxy), RunError) {
+  use path_value <- result.try(substitute(
+    upload.path,
+    Some(primary_response),
+    previous_response,
+    named_responses,
+    capture,
+  ))
+  use body_value <- result.try(substitute(
+    upload.body,
+    Some(primary_response),
+    previous_response,
+    named_responses,
+    capture,
+  ))
+  use path <- result.try(upload_path_from_value(context, path_value))
+  use body <- result.try(upload_body_from_value(context, body_value))
+  let request =
+    Request(
+      method: upload.method,
+      path: path,
+      headers: dict.from_list(upload.headers),
+      body: body,
+    )
+  case debug {
+    True ->
+      io.println_error(
+        "[runner] -> "
+        <> context
+        <> " upload "
+        <> upload.method
+        <> " "
+        <> path
+        <> " bytes="
+        <> int.to_string(string.byte_size(body)),
+      )
+    False -> Nil
+  }
+  let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+  case debug {
+    True -> log_response(context, response)
+    False -> Nil
+  }
+  case response.status {
+    200 | 201 -> Ok(#(response, next_proxy))
+    status ->
+      Error(ProxyStatus(
+        target: context,
+        status: status,
+        body: json.to_string(response.body),
+      ))
+  }
+}
+
+fn upload_path_from_value(
+  context: String,
+  value: JsonValue,
+) -> Result(String, RunError) {
+  case value {
+    JString(path_or_url) -> {
+      let path = local_proxy_path(path_or_url)
+      case string.starts_with(path, "/") {
+        True -> Ok(path)
+        False ->
+          Error(ProxyUploadInvalid(
+            target: context,
+            reason: "upload path must be an absolute path or local proxy URL",
+          ))
+      }
+    }
+    _ ->
+      Error(ProxyUploadInvalid(
+        target: context,
+        reason: "upload path template did not resolve to a string",
+      ))
+  }
+}
+
+fn local_proxy_path(path_or_url: String) -> String {
+  case string.split(path_or_url, "://") {
+    [_, rest] ->
+      case string.split(rest, "/") {
+        [_, ..path_parts] -> "/" <> string.join(path_parts, "/")
+        _ -> path_or_url
+      }
+    _ -> path_or_url
+  }
+}
+
+fn upload_body_from_value(
+  context: String,
+  value: JsonValue,
+) -> Result(String, RunError) {
+  case value {
+    JString(body) -> Ok(body)
+    _ ->
+      Error(ProxyUploadInvalid(
+        target: context,
+        reason: "upload body template did not resolve to a string",
+      ))
+  }
+}
+
 fn execute(
   proxy: DraftProxy,
   document: String,
@@ -943,6 +991,7 @@ fn execute(
   context: String,
   api_version: Option(String),
   headers: List(#(String, String)),
+  now_iso: Option(String),
   debug: Bool,
 ) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
@@ -959,7 +1008,10 @@ fn execute(
     True -> log_request(context, executed, variables)
     False -> Nil
   }
-  let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+  let #(response, next_proxy) = case now_iso {
+    Some(now) -> draft_proxy.process_request_at(proxy, request, now)
+    None -> draft_proxy.process_request(proxy, request)
+  }
   case debug {
     True -> log_response(context, response)
     False -> Nil
@@ -1219,5 +1271,7 @@ pub fn render_error(error: RunError) -> String {
       <> target
       <> "': "
       <> body
+    ProxyUploadInvalid(target, reason) ->
+      "proxy upload setup invalid for target '" <> target <> "': " <> reason
   }
 }

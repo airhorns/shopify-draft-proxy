@@ -1,0 +1,18 @@
+mutation BulkOperationRunMutationClientIdentifierValidation(
+  $mutation: String!
+  $path: String!
+  $clientIdentifier: String
+) {
+  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {
+    bulkOperation {
+      id
+      status
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

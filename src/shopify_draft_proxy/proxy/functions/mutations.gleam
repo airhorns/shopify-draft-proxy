@@ -7,6 +7,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/functions/helpers.{
   normalize_function_handle, shopify_function_id_from_handle,
@@ -33,9 +34,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CartTransformMetafieldRecord, type CartTransformRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
-  type ValidationMetafieldRecord, CartTransformMetafieldRecord,
+  type AppInstallationRecord, type AppRecord, type CartTransformMetafieldRecord,
+  type CartTransformRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, type ValidationMetafieldRecord, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, CartTransformMetafieldRecord,
   CartTransformRecord, ShopifyFunctionAppRecord, ShopifyFunctionRecord,
   TaxAppConfigurationRecord, ValidationMetafieldRecord, ValidationRecord,
 }
@@ -90,6 +92,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream.headers,
       )
     }
   }
@@ -119,6 +122,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [])
   let #(data_entries, final_store, final_identity, all_staged) =
@@ -166,6 +170,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                request_headers,
               ))
             "taxAppConfigure" ->
               Some(handle_tax_app_configure(
@@ -1557,21 +1562,31 @@ fn handle_cart_transform_create(
                               )
                             }
                             [] -> {
+                              let #(
+                                owned_shopify_fn,
+                                store_after_owner,
+                                identity_after_owner,
+                              ) =
+                                ensure_cart_transform_function_owner(
+                                  store,
+                                  identity_after_metafields,
+                                  shopify_fn,
+                                )
                               let cart_transform =
                                 CartTransformRecord(
                                   id: cart_transform_id,
                                   title: None,
                                   block_on_failure: block_on_failure,
-                                  function_id: Some(shopify_fn.id),
+                                  function_id: Some(owned_shopify_fn.id),
                                   function_handle: function_handle,
-                                  shopify_function_id: Some(shopify_fn.id),
+                                  shopify_function_id: Some(owned_shopify_fn.id),
                                   metafields: metafields,
                                   created_at: Some(timestamp),
                                   updated_at: Some(timestamp),
                                 )
                               let #(_, store_final) =
                                 store.upsert_staged_cart_transform(
-                                  store,
+                                  store_after_owner,
                                   cart_transform,
                                 )
                               let payload =
@@ -1588,7 +1603,7 @@ fn handle_cart_transform_create(
                                   staged_resource_ids: [cart_transform.id],
                                 ),
                                 store_final,
-                                identity_after_metafields,
+                                identity_after_owner,
                               )
                             }
                           }
@@ -1606,12 +1621,102 @@ fn handle_cart_transform_create(
   }
 }
 
+fn ensure_cart_transform_function_owner(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  shopify_fn: ShopifyFunctionRecord,
+) -> #(ShopifyFunctionRecord, Store, SyntheticIdentityRegistry) {
+  case shopify_function_owner_app_id(store, shopify_fn) {
+    Some(_) -> #(shopify_fn, store, identity)
+    None -> {
+      let #(installation, store_with_install, identity_after_install) =
+        ensure_default_current_installation(store, identity)
+      let app =
+        store.get_effective_app_by_id(store_with_install, installation.app_id)
+      let owned =
+        ShopifyFunctionRecord(
+          ..shopify_fn,
+          app_key: option.map(app, fn(record) { record.api_key })
+            |> option.flatten,
+          app: option.map(app, fn(record) {
+            ShopifyFunctionAppRecord(
+              typename: Some("App"),
+              id: Some(record.id),
+              title: record.title,
+              handle: record.handle,
+              api_key: record.api_key,
+            )
+          }),
+        )
+      let #(_, store_with_fn) =
+        store.upsert_staged_shopify_function(store_with_install, owned)
+      #(owned, store_with_fn, identity_after_install)
+    }
+  }
+}
+
+fn ensure_default_current_installation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(AppInstallationRecord, Store, SyntheticIdentityRegistry) {
+  case store.get_current_app_installation(store) {
+    Some(existing) -> #(existing, store, identity)
+    None -> {
+      let #(app, identity_after_app) = default_app(identity)
+      let #(_, store_with_app) = store.stage_app(store, app)
+      let #(install_gid, identity_after_install_id) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_app,
+          "AppInstallation",
+        )
+      let installation =
+        AppInstallationRecord(
+          id: install_gid,
+          app_id: app.id,
+          launch_url: None,
+          uninstall_url: None,
+          access_scopes: app.requested_access_scopes,
+          active_subscription_ids: [],
+          all_subscription_ids: [],
+          one_time_purchase_ids: [],
+          uninstalled_at: None,
+        )
+      let #(_, store_with_install) =
+        store.stage_app_installation(store_with_app, installation)
+      #(installation, store_with_install, identity_after_install_id)
+    }
+  }
+}
+
+fn default_app(
+  identity: SyntheticIdentityRegistry,
+) -> #(AppRecord, SyntheticIdentityRegistry) {
+  let #(app_gid, identity_after_app) =
+    synthetic_identity.make_synthetic_gid(identity, "App")
+  #(
+    AppRecord(
+      id: app_gid,
+      api_key: Some(app_identity.fallback_api_client_id),
+      handle: Some("shopify-draft-proxy"),
+      title: Some("Shopify Draft Proxy"),
+      developer_name: Some("Shopify Draft Proxy"),
+      embedded: Some(True),
+      previously_installed: Some(False),
+      requested_access_scopes: [
+        AccessScopeRecord(handle: "write_cart_transforms", description: None),
+      ],
+    ),
+    identity_after_app,
+  )
+}
+
 fn handle_cart_transform_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1632,7 +1737,13 @@ fn handle_cart_transform_delete(
       )
     }
     Some(record) -> {
-      case cart_transform_delete_authorization_error(store, record) {
+      case
+        cart_transform_delete_authorization_error(
+          store,
+          record,
+          request_headers,
+        )
+      {
         Some(error) -> {
           let payload =
             serializers.delete_payload(field, fragments, None, [error])
@@ -1668,25 +1779,73 @@ fn handle_cart_transform_delete(
 fn cart_transform_delete_authorization_error(
   store: Store,
   record: CartTransformRecord,
+  request_headers: Dict(String, String),
 ) -> Option(function_types.UserError) {
-  use function_id <- option.then(record.shopify_function_id)
-  use function_record <- option.then(store.get_effective_shopify_function_by_id(
-    store,
-    function_id,
-  ))
-  use function_app_key <- option.then(shopify_function_app_key(function_record))
-  use current_installation <- option.then(store.get_current_app_installation(
-    store,
-  ))
-  use current_app <- option.then(store.get_effective_app_by_id(
-    store,
-    current_installation.app_id,
-  ))
-  use current_app_key <- option.then(current_app.api_key)
-  case function_app_key == current_app_key {
-    True -> None
-    False -> Some(unauthorized_app_scope_error())
+  let current_installation = store.get_current_app_installation(store)
+  case
+    app_identity.has_internal_visibility(request_headers),
+    current_installation
+  {
+    True, _ -> None
+    False, Some(installation) ->
+      case installation_has_access_scope(installation, "all_cart_transforms") {
+        True -> None
+        False ->
+          case
+            cart_transform_owner_app_matches_installation(
+              store,
+              record,
+              installation.app_id,
+            )
+          {
+            True -> None
+            False -> Some(unauthorized_app_scope_error())
+          }
+      }
+    False, None -> Some(unauthorized_app_scope_error())
   }
+}
+
+fn cart_transform_owner_app_matches_installation(
+  store: Store,
+  record: CartTransformRecord,
+  current_app_id: String,
+) -> Bool {
+  case record.shopify_function_id {
+    None -> False
+    Some(function_id) ->
+      case store.get_effective_shopify_function_by_id(store, function_id) {
+        None -> False
+        Some(function_record) ->
+          case shopify_function_owner_app_id(store, function_record) {
+            Some(owner_app_id) -> owner_app_id == current_app_id
+            None -> False
+          }
+      }
+  }
+}
+
+fn shopify_function_owner_app_id(
+  store: Store,
+  record: ShopifyFunctionRecord,
+) -> Option(String) {
+  case record.app {
+    Some(app) ->
+      case app.id {
+        Some(id) -> Some(id)
+        None -> shopify_function_owner_app_id_from_key(store, record)
+      }
+    None -> shopify_function_owner_app_id_from_key(store, record)
+  }
+}
+
+fn shopify_function_owner_app_id_from_key(
+  store: Store,
+  record: ShopifyFunctionRecord,
+) -> Option(String) {
+  use app_key <- option.then(shopify_function_app_key(record))
+  use app <- option.then(store.find_effective_app_by_api_key(store, app_key))
+  Some(app.id)
 }
 
 fn shopify_function_app_key(record: ShopifyFunctionRecord) -> Option(String) {
@@ -1698,6 +1857,14 @@ fn shopify_function_app_key(record: ShopifyFunctionRecord) -> Option(String) {
         None -> None
       }
   }
+}
+
+fn installation_has_access_scope(
+  installation: AppInstallationRecord,
+  handle: String,
+) -> Bool {
+  installation.access_scopes
+  |> list.any(fn(scope) { scope.handle == handle })
 }
 
 fn handle_tax_app_configure(

@@ -1,0 +1,1099 @@
+{
+  "capturedAt": "2026-05-08T08:36:42.774Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live public Admin GraphQL capture for returnCreate with ReturnInput.returnShippingFee and deprecated unprocessed. The same fixture records that returnDelivery, note, refundIntent, locationId, and retailAttribution are not public ReturnInput fields on this schema; hidden-field local behavior is therefore runtime-backed.",
+  "schema": {
+    "query": "query ReturnShippingFeeSchemaEvidence {\n    returnInput: __type(name: \"ReturnInput\") {\n      inputFields(includeDeprecated: true) {\n        name\n        isDeprecated\n        deprecationReason\n      }\n    }\n    returnRequestInput: __type(name: \"ReturnRequestInput\") {\n      inputFields(includeDeprecated: true) {\n        name\n        isDeprecated\n        deprecationReason\n      }\n    }\n    returnType: __type(name: \"Return\") {\n      fields(includeDeprecated: true) {\n        name\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n      }\n    }\n    returnShippingFee: __type(name: \"ReturnShippingFee\") {\n      fields(includeDeprecated: true) {\n        name\n      }\n    }\n  }",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnInput": {
+            "inputFields": [
+              {
+                "name": "exchangeLineItems",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "requestedAt",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "orderId",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnLineItems",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnShippingFee",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "notifyCustomer",
+                "isDeprecated": true,
+                "deprecationReason": "This field is no longer supported and any value provided to it is currently ignored."
+              },
+              {
+                "name": "unprocessed",
+                "isDeprecated": true,
+                "deprecationReason": "This field is temporary to support the transition to Returns Processing APIs."
+              }
+            ]
+          },
+          "returnRequestInput": {
+            "inputFields": [
+              {
+                "name": "orderId",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnLineItems",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnShippingFee",
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ]
+          },
+          "returnType": {
+            "fields": [
+              {
+                "name": "closedAt",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "DateTime",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "createdAt",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "DateTime",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "decline",
+                "type": {
+                  "kind": "OBJECT",
+                  "name": "ReturnDecline",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "exchangeLineItems",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ExchangeLineItemConnection",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "id",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "name",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "order",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "Order",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "refunds",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "RefundConnection",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "requestApprovedAt",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "DateTime",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "returnLineItems",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ReturnLineItemTypeConnection",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "returnShippingFees",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "OBJECT",
+                        "name": "ReturnShippingFee"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "name": "reverseFulfillmentOrders",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ReverseFulfillmentOrderConnection",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "staffMember",
+                "type": {
+                  "kind": "OBJECT",
+                  "name": "StaffMember",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "status",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "ReturnStatus",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "suggestedFinancialOutcome",
+                "type": {
+                  "kind": "OBJECT",
+                  "name": "SuggestedReturnFinancialOutcome",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "suggestedRefund",
+                "type": {
+                  "kind": "OBJECT",
+                  "name": "SuggestedReturnRefund",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "totalQuantity",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "name": "transactions",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "OrderTransactionConnection",
+                    "ofType": null
+                  }
+                }
+              }
+            ]
+          },
+          "returnShippingFee": {
+            "fields": [
+              {
+                "name": "amountSet"
+              },
+              {
+                "name": "id"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "returnReasonDefinitions": {
+      "query": "query ReturnShippingFeeReturnReasonDefinitions {\n    returnReasonDefinitions(first: 10) {\n      nodes {\n        id\n        name\n        handle\n        deleted\n      }\n    }\n  }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnReasonDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/1",
+                  "name": "Unknown",
+                  "handle": "unknown",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/2",
+                  "name": "Changed my mind",
+                  "handle": "changed-my-mind",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/3",
+                  "name": "Item not as described",
+                  "handle": "item-not-as-described",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/4",
+                  "name": "Received the wrong item",
+                  "handle": "received-the-wrong-item",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/5",
+                  "name": "Other",
+                  "handle": "other-reason",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/6",
+                  "name": "Damaged or defective",
+                  "handle": "damaged-or-defective",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/7",
+                  "name": "Too small",
+                  "handle": "too-small",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/8",
+                  "name": "Too big",
+                  "handle": "too-big",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/9",
+                  "name": "Style",
+                  "handle": "style",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/10",
+                  "name": "Color",
+                  "handle": "color",
+                  "deleted": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnShippingFeeOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnShippingFeeOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnShippingFeeOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "return-shipping-fee-20260508083639@example.com",
+          "note": "return shipping fee capture 20260508083639",
+          "tags": ["return-shipping-fee", "20260508083639"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Return shipping fee item 20260508083639",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8735919866162",
+                "name": "#1402",
+                "createdAt": "2026-05-08T08:36:40Z",
+                "updatedAt": "2026-05-08T08:36:40Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9659774632242",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19462602588466",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19313372430642",
+                              "title": "Return shipping fee item 20260508083639"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnShippingFeeFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "RETURN-SHIPPING-FULFILL-20260508083639",
+            "url": "https://example.com/track/RETURN-SHIPPING-FULFILL-20260508083639",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9659774632242",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19462602588466",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "return shipping fee fulfillment 20260508083639"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/7883320230194",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-05-08T08:36:41Z",
+                "updatedAt": "2026-05-08T08:36:41Z",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17091555230002",
+                      "quantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19313372430642",
+                        "title": "Return shipping fee item 20260508083639"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnShippingFeeOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnShippingFeeOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnShippingFeeOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8735919866162"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8735919866162",
+              "name": "#1402",
+              "createdAt": "2026-05-08T08:36:40Z",
+              "updatedAt": "2026-05-08T08:36:41Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7883320230194",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-05-08T08:36:41Z",
+                  "updatedAt": "2026-05-08T08:36:41Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17091555230002",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19313372430642",
+                          "title": "Return shipping fee item 20260508083639"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9659774632242",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19462602588466",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19313372430642",
+                            "title": "Return shipping fee item 20260508083639"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "seedOrder": {
+    "id": "gid://shopify/Order/8735919866162",
+    "name": "#1402",
+    "createdAt": "2026-05-08T08:36:40Z",
+    "updatedAt": "2026-05-08T08:36:41Z",
+    "displayFinancialStatus": null,
+    "displayFulfillmentStatus": "FULFILLED",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "40.0",
+        "currencyCode": "USD"
+      }
+    },
+    "currentTotalPriceSet": {
+      "shopMoney": {
+        "amount": "40.0",
+        "currencyCode": "USD"
+      }
+    },
+    "fulfillments": [
+      {
+        "id": "gid://shopify/Fulfillment/7883320230194",
+        "status": "SUCCESS",
+        "displayStatus": "FULFILLED",
+        "createdAt": "2026-05-08T08:36:41Z",
+        "updatedAt": "2026-05-08T08:36:41Z",
+        "fulfillmentLineItems": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentLineItem/17091555230002",
+              "quantity": 2,
+              "lineItem": {
+                "id": "gid://shopify/LineItem/19313372430642",
+                "title": "Return shipping fee item 20260508083639"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "fulfillmentOrders": {
+      "nodes": [
+        {
+          "id": "gid://shopify/FulfillmentOrder/9659774632242",
+          "status": "CLOSED",
+          "requestStatus": "UNSUBMITTED",
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19462602588466",
+                "totalQuantity": 2,
+                "remainingQuantity": 0,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19313372430642",
+                  "title": "Return shipping fee item 20260508083639"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "returns": {
+      "nodes": []
+    }
+  },
+  "returnCreate": {
+    "query": "mutation ReturnCreateShippingFeeRecorded($returnInput: ReturnInput!) {\n  returnCreate(returnInput: $returnInput) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      order {\n        id\n      }\n      returnShippingFees {\n        id\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8735919866162",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17091555230002",
+            "quantity": 1,
+            "returnReasonDefinitionId": "gid://shopify/ReturnReasonDefinition/2"
+          }
+        ],
+        "returnShippingFee": {
+          "amount": {
+            "amount": "7.50",
+            "currencyCode": "USD"
+          }
+        },
+        "unprocessed": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnCreate": {
+            "return": {
+              "id": "gid://shopify/Return/13828817202",
+              "name": "#1402-R1",
+              "status": "OPEN",
+              "totalQuantity": 1,
+              "order": {
+                "id": "gid://shopify/Order/8735919866162"
+              },
+              "returnShippingFees": [
+                {
+                  "id": "gid://shopify/Fee/488112434",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "7.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "7.5",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ],
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/21329051954",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseFulfillmentOrder/13443498290"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ReturnShippingFeeReadRecorded($returnId: ID!, $orderId: ID!) {\n  return(id: $returnId) {\n    id\n    name\n    status\n    totalQuantity\n    returnShippingFees {\n      id\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    returnLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        processedQuantity\n        unprocessedQuantity\n      }\n    }\n  }\n  order(id: $orderId) {\n    id\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnShippingFees {\n          id\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+    "variables": {
+      "returnId": "gid://shopify/Return/13828817202",
+      "orderId": "gid://shopify/Order/8735919866162"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "return": {
+            "id": "gid://shopify/Return/13828817202",
+            "name": "#1402-R1",
+            "status": "OPEN",
+            "totalQuantity": 1,
+            "returnShippingFees": [
+              {
+                "id": "gid://shopify/Fee/488112434",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "7.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.5",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ],
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/21329051954",
+                  "quantity": 1,
+                  "processedQuantity": 0,
+                  "unprocessedQuantity": 1
+                }
+              ]
+            }
+          },
+          "order": {
+            "id": "gid://shopify/Order/8735919866162",
+            "returns": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Return/13828817202",
+                  "name": "#1402-R1",
+                  "status": "OPEN",
+                  "totalQuantity": 1,
+                  "returnShippingFees": [
+                    {
+                      "id": "gid://shopify/Fee/488112434",
+                      "amountSet": {
+                        "shopMoney": {
+                          "amount": "7.5",
+                          "currencyCode": "USD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "7.5",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hiddenInputProbe": {
+    "query": "mutation ReturnCreateHiddenInputProbe($returnInput: ReturnInput!) {\n    returnCreate(returnInput: $returnInput) {\n      return {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8735919866162",
+        "returnLineItems": [],
+        "returnDelivery": {
+          "trackingInfo": {
+            "number": "RETURN-SHIPPING-PROBE-20260508083639"
+          }
+        },
+        "note": "hidden input probe",
+        "refundIntent": "RECOMMENDED",
+        "locationId": "gid://shopify/Location/0",
+        "retailAttribution": {
+          "deviceId": "probe-device"
+        },
+        "unprocessed": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $returnInput of type ReturnInput! was provided invalid value for returnDelivery (Field is not defined on ReturnInput), note (Field is not defined on ReturnInput), refundIntent (Field is not defined on ReturnInput), locationId (Field is not defined on ReturnInput), retailAttribution (Field is not defined on ReturnInput)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 41
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "orderId": "gid://shopify/Order/8735919866162",
+                "returnLineItems": [],
+                "returnDelivery": {
+                  "trackingInfo": {
+                    "number": "RETURN-SHIPPING-PROBE-20260508083639"
+                  }
+                },
+                "note": "hidden input probe",
+                "refundIntent": "RECOMMENDED",
+                "locationId": "gid://shopify/Location/0",
+                "retailAttribution": {
+                  "deviceId": "probe-device"
+                },
+                "unprocessed": true
+              },
+              "problems": [
+                {
+                  "path": ["returnDelivery"],
+                  "explanation": "Field is not defined on ReturnInput"
+                },
+                {
+                  "path": ["note"],
+                  "explanation": "Field is not defined on ReturnInput"
+                },
+                {
+                  "path": ["refundIntent"],
+                  "explanation": "Field is not defined on ReturnInput"
+                },
+                {
+                  "path": ["locationId"],
+                  "explanation": "Field is not defined on ReturnInput"
+                },
+                {
+                  "path": ["retailAttribution"],
+                  "explanation": "Field is not defined on ReturnInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "query": "mutation ReturnShippingFeeOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8735919866162",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/21aae607-b9b1-4786-98a5-1140f846c4d9"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderDelete": {
+      "query": "mutation ReturnShippingFeeOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8735919866162"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8735919866162",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8735919866162"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for return shipping fee Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8735919866162",
+              "name": "#1402",
+              "createdAt": "2026-05-08T08:36:40Z",
+              "updatedAt": "2026-05-08T08:36:41Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7883320230194",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-05-08T08:36:41Z",
+                  "updatedAt": "2026-05-08T08:36:41Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17091555230002",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19313372430642",
+                          "title": "Return shipping fee item 20260508083639"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9659774632242",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19462602588466",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19313372430642",
+                            "title": "Return shipping fee item 20260508083639"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "scenarioId": "media-file-update-filename-extension-aggregation",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-filename-extension-aggregation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/file_update_filename_extension/file-update.graphql",
+    "variablesCapturePath": "$.cases.singleImageMismatch.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin GraphQL 2026-04 fileUpdate filename validation behavior: a single mismatched image extension returns one INVALID_FILENAME_EXTENSION userError, multiple mismatched image extensions still aggregate to one files-keyed INVALID_FILENAME_EXTENSION userError, and multiple unsupported filename updates for external video files aggregate to one files-keyed UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE userError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "single-image-extension-mismatch",
+        "capturePath": "$.cases.singleImageMismatch.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate"
+      },
+      {
+        "name": "multi-image-extension-mismatch",
+        "capturePath": "$.cases.multiImageMismatch.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_filename_extension/file-update.graphql",
+          "variablesCapturePath": "$.cases.multiImageMismatch.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "multi-external-video-filename-unsupported",
+        "capturePath": "$.cases.multiExternalVideoFilename.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_filename_extension/file-update.graphql",
+          "variablesCapturePath": "$.cases.multiExternalVideoFilename.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

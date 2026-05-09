@@ -628,6 +628,17 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "pubSubWebhookSubscriptionCreate" | "pubSubWebhookSubscriptionUpdate" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "webhookSubscription",
+        "PubSubWebhookSubscriptionInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
     _ -> []
   }
 }
@@ -1265,6 +1276,7 @@ fn validate_literal_bound_args(
               schema,
               path,
               source_body,
+              None,
             ))
           }
         }
@@ -1544,10 +1556,18 @@ fn collect_literal_enum_value_errors(
   schema: MutationSchema,
   path: List(PathSegment),
   source_body: String,
+  input_context: Option(#(String, String, Option(Location))),
 ) -> List(Json) {
   case schema_type {
     mutation_schema.NonNullType(of: inner) ->
-      collect_literal_enum_value_errors(value, inner, schema, path, source_body)
+      collect_literal_enum_value_errors(
+        value,
+        inner,
+        schema,
+        path,
+        source_body,
+        input_context,
+      )
     mutation_schema.ListType(of: inner) ->
       case value {
         ListValue(values: values, ..) ->
@@ -1558,6 +1578,7 @@ fn collect_literal_enum_value_errors(
               schema,
               list.append(path, [IntSegment(index)]),
               source_body,
+              input_context,
             )
           })
           |> list.flatten
@@ -1566,13 +1587,20 @@ fn collect_literal_enum_value_errors(
     mutation_schema.NamedType(name: type_name) ->
       case dict.get(enum_value_sets(), type_name) {
         Ok(allowed) ->
-          validate_literal_enum_value(value, allowed, path, source_body)
+          validate_literal_enum_value(
+            value,
+            allowed,
+            type_name,
+            path,
+            source_body,
+            input_context,
+          )
         Error(_) ->
           case
             mutation_schema_lookup.get_input_object(schema, type_name),
             value
           {
-            Some(io), ObjectValue(fields: fields, ..) ->
+            Some(io), ObjectValue(fields: fields, loc: input_object_loc) ->
               list.flat_map(fields, fn(object_field) {
                 let ast.ObjectField(name: field_name, value: child, ..) =
                   object_field
@@ -1586,6 +1614,7 @@ fn collect_literal_enum_value_errors(
                       schema,
                       list.append(path, [StringSegment(field_name.value)]),
                       source_body,
+                      Some(#(io.name, field_name.value, input_object_loc)),
                     )
                   None -> []
                 }
@@ -1599,24 +1628,40 @@ fn collect_literal_enum_value_errors(
 fn validate_literal_enum_value(
   value: ast.Value,
   allowed: List(String),
+  type_name: String,
   path: List(PathSegment),
   source_body: String,
+  input_context: Option(#(String, String, Option(Location))),
 ) -> List(Json) {
   case value {
     StringValue(value: raw, loc: loc, ..) | EnumValue(value: raw, loc: loc) ->
       case list.contains(allowed, raw) {
         True -> []
-        False -> [
-          build_literal_coercion_error(
-            "Expected \""
-              <> raw
-              <> "\" to be one of: "
-              <> string.join(allowed, ", "),
-            path,
-            loc,
-            source_body,
-          ),
-        ]
+        False ->
+          case input_context {
+            Some(#(input_object_name, field_name, field_loc)) -> [
+              build_invalid_literal_input_object_field_error(
+                input_object_name,
+                field_name,
+                type_name,
+                raw,
+                path,
+                field_loc,
+                source_body,
+              ),
+            ]
+            None -> [
+              build_literal_coercion_error(
+                "Expected \""
+                  <> raw
+                  <> "\" to be one of: "
+                  <> string.join(allowed, ", "),
+                path,
+                loc,
+                source_body,
+              ),
+            ]
+          }
       }
     _ -> []
   }
@@ -1791,6 +1836,7 @@ fn top_level_required_input_field_strict_types() -> List(String) {
     "DeliveryCarrierServiceCreateInput",
     "CatalogCreateInput",
     "PriceListCreateInput",
+    "PubSubWebhookSubscriptionInput",
     "SavedSearchCreateInput",
     "SavedSearchDeleteInput",
     "SavedSearchUpdateInput",
@@ -2436,6 +2482,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "EMPTY",
       "ALL_PRODUCTS",
     ]),
+    #("MetaobjectCustomerAccountAccess", ["NONE", "READ"]),
     #("TaxExemption", tax_exemption_values()),
     #("ShopPolicyType", [
       "REFUND_POLICY",

@@ -1,0 +1,20 @@
+mutation MetaobjectDefinitionCustomerAccountAccessCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

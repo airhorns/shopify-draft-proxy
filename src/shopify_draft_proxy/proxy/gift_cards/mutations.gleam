@@ -3,6 +3,7 @@
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
+import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -38,11 +39,13 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CustomerRecord, type GiftCardConfigurationRecord,
   type GiftCardRecipientAttributesRecord, type GiftCardRecord,
-  type GiftCardTransactionRecord, type Money, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money,
+  type GiftCardTransactionRecord, type Money, type ShopRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerRecord, GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord,
+  GiftCardRecord, GiftCardTransactionRecord, Money,
 }
+
+const milliseconds_per_day: Int = 86_400_000
 
 /// Predicate matching `GIFT_CARD_MUTATION_ROOTS`.
 pub fn is_gift_card_mutation_root(name: String) -> Bool {
@@ -67,10 +70,31 @@ pub fn is_gift_card_mutation_root(name: String) -> Bool {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
+  process_mutation_at(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+    iso_timestamp.now_iso(),
+  )
+}
+
+@internal
+pub fn process_mutation_at(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  now_iso: String,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -83,6 +107,7 @@ pub fn process_mutation(
         fragments,
         variables,
         upstream,
+        now_iso,
       )
     }
   }
@@ -95,6 +120,7 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  now_iso: String,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [])
   let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
@@ -115,6 +141,13 @@ fn handle_mutation_fields(
               field,
               variables,
               upstream,
+            )
+            |> maybe_hydrate_shop_for_gift_card_expiry_guard(
+              name.value,
+              field,
+              variables,
+              upstream,
+              now_iso,
             )
           let dispatch = case name.value {
             "giftCardCreate" ->
@@ -147,6 +180,7 @@ fn handle_mutation_fields(
                 "creditInput",
                 "GiftCardCreditPayload",
                 "GiftCardCreditTransaction",
+                now_iso,
               ))
             "giftCardDebit" ->
               Some(handle_gift_card_transaction(
@@ -161,6 +195,7 @@ fn handle_mutation_fields(
                 "debitInput",
                 "GiftCardDebitPayload",
                 "GiftCardDebitTransaction",
+                now_iso,
               ))
             "giftCardDeactivate" ->
               Some(handle_gift_card_deactivate(
@@ -179,6 +214,7 @@ fn handle_mutation_fields(
                 variables,
                 "customer",
                 "GiftCardSendNotificationToCustomerPayload",
+                now_iso,
               ))
             "giftCardSendNotificationToRecipient" ->
               Some(handle_gift_card_notification(
@@ -189,6 +225,7 @@ fn handle_mutation_fields(
                 variables,
                 "recipient",
                 "GiftCardSendNotificationToRecipientPayload",
+                now_iso,
               ))
             _ -> None
           }
@@ -322,6 +359,42 @@ fn maybe_hydrate_shop_for_assignment_guard(
         Some(_), None ->
           store_properties.hydrate_shop_baseline_if_needed(store, upstream)
         _, _ -> store
+      }
+    }
+    _ -> store
+  }
+}
+
+fn maybe_hydrate_shop_for_gift_card_expiry_guard(
+  store: Store,
+  root_field_name: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  now_iso: String,
+) -> Store {
+  case root_field_name {
+    "giftCardCredit"
+    | "giftCardDebit"
+    | "giftCardSendNotificationToCustomer"
+    | "giftCardSendNotificationToRecipient" -> {
+      let args = graphql_helpers.field_args(field, variables)
+      let existing =
+        read_gift_card_id(args)
+        |> option.then(fn(id) { store.get_effective_gift_card_by_id(store, id) })
+      case
+        store.get_effective_shop(store),
+        upstream.allow_upstream_reads,
+        existing
+      {
+        None, True, Some(record) -> {
+          case gift_card_expiry_can_drift(record, now_iso) {
+            True ->
+              store_properties.hydrate_shop_baseline_if_needed(store, upstream)
+            False -> store
+          }
+        }
+        _, _, _ -> store
       }
     }
     _ -> store
@@ -1275,6 +1348,7 @@ fn handle_gift_card_transaction(
   preferred_input_key: String,
   payload_typename: String,
   transaction_typename: String,
+  now_iso: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1304,6 +1378,7 @@ fn handle_gift_card_transaction(
       kind,
       preferred_amount_key,
       preferred_input_key,
+      now_iso,
     )
 
   case existing, validation_error {
@@ -1438,6 +1513,7 @@ fn validate_gift_card_transaction(
   kind: String,
   preferred_amount_key: String,
   preferred_input_key: String,
+  now_iso: String,
 ) -> Option(gift_card_types.UserError) {
   case magnitude <=. 0.0 {
     True ->
@@ -1459,6 +1535,7 @@ fn validate_gift_card_transaction(
             kind,
             preferred_amount_key,
             preferred_input_key,
+            now_iso,
           )
       }
   }
@@ -1473,11 +1550,12 @@ fn validate_existing_gift_card_transaction(
   kind: String,
   preferred_amount_key: String,
   preferred_input_key: String,
+  now_iso: String,
 ) -> Option(gift_card_types.UserError) {
   case validate_processed_at(processed_at, preferred_input_key) {
     Some(error) -> Some(error)
     None ->
-      case gift_card_is_expired(current) {
+      case gift_card_is_expired_at(store, current, now_iso) {
         True -> Some(invalid_user_error(["id"], "The gift card has expired."))
         False ->
           case current.enabled {
@@ -1696,6 +1774,7 @@ fn handle_gift_card_notification(
   variables: Dict(String, root_field.ResolvedValue),
   notification_target: String,
   payload_typename: String,
+  now_iso: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1708,7 +1787,12 @@ fn handle_gift_card_notification(
     True, _ -> Some(notification_trial_user_error())
     False, None -> Some(not_found_user_error())
     False, Some(current) ->
-      gift_card_notification_user_error(store, current, notification_target)
+      gift_card_notification_user_error(
+        store,
+        current,
+        notification_target,
+        now_iso,
+      )
   }
   case validation_error {
     Some(error) -> {
@@ -2228,6 +2312,7 @@ fn gift_card_notification_user_error(
   store: Store,
   current: GiftCardRecord,
   notification_target: String,
+  now_iso: String,
 ) -> Option(gift_card_types.UserError) {
   case current.notify {
     False ->
@@ -2237,6 +2322,7 @@ fn gift_card_notification_user_error(
         store,
         current,
         notification_target,
+        now_iso,
       )
   }
 }
@@ -2245,8 +2331,9 @@ fn gift_card_notification_lifecycle_user_error(
   store: Store,
   current: GiftCardRecord,
   notification_target: String,
+  now_iso: String,
 ) -> Option(gift_card_types.UserError) {
-  case gift_card_is_expired(current) {
+  case gift_card_is_expired_at(store, current, now_iso) {
     True -> Some(invalid_user_error(["id"], "The gift card has expired."))
     False ->
       case current.enabled {
@@ -2333,13 +2420,113 @@ fn notification_owner_no_contact_user_error(
   }
 }
 
-fn gift_card_is_expired(record: GiftCardRecord) -> Bool {
+fn gift_card_expiry_can_drift(record: GiftCardRecord, now_iso: String) -> Bool {
   case record.expires_on {
     Some(expires_on) -> {
-      let today = string.slice(iso_timestamp.now_iso(), 0, 10)
+      let today = string.slice(now_iso, 0, 10)
+      case iso_timestamp.parse_iso(expires_on), iso_timestamp.parse_iso(today) {
+        Ok(expires_on_ms), Ok(today_ms) -> {
+          let diff = expires_on_ms - today_ms
+          diff >= 0 - milliseconds_per_day && diff <= milliseconds_per_day
+        }
+        _, _ -> True
+      }
+    }
+    None -> False
+  }
+}
+
+pub fn gift_card_is_expired_at(
+  store: Store,
+  record: GiftCardRecord,
+  now_iso: String,
+) -> Bool {
+  case record.expires_on {
+    Some(expires_on) -> {
+      let today = shop_today_date(store, now_iso)
       string.compare(expires_on, today) == Lt
     }
     None -> False
+  }
+}
+
+fn shop_today_date(store: Store, now_iso: String) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) -> shop_today_date_from_shop(shop, now_iso)
+    None -> {
+      io.println_error(
+        "[shopify-draft-proxy] gift_cards.expiry: falling back to UTC date because no hydrated Shop timezone is available",
+      )
+      string.slice(now_iso, 0, 10)
+    }
+  }
+}
+
+fn shop_today_date_from_shop(shop: ShopRecord, now_iso: String) -> String {
+  case iso_timestamp.parse_iso(now_iso) {
+    Ok(now_ms) ->
+      now_ms + shop.timezone_offset_minutes * 60_000
+      |> utc_date_from_shifted_ms
+    Error(_) -> string.slice(now_iso, 0, 10)
+  }
+}
+
+fn utc_date_from_shifted_ms(ms: Int) -> String {
+  let days = floor_div(ms, milliseconds_per_day)
+  let z = days + 719_468
+  let era = floor_div(z, 146_097)
+  let doe = z - era * 146_097
+  let yoe =
+    floor_div(
+      doe
+        - floor_div(doe, 1460)
+        + floor_div(doe, 36_524)
+        - floor_div(doe, 146_096),
+      365,
+    )
+  let y = yoe + era * 400
+  let doy = doe - { 365 * yoe + floor_div(yoe, 4) - floor_div(yoe, 100) }
+  let mp = floor_div(5 * doy + 2, 153)
+  let day = doy - floor_div(153 * mp + 2, 5) + 1
+  let month = case mp < 10 {
+    True -> mp + 3
+    False -> mp - 9
+  }
+  let year = case month <= 2 {
+    True -> y + 1
+    False -> y
+  }
+  pad4(year) <> "-" <> pad2(month) <> "-" <> pad2(day)
+}
+
+fn floor_div(dividend: Int, divisor: Int) -> Int {
+  let quotient = dividend / divisor
+  let remainder = dividend - quotient * divisor
+  case remainder < 0 {
+    True -> quotient - 1
+    False -> quotient
+  }
+}
+
+fn pad2(value: Int) -> String {
+  case value < 10 {
+    True -> "0" <> int.to_string(value)
+    False -> int.to_string(value)
+  }
+}
+
+fn pad4(value: Int) -> String {
+  case value < 10 {
+    True -> "000" <> int.to_string(value)
+    False ->
+      case value < 100 {
+        True -> "00" <> int.to_string(value)
+        False ->
+          case value < 1000 {
+            True -> "0" <> int.to_string(value)
+            False -> int.to_string(value)
+          }
+      }
   }
 }
 

@@ -623,6 +623,9 @@ pub type ProductRecord {
     description_html: String,
     online_store_preview_url: Option(String),
     template_suffix: Option(String),
+    is_gift_card: Option(Bool),
+    gift_card_template_suffix: Option(String),
+    has_bundle_ownership: Option(Bool),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
     requires_selling_plan: Option(Bool),
@@ -1298,6 +1301,7 @@ pub type BulkOperationRecord {
     url: Option(String),
     partial_data_url: Option(String),
     query: Option(String),
+    client_identifier: Option(String),
     cursor: Option(String),
     result_jsonl: Option(String),
   )

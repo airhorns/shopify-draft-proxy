@@ -186,6 +186,7 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
       url: Some("https://example.test/bulk.jsonl"),
       partial_data_url: None,
       query: Some("{ products { edges { node { id } } } }"),
+      client_identifier: None,
       cursor: None,
       result_jsonl: None,
     )
@@ -534,6 +535,9 @@ fn seeded_product_option_store() {
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
+      is_gift_card: None,
+      gift_card_template_suffix: None,
+      has_bundle_ownership: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       requires_selling_plan: None,

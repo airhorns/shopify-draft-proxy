@@ -3,6 +3,7 @@
 
 import gleam/dict.{type Dict}
 
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -21,9 +22,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 
+import shopify_draft_proxy/proxy/products/product_types.{
+  type ProductUserError, ProductUserError,
+}
 import shopify_draft_proxy/proxy/products/shared.{
   count_source, dedupe_preserving_order, read_arg_object_list,
-  read_object_list_field, read_string_argument, read_string_field,
+  read_list_field_length, read_object_list_field, read_string_argument,
+  read_string_field,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{option_to_result}
 
@@ -264,6 +269,161 @@ pub fn read_publication_targets(
   |> list.filter_map(fn(input) {
     read_string_field(input, "publicationId") |> option_to_result
   })
+}
+
+@internal
+pub fn read_product_create_publication_ids(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> #(List(String), List(ProductUserError)) {
+  case product_create_publications_field_name(input) {
+    None -> #([], [])
+    Some(field_name) ->
+      case read_list_field_length(input, field_name) {
+        None -> #([], [])
+        Some(0) -> #([], [blank_product_create_publications_error(field_name)])
+        Some(_) ->
+          validate_product_create_publication_inputs(
+            store,
+            field_name,
+            read_object_list_field(input, field_name),
+            0,
+            [],
+            [],
+          )
+      }
+  }
+}
+
+fn product_create_publications_field_name(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case dict.has_key(input, "productPublications") {
+    True -> Some("productPublications")
+    False ->
+      case dict.has_key(input, "publications") {
+        True -> Some("publications")
+        False -> None
+      }
+  }
+}
+
+fn validate_product_create_publication_inputs(
+  store: Store,
+  field_name: String,
+  inputs: List(Dict(String, ResolvedValue)),
+  index: Int,
+  targets: List(String),
+  errors: List(ProductUserError),
+) -> #(List(String), List(ProductUserError)) {
+  case inputs {
+    [] -> #(list.reverse(targets), list.reverse(errors))
+    [input, ..rest] ->
+      case
+        resolve_product_create_publication_input(
+          store,
+          field_name,
+          input,
+          index,
+        )
+      {
+        Ok(publication_id) ->
+          validate_product_create_publication_inputs(
+            store,
+            field_name,
+            rest,
+            index + 1,
+            [publication_id, ..targets],
+            errors,
+          )
+        Error(error) ->
+          validate_product_create_publication_inputs(
+            store,
+            field_name,
+            rest,
+            index + 1,
+            targets,
+            [error, ..errors],
+          )
+      }
+  }
+}
+
+fn resolve_product_create_publication_input(
+  store: Store,
+  field_name: String,
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> Result(String, ProductUserError) {
+  let publication_id = read_string_field(input, "publicationId")
+  let channel_id = read_string_field(input, "channelId")
+  let prefix = [field_name, int.to_string(index)]
+  case publication_id, channel_id {
+    Some(_), Some(_) ->
+      Error(ProductUserError(
+        prefix,
+        "Only one of channelId or publicationId can be provided",
+        Some("INVALID"),
+      ))
+    None, None ->
+      Error(ProductUserError(
+        list.append(prefix, ["publicationId"]),
+        "Publication can't be blank",
+        Some("BLANK"),
+      ))
+    Some(id), None ->
+      case publication_exists(store, id) {
+        True -> Ok(id)
+        False ->
+          Error(ProductUserError(
+            list.append(prefix, ["publicationId"]),
+            "Publication does not exist or is not publishable",
+            Some("NOT_FOUND"),
+          ))
+      }
+    None, Some(id) ->
+      case store.get_effective_channel_by_id(store, id) {
+        Some(channel) ->
+          case channel.publication_id {
+            Some(resolved_publication_id) ->
+              case publication_exists(store, resolved_publication_id) {
+                True -> Ok(resolved_publication_id)
+                False -> Error(product_create_channel_not_found_error(prefix))
+              }
+            None -> Error(product_create_channel_not_found_error(prefix))
+          }
+        None -> Error(product_create_channel_not_found_error(prefix))
+      }
+  }
+}
+
+fn publication_exists(store: Store, publication_id: String) -> Bool {
+  case store.get_effective_publication_by_id(store, publication_id) {
+    Some(_) -> True
+    None ->
+      store.list_effective_publications(store)
+      |> list.any(fn(publication) { publication.id == publication_id })
+  }
+}
+
+fn blank_product_create_publications_error(
+  field_name: String,
+) -> ProductUserError {
+  ProductUserError(
+    [field_name],
+    "Product publications can't be blank",
+    Some("BLANK"),
+  )
+}
+
+fn product_create_channel_not_found_error(
+  prefix: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    list.append(prefix, ["publicationId"]),
+    "Channel does not exist or is not publishable",
+    Some("NOT_FOUND"),
+  )
 }
 
 @internal

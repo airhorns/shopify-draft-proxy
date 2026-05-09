@@ -5108,7 +5108,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["paymentTermsUpdate", "PaymentTermsUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages payment terms updates by paymentTermsId, preserving stable payment terms IDs and schedule IDs where possible while updating downstream Order.paymentTerms and DraftOrder.paymentTerms reads.",
+        "Locally stages payment terms updates by paymentTermsId, preserving stable payment terms IDs and schedule IDs where possible while updating downstream Order.paymentTerms and DraftOrder.paymentTerms reads. Existing upstream PaymentTerms nodes can be hydrated by ID, and Order-owned updates reject fully paid or explicitly channel-policy-disallowed owners without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

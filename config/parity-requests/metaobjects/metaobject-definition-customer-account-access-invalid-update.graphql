@@ -1,0 +1,15 @@
+mutation MetaobjectDefinitionCustomerAccountAccessInvalidUpdate($id: ID!) {
+  metaobjectDefinitionUpdate(id: $id, definition: { access: { customerAccount: BANANA } }) {
+    metaobjectDefinition {
+      id
+      access {
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

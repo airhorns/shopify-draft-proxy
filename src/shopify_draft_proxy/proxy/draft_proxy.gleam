@@ -1,9 +1,10 @@
 //// Mirrors the public-API surface of `src/proxy-instance.ts` and the
 //// dispatcher spine of `src/proxy/routes.ts`.
 ////
-//// Routes real HTTP-shaped requests through the currently ported
-//// GraphQL domains plus the meta API (`/__meta/health`, `/__meta/config`,
-//// `/__meta/log`, `/__meta/state`, `/__meta/reset`, `/__meta/commit`).
+//// Routes real HTTP-shaped requests through the currently ported GraphQL
+//// domains, staged-upload handoff route, plus the meta API (`/__meta/health`,
+//// `/__meta/config`, `/__meta/log`, `/__meta/state`, `/__meta/reset`,
+//// `/__meta/commit`).
 //// Unsupported paths and unported roots keep returning Shopify-like
 //// HTTP/GraphQL error envelopes until their domains land.
 ////
@@ -173,6 +174,15 @@ pub fn process_request(
   proxy: DraftProxy,
   request: Request,
 ) -> #(Response, DraftProxy) {
+  process_request_at(proxy, request, iso_timestamp.now_iso())
+}
+
+@internal
+pub fn process_request_at(
+  proxy: DraftProxy,
+  request: Request,
+  now_iso: String,
+) -> #(Response, DraftProxy) {
   case route(request) {
     Health -> #(health_response(), proxy)
     MetaConfig -> #(ok_json_response(get_config_snapshot(proxy)), proxy)
@@ -180,8 +190,14 @@ pub fn process_request(
     MetaState -> #(ok_json_response(get_state_snapshot(proxy)), proxy)
     MetaReset -> #(reset_response(), reset(proxy))
     MetaCommit -> dispatch_meta_commit_sync(proxy, request)
-    StagedUpload -> dispatch_staged_upload(proxy, request)
-    GraphQL(version: _) -> dispatch_graphql(proxy, request)
+    StagedUpload(encoded_target_id, encoded_filename) ->
+      stage_staged_upload_request(
+        proxy,
+        encoded_target_id,
+        encoded_filename,
+        request.body,
+      )
+    GraphQL(version: _) -> dispatch_graphql_at(proxy, request, now_iso)
     NotFound -> #(not_found_response(), proxy)
     MethodNotAllowed -> #(method_not_allowed_response(), proxy)
   }
@@ -194,7 +210,7 @@ type Route {
   MetaState
   MetaReset
   MetaCommit
-  StagedUpload
+  StagedUpload(encoded_target_id: String, encoded_filename: String)
   GraphQL(version: String)
   NotFound
   MethodNotAllowed
@@ -210,12 +226,15 @@ fn route(request: Request) -> Route {
     "/__meta/reset" -> only_method("POST", method, MetaReset)
     "/__meta/commit" -> only_method("POST", method, MetaCommit)
     other ->
-      case is_staged_upload_path(other) {
-        True -> upload_method(method)
-        False ->
-          case is_admin_graphql_path(other) {
-            Ok(version) ->
-              only_method("POST", method, GraphQL(version: version))
+      case is_admin_graphql_path(other) {
+        Ok(version) -> only_method("POST", method, GraphQL(version: version))
+        Error(_) ->
+          case staged_upload_path_segments(other) {
+            Ok(#(encoded_target_id, encoded_filename)) ->
+              case method == "POST" || method == "PUT" {
+                True -> StagedUpload(encoded_target_id, encoded_filename)
+                False -> MethodNotAllowed
+              }
             Error(_) -> NotFound
           }
       }
@@ -229,15 +248,12 @@ fn only_method(expected: String, actual: String, route: Route) -> Route {
   }
 }
 
-fn upload_method(method: String) -> Route {
-  case method {
-    "POST" | "PUT" -> StagedUpload
-    _ -> MethodNotAllowed
+fn staged_upload_path_segments(path: String) -> Result(#(String, String), Nil) {
+  case string.split(path, "/") {
+    ["", "staged-uploads", encoded_target_id, encoded_filename] ->
+      Ok(#(encoded_target_id, encoded_filename))
+    _ -> Error(Nil)
   }
-}
-
-fn is_staged_upload_path(path: String) -> Bool {
-  string.starts_with(path, "/staged-uploads/")
 }
 
 fn is_admin_graphql_path(path: String) -> Result(String, Nil) {
@@ -247,25 +263,6 @@ fn is_admin_graphql_path(path: String) -> Result(String, Nil) {
     ["", "admin", "api", version, "graphql.json"] -> Ok(version)
     _ -> Error(Nil)
   }
-}
-
-fn dispatch_staged_upload(
-  proxy: DraftProxy,
-  request: Request,
-) -> #(Response, DraftProxy) {
-  let resource_url = "https://shopify-draft-proxy.local" <> request.path
-  let next =
-    proxy
-    |> stage_staged_upload_content(request.path, request.body)
-    |> stage_staged_upload_content(resource_url, request.body)
-  #(
-    Response(
-      status: 201,
-      body: json.object([#("ok", json.bool(True))]),
-      headers: [],
-    ),
-    next,
-  )
 }
 
 fn health_response() -> Response {
@@ -378,8 +375,8 @@ pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
 
 /// Store staged-upload bytes under a caller-supplied lookup key.
 ///
-/// The JavaScript HTTP adapter owns URL decoding/route matching so this core
-/// helper can stay explicit and instance-scoped.
+/// The JavaScript HTTP adapter and core staged-upload route both call through
+/// this explicit, instance-scoped helper.
 pub fn stage_staged_upload_content(
   proxy: DraftProxy,
   staged_upload_path: String,
@@ -393,6 +390,43 @@ pub fn stage_staged_upload_content(
       content,
     ),
   )
+}
+
+fn stage_staged_upload_request(
+  proxy: DraftProxy,
+  encoded_target_id: String,
+  encoded_filename: String,
+  content: String,
+) -> #(Response, DraftProxy) {
+  let target_id = decode_upload_segment(encoded_target_id)
+  let filename = decode_upload_segment(encoded_filename)
+  let key = "shopify-draft-proxy/" <> target_id <> "/" <> filename
+  let path = "/staged-uploads/" <> encoded_target_id <> "/" <> encoded_filename
+  let resource_url = "https://shopify-draft-proxy.local" <> path
+  let next_proxy =
+    [key, path, resource_url]
+    |> list.fold(proxy, fn(acc, lookup_key) {
+      stage_staged_upload_content(acc, lookup_key, content)
+    })
+  #(
+    Response(
+      status: 201,
+      body: json.object([
+        #("ok", json.bool(True)),
+        #("key", json.string(key)),
+      ]),
+      headers: [],
+    ),
+    next_proxy,
+  )
+}
+
+fn decode_upload_segment(value: String) -> String {
+  value
+  |> string.replace("%3A", ":")
+  |> string.replace("%3a", ":")
+  |> string.replace("%2F", "/")
+  |> string.replace("%2f", "/")
 }
 
 pub fn get_bulk_operation_result_jsonl(proxy: DraftProxy, id: String) -> Json {
@@ -503,9 +537,10 @@ fn error_response(status: Int, message: String) -> Response {
   )
 }
 
-fn dispatch_graphql(
+fn dispatch_graphql_at(
   proxy: DraftProxy,
   request: Request,
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   case parse_request_body(request.body) {
     Error(message) -> #(bad_request(message), proxy)
@@ -542,6 +577,7 @@ fn dispatch_graphql(
                         body.query,
                         field,
                         body.variables,
+                        now_iso,
                       )
                     _, _ -> #(bad_request("Operation has no root field"), proxy)
                   }
@@ -778,6 +814,7 @@ fn route_mutation(
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   // Schema-driven required-field validation runs once, here, before
   // any domain handler executes. Mirrors how a real GraphQL server
@@ -795,6 +832,7 @@ fn route_mutation(
         query,
         primary_root_field,
         variables,
+        now_iso,
       )
     _ ->
       case schema_validation_errors(parsed, query, variables, request_headers) {
@@ -807,6 +845,7 @@ fn route_mutation(
             query,
             primary_root_field,
             variables,
+            now_iso,
           )
         errors -> #(schema_validation_error_response(errors), proxy)
       }
@@ -1855,6 +1894,7 @@ fn route_mutation_to_domain(
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   let upstream =
     upstream_query.UpstreamContext(
@@ -1866,15 +1906,30 @@ fn route_mutation_to_domain(
 
   case mutation_handler_for(proxy, parsed, query, primary_root_field) {
     Some(handler) -> {
-      let outcome =
-        handler(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream,
-        )
+      let outcome = case primary_root_field {
+        "giftCardCredit"
+        | "giftCardDebit"
+        | "giftCardSendNotificationToCustomer"
+        | "giftCardSendNotificationToRecipient" ->
+          gift_cards.process_mutation_at(
+            proxy.store,
+            proxy.synthetic_identity,
+            request_path,
+            query,
+            variables,
+            upstream,
+            now_iso,
+          )
+        _ ->
+          handler(
+            proxy.store,
+            proxy.synthetic_identity,
+            request_path,
+            query,
+            variables,
+            upstream,
+          )
+      }
       finalize_mutation_outcome(
         proxy,
         request_path,
@@ -1993,17 +2048,16 @@ fn mutation_handler_for(
         Some(entry) ->
           case entry.implemented {
             True ->
-              local_mutation_handler_for_proxy(proxy, primary_root_field, query)
+              config_aware_mutation_handler(proxy, primary_root_field, query)
             False -> None
           }
-        None ->
-          local_mutation_handler_for_proxy(proxy, primary_root_field, query)
+        None -> config_aware_mutation_handler(proxy, primary_root_field, query)
       }
     _ -> None
   }
 }
 
-fn local_mutation_handler_for_proxy(
+fn config_aware_mutation_handler(
   proxy: DraftProxy,
   name: String,
   query: String,

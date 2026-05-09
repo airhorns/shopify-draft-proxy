@@ -1,0 +1,483 @@
+{
+  "capturedAt": "2026-05-08T11:51:56.985Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-filename-extension-aggregation",
+  "setup": {
+    "imageCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "filename-aggregation-one-1778241113775.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Filename aggregation image one"
+          },
+          {
+            "contentType": "IMAGE",
+            "filename": "filename-aggregation-two-1778241113775.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Filename aggregation image two"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43688017887538",
+                "__typename": "MediaImage",
+                "alt": "Filename aggregation image one",
+                "createdAt": "2026-05-08T11:51:53Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              },
+              {
+                "id": "gid://shopify/MediaImage/43688017920306",
+                "__typename": "MediaImage",
+                "alt": "Filename aggregation image two",
+                "createdAt": "2026-05-08T11:51:53Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "externalVideoCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "EXTERNAL_VIDEO",
+            "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "alt": "Filename aggregation external video one"
+          },
+          {
+            "contentType": "EXTERNAL_VIDEO",
+            "originalSource": "https://www.youtube.com/watch?v=oHg5SJYRHA0",
+            "alt": "Filename aggregation external video two"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/ExternalVideo/43688017953074",
+                "__typename": "ExternalVideo",
+                "alt": "Filename aggregation external video one",
+                "createdAt": "2026-05-08T11:51:54Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/ExternalVideo/43688017985842",
+                "__typename": "ExternalVideo",
+                "alt": "Filename aggregation external video two",
+                "createdAt": "2026-05-08T11:51:54Z",
+                "fileStatus": "UPLOADED"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "reads": {
+      "firstImage": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43688017887538",
+            "__typename": "MediaImage",
+            "alt": "Filename aggregation image one",
+            "createdAt": "2026-05-08T11:51:53Z",
+            "fileStatus": "READY",
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-one-1778241113775.jpg?v=1778241115",
+              "width": 600,
+              "height": 400
+            },
+            "preview": {
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-one-1778241113775.jpg?v=1778241115",
+                "width": 600,
+                "height": 400
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "secondImage": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43688017920306",
+            "__typename": "MediaImage",
+            "alt": "Filename aggregation image two",
+            "createdAt": "2026-05-08T11:51:53Z",
+            "fileStatus": "READY",
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-two-1778241113775.jpg?v=1778241115",
+              "width": 600,
+              "height": 400
+            },
+            "preview": {
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-two-1778241113775.jpg?v=1778241115",
+                "width": 600,
+                "height": 400
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "firstExternalVideo": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/ExternalVideo/43688017953074",
+            "__typename": "ExternalVideo",
+            "alt": "Filename aggregation external video one",
+            "createdAt": "2026-05-08T11:51:54Z",
+            "fileStatus": "READY"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "secondExternalVideo": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/ExternalVideo/43688017985842",
+            "__typename": "ExternalVideo",
+            "alt": "Filename aggregation external video two",
+            "createdAt": "2026-05-08T11:51:54Z",
+            "fileStatus": "READY"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "singleImageMismatch": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43688017887538",
+            "filename": "filename-aggregation-single-1778241113775.png"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "The filename extension provided must match the original filename.",
+                "code": "INVALID_FILENAME_EXTENSION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multiImageMismatch": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43688017887538",
+            "filename": "filename-aggregation-multi-one-1778241113775.png"
+          },
+          {
+            "id": "gid://shopify/MediaImage/43688017920306",
+            "filename": "filename-aggregation-multi-two-1778241113775.gif"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "The filename extension provided must match the original filename.",
+                "code": "INVALID_FILENAME_EXTENSION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multiExternalVideoFilename": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/ExternalVideo/43688017953074",
+            "filename": "filename-aggregation-video-one-1778241113775.mp4"
+          },
+          {
+            "id": "gid://shopify/ExternalVideo/43688017985842",
+            "filename": "filename-aggregation-video-two-1778241113775.mp4"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "Updating the filename is only supported on images and generic files",
+                "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43688017887538"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43688017887538",
+                "__typename": "MediaImage",
+                "alt": "Filename aggregation image one",
+                "createdAt": "2026-05-08T11:51:53Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-one-1778241113775.jpg?v=1778241115",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-one-1778241113775.jpg?v=1778241115",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43688017920306"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43688017920306",
+                "__typename": "MediaImage",
+                "alt": "Filename aggregation image two",
+                "createdAt": "2026-05-08T11:51:53Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-two-1778241113775.jpg?v=1778241115",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/filename-aggregation-two-1778241113775.jpg?v=1778241115",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/ExternalVideo/43688017953074", "gid://shopify/ExternalVideo/43688017985842"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ExternalVideo/43688017953074",
+                "__typename": "ExternalVideo",
+                "alt": "Filename aggregation external video one",
+                "createdAt": "2026-05-08T11:51:54Z",
+                "fileStatus": "READY"
+              },
+              {
+                "id": "gid://shopify/ExternalVideo/43688017985842",
+                "__typename": "ExternalVideo",
+                "alt": "Filename aggregation external video two",
+                "createdAt": "2026-05-08T11:51:54Z",
+                "fileStatus": "READY"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "variables": {
+      "fileIds": [
+        "gid://shopify/MediaImage/43688017887538",
+        "gid://shopify/MediaImage/43688017920306",
+        "gid://shopify/ExternalVideo/43688017953074",
+        "gid://shopify/ExternalVideo/43688017985842"
+      ]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": [
+            "gid://shopify/MediaImage/43688017887538",
+            "gid://shopify/MediaImage/43688017920306",
+            "gid://shopify/ExternalVideo/43688017953074",
+            "gid://shopify/ExternalVideo/43688017985842"
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
