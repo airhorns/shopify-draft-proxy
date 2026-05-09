@@ -449,6 +449,21 @@ pub fn gift_card_create_mints_record_test() {
     )
 }
 
+pub fn gift_card_create_honors_notify_false_for_staged_record_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { giftCardCreate(input: { initialValue: \"10\", notify: false }) { giftCard { id } userErrors { field code message } } }",
+    )
+  let id = "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+  let assert Some(record) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+
+  assert record.notify == False
+  assert run_customer_notification(outcome.store, id)
+    == "{\"data\":{\"giftCardSendNotificationToCustomer\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"INVALID\",\"message\":\"Gift card notifications are disabled.\"}]}}}"
+}
+
 pub fn gift_card_create_zero_initial_value_emits_user_error_test() {
   let body =
     run_mutation(
