@@ -65,7 +65,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DraftOrderRecord, type OrderRecord, CapturedArray,
-  CapturedString, CustomerOrderSummaryRecord, OrderRecord,
+  CapturedObject, CapturedString, CustomerOrderSummaryRecord, DraftOrderRecord,
+  OrderRecord,
 }
 
 @internal
@@ -702,7 +703,7 @@ pub fn handle_draft_order_invoice_send(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> #(String, Json, List(Json), List(LogDraft)) {
+) -> #(String, Json, Store, List(String), List(Json), List(LogDraft)) {
   let key = get_field_response_key(field)
   let validation_errors =
     validate_required_field_arguments(
@@ -714,7 +715,7 @@ pub fn handle_draft_order_invoice_send(
       document,
     )
   case validation_errors {
-    [_, ..] -> #(key, json.null(), validation_errors, [])
+    [_, ..] -> #(key, json.null(), store, [], validation_errors, [])
     [] -> {
       let args = field_arguments(field, variables)
       let id = read_string_arg(args, "id")
@@ -729,11 +730,20 @@ pub fn handle_draft_order_invoice_send(
         None -> None
       }
       let user_errors = invoice_send_user_errors(args, draft_order)
+      let invoice_errors = invoice_send_invoice_errors(args, draft_order)
+      let #(next_store, staged_ids) =
+        stage_draft_order_invoice_send_metadata(
+          hydrated_store,
+          args,
+          draft_order,
+          user_errors,
+        )
       let payload =
         serialize_draft_order_invoice_send_payload(
           field,
           draft_order,
           user_errors,
+          invoice_errors,
           fragments,
         )
       let draft =
@@ -748,7 +758,7 @@ pub fn handle_draft_order_invoice_send(
           "stage-locally",
           Some("Locally handled draftOrderInvoiceSend safety validation."),
         )
-      #(key, payload, [], [draft])
+      #(key, payload, next_store, staged_ids, [], [draft])
     }
   }
 }
@@ -801,10 +811,115 @@ pub fn invoice_send_recipient_present(
 }
 
 @internal
+pub fn invoice_send_invoice_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  draft_order: Option(DraftOrderRecord),
+) -> List(#(String, String)) {
+  case draft_order {
+    Some(record) ->
+      case invoice_send_recipient_present(args, record) {
+        True -> []
+        False -> [#("CUSTOMER_NO_EMAIL", "Customer email can't be blank")]
+      }
+    None -> []
+  }
+}
+
+fn stage_draft_order_invoice_send_metadata(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  draft_order: Option(DraftOrderRecord),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
+) -> #(Store, List(String)) {
+  case draft_order, user_errors {
+    Some(record), [] -> {
+      let updated =
+        DraftOrderRecord(
+          ..record,
+          data: replace_captured_object_fields(record.data, [
+            #("__draftProxyInvoiceSend", invoice_send_metadata(args, record)),
+          ]),
+        )
+      #(store.stage_draft_order(store, updated), [record.id])
+    }
+    _, _ -> #(store, [])
+  }
+}
+
+fn invoice_send_metadata(
+  args: Dict(String, root_field.ResolvedValue),
+  draft_order: DraftOrderRecord,
+) -> CapturedJsonValue {
+  let email = read_object(args, "email")
+  let recipient = case email {
+    Some(email) -> read_string(email, "to")
+    None -> captured_string_field(draft_order.data, "email")
+  }
+  let optional_email_fields = case email {
+    Some(email) ->
+      optional_captured_string("to", recipient)
+      |> list.append(optional_captured_string(
+        "subject",
+        read_string(email, "subject"),
+      ))
+      |> list.append(optional_captured_string(
+        "customMessage",
+        read_string(email, "customMessage"),
+      ))
+      |> list.append(optional_captured_string(
+        "from",
+        read_string(email, "from"),
+      ))
+      |> list.append(optional_captured_string_list(
+        "bcc",
+        read_string_list(email, "bcc"),
+      ))
+    None -> optional_captured_string("to", recipient)
+  }
+  CapturedObject(
+    [
+      #(
+        "templateName",
+        CapturedString(option.unwrap(
+          read_string_arg(args, "templateName"),
+          "DRAFT_ORDER_INVOICE",
+        )),
+      ),
+    ]
+    |> list.append(optional_captured_string(
+      "presentmentCurrencyCode",
+      read_string_arg(args, "presentmentCurrencyCode"),
+    ))
+    |> list.append([#("email", CapturedObject(optional_email_fields))]),
+  )
+}
+
+fn optional_captured_string(
+  name: String,
+  value: Option(String),
+) -> List(#(String, CapturedJsonValue)) {
+  case value {
+    Some(value) -> [#(name, CapturedString(value))]
+    None -> []
+  }
+}
+
+fn optional_captured_string_list(
+  name: String,
+  values: List(String),
+) -> List(#(String, CapturedJsonValue)) {
+  case values {
+    [] -> []
+    _ -> [#(name, CapturedArray(list.map(values, CapturedString)))]
+  }
+}
+
+@internal
 pub fn serialize_draft_order_invoice_send_payload(
   field: Selection,
   draft_order: Option(DraftOrderRecord),
   user_errors: List(#(Option(List(String)), String, Option(String))),
+  invoice_errors: List(#(String, String)),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -824,6 +939,33 @@ pub fn serialize_draft_order_invoice_send_payload(
                 serialize_nullable_user_error(child, error)
               }),
             )
+            "invoiceErrors" -> #(
+              key,
+              json.array(invoice_errors, fn(error) {
+                serialize_draft_order_invoice_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_draft_order_invoice_error(
+  field: Selection,
+  error: #(String, String),
+) -> Json {
+  let #(code, message) = error
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "code" -> #(key, json.string(code))
+            "message" -> #(key, json.string(message))
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())

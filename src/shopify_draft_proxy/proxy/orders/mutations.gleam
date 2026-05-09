@@ -420,20 +420,27 @@ pub fn process_mutation(
                   variables,
                   upstream,
                 )
-              let #(key, payload, next_errors, next_drafts) = result
+              let #(
+                key,
+                payload,
+                next_store,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
               case next_errors {
                 [] -> #(
                   list.append(entries, [#(key, payload)]),
                   errors,
-                  current_store,
+                  next_store,
                   current_identity,
-                  ids,
+                  list.append(ids, next_ids),
                   list.append(drafts, next_drafts),
                 )
                 _ -> #(
                   entries,
                   list.append(errors, next_errors),
-                  current_store,
+                  next_store,
                   current_identity,
                   ids,
                   drafts,
