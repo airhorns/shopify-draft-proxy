@@ -24,16 +24,20 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   captured_field, captured_json_source, captured_object_upsert,
   captured_string_field, catalog_connection_from_ids,
   catalog_create_input_errors, catalog_data, catalog_update_input_errors,
-  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
-  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_edges, price_list_currency, price_list_data,
+  delete_fixed_price_nodes, delete_quantity_price_break_nodes_by_ids,
+  delete_quantity_price_break_nodes_by_variant_ids, delete_quantity_rule_nodes,
+  enumerate_dicts, enumerate_strings, fixed_price_edge_variant_id,
+  market_connection_from_ids, market_data, market_handle_in_use,
+  market_localization_payload, market_name_in_use, markets_log_draft,
+  mutation_variant_ids, option_to_result, optional_captured_string, price_edges,
+  price_list_currency, price_list_data,
   price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
-  quantity_pricing_input_errors, quantity_rule_delete_errors,
-  quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
-  read_arg_object_array, read_arg_string_allow_empty, read_arg_string_array,
+  quantity_price_break_variant_ids_by_ids,
+  quantity_pricing_by_variant_user_error, quantity_pricing_input_errors,
+  quantity_rule_delete_errors, quantity_rule_payloads, quantity_rule_user_error,
+  quantity_rules_input_errors, read_arg_object_array,
+  read_arg_string_allow_empty, read_arg_string_array,
   read_explicit_market_handle, read_market_region_inputs,
   read_price_list_catalog_input, read_price_list_id, result_to_option,
   string_array, translation_user_error, upsert_fixed_price_nodes,
@@ -2491,9 +2495,9 @@ fn handle_quantity_pricing_by_variant_update(
   let price_list =
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
   let errors = case price_list {
-    Some(_) -> quantity_pricing_input_errors(store, input)
+    Some(existing) -> quantity_pricing_input_errors(store, existing, input)
     None -> [
-      user_error(
+      quantity_pricing_by_variant_user_error(
         ["priceListId"],
         "Price list not found.",
         "PRICE_LIST_NOT_FOUND",
@@ -2512,6 +2516,17 @@ fn handle_quantity_pricing_by_variant_update(
         |> option.unwrap([])
       let price_break_inputs =
         read_arg_object_array(input, "quantityPriceBreaksToAdd")
+      let price_break_delete_ids =
+        read_arg_string_array(input, "quantityPriceBreaksToDelete")
+        |> option.unwrap([])
+      let price_break_delete_variant_ids =
+        read_arg_string_array(input, "quantityPriceBreaksToDeleteByVariantId")
+        |> option.unwrap([])
+      let price_break_delete_ids_variant_ids =
+        quantity_price_break_variant_ids_by_ids(
+          existing,
+          price_break_delete_ids,
+        )
       let updated =
         existing
         |> upsert_fixed_price_nodes(store, fixed_inputs)
@@ -2523,6 +2538,10 @@ fn handle_quantity_pricing_by_variant_update(
           identity,
           price_break_inputs,
         )
+        |> delete_quantity_price_break_nodes_by_ids(price_break_delete_ids)
+        |> delete_quantity_price_break_nodes_by_variant_ids(
+          price_break_delete_variant_ids,
+        )
       let #(_, next_store) = store.upsert_staged_price_list(store, updated)
       let changed_variant_ids =
         mutation_variant_ids(fixed_inputs)
@@ -2530,6 +2549,8 @@ fn handle_quantity_pricing_by_variant_update(
         |> append_unique_strings(mutation_variant_ids(price_break_inputs))
         |> append_unique_strings(delete_variant_ids)
         |> append_unique_strings(rule_delete_ids)
+        |> append_unique_strings(price_break_delete_ids_variant_ids)
+        |> append_unique_strings(price_break_delete_variant_ids)
       let payload =
         CapturedObject([
           #("productVariants", variant_payloads(store, changed_variant_ids)),

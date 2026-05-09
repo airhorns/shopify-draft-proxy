@@ -3434,6 +3434,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'quantity-pricing-by-variant-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-quantity-pricing-by-variant-update-validation-conformance.mts',
+    purpose:
+      'quantityPricingByVariantUpdate validation branches for userError typename, add-side currency and duplicates, delete-side missing variants/price-break IDs, and quantity-rule numeric invariants.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-pricing-by-variant-update-validation.json`,
+      'config/parity-specs/markets/quantity-pricing-by-variant-update-validation.json',
+      'config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Pre-cleans quantity pricing for the configured variant, records reject-only validation branches, records accepted delete no-op evidence, seeds one disposable fixed price/rule/price break to prove delete-by-variant cleanup, then deletes the seeded quantity pricing.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'quantity-rules-add-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-quantity-rules-add-validation-conformance.mts',

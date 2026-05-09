@@ -1,0 +1,157 @@
+{
+  "scenarioId": "quantity-pricing-by-variant-update-validation",
+  "operationNames": ["quantityPricingByVariantUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/quantity-pricing-by-variant-update-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.unknownPriceList.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-price-list-typename",
+        "capturePath": "$.cases.unknownPriceList.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate"
+      },
+      {
+        "name": "price-add-currency-mismatch",
+        "capturePath": "$.cases.currencyMismatch.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.currencyMismatch.variables"
+        }
+      },
+      {
+        "name": "duplicate-prices-to-add",
+        "capturePath": "$.cases.duplicatePricesToAdd.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.duplicatePricesToAdd.variables"
+        }
+      },
+      {
+        "name": "prices-to-delete-missing-variant",
+        "capturePath": "$.cases.pricesToDeleteMissingVariant.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.pricesToDeleteMissingVariant.variables"
+        }
+      },
+      {
+        "name": "quantity-rules-to-delete-missing-variant",
+        "capturePath": "$.cases.quantityRulesToDeleteMissingVariant.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRulesToDeleteMissingVariant.variables"
+        }
+      },
+      {
+        "name": "quantity-price-breaks-to-delete-by-variant-missing-variant",
+        "capturePath": "$.cases.quantityPriceBreaksToDeleteByVariantMissingVariant.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityPriceBreaksToDeleteByVariantMissingVariant.variables"
+        }
+      },
+      {
+        "name": "quantity-price-breaks-to-delete-missing-id",
+        "capturePath": "$.cases.quantityPriceBreaksToDeleteMissingId.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityPriceBreaksToDeleteMissingId.variables"
+        }
+      },
+      {
+        "name": "quantity-rule-minimum-too-low",
+        "capturePath": "$.cases.quantityRuleMinimumTooLow.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRuleMinimumTooLow.variables"
+        }
+      },
+      {
+        "name": "quantity-rule-increment-too-low",
+        "capturePath": "$.cases.quantityRuleIncrementTooLow.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRuleIncrementTooLow.variables"
+        }
+      },
+      {
+        "name": "quantity-rule-minimum-greater-than-maximum",
+        "capturePath": "$.cases.quantityRuleMinimumGreaterThanMaximum.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRuleMinimumGreaterThanMaximum.variables"
+        }
+      },
+      {
+        "name": "quantity-rule-minimum-not-multiple-of-increment",
+        "capturePath": "$.cases.quantityRuleMinimumNotMultiple.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRuleMinimumNotMultiple.variables"
+        }
+      },
+      {
+        "name": "quantity-rule-maximum-not-multiple-of-increment",
+        "capturePath": "$.cases.quantityRuleMaximumNotMultiple.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.quantityRuleMaximumNotMultiple.variables"
+        }
+      },
+      {
+        "name": "duplicate-prices-to-delete-accepted",
+        "capturePath": "$.acceptedNoopCases.duplicatePricesToDeleteAccepted.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.acceptedNoopCases.duplicatePricesToDeleteAccepted.variables"
+        }
+      },
+      {
+        "name": "quantity-rules-to-delete-without-rule-accepted",
+        "capturePath": "$.acceptedNoopCases.quantityRulesToDeleteWithoutRuleAccepted.response.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update-validation.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.acceptedNoopCases.quantityRulesToDeleteWithoutRuleAccepted.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2025-01 validation and accepted-noop behavior for quantityPricingByVariantUpdate. The fixture confirms QuantityPricingByVariantUserError.__typename on mutation userErrors, add-side currency mismatch and duplicate pricesToAdd errors, delete-side missing variant and missing quantity-price-break-id errors, quantityRulesToAdd numeric invariant codes/messages, and that duplicate pricesToDeleteByVariantId plus deleting a quantity rule for an existing variant with no rule are accepted no-op branches on this API/store."
+}
