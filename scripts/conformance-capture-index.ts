@@ -2515,6 +2515,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}metaobject-definition-recreate-lifecycle.json`,
       'config/parity-specs/metaobjects/metaobject-definition-recreate-lifecycle.json',
       'config/parity-requests/metaobjects/metaobject-definition-recreate-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-recreate-post-delete-read.graphql',
       'config/parity-requests/metaobjects/metaobject-definition-recreate-read.graphql',
     ],
     cleanupBehavior:

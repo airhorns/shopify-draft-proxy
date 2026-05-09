@@ -85,6 +85,32 @@
         ]
       },
       {
+        "name": "post-delete-read-before-recreate",
+        "capturePath": "$.postDeleteReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-recreate-post-delete-read.graphql",
+          "variables": {
+            "oldDefinitionId": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            },
+            "oldEntryId": {
+              "fromProxyResponse": "create-old-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "oldHandle": {
+              "fromCapturePath": "$.postDeleteReads[0].request.variables.oldHandle"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
         "name": "create-recreated-definition-payload",
         "capturePath": "$.recreate[0].response.data.metaobjectDefinitionCreate",
         "proxyPath": "$.data.metaobjectDefinitionCreate",
@@ -280,5 +306,5 @@
       }
     ]
   },
-  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for deleting a metaobject definition and then recreating a new definition with the same type and name. The first generation has old_title/old_body fields and one row; deleting the definition hides that definition and row. Recreating the same type/name with new_title/new_summary fields accepts new rows, and final reads verify only the recreated definition and post-recreation rows remain visible with the new field set while old field lookups return null."
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for deleting a metaobject definition and then recreating a new definition with the same type and name. The first generation has old_title/old_body fields and one row; an immediate post-delete read verifies the old definition, old row, old handle lookup, by-type definition lookup, and same-type catalog are gone before recreation. Recreating the same type/name with new_title/new_summary fields accepts new rows, and final reads verify only the recreated definition and post-recreation rows remain visible with the new field set while old field lookups return null."
 }

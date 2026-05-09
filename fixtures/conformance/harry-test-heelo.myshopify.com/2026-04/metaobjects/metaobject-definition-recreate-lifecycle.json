@@ -1,18 +1,18 @@
 {
-  "capturedAt": "2026-05-09T15:55:46.120Z",
+  "capturedAt": "2026-05-09T16:33:28.393Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "seed": {
-    "type": "codex_recreate_definition_1778342123771",
-    "name": "Codex Recreate Definition 1778342123771",
-    "oldHandle": "codex-recreate-old-1778342123771",
-    "newFirstHandle": "codex-recreate-new-first-1778342123771",
-    "newSecondHandle": "codex-recreate-new-second-1778342123771",
-    "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997037874",
-    "oldEntryId": "gid://shopify/Metaobject/188740698418",
-    "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997070642",
-    "newFirstId": "gid://shopify/Metaobject/188740731186",
-    "newSecondId": "gid://shopify/Metaobject/188740763954"
+    "type": "codex_recreate_definition_1778344385895",
+    "name": "Codex Recreate Definition 1778344385895",
+    "oldHandle": "codex-recreate-old-1778344385895",
+    "newFirstHandle": "codex-recreate-new-first-1778344385895",
+    "newSecondHandle": "codex-recreate-new-second-1778344385895",
+    "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+    "oldEntryId": "gid://shopify/Metaobject/188742205746",
+    "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997529394",
+    "newFirstId": "gid://shopify/Metaobject/188742238514",
+    "newSecondId": "gid://shopify/Metaobject/188742271282"
   },
   "hydrate": [
     {
@@ -20,7 +20,7 @@
       "request": {
         "query": "#graphql\n  query MetaobjectDefinitionHydrateByType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n  }\n",
         "variables": {
-          "type": "codex_recreate_definition_1778342123771"
+          "type": "codex_recreate_definition_1778344385895"
         }
       },
       "status": 200,
@@ -49,8 +49,8 @@
         "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "type": "codex_recreate_definition_1778342123771",
-            "name": "Codex Recreate Definition 1778342123771",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
             "description": "Temporary definition before delete/recreate lifecycle capture.",
             "displayNameKey": "old_title",
             "fieldDefinitions": [
@@ -77,9 +77,9 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17997037874",
-              "type": "codex_recreate_definition_1778342123771",
-              "name": "Codex Recreate Definition 1778342123771",
+              "id": "gid://shopify/MetaobjectDefinition/17997496626",
+              "type": "codex_recreate_definition_1778344385895",
+              "name": "Codex Recreate Definition 1778344385895",
               "description": "Temporary definition before delete/recreate lifecycle capture.",
               "displayNameKey": "old_title",
               "access": {
@@ -149,16 +149,16 @@
         "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-old-1778342123771",
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895",
             "fields": [
               {
                 "key": "old_title",
-                "value": "Old title 1778342123771"
+                "value": "Old title 1778344385895"
               },
               {
                 "key": "old_body",
-                "value": "Old body 1778342123771"
+                "value": "Old body 1778344385895"
               }
             ]
           }
@@ -169,11 +169,11 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188740698418",
-              "handle": "codex-recreate-old-1778342123771",
-              "type": "codex_recreate_definition_1778342123771",
-              "displayName": "Old title 1778342123771",
-              "updatedAt": "2026-05-09T15:55:24Z",
+              "id": "gid://shopify/Metaobject/188742205746",
+              "handle": "codex-recreate-old-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "Old title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:06Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -182,8 +182,8 @@
                 {
                   "key": "old_title",
                   "type": "single_line_text_field",
-                  "value": "Old title 1778342123771",
-                  "jsonValue": "Old title 1778342123771",
+                  "value": "Old title 1778344385895",
+                  "jsonValue": "Old title 1778344385895",
                   "definition": {
                     "key": "old_title",
                     "name": "Old Title",
@@ -197,8 +197,8 @@
                 {
                   "key": "old_body",
                   "type": "multi_line_text_field",
-                  "value": "Old body 1778342123771",
-                  "jsonValue": "Old body 1778342123771",
+                  "value": "Old body 1778344385895",
+                  "jsonValue": "Old body 1778344385895",
                   "definition": {
                     "key": "old_body",
                     "name": "Old Body",
@@ -213,8 +213,8 @@
               "oldTitleField": {
                 "key": "old_title",
                 "type": "single_line_text_field",
-                "value": "Old title 1778342123771",
-                "jsonValue": "Old title 1778342123771",
+                "value": "Old title 1778344385895",
+                "jsonValue": "Old title 1778344385895",
                 "definition": {
                   "key": "old_title",
                   "name": "Old Title",
@@ -228,8 +228,8 @@
               "oldBodyField": {
                 "key": "old_body",
                 "type": "multi_line_text_field",
-                "value": "Old body 1778342123771",
-                "jsonValue": "Old body 1778342123771",
+                "value": "Old body 1778344385895",
+                "jsonValue": "Old body 1778344385895",
                 "definition": {
                   "key": "old_body",
                   "name": "Old Body",
@@ -266,14 +266,14 @@
       "request": {
         "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17997037874"
+          "id": "gid://shopify/MetaobjectDefinition/17997496626"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17997037874",
+            "deletedId": "gid://shopify/MetaobjectDefinition/17997496626",
             "userErrors": []
           }
         },
@@ -291,6 +291,53 @@
       }
     }
   ],
+  "postDeleteReads": [
+    {
+      "name": "post-delete-read-before-recreate",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreatePostDeleteDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  fieldDefinitions {\n    key\n    name\n    required\n    type {\n      name\n      category\n    }\n  }\n  metaobjectsCount\n}\n\nfragment MetaobjectDefinitionRecreatePostDeleteEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  fields {\n    key\n    type\n    value\n    jsonValue\n  }\n}\n\nquery MetaobjectDefinitionRecreatePostDeleteRead(\n  $oldDefinitionId: ID!\n  $type: String!\n  $oldEntryId: ID!\n  $oldHandle: MetaobjectHandleInput!\n) {\n  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {\n    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields\n  }\n  oldEntry: metaobject(id: $oldEntryId) {\n    ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n  }\n  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {\n    ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+          "type": "codex_recreate_definition_1778344385895",
+          "oldEntryId": "gid://shopify/Metaobject/188742205746",
+          "oldHandle": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "oldDefinition": null,
+          "byType": null,
+          "oldEntry": null,
+          "oldEntryByHandle": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
   "recreate": [
     {
       "name": "recreate-definition-same-type-and-name",
@@ -298,8 +345,8 @@
         "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "type": "codex_recreate_definition_1778342123771",
-            "name": "Codex Recreate Definition 1778342123771",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
             "description": "Temporary definition after delete/recreate lifecycle capture.",
             "displayNameKey": "new_title",
             "fieldDefinitions": [
@@ -326,9 +373,9 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17997070642",
-              "type": "codex_recreate_definition_1778342123771",
-              "name": "Codex Recreate Definition 1778342123771",
+              "id": "gid://shopify/MetaobjectDefinition/17997529394",
+              "type": "codex_recreate_definition_1778344385895",
+              "name": "Codex Recreate Definition 1778344385895",
               "description": "Temporary definition after delete/recreate lifecycle capture.",
               "displayNameKey": "new_title",
               "access": {
@@ -400,16 +447,16 @@
         "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-new-first-1778342123771",
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-first-1778344385895",
             "fields": [
               {
                 "key": "new_title",
-                "value": "New first title 1778342123771"
+                "value": "New first title 1778344385895"
               },
               {
                 "key": "new_summary",
-                "value": "New first summary 1778342123771"
+                "value": "New first summary 1778344385895"
               }
             ]
           }
@@ -420,11 +467,11 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188740731186",
-              "handle": "codex-recreate-new-first-1778342123771",
-              "type": "codex_recreate_definition_1778342123771",
-              "displayName": "New first title 1778342123771",
-              "updatedAt": "2026-05-09T15:55:30Z",
+              "id": "gid://shopify/Metaobject/188742238514",
+              "handle": "codex-recreate-new-first-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "New first title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:12Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -433,8 +480,8 @@
                 {
                   "key": "new_title",
                   "type": "single_line_text_field",
-                  "value": "New first title 1778342123771",
-                  "jsonValue": "New first title 1778342123771",
+                  "value": "New first title 1778344385895",
+                  "jsonValue": "New first title 1778344385895",
                   "definition": {
                     "key": "new_title",
                     "name": "New Title",
@@ -448,8 +495,8 @@
                 {
                   "key": "new_summary",
                   "type": "multi_line_text_field",
-                  "value": "New first summary 1778342123771",
-                  "jsonValue": "New first summary 1778342123771",
+                  "value": "New first summary 1778344385895",
+                  "jsonValue": "New first summary 1778344385895",
                   "definition": {
                     "key": "new_summary",
                     "name": "New Summary",
@@ -466,8 +513,8 @@
               "newTitleField": {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New first title 1778342123771",
-                "jsonValue": "New first title 1778342123771",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -481,8 +528,8 @@
               "newSummaryField": {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New first summary 1778342123771",
-                "jsonValue": "New first summary 1778342123771",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -516,16 +563,16 @@
         "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-new-second-1778342123771",
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-second-1778344385895",
             "fields": [
               {
                 "key": "new_title",
-                "value": "New second title 1778342123771"
+                "value": "New second title 1778344385895"
               },
               {
                 "key": "new_summary",
-                "value": "New second summary 1778342123771"
+                "value": "New second summary 1778344385895"
               }
             ]
           }
@@ -536,11 +583,11 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188740763954",
-              "handle": "codex-recreate-new-second-1778342123771",
-              "type": "codex_recreate_definition_1778342123771",
-              "displayName": "New second title 1778342123771",
-              "updatedAt": "2026-05-09T15:55:30Z",
+              "id": "gid://shopify/Metaobject/188742271282",
+              "handle": "codex-recreate-new-second-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "New second title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:12Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -549,8 +596,8 @@
                 {
                   "key": "new_title",
                   "type": "single_line_text_field",
-                  "value": "New second title 1778342123771",
-                  "jsonValue": "New second title 1778342123771",
+                  "value": "New second title 1778344385895",
+                  "jsonValue": "New second title 1778344385895",
                   "definition": {
                     "key": "new_title",
                     "name": "New Title",
@@ -564,8 +611,8 @@
                 {
                   "key": "new_summary",
                   "type": "multi_line_text_field",
-                  "value": "New second summary 1778342123771",
-                  "jsonValue": "New second summary 1778342123771",
+                  "value": "New second summary 1778344385895",
+                  "jsonValue": "New second summary 1778344385895",
                   "definition": {
                     "key": "new_summary",
                     "name": "New Summary",
@@ -582,8 +629,8 @@
               "newTitleField": {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New second title 1778342123771",
-                "jsonValue": "New second title 1778342123771",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -597,8 +644,8 @@
               "newSummaryField": {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New second summary 1778342123771",
-                "jsonValue": "New second summary 1778342123771",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -619,7 +666,7 @@
             "actualQueryCost": 24,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1970,
               "restoreRate": 100
             }
           }
@@ -633,23 +680,23 @@
       "request": {
         "query": "fragment MetaobjectDefinitionRecreateDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectDefinitionRecreateReadEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectDefinitionRecreateRead(\n  $oldDefinitionId: ID!\n  $newDefinitionId: ID!\n  $type: String!\n  $oldEntryId: ID!\n  $oldHandle: MetaobjectHandleInput!\n  $newFirstId: ID!\n  $newSecondId: ID!\n  $newFirstHandle: MetaobjectHandleInput!\n  $newSecondHandle: MetaobjectHandleInput!\n) {\n  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  newDefinition: metaobjectDefinition(id: $newDefinitionId) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  oldEntry: metaobject(id: $oldEntryId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newFirst: metaobject(id: $newFirstId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newSecond: metaobject(id: $newSecondId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newFirstByHandle: metaobjectByHandle(handle: $newFirstHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newSecondByHandle: metaobjectByHandle(handle: $newSecondHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionRecreateReadEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionRecreateReadEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
         "variables": {
-          "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997037874",
-          "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997070642",
-          "type": "codex_recreate_definition_1778342123771",
-          "oldEntryId": "gid://shopify/Metaobject/188740698418",
+          "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+          "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997529394",
+          "type": "codex_recreate_definition_1778344385895",
+          "oldEntryId": "gid://shopify/Metaobject/188742205746",
           "oldHandle": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-old-1778342123771"
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895"
           },
-          "newFirstId": "gid://shopify/Metaobject/188740731186",
-          "newSecondId": "gid://shopify/Metaobject/188740763954",
+          "newFirstId": "gid://shopify/Metaobject/188742238514",
+          "newSecondId": "gid://shopify/Metaobject/188742271282",
           "newFirstHandle": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-new-first-1778342123771"
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-first-1778344385895"
           },
           "newSecondHandle": {
-            "type": "codex_recreate_definition_1778342123771",
-            "handle": "codex-recreate-new-second-1778342123771"
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-second-1778344385895"
           }
         }
       },
@@ -658,9 +705,9 @@
         "data": {
           "oldDefinition": null,
           "newDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17997070642",
-            "type": "codex_recreate_definition_1778342123771",
-            "name": "Codex Recreate Definition 1778342123771",
+            "id": "gid://shopify/MetaobjectDefinition/17997529394",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
             "description": "Temporary definition after delete/recreate lifecycle capture.",
             "displayNameKey": "new_title",
             "access": {
@@ -709,9 +756,9 @@
             "standardTemplate": null
           },
           "byType": {
-            "id": "gid://shopify/MetaobjectDefinition/17997070642",
-            "type": "codex_recreate_definition_1778342123771",
-            "name": "Codex Recreate Definition 1778342123771",
+            "id": "gid://shopify/MetaobjectDefinition/17997529394",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
             "description": "Temporary definition after delete/recreate lifecycle capture.",
             "displayNameKey": "new_title",
             "access": {
@@ -762,11 +809,11 @@
           "oldEntry": null,
           "oldEntryByHandle": null,
           "newFirst": {
-            "id": "gid://shopify/Metaobject/188740731186",
-            "handle": "codex-recreate-new-first-1778342123771",
-            "type": "codex_recreate_definition_1778342123771",
-            "displayName": "New first title 1778342123771",
-            "updatedAt": "2026-05-09T15:55:30Z",
+            "id": "gid://shopify/Metaobject/188742238514",
+            "handle": "codex-recreate-new-first-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New first title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
             "capabilities": {
               "publishable": null,
               "onlineStore": null
@@ -775,8 +822,8 @@
               {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New first title 1778342123771",
-                "jsonValue": "New first title 1778342123771",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -790,8 +837,8 @@
               {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New first summary 1778342123771",
-                "jsonValue": "New first summary 1778342123771",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -808,8 +855,8 @@
             "newTitleField": {
               "key": "new_title",
               "type": "single_line_text_field",
-              "value": "New first title 1778342123771",
-              "jsonValue": "New first title 1778342123771",
+              "value": "New first title 1778344385895",
+              "jsonValue": "New first title 1778344385895",
               "definition": {
                 "key": "new_title",
                 "name": "New Title",
@@ -823,8 +870,8 @@
             "newSummaryField": {
               "key": "new_summary",
               "type": "multi_line_text_field",
-              "value": "New first summary 1778342123771",
-              "jsonValue": "New first summary 1778342123771",
+              "value": "New first summary 1778344385895",
+              "jsonValue": "New first summary 1778344385895",
               "definition": {
                 "key": "new_summary",
                 "name": "New Summary",
@@ -837,11 +884,11 @@
             }
           },
           "newSecond": {
-            "id": "gid://shopify/Metaobject/188740763954",
-            "handle": "codex-recreate-new-second-1778342123771",
-            "type": "codex_recreate_definition_1778342123771",
-            "displayName": "New second title 1778342123771",
-            "updatedAt": "2026-05-09T15:55:30Z",
+            "id": "gid://shopify/Metaobject/188742271282",
+            "handle": "codex-recreate-new-second-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New second title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
             "capabilities": {
               "publishable": null,
               "onlineStore": null
@@ -850,8 +897,8 @@
               {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New second title 1778342123771",
-                "jsonValue": "New second title 1778342123771",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -865,8 +912,8 @@
               {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New second summary 1778342123771",
-                "jsonValue": "New second summary 1778342123771",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -883,8 +930,8 @@
             "newTitleField": {
               "key": "new_title",
               "type": "single_line_text_field",
-              "value": "New second title 1778342123771",
-              "jsonValue": "New second title 1778342123771",
+              "value": "New second title 1778344385895",
+              "jsonValue": "New second title 1778344385895",
               "definition": {
                 "key": "new_title",
                 "name": "New Title",
@@ -898,8 +945,8 @@
             "newSummaryField": {
               "key": "new_summary",
               "type": "multi_line_text_field",
-              "value": "New second summary 1778342123771",
-              "jsonValue": "New second summary 1778342123771",
+              "value": "New second summary 1778344385895",
+              "jsonValue": "New second summary 1778344385895",
               "definition": {
                 "key": "new_summary",
                 "name": "New Summary",
@@ -912,11 +959,11 @@
             }
           },
           "newFirstByHandle": {
-            "id": "gid://shopify/Metaobject/188740731186",
-            "handle": "codex-recreate-new-first-1778342123771",
-            "type": "codex_recreate_definition_1778342123771",
-            "displayName": "New first title 1778342123771",
-            "updatedAt": "2026-05-09T15:55:30Z",
+            "id": "gid://shopify/Metaobject/188742238514",
+            "handle": "codex-recreate-new-first-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New first title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
             "capabilities": {
               "publishable": null,
               "onlineStore": null
@@ -925,8 +972,8 @@
               {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New first title 1778342123771",
-                "jsonValue": "New first title 1778342123771",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -940,8 +987,8 @@
               {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New first summary 1778342123771",
-                "jsonValue": "New first summary 1778342123771",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -958,8 +1005,8 @@
             "newTitleField": {
               "key": "new_title",
               "type": "single_line_text_field",
-              "value": "New first title 1778342123771",
-              "jsonValue": "New first title 1778342123771",
+              "value": "New first title 1778344385895",
+              "jsonValue": "New first title 1778344385895",
               "definition": {
                 "key": "new_title",
                 "name": "New Title",
@@ -973,8 +1020,8 @@
             "newSummaryField": {
               "key": "new_summary",
               "type": "multi_line_text_field",
-              "value": "New first summary 1778342123771",
-              "jsonValue": "New first summary 1778342123771",
+              "value": "New first summary 1778344385895",
+              "jsonValue": "New first summary 1778344385895",
               "definition": {
                 "key": "new_summary",
                 "name": "New Summary",
@@ -987,11 +1034,11 @@
             }
           },
           "newSecondByHandle": {
-            "id": "gid://shopify/Metaobject/188740763954",
-            "handle": "codex-recreate-new-second-1778342123771",
-            "type": "codex_recreate_definition_1778342123771",
-            "displayName": "New second title 1778342123771",
-            "updatedAt": "2026-05-09T15:55:30Z",
+            "id": "gid://shopify/Metaobject/188742271282",
+            "handle": "codex-recreate-new-second-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New second title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
             "capabilities": {
               "publishable": null,
               "onlineStore": null
@@ -1000,8 +1047,8 @@
               {
                 "key": "new_title",
                 "type": "single_line_text_field",
-                "value": "New second title 1778342123771",
-                "jsonValue": "New second title 1778342123771",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
                 "definition": {
                   "key": "new_title",
                   "name": "New Title",
@@ -1015,8 +1062,8 @@
               {
                 "key": "new_summary",
                 "type": "multi_line_text_field",
-                "value": "New second summary 1778342123771",
-                "jsonValue": "New second summary 1778342123771",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
                 "definition": {
                   "key": "new_summary",
                   "name": "New Summary",
@@ -1033,8 +1080,8 @@
             "newTitleField": {
               "key": "new_title",
               "type": "single_line_text_field",
-              "value": "New second title 1778342123771",
-              "jsonValue": "New second title 1778342123771",
+              "value": "New second title 1778344385895",
+              "jsonValue": "New second title 1778344385895",
               "definition": {
                 "key": "new_title",
                 "name": "New Title",
@@ -1048,8 +1095,8 @@
             "newSummaryField": {
               "key": "new_summary",
               "type": "multi_line_text_field",
-              "value": "New second summary 1778342123771",
-              "jsonValue": "New second summary 1778342123771",
+              "value": "New second summary 1778344385895",
+              "jsonValue": "New second summary 1778344385895",
               "definition": {
                 "key": "new_summary",
                 "name": "New Summary",
@@ -1064,13 +1111,13 @@
           "catalog": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxODg3NDA3MzExODYsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0MjEyMzc3MSJ9",
+                "cursor": "eyJsYXN0X2lkIjoxODg3NDIyMzg1MTQsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0NDM4NTg5NSJ9",
                 "node": {
-                  "id": "gid://shopify/Metaobject/188740731186",
-                  "handle": "codex-recreate-new-first-1778342123771",
-                  "type": "codex_recreate_definition_1778342123771",
-                  "displayName": "New first title 1778342123771",
-                  "updatedAt": "2026-05-09T15:55:30Z",
+                  "id": "gid://shopify/Metaobject/188742238514",
+                  "handle": "codex-recreate-new-first-1778344385895",
+                  "type": "codex_recreate_definition_1778344385895",
+                  "displayName": "New first title 1778344385895",
+                  "updatedAt": "2026-05-09T16:33:12Z",
                   "capabilities": {
                     "publishable": null,
                     "onlineStore": null
@@ -1079,8 +1126,8 @@
                     {
                       "key": "new_title",
                       "type": "single_line_text_field",
-                      "value": "New first title 1778342123771",
-                      "jsonValue": "New first title 1778342123771",
+                      "value": "New first title 1778344385895",
+                      "jsonValue": "New first title 1778344385895",
                       "definition": {
                         "key": "new_title",
                         "name": "New Title",
@@ -1094,8 +1141,8 @@
                     {
                       "key": "new_summary",
                       "type": "multi_line_text_field",
-                      "value": "New first summary 1778342123771",
-                      "jsonValue": "New first summary 1778342123771",
+                      "value": "New first summary 1778344385895",
+                      "jsonValue": "New first summary 1778344385895",
                       "definition": {
                         "key": "new_summary",
                         "name": "New Summary",
@@ -1112,8 +1159,8 @@
                   "newTitleField": {
                     "key": "new_title",
                     "type": "single_line_text_field",
-                    "value": "New first title 1778342123771",
-                    "jsonValue": "New first title 1778342123771",
+                    "value": "New first title 1778344385895",
+                    "jsonValue": "New first title 1778344385895",
                     "definition": {
                       "key": "new_title",
                       "name": "New Title",
@@ -1127,8 +1174,8 @@
                   "newSummaryField": {
                     "key": "new_summary",
                     "type": "multi_line_text_field",
-                    "value": "New first summary 1778342123771",
-                    "jsonValue": "New first summary 1778342123771",
+                    "value": "New first summary 1778344385895",
+                    "jsonValue": "New first summary 1778344385895",
                     "definition": {
                       "key": "new_summary",
                       "name": "New Summary",
@@ -1142,13 +1189,13 @@
                 }
               },
               {
-                "cursor": "eyJsYXN0X2lkIjoxODg3NDA3NjM5NTQsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDIxMjM3NzEifQ==",
+                "cursor": "eyJsYXN0X2lkIjoxODg3NDIyNzEyODIsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDQzODU4OTUifQ==",
                 "node": {
-                  "id": "gid://shopify/Metaobject/188740763954",
-                  "handle": "codex-recreate-new-second-1778342123771",
-                  "type": "codex_recreate_definition_1778342123771",
-                  "displayName": "New second title 1778342123771",
-                  "updatedAt": "2026-05-09T15:55:30Z",
+                  "id": "gid://shopify/Metaobject/188742271282",
+                  "handle": "codex-recreate-new-second-1778344385895",
+                  "type": "codex_recreate_definition_1778344385895",
+                  "displayName": "New second title 1778344385895",
+                  "updatedAt": "2026-05-09T16:33:12Z",
                   "capabilities": {
                     "publishable": null,
                     "onlineStore": null
@@ -1157,8 +1204,8 @@
                     {
                       "key": "new_title",
                       "type": "single_line_text_field",
-                      "value": "New second title 1778342123771",
-                      "jsonValue": "New second title 1778342123771",
+                      "value": "New second title 1778344385895",
+                      "jsonValue": "New second title 1778344385895",
                       "definition": {
                         "key": "new_title",
                         "name": "New Title",
@@ -1172,8 +1219,8 @@
                     {
                       "key": "new_summary",
                       "type": "multi_line_text_field",
-                      "value": "New second summary 1778342123771",
-                      "jsonValue": "New second summary 1778342123771",
+                      "value": "New second summary 1778344385895",
+                      "jsonValue": "New second summary 1778344385895",
                       "definition": {
                         "key": "new_summary",
                         "name": "New Summary",
@@ -1190,8 +1237,8 @@
                   "newTitleField": {
                     "key": "new_title",
                     "type": "single_line_text_field",
-                    "value": "New second title 1778342123771",
-                    "jsonValue": "New second title 1778342123771",
+                    "value": "New second title 1778344385895",
+                    "jsonValue": "New second title 1778344385895",
                     "definition": {
                       "key": "new_title",
                       "name": "New Title",
@@ -1205,8 +1252,8 @@
                   "newSummaryField": {
                     "key": "new_summary",
                     "type": "multi_line_text_field",
-                    "value": "New second summary 1778342123771",
-                    "jsonValue": "New second summary 1778342123771",
+                    "value": "New second summary 1778344385895",
+                    "jsonValue": "New second summary 1778344385895",
                     "definition": {
                       "key": "new_summary",
                       "name": "New Summary",
@@ -1222,11 +1269,11 @@
             ],
             "nodes": [
               {
-                "id": "gid://shopify/Metaobject/188740731186",
-                "handle": "codex-recreate-new-first-1778342123771",
-                "type": "codex_recreate_definition_1778342123771",
-                "displayName": "New first title 1778342123771",
-                "updatedAt": "2026-05-09T15:55:30Z",
+                "id": "gid://shopify/Metaobject/188742238514",
+                "handle": "codex-recreate-new-first-1778344385895",
+                "type": "codex_recreate_definition_1778344385895",
+                "displayName": "New first title 1778344385895",
+                "updatedAt": "2026-05-09T16:33:12Z",
                 "capabilities": {
                   "publishable": null,
                   "onlineStore": null
@@ -1235,8 +1282,8 @@
                   {
                     "key": "new_title",
                     "type": "single_line_text_field",
-                    "value": "New first title 1778342123771",
-                    "jsonValue": "New first title 1778342123771",
+                    "value": "New first title 1778344385895",
+                    "jsonValue": "New first title 1778344385895",
                     "definition": {
                       "key": "new_title",
                       "name": "New Title",
@@ -1250,8 +1297,8 @@
                   {
                     "key": "new_summary",
                     "type": "multi_line_text_field",
-                    "value": "New first summary 1778342123771",
-                    "jsonValue": "New first summary 1778342123771",
+                    "value": "New first summary 1778344385895",
+                    "jsonValue": "New first summary 1778344385895",
                     "definition": {
                       "key": "new_summary",
                       "name": "New Summary",
@@ -1268,8 +1315,8 @@
                 "newTitleField": {
                   "key": "new_title",
                   "type": "single_line_text_field",
-                  "value": "New first title 1778342123771",
-                  "jsonValue": "New first title 1778342123771",
+                  "value": "New first title 1778344385895",
+                  "jsonValue": "New first title 1778344385895",
                   "definition": {
                     "key": "new_title",
                     "name": "New Title",
@@ -1283,8 +1330,8 @@
                 "newSummaryField": {
                   "key": "new_summary",
                   "type": "multi_line_text_field",
-                  "value": "New first summary 1778342123771",
-                  "jsonValue": "New first summary 1778342123771",
+                  "value": "New first summary 1778344385895",
+                  "jsonValue": "New first summary 1778344385895",
                   "definition": {
                     "key": "new_summary",
                     "name": "New Summary",
@@ -1297,11 +1344,11 @@
                 }
               },
               {
-                "id": "gid://shopify/Metaobject/188740763954",
-                "handle": "codex-recreate-new-second-1778342123771",
-                "type": "codex_recreate_definition_1778342123771",
-                "displayName": "New second title 1778342123771",
-                "updatedAt": "2026-05-09T15:55:30Z",
+                "id": "gid://shopify/Metaobject/188742271282",
+                "handle": "codex-recreate-new-second-1778344385895",
+                "type": "codex_recreate_definition_1778344385895",
+                "displayName": "New second title 1778344385895",
+                "updatedAt": "2026-05-09T16:33:12Z",
                 "capabilities": {
                   "publishable": null,
                   "onlineStore": null
@@ -1310,8 +1357,8 @@
                   {
                     "key": "new_title",
                     "type": "single_line_text_field",
-                    "value": "New second title 1778342123771",
-                    "jsonValue": "New second title 1778342123771",
+                    "value": "New second title 1778344385895",
+                    "jsonValue": "New second title 1778344385895",
                     "definition": {
                       "key": "new_title",
                       "name": "New Title",
@@ -1325,8 +1372,8 @@
                   {
                     "key": "new_summary",
                     "type": "multi_line_text_field",
-                    "value": "New second summary 1778342123771",
-                    "jsonValue": "New second summary 1778342123771",
+                    "value": "New second summary 1778344385895",
+                    "jsonValue": "New second summary 1778344385895",
                     "definition": {
                       "key": "new_summary",
                       "name": "New Summary",
@@ -1343,8 +1390,8 @@
                 "newTitleField": {
                   "key": "new_title",
                   "type": "single_line_text_field",
-                  "value": "New second title 1778342123771",
-                  "jsonValue": "New second title 1778342123771",
+                  "value": "New second title 1778344385895",
+                  "jsonValue": "New second title 1778344385895",
                   "definition": {
                     "key": "new_title",
                     "name": "New Title",
@@ -1358,8 +1405,8 @@
                 "newSummaryField": {
                   "key": "new_summary",
                   "type": "multi_line_text_field",
-                  "value": "New second summary 1778342123771",
-                  "jsonValue": "New second summary 1778342123771",
+                  "value": "New second summary 1778344385895",
+                  "jsonValue": "New second summary 1778344385895",
                   "definition": {
                     "key": "new_summary",
                     "name": "New Summary",
@@ -1375,8 +1422,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxODg3NDA3MzExODYsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0MjEyMzc3MSJ9",
-              "endCursor": "eyJsYXN0X2lkIjoxODg3NDA3NjM5NTQsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDIxMjM3NzEifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxODg3NDIyMzg1MTQsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0NDM4NTg5NSJ9",
+              "endCursor": "eyJsYXN0X2lkIjoxODg3NDIyNzEyODIsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDQzODU4OTUifQ=="
             }
           }
         },
@@ -1400,109 +1447,14 @@
       "request": {
         "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
         "variables": {
-          "id": "gid://shopify/Metaobject/188740731186"
+          "id": "gid://shopify/Metaobject/188742238514"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188740731186",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1891,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "cleanup-metaobject-delete",
-      "request": {
-        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
-        "variables": {
-          "id": "gid://shopify/Metaobject/188740763954"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188740763954",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1894,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "cleanup-metaobject-delete",
-      "request": {
-        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
-        "variables": {
-          "id": "gid://shopify/Metaobject/188740698418"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDelete": {
-            "deletedId": null,
-            "userErrors": [
-              {
-                "field": ["id"],
-                "message": "Record not found",
-                "code": "RECORD_NOT_FOUND",
-                "elementKey": null,
-                "elementIndex": null
-              }
-            ]
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1898,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "cleanup-metaobject-definition-delete",
-      "request": {
-        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
-        "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17997070642"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17997070642",
+            "deletedId": "gid://shopify/Metaobject/188742238514",
             "userErrors": []
           }
         },
@@ -1520,11 +1472,106 @@
       }
     },
     {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188742271282"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188742271282",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1902,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188742205746"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1905,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "cleanup-metaobject-definition-delete",
       "request": {
         "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17997037874"
+          "id": "gid://shopify/MetaobjectDefinition/17997529394"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17997529394",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1904,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17997496626"
         }
       },
       "status": 200,
@@ -1549,7 +1596,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1899,
+              "currentlyAvailable": 1907,
               "restoreRate": 100
             }
           }
@@ -1561,7 +1608,7 @@
     {
       "operationName": "MetaobjectDefinitionHydrateByType",
       "variables": {
-        "type": "codex_recreate_definition_1778342123771"
+        "type": "codex_recreate_definition_1778344385895"
       },
       "query": "sha:hand-synthesized-from-capture",
       "response": {

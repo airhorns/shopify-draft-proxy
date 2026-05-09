@@ -51,6 +51,7 @@ const requestPaths = {
   definitionCreate: 'config/parity-requests/metaobjects/metaobject-definition-lifecycle-create.graphql',
   definitionDelete: 'config/parity-requests/metaobjects/metaobject-definition-lifecycle-delete.graphql',
   entryCreate: 'config/parity-requests/metaobjects/metaobject-definition-recreate-entry-create.graphql',
+  postDeleteRead: 'config/parity-requests/metaobjects/metaobject-definition-recreate-post-delete-read.graphql',
   read: 'config/parity-requests/metaobjects/metaobject-definition-recreate-read.graphql',
 };
 
@@ -301,6 +302,22 @@ function finalReadVariables(): Record<string, unknown> {
   };
 }
 
+function postDeleteReadVariables(): Record<string, unknown> {
+  if (!seed.oldDefinitionId || !seed.oldEntryId) {
+    throw new Error(`Cannot build post-delete read variables before old ids exist: ${JSON.stringify(seed, null, 2)}`);
+  }
+
+  return {
+    oldDefinitionId: seed.oldDefinitionId,
+    type: seed.type,
+    oldEntryId: seed.oldEntryId,
+    oldHandle: {
+      type: seed.type,
+      handle: seed.oldHandle,
+    },
+  };
+}
+
 function hydrateUpstreamCall(hydrateCapture: Capture): unknown {
   return {
     operationName: 'MetaobjectDefinitionHydrateByType',
@@ -344,6 +361,7 @@ async function captureCleanup(cleanup: Capture[]): Promise<void> {
 const hydrateCaptures: Capture[] = [];
 const setupCaptures: Capture[] = [];
 const deleteCaptures: Capture[] = [];
+const postDeleteReadCaptures: Capture[] = [];
 const recreateCaptures: Capture[] = [];
 const postRecreateEntryCaptures: Capture[] = [];
 const finalReadCaptures: Capture[] = [];
@@ -399,6 +417,9 @@ try {
   );
 
   await sleep(5_000);
+  postDeleteReadCaptures.push(
+    await captureGraphql('post-delete-read-before-recreate', queries.postDeleteRead, postDeleteReadVariables()),
+  );
 
   const newDefinitionCreate = await runSuccessMutation(
     'recreate-definition-same-type-and-name',
@@ -465,6 +486,7 @@ try {
     ...hydrateCaptures,
     ...setupCaptures,
     ...deleteCaptures,
+    ...postDeleteReadCaptures,
     ...recreateCaptures,
     ...postRecreateEntryCaptures,
     ...finalReadCaptures,
@@ -478,6 +500,7 @@ try {
     ...hydrateCaptures,
     ...setupCaptures,
     ...deleteCaptures,
+    ...postDeleteReadCaptures,
     ...recreateCaptures,
     ...postRecreateEntryCaptures,
     ...finalReadCaptures,
@@ -507,6 +530,7 @@ await writeFile(
       hydrate: hydrateCaptures,
       setup: setupCaptures,
       delete: deleteCaptures,
+      postDeleteReads: postDeleteReadCaptures,
       recreate: recreateCaptures,
       postRecreateEntries: postRecreateEntryCaptures,
       finalReads: finalReadCaptures,

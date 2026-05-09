@@ -3528,6 +3528,13 @@ pub fn definition_recreate_same_type_uses_new_catalog_generation_test() {
         }
       }",
     )
+  let read_after_delete =
+    run_query(
+      delete_old.store,
+      "{ oldDefinition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { id } byType: metaobjectDefinitionByType(type: \"codex_recreate_rows\") { id } oldEntry: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id } oldEntryByHandle: metaobjectByHandle(handle: { type: \"codex_recreate_rows\", handle: \"old-entry\" }) { id } catalog: metaobjects(type: \"codex_recreate_rows\", first: 10) { nodes { id } } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"oldDefinition\":null,\"byType\":null,\"oldEntry\":null,\"oldEntryByHandle\":null,\"catalog\":{\"nodes\":[]}}}"
   let new_definition =
     run_mutation(
       delete_old.store,
