@@ -1,0 +1,9 @@
+query CartTransformNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on CartTransform {
+      id
+      blockOnFailure
+      functionId
+    }
+  }
+}
