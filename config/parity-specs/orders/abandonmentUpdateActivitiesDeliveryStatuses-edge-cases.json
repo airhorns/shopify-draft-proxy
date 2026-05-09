@@ -1,6 +1,6 @@
 {
   "scenarioId": "abandonmentUpdateActivitiesDeliveryStatuses-edge-cases",
-  "operationNames": ["abandonmentUpdateActivitiesDeliveryStatuses"],
+  "operationNames": ["abandonmentUpdateActivitiesDeliveryStatuses", "abandonment", "node"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",
@@ -34,6 +34,20 @@
         "proxyPath": "$.data.abandonment",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses.abandonment.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "node-read-after-forward-transition",
+        "capturePath": "$.cases.forwardRead.expected.data.abandonment",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-node-read.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses.abandonment.id"
@@ -84,5 +98,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for abandonmentUpdateActivitiesDeliveryStatuses edge cases. Public Admin Abandonment reads do not expose the internal marketing-activity delivery map, so this scenario earns known abandonment state through cassette-backed local-runtime hydration and then strictly compares the mutation payloads plus downstream read-after-write behavior without sending the supported mutation upstream."
+  "notes": "Executable local-runtime parity for abandonmentUpdateActivitiesDeliveryStatuses edge cases. Public Admin Abandonment reads do not expose the internal marketing-activity delivery map, so this scenario earns known abandonment state through cassette-backed local-runtime hydration and then strictly compares the mutation payloads plus downstream abandonment(id:) and generic node(id:) read-after-write behavior without sending the supported mutation upstream."
 }

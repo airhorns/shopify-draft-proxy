@@ -1,0 +1,14 @@
+mutation PubSubWebhookSubscriptionUpdateMissingProjectTopic(
+  $id: ID!
+  $webhookSubscription: PubSubWebhookSubscriptionInput!
+) {
+  pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

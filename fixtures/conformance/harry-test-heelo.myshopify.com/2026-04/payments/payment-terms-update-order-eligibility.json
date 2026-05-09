@@ -1,0 +1,442 @@
+{
+  "capturedAt": "2026-05-08T13:48:29.095Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "paid": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation PaymentTermsUpdateEligibilityOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "email": "payment-terms-update-paid-1778248107276@example.com",
+              "note": "payment terms update eligibility paid capture",
+              "tags": ["shopify-draft-proxy", "payment-terms-update-eligibility", "paid"],
+              "test": true,
+              "currency": "USD",
+              "presentmentCurrency": "USD",
+              "lineItems": [
+                {
+                  "title": "Payment terms update eligibility paid",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.50",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "sdp-payment-terms-update-paid-1778248107276"
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8736291586354",
+                  "name": "#1403",
+                  "displayFinancialStatus": null,
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "paymentTermsCreate": {
+          "query": "mutation PaymentTermsUpdateEligibilityCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n            issuedAt\n            dueAt\n            completedAt\n            due\n            amount {\n              amount\n              currencyCode\n            }\n            balanceDue {\n              amount\n              currencyCode\n            }\n            totalBalance {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "referenceId": "gid://shopify/Order/8736291586354",
+            "attrs": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+              "paymentSchedules": [
+                {
+                  "issuedAt": "2026-05-05T00:00:00Z"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "paymentTermsCreate": {
+                "paymentTerms": {
+                  "id": "gid://shopify/PaymentTerms/146330812722",
+                  "due": false,
+                  "overdue": false,
+                  "dueInDays": 30,
+                  "paymentTermsName": "Net 30",
+                  "paymentTermsType": "NET",
+                  "translatedName": "Net 30",
+                  "paymentSchedules": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/PaymentSchedule/178776178994",
+                        "issuedAt": "2026-05-05T00:00:00Z",
+                        "dueAt": "2026-06-04T00:00:00Z",
+                        "completedAt": null,
+                        "due": false,
+                        "amount": {
+                          "amount": "12.5",
+                          "currencyCode": "USD"
+                        },
+                        "balanceDue": {
+                          "amount": "12.5",
+                          "currencyCode": "USD"
+                        },
+                        "totalBalance": {
+                          "amount": "12.5",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 13,
+                "actualQueryCost": 13,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1987,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderMarkAsPaid": {
+          "query": "mutation PaymentTermsUpdateEligibilityOrderMarkAsPaid($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        displayFinancialStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Order/8736291586354"
+            }
+          },
+          "response": {
+            "data": {
+              "orderMarkAsPaid": {
+                "order": {
+                  "id": "gid://shopify/Order/8736291586354",
+                  "displayFinancialStatus": "PAID"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "hydrate": {
+        "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/PaymentTerms/146330812722"
+        },
+        "response": {
+          "data": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/146330812722",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "order": {
+                "id": "gid://shopify/Order/8736291586354",
+                "email": "payment-terms-update-paid-1778248107276@example.com",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "displayFinancialStatus": "PAID",
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "sellingPlan": null
+                    }
+                  ]
+                }
+              },
+              "draftOrder": null,
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/178776178994",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "completedAt": "2026-05-08T13:48:28Z",
+                    "due": false,
+                    "amount": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    },
+                    "balanceDue": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    },
+                    "totalBalance": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "mutation PaymentTermsUpdateOrderEligibility($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/146330812722",
+          "paymentTermsAttributes": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2026-06-05T00:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot create payment terms on an Order that has already been paid in full.",
+                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentTerms/146330812722"
+      },
+      "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/146330812722",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "order": {
+                "id": "gid://shopify/Order/8736291586354",
+                "email": "payment-terms-update-paid-1778248107276@example.com",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "displayFinancialStatus": "PAID",
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "sellingPlan": null
+                    }
+                  ]
+                }
+              },
+              "draftOrder": null,
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/178776178994",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "completedAt": "2026-05-08T13:48:28Z",
+                    "due": false,
+                    "amount": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    },
+                    "balanceDue": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    },
+                    "totalBalance": {
+                      "amount": "0.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured against a disposable Shopify test Order. Shopify allowed payment terms on the unpaid Order, then rejected paymentTermsUpdate after orderMarkAsPaid made the owner fully paid."
+}

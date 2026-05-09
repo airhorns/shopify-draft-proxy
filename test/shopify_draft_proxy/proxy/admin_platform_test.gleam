@@ -4,21 +4,27 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/proxy_state.{type Request, Request, Response}
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type ShopRecord, BulkOperationRecord, GiftCardRecord, Money,
-  PaymentSettingsRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
-  ShopResourceLimitsRecord,
+  type MarketRecord, type ShopRecord, AbandonedCheckoutRecord, AbandonmentRecord,
+  AccessScopeRecord, AppInstallationRecord, AppRecord, BulkOperationRecord,
+  CapturedArray, CapturedObject, CapturedString, CartTransformRecord,
+  CustomerSegmentMembersQueryRecord, DelegatedAccessTokenRecord, GiftCardRecord,
+  MarketRecord, Money, PaymentSettingsRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
 }
 import simplifile
 
@@ -241,6 +247,100 @@ pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
     == "{\"data\":{\"nodes\":[{\"__typename\":\"BulkOperation\",\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\",\"objectCount\":\"3\",\"url\":\"https://example.test/bulk.jsonl\"},{\"__typename\":\"GiftCard\",\"id\":\"gid://shopify/GiftCard/1\",\"lastCharacters\":\"4242\",\"enabled\":true,\"balance\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},null]}}"
 }
 
+pub fn node_reads_resolve_modeled_orders_functions_and_segments_test() {
+  let checkout_id = "gid://shopify/AbandonedCheckout/1"
+  let abandonment_id = "gid://shopify/Abandonment/1"
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/1",
+      title: Some("Cart transformer"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some("gid://shopify/ShopifyFunction/cart"),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-02T00:00:00.000Z"),
+    )
+  let member_query =
+    CustomerSegmentMembersQueryRecord(
+      id: "gid://shopify/CustomerSegmentMembersQuery/1",
+      query: Some("number_of_orders > 0"),
+      segment_id: None,
+      status: "INITIALIZED",
+      current_count: 0,
+      done: False,
+    )
+  let #(_, source) =
+    store.new()
+    |> store.upsert_base_abandoned_checkouts([
+      AbandonedCheckoutRecord(
+        id: checkout_id,
+        cursor: None,
+        data: CapturedObject([
+          #("__typename", CapturedString("AbandonedCheckout")),
+          #("id", CapturedString(checkout_id)),
+          #("email", CapturedString("buyer@example.test")),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_abandonments([
+      AbandonmentRecord(
+        id: abandonment_id,
+        abandoned_checkout_id: Some(checkout_id),
+        cursor: None,
+        data: CapturedObject([
+          #("__typename", CapturedString("Abandonment")),
+          #("id", CapturedString(abandonment_id)),
+          #("emailState", CapturedString("SENDING")),
+          #("emailSentAt", CapturedString("2026-04-27T00:00:00Z")),
+        ]),
+        delivery_activities: dict.new(),
+      ),
+    ])
+    |> store.stage_customer_segment_members_query(member_query)
+    |> store.upsert_staged_cart_transform(cart_transform)
+  let body =
+    run_query(
+      source,
+      "query {
+        nodes(ids: [
+          \"gid://shopify/AbandonedCheckout/1\",
+          \"gid://shopify/Abandonment/1\",
+          \"gid://shopify/CartTransform/1\",
+          \"gid://shopify/CustomerSegmentMembersQuery/1\",
+          \"gid://shopify/CartTransform/missing\"
+        ]) {
+          __typename
+          id
+          ... on AbandonedCheckout {
+            email
+          }
+          ... on Abandonment {
+            emailState
+            emailSentAt
+            abandonedCheckoutPayload {
+              id
+              email
+            }
+          }
+          ... on CartTransform {
+            functionId
+            blockOnFailure
+          }
+          ... on CustomerSegmentMembersQuery {
+            status
+            currentCount
+            done
+          }
+        }
+      }",
+    )
+
+  assert body
+    == "{\"data\":{\"nodes\":[{\"__typename\":\"AbandonedCheckout\",\"id\":\"gid://shopify/AbandonedCheckout/1\",\"email\":\"buyer@example.test\"},{\"__typename\":\"Abandonment\",\"id\":\"gid://shopify/Abandonment/1\",\"emailState\":\"SENDING\",\"emailSentAt\":\"2026-04-27T00:00:00Z\",\"abandonedCheckoutPayload\":{\"id\":\"gid://shopify/AbandonedCheckout/1\",\"email\":\"buyer@example.test\"}},{\"__typename\":\"CartTransform\",\"id\":\"gid://shopify/CartTransform/1\",\"functionId\":\"gid://shopify/ShopifyFunction/cart\",\"blockOnFailure\":false},{\"__typename\":\"CustomerSegmentMembersQuery\",\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},null]}}"
+}
+
 pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
   let possible_node_types = read_possible_node_types()
   let supported_node_types =
@@ -259,9 +359,7 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
   assert supported_possible_node_types == supported_node_types
   assert unsupported_node_types
     == [
-      "AbandonedCheckout",
       "AbandonedCheckoutLineItem",
-      "Abandonment",
       "AddAllProductsOperation",
       "AdditionalFee",
       "AppCatalog",
@@ -269,7 +367,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "AppRevenueAttributionRecord",
       "BasicEvent",
       "BusinessEntity",
-      "CartTransform",
       "CashDrawer",
       "CashManagementCustomReasonCode",
       "CashManagementDefaultReasonCode",
@@ -288,7 +385,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "ConsentPolicy",
       "CurrencyExchangeAdjustment",
       "CustomerAccountAppExtensionPage",
-      "CustomerSegmentMembersQuery",
       "CustomerVisit",
       "DeliveryCustomization",
       "DeliveryMethod",
@@ -439,6 +535,9 @@ fn seeded_product_option_store() {
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
+      is_gift_card: None,
+      gift_card_template_suffix: None,
+      has_bundle_ownership: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       requires_selling_plan: None,
@@ -569,6 +668,77 @@ fn make_shop() -> ShopRecord {
   )
 }
 
+fn non_markets_home_shop() -> ShopRecord {
+  let shop = make_shop()
+  ShopRecord(
+    ..shop,
+    features: ShopFeaturesRecord(..shop.features, unified_markets: False),
+  )
+}
+
+fn store_with_app_scopes(scope_handles: List(String)) {
+  let app =
+    AppRecord(
+      id: "gid://shopify/App/backup-region-access-test",
+      api_key: Some("backup-region-access-test"),
+      handle: Some("backup-region-access-test"),
+      title: Some("Backup region access test"),
+      developer_name: Some("shopify-draft-proxy"),
+      embedded: Some(True),
+      previously_installed: Some(False),
+      requested_access_scopes: access_scopes(scope_handles),
+    )
+  let installation =
+    AppInstallationRecord(
+      id: "gid://shopify/AppInstallation/backup-region-access-test",
+      app_id: app.id,
+      launch_url: None,
+      uninstall_url: None,
+      access_scopes: access_scopes(scope_handles),
+      active_subscription_ids: [],
+      all_subscription_ids: [],
+      one_time_purchase_ids: [],
+      uninstalled_at: None,
+    )
+  store.upsert_base_app_installation(store.new(), installation, app)
+}
+
+fn access_scopes(handles: List(String)) {
+  list.map(handles, fn(handle) {
+    AccessScopeRecord(handle: handle, description: None)
+  })
+}
+
+fn store_with_delegated_token(
+  raw_token: String,
+  scope_handles: List(String),
+) -> store.Store {
+  let token =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/backup-region-access-test",
+      api_client_id: "shopify-draft-proxy-local-app",
+      parent_access_token_sha256: None,
+      access_token_sha256: crypto.sha256_hex(raw_token),
+      access_token_preview: "shpat_...proxy_1",
+      access_scopes: scope_handles,
+      created_at: "2024-01-01T00:00:00.000Z",
+      expires_in: Some(3600),
+      destroyed_at: None,
+    )
+  let #(_, staged_store) =
+    store.stage_delegated_access_token(store.new(), token)
+  staged_store
+}
+
+fn upstream_context_with_headers(headers: dict.Dict(String, String)) {
+  UpstreamContext(
+    transport: None,
+    origin: "",
+    headers: headers,
+    allow_upstream_reads: False,
+  )
+}
+
 pub fn backup_region_update_stages_and_reads_back_test() {
   let source = store.new()
   let identity = synthetic_identity.new()
@@ -604,6 +774,111 @@ pub fn backup_region_update_stages_and_reads_back_test() {
     == ["gid://shopify/MarketRegionCountry/4062110417202"]
 }
 
+pub fn backup_region_update_without_markets_access_returns_access_denied_test() {
+  let source = store_with_app_scopes(["read_products", "write_products"])
+  let document =
+    "mutation BackupRegionUpdateIdempotent { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id name code } userErrors { field message code } } }"
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"backupRegionUpdate\":null")
+  assert string.contains(
+    body,
+    "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
+  )
+  assert string.contains(body, "\"code\":\"ACCESS_DENIED\"")
+  assert string.contains(
+    body,
+    "\"requiredAccess\":\"`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.\"",
+  )
+  assert string.contains(body, "\"path\":[\"backupRegionUpdate\"]")
+  assert !string.contains(body, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.get_log(outcome.store) == []
+
+  let read_body = run_query(outcome.store, "{ backupRegion { id name code } }")
+  assert string.contains(
+    read_body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/4062110417202\",\"name\":\"Canada\",\"code\":\"CA\"}",
+  )
+}
+
+pub fn backup_region_update_active_delegate_without_markets_access_returns_access_denied_test() {
+  let raw_token = "shpat_delegate_proxy_1"
+  let source = store_with_delegated_token(raw_token, ["read_products"])
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_headers(
+        dict.from_list([
+          #("X-Shopify-Access-Token", raw_token),
+        ]),
+      ),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"backupRegionUpdate\":null")
+  assert string.contains(body, "\"code\":\"ACCESS_DENIED\"")
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.get_log(outcome.store) == []
+}
+
+pub fn backup_region_update_non_markets_home_shop_returns_access_denied_test() {
+  let source = store.new() |> store.upsert_base_shop(non_markets_home_shop())
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"backupRegionUpdate\":null")
+  assert string.contains(body, "\"code\":\"ACCESS_DENIED\"")
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.get_log(outcome.store) == []
+}
+
+pub fn backup_region_update_with_markets_access_still_stages_test() {
+  let source = store_with_app_scopes(["read_markets", "write_markets"])
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id name code } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/4062110417202\",\"name\":\"Canada\",\"code\":\"CA\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/MarketRegionCountry/4062110417202"]
+}
+
 pub fn backup_region_update_omitted_region_returns_current_without_log_test() {
   let outcome =
     admin_platform.process_mutation(
@@ -626,7 +901,10 @@ pub fn backup_region_update_omitted_region_returns_current_without_log_test() {
 }
 
 pub fn backup_region_update_null_region_returns_staged_current_test() {
-  let source = store.new() |> store.upsert_base_shop(make_shop())
+  let source =
+    store.new()
+    |> store.upsert_base_shop(make_shop())
+    |> store.upsert_base_markets([active_region_market("US")])
   let identity = synthetic_identity.new()
   let request_path = "/admin/api/2026-04/graphql.json"
   let staged =
@@ -666,7 +944,7 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
       source,
       synthetic_identity.new(),
       request_path,
-      backup_region_update_document("US"),
+      backup_region_update_document("CA"),
       empty_vars(),
       empty_upstream_context(),
     )
@@ -674,17 +952,17 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
   let body = json.to_string(outcome.data)
   assert string.contains(
     body,
-    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454909493481\",\"name\":\"Canada\",\"code\":\"CA\"}",
   )
   assert string.contains(body, "\"userErrors\":[]")
 
   let read_body = run_query(outcome.store, "{ backupRegion { id name code } }")
   assert string.contains(
     read_body,
-    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454909493481\",\"name\":\"Canada\",\"code\":\"CA\"}",
   )
   assert outcome.staged_resource_ids
-    == ["gid://shopify/MarketRegionCountry/454910378217"]
+    == ["gid://shopify/MarketRegionCountry/454909493481"]
 
   let harry_store =
     store.new()
@@ -713,6 +991,50 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
     )
     assert string.contains(body, "\"userErrors\":[]")
   })
+}
+
+pub fn backup_region_update_country_without_non_legacy_market_returns_region_not_found_test() {
+  let source = store.new() |> store.upsert_base_shop(make_shop())
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      backup_region_update_document("US"),
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"backupRegion\":null")
+  assert string.contains(body, "\"code\":\"REGION_NOT_FOUND\"")
+  assert outcome.staged_resource_ids == []
+  assert outcome.store.staged_state.backup_region == None
+}
+
+pub fn backup_region_update_country_with_local_region_market_still_stages_test() {
+  let source =
+    store.new()
+    |> store.upsert_base_shop(make_shop())
+    |> store.upsert_base_markets([active_region_market("US")])
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      backup_region_update_document("US"),
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/MarketRegionCountry/454910378217"]
 }
 
 pub fn backup_region_update_validation_does_not_log_test() {
@@ -1348,6 +1670,40 @@ fn harry_test_backed_regions() -> List(#(String, String, String)) {
     #("FI", "gid://shopify/MarketRegionCountry/4062110777650", "Finland"),
     #("MX", "gid://shopify/MarketRegionCountry/4062111334706", "Mexico"),
   ]
+}
+
+fn active_region_market(country_code: String) -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/test-" <> string.lowercase(country_code),
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString("gid://shopify/Market/test-" <> country_code)),
+      #("name", CapturedString("Local " <> country_code)),
+      #("status", CapturedString("ACTIVE")),
+      #("type", CapturedString("REGION")),
+      #(
+        "conditions",
+        CapturedObject([
+          #(
+            "regionsCondition",
+            CapturedObject([
+              #(
+                "regions",
+                CapturedObject([
+                  #(
+                    "nodes",
+                    CapturedArray([
+                      CapturedObject([#("code", CapturedString(country_code))]),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn shop_for_domain(domain: String) -> ShopRecord {

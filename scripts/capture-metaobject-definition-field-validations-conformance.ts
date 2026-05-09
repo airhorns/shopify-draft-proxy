@@ -178,6 +178,20 @@ const tooManyFields = await captureGraphql('too-many-field-definitions', createD
 });
 assertHasUserErrors(tooManyFields);
 
+const reservedShopifyFormTooManyFields = await captureGraphql(
+  'reserved-shopify-form-too-many-field-definitions',
+  createDefinitionMutation,
+  {
+    definition: definition(
+      `shopify--form-field-validation-many-${runId}`,
+      'Reserved Shopify Form Too Many Field Definitions',
+      'field_1',
+      Array.from({ length: 41 }, (_, index) => field(`field_${index + 1}`)),
+    ),
+  },
+);
+assertHasUserErrors(reservedShopifyFormTooManyFields);
+
 if (hyphenDefinitionId !== null) {
   cleanup.push(
     await captureGraphql('cleanup-metaobject-definition-delete', deleteDefinitionMutation, { id: hyphenDefinitionId }),
@@ -193,7 +207,7 @@ await writeFile(
       storeDomain,
       apiVersion,
       summary:
-        'MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, hyphen key acceptance, and max field count.',
+        'MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, hyphen key acceptance, max field count, and reserved shopify--form type max field count.',
       seed: {
         runId,
         hyphenDefinitionId,
@@ -203,6 +217,7 @@ await writeFile(
       missingDisplayNameKey,
       hyphenKey,
       tooManyFields,
+      reservedShopifyFormTooManyFields,
       cleanup,
       upstreamCalls: [],
     },

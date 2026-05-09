@@ -119,6 +119,15 @@ pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }
 
+pub type UnitPriceMeasurementRecord {
+  UnitPriceMeasurementRecord(
+    quantity_value: Option(CapturedJsonValue),
+    quantity_unit: Option(String),
+    reference_value: Option(CapturedJsonValue),
+    reference_unit: Option(String),
+  )
+}
+
 pub type CapturedJsonValue {
   CapturedNull
   CapturedBool(Bool)
@@ -527,9 +536,15 @@ pub type ProductVariantRecord {
     barcode: Option(String),
     price: Option(String),
     compare_at_price: Option(String),
+    requires_shipping: Option(Bool),
     taxable: Option(Bool),
+    tax_code: Option(String),
     inventory_policy: Option(String),
     inventory_quantity: Option(Int),
+    position: Option(Int),
+    requires_components: Option(Bool),
+    unit_price_measurement: Option(UnitPriceMeasurementRecord),
+    show_unit_price: Option(Bool),
     selected_options: List(ProductVariantSelectedOptionRecord),
     media_ids: List(String),
     inventory_item: Option(InventoryItemRecord),
@@ -608,6 +623,9 @@ pub type ProductRecord {
     description_html: String,
     online_store_preview_url: Option(String),
     template_suffix: Option(String),
+    is_gift_card: Option(Bool),
+    gift_card_template_suffix: Option(String),
+    has_bundle_ownership: Option(Bool),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
     requires_selling_plan: Option(Bool),
@@ -1257,6 +1275,8 @@ pub type ShopifyFunctionRecord {
     description: Option(String),
     app_key: Option(String),
     app: Option(ShopifyFunctionAppRecord),
+    create_guardrail_code: Option(String),
+    create_guardrail_message: Option(String),
   )
 }
 

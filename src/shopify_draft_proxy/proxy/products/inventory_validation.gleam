@@ -65,12 +65,13 @@ import shopify_draft_proxy/proxy/products/products_core.{
   apply_product_set_level_quantities, enumerate_items,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  bool_string, connection_page_info_source, dedupe_preserving_order,
-  input_list_has_object_missing_field, missing_idempotency_key_error,
-  nullable_field_user_errors_source, read_arg_string_list, read_bool_field,
-  read_include_inactive_argument, read_int_field, read_non_empty_string_field,
-  read_numeric_field, read_object_field, read_object_list_field,
-  read_string_argument, read_string_field, resource_id_matches,
+  bool_string, connection_page_info_source, count_source,
+  dedupe_preserving_order, input_list_has_object_missing_field,
+  missing_idempotency_key_error, nullable_field_user_errors_source,
+  read_arg_string_list, read_bool_field, read_include_inactive_argument,
+  read_int_field, read_non_empty_string_field, read_numeric_field,
+  read_object_field, read_object_list_field, read_string_argument,
+  read_string_field, resource_id_matches,
 }
 import shopify_draft_proxy/proxy/products/shared_money.{has_idempotency_key}
 import shopify_draft_proxy/proxy/products/variants_helpers.{
@@ -812,6 +813,10 @@ pub fn inventory_item_source_with_variant(
         item.inventory_levels,
       )),
     ),
+    #(
+      "locationsCount",
+      count_source(list.length(active_inventory_levels(item.inventory_levels))),
+    ),
     #("variant", variant),
   ])
 }
@@ -1040,6 +1045,7 @@ pub fn read_variant_inventory_item(
             input,
             "harmonizedSystemCode",
           )
+            |> option.map(normalize_harmonized_system_code)
             |> option.or(
               option.then(existing, fn(item) { item.harmonized_system_code }),
             ),
@@ -1049,6 +1055,12 @@ pub fn read_variant_inventory_item(
       )
     }
   }
+}
+
+fn normalize_harmonized_system_code(code: String) -> String {
+  code
+  |> string.replace(".", "")
+  |> string.replace(" ", "")
 }
 
 @internal

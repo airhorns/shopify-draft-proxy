@@ -1,0 +1,28 @@
+{
+  "scenarioId": "payment-terms-update-order-eligibility",
+  "operationNames": ["paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-hydration", "no-invalid-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-update-order-eligibility.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-update-order-eligibility.graphql",
+    "variablesCapturePath": "$.cases.paid.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "paid-order-update-error",
+        "capturePath": "$.cases.paid.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate"
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture proves paymentTermsUpdate rejects an existing Order-owned PaymentTerms record after the Order is marked paid. The cold proxy replay hydrates the PaymentTerms node through the recorded PaymentTermsHydrate cassette, then returns Shopify's null-field PAYMENT_TERMS_UPDATE_UNSUCCESSFUL userError without staging an update. Channel-policy-disallowed Order evidence remains fixture-conditional until a captureable sales-channel setup path is available."
+}

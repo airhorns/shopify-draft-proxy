@@ -61,6 +61,9 @@ pub type SimpleUserError {
 }
 
 @internal
+pub const app_namespace_not_authorized_message: String = "Access to this namespace and key on Metafields for this resource type is not allowed."
+
+@internal
 pub type DeletedMetafieldIdentifier {
   DeletedMetafieldIdentifier(owner_id: String, namespace: String, key: String)
 }
@@ -255,6 +258,40 @@ pub fn resolve_namespace_input(
         input,
         "namespace",
         root_field.StringVal(resolve_app_namespace(
+          namespace,
+          requesting_api_client_id,
+        )),
+      )
+    None -> input
+  }
+}
+
+@internal
+pub fn resolve_metafields_set_namespace_input(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.insert(
+    input,
+    "namespace",
+    root_field.StringVal(read_metafields_set_namespace_with_api_client_id(
+      input,
+      requesting_api_client_id,
+    )),
+  )
+}
+
+@internal
+pub fn resolve_metafields_delete_namespace_input(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Dict(String, root_field.ResolvedValue) {
+  case read_optional_string(input, "namespace") {
+    Some(namespace) ->
+      dict.insert(
+        input,
+        "namespace",
+        root_field.StringVal(app_identity.resolve_metafield_app_namespace(
           namespace,
           requesting_api_client_id,
         )),
@@ -1007,6 +1044,9 @@ pub fn minimal_product_shell(product_id: String) -> ProductRecord {
     description_html: "",
     online_store_preview_url: None,
     template_suffix: None,
+    is_gift_card: None,
+    gift_card_template_suffix: None,
+    has_bundle_ownership: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     requires_selling_plan: None,
@@ -1300,6 +1340,33 @@ pub fn validate_metafields_delete_inputs(
 }
 
 @internal
+pub fn validate_metafields_delete_namespace_access(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  requesting_api_client_id: Option(String),
+) -> List(SimpleUserError) {
+  inputs
+  |> list.filter_map(fn(input) {
+    case read_optional_string(input, "namespace") {
+      Some(namespace) ->
+        case
+          namespace_belongs_to_requesting_api_client(
+            namespace,
+            requesting_api_client_id,
+          )
+        {
+          True -> Error(Nil)
+          False ->
+            Ok(SimpleUserError(
+              ["metafields"],
+              app_namespace_not_authorized_message,
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+@internal
 pub fn read_metafield_delete_identifier(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Option(#(String, String, String)) {
@@ -1346,6 +1413,37 @@ pub fn validate_metafields_set_inputs(
   list.fold(indexed, initial, fn(errors, pair) {
     let #(index, input) = pair
     list.append(errors, validate_metafields_set_input(store_in, input, index))
+  })
+}
+
+@internal
+pub fn validate_metafields_set_namespace_access(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  requesting_api_client_id: Option(String),
+) -> List(MetafieldsSetUserError) {
+  inputs
+  |> enumerate
+  |> list.filter_map(fn(pair) {
+    let #(index, input) = pair
+    case read_optional_string(input, "namespace") {
+      Some(namespace) ->
+        case
+          namespace_belongs_to_requesting_api_client(
+            namespace,
+            requesting_api_client_id,
+          )
+        {
+          True -> Error(Nil)
+          False ->
+            Ok(MetafieldsSetUserError(
+              field: ["metafields", int.to_string(index)],
+              message: app_namespace_not_authorized_message,
+              code: Some("APP_NOT_AUTHORIZED"),
+              element_index: None,
+            ))
+        }
+      None -> Error(Nil)
+    }
   })
 }
 
@@ -2594,19 +2692,40 @@ pub fn replace_metafield_by_identity(
 pub fn read_metafields_set_namespace(
   input: Dict(String, root_field.ResolvedValue),
 ) -> String {
+  read_metafields_set_namespace_with_api_client_id(input, None)
+}
+
+@internal
+pub fn read_metafields_set_namespace_with_api_client_id(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> String {
   case read_optional_string(input, "namespace") {
     Some(ns) ->
       case string.trim(ns) {
-        "" -> default_app_metafield_namespace()
-        _ -> ns
+        "" -> default_app_metafield_namespace(requesting_api_client_id)
+        _ ->
+          app_identity.resolve_metafield_app_namespace(
+            ns,
+            requesting_api_client_id,
+          )
       }
-    None -> default_app_metafield_namespace()
+    None -> default_app_metafield_namespace(requesting_api_client_id)
   }
 }
 
 @internal
-pub fn default_app_metafield_namespace() -> String {
-  "app--347082227713"
+pub fn default_app_metafield_namespace(
+  requesting_api_client_id: Option(String),
+) -> String {
+  case requesting_api_client_id {
+    Some(_) ->
+      app_identity.resolve_metafield_app_namespace(
+        "$app",
+        requesting_api_client_id,
+      )
+    None -> "app--347082227713"
+  }
 }
 
 @internal

@@ -45,9 +45,9 @@ import shopify_draft_proxy/proxy/products/products_core.{
 }
 import shopify_draft_proxy/proxy/products/shared.{
   is_known_missing_shopify_gid, read_bool_field, read_int_field,
-  read_non_empty_string_field, read_numeric_field, read_object_field,
-  read_object_list_field, read_string_field, read_string_list_field,
-  user_errors_source,
+  read_non_empty_string_field, read_number_captured_field, read_numeric_field,
+  read_object_field, read_object_list_field, read_string_field,
+  read_string_list_field, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   bulk_variant_option_field_name, compare_variant_price, find_product_option,
@@ -80,12 +80,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
+  type InventoryItemRecord, type InventoryMeasurementRecord,
   type ProductOperationUserErrorRecord, type ProductOptionLinkedMetafieldRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type UnitPriceMeasurementRecord, InventoryItemRecord,
+  InventoryMeasurementRecord, InventoryWeightFloat, InventoryWeightRecord,
   ProductOperationUserErrorRecord, ProductOptionLinkedMetafieldRecord,
   ProductOptionRecord, ProductOptionValueRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  ProductVariantSelectedOptionRecord, UnitPriceMeasurementRecord,
 }
 
 // ===== from variants_l02 =====
@@ -2145,16 +2148,35 @@ pub fn make_created_variant_record(
         |> option.or(
           option.then(defaults, fn(variant) { variant.compare_at_price }),
         ),
+      requires_shipping: read_variant_requires_shipping(input)
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.requires_shipping }),
+        ),
       taxable: read_bool_field(input, "taxable")
         |> option.or(option.then(defaults, fn(variant) { variant.taxable })),
+      tax_code: read_variant_tax_code(input)
+        |> option.or(option.then(defaults, fn(variant) { variant.tax_code })),
       inventory_policy: read_string_field(input, "inventoryPolicy")
         |> option.or(
           option.then(defaults, fn(variant) { variant.inventory_policy }),
         ),
       inventory_quantity: read_variant_inventory_quantity(input, Some(0)),
+      position: read_int_field(input, "position"),
+      requires_components: read_bool_field(input, "requiresComponents")
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.requires_components }),
+        ),
+      unit_price_measurement: read_variant_unit_price_measurement(
+        input,
+        option.then(defaults, fn(variant) { variant.unit_price_measurement }),
+      ),
+      show_unit_price: read_bool_field(input, "showUnitPrice")
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.show_unit_price }),
+        ),
       selected_options: selected_options,
-      media_ids: [],
-      inventory_item: inventory_item,
+      media_ids: read_variant_media_ids(input),
+      inventory_item: merge_variant_root_inventory_item(input, inventory_item),
       contextual_pricing: None,
       cursor: None,
     ),
@@ -2239,18 +2261,144 @@ pub fn update_variant_record(
       price: read_string_field(input, "price") |> option.or(existing.price),
       compare_at_price: read_string_field(input, "compareAtPrice")
         |> option.or(existing.compare_at_price),
+      requires_shipping: read_variant_requires_shipping(input)
+        |> option.or(existing.requires_shipping),
       taxable: read_bool_field(input, "taxable") |> option.or(existing.taxable),
+      tax_code: read_variant_tax_code(input) |> option.or(existing.tax_code),
       inventory_policy: read_string_field(input, "inventoryPolicy")
         |> option.or(existing.inventory_policy),
       inventory_quantity: read_variant_inventory_quantity(
         input,
         existing.inventory_quantity,
       ),
+      position: read_int_field(input, "position")
+        |> option.or(existing.position),
+      requires_components: read_bool_field(input, "requiresComponents")
+        |> option.or(existing.requires_components),
+      unit_price_measurement: read_variant_unit_price_measurement(
+        input,
+        existing.unit_price_measurement,
+      ),
+      show_unit_price: read_bool_field(input, "showUnitPrice")
+        |> option.or(existing.show_unit_price),
       selected_options: selected_options,
-      inventory_item: inventory_item,
+      media_ids: merge_variant_media_ids(existing.media_ids, input),
+      inventory_item: merge_variant_root_inventory_item(input, inventory_item),
     ),
     next_identity,
   )
+}
+
+fn read_variant_requires_shipping(
+  input: Dict(String, ResolvedValue),
+) -> Option(Bool) {
+  read_bool_field(input, "requiresShipping")
+}
+
+fn read_variant_tax_code(input: Dict(String, ResolvedValue)) -> Option(String) {
+  read_string_field(input, "taxCode")
+}
+
+fn read_variant_unit_price_measurement(
+  input: Dict(String, ResolvedValue),
+  fallback: Option(UnitPriceMeasurementRecord),
+) -> Option(UnitPriceMeasurementRecord) {
+  case read_object_field(input, "unitPriceMeasurement") {
+    Some(measurement) ->
+      Some(UnitPriceMeasurementRecord(
+        quantity_value: read_number_captured_field(measurement, "quantityValue")
+          |> option.or(
+            option.then(fallback, fn(record) { record.quantity_value }),
+          ),
+        quantity_unit: read_string_field(measurement, "quantityUnit")
+          |> option.or(
+            option.then(fallback, fn(record) { record.quantity_unit }),
+          ),
+        reference_value: read_number_captured_field(
+          measurement,
+          "referenceValue",
+        )
+          |> option.or(
+            option.then(fallback, fn(record) { record.reference_value }),
+          ),
+        reference_unit: read_string_field(measurement, "referenceUnit")
+          |> option.or(
+            option.then(fallback, fn(record) { record.reference_unit }),
+          ),
+      ))
+    None -> fallback
+  }
+}
+
+fn read_variant_media_ids(input: Dict(String, ResolvedValue)) -> List(String) {
+  case read_string_field(input, "mediaId") {
+    Some(id) -> [id]
+    None -> read_string_list_field(input, "mediaSrc") |> option.unwrap([])
+  }
+}
+
+fn merge_variant_media_ids(
+  existing: List(String),
+  input: Dict(String, ResolvedValue),
+) -> List(String) {
+  case read_variant_media_ids(input) {
+    [] -> existing
+    media_ids -> list.append(existing, media_ids) |> dedupe_strings([])
+  }
+}
+
+fn dedupe_strings(values: List(String), seen: List(String)) -> List(String) {
+  case values {
+    [] -> []
+    [first, ..rest] ->
+      case list.contains(seen, first) {
+        True -> dedupe_strings(rest, seen)
+        False -> [first, ..dedupe_strings(rest, [first, ..seen])]
+      }
+  }
+}
+
+fn merge_variant_root_inventory_item(
+  input: Dict(String, ResolvedValue),
+  item: Option(InventoryItemRecord),
+) -> Option(InventoryItemRecord) {
+  item
+  |> option.map(fn(record) {
+    let measurement = read_variant_root_measurement(input, record.measurement)
+    InventoryItemRecord(
+      ..record,
+      requires_shipping: read_bool_field(input, "requiresShipping")
+        |> option.or(record.requires_shipping),
+      measurement: measurement,
+      harmonized_system_code: read_string_field(input, "harmonizedSystemCode")
+        |> option.map(normalize_harmonized_system_code)
+        |> option.or(record.harmonized_system_code),
+    )
+  })
+}
+
+fn normalize_harmonized_system_code(code: String) -> String {
+  code
+  |> string.replace(".", "")
+  |> string.replace(" ", "")
+}
+
+fn read_variant_root_measurement(
+  input: Dict(String, ResolvedValue),
+  fallback: Option(InventoryMeasurementRecord),
+) -> Option(InventoryMeasurementRecord) {
+  let weight_input = case
+    read_numeric_field(input, "weight"),
+    read_string_field(input, "weightUnit")
+  {
+    NumericValue(value), Some(unit) ->
+      Some(InventoryWeightRecord(unit: unit, value: InventoryWeightFloat(value)))
+    _, _ -> None
+  }
+  case weight_input {
+    Some(weight) -> Some(InventoryMeasurementRecord(weight: Some(weight)))
+    None -> fallback
+  }
 }
 
 @internal

@@ -140,7 +140,7 @@ pub fn process_mutation(
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
-      case file_update_top_level_errors(fields, variables) {
+      case file_input_top_level_errors(fields, variables) {
         #(errors, data_entries) if errors != [] ->
           MutationOutcome(
             data: json.object([
@@ -168,7 +168,7 @@ pub fn process_mutation(
   }
 }
 
-fn file_update_top_level_errors(
+fn file_input_top_level_errors(
   fields: List(Selection),
   variables: Dict(String, ResolvedValue),
 ) -> #(List(json.Json), List(#(String, json.Json))) {
@@ -203,6 +203,42 @@ fn file_update_top_level_errors(
           )
         }
       }
+      Field(name: name, ..) if name.value == "fileCreate" -> {
+        let key = get_field_response_key(field)
+        let inputs =
+          graphql_helpers.field_args(field, variables)
+          |> read_object_list_arg("files")
+        let input_errors =
+          inputs
+          |> enumerate_objects
+          |> list.filter_map(fn(entry) {
+            let #(input, index) = entry
+            case read_string_field(input, "originalSource") {
+              Some("") ->
+                Ok(file_create_invalid_field_arguments_error(
+                  key,
+                  "originalSource is too short (minimum is 1)",
+                ))
+              Some(value) ->
+                case string.length(value) > 2048 {
+                  True ->
+                    Ok(file_create_invalid_field_arguments_error(
+                      key,
+                      "originalSource is too long (maximum is 2048)",
+                    ))
+                  False -> Error(Nil)
+                }
+              None -> Ok(file_create_missing_original_source_error(key, index))
+            }
+          })
+        case input_errors {
+          [] -> acc
+          _ -> #(
+            list.append(errors, input_errors),
+            list.append(data_entries, [#(key, json.null())]),
+          )
+        }
+      }
       _ -> acc
     }
   })
@@ -216,6 +252,50 @@ fn file_update_invalid_field_arguments_error(root_key: String) -> json.Json {
       json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
     ),
     #("path", json.array([root_key], json.string)),
+  ])
+}
+
+fn file_create_invalid_field_arguments_error(
+  root_key: String,
+  message: String,
+) -> json.Json {
+  json.object([
+    #("message", json.string(message)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+    ),
+    #("path", json.array([root_key], json.string)),
+  ])
+}
+
+fn file_create_missing_original_source_error(
+  root_key: String,
+  index: Int,
+) -> json.Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'originalSource' on InputObject 'FileCreateInput' is required. Expected type String!",
+      ),
+    ),
+    #(
+      "path",
+      json.array(
+        [root_key, "files", int.to_string(index), "originalSource"],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("missingRequiredInputObjectAttribute")),
+        #("argumentName", json.string("originalSource")),
+        #("argumentType", json.string("String!")),
+        #("inputObjectType", json.string("FileCreateInput")),
+      ]),
+    ),
   ])
 }
 
@@ -684,44 +764,16 @@ fn validate_file_input(
 ) -> List(media_types.FilesUserError) {
   let original_source = read_string_field(input, "originalSource")
   let source_errors = case original_source {
-    Some(value) -> validate_original_source(value, index)
-    None -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "originalSource"],
-        "Original source is required",
-        "REQUIRED",
-      ),
-    ]
+    Some(value) -> validate_original_source_url(value, index)
+    None -> []
   }
-  source_errors
-  |> list.append(validate_references_to_add(input, index))
-  |> list.append(validate_create_filename_extension(input, index))
-  |> list.append(validate_duplicate_resolution_mode(input, index))
-}
-
-fn validate_original_source(
-  value: String,
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  case value {
-    "" -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "originalSource"],
-        "originalSource is too short (minimum is 1)",
-        "INVALID",
-      ),
-    ]
-    _ ->
-      case string.length(value) > 2048 {
-        True -> [
-          media_types.FilesUserError(
-            ["files", int.to_string(index), "originalSource"],
-            "originalSource is too long (maximum is 2048)",
-            "INVALID",
-          ),
-        ]
-        False -> validate_original_source_url(value, index)
+  case source_errors {
+    [] ->
+      case validate_create_filename_extension(input, index) {
+        [] -> validate_duplicate_resolution_mode(input, index)
+        filename_errors -> filename_errors
       }
+    _ -> source_errors
   }
 }
 
@@ -741,22 +793,6 @@ fn validate_original_source_url(
         },
       ),
     ]
-  }
-}
-
-fn validate_references_to_add(
-  input: Dict(String, ResolvedValue),
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  case list.length(read_string_list_field(input, "referencesToAdd")) > 1 {
-    True -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index), "referencesToAdd"],
-        "Too many product ids specified.",
-        "TOO_MANY_PRODUCT_IDS_SPECIFIED",
-      ),
-    ]
-    False -> []
   }
 }
 
@@ -853,23 +889,49 @@ fn validate_file_update_inputs(
   store: Store,
   inputs: List(Dict(String, ResolvedValue)),
 ) -> List(media_types.FilesUserError) {
-  let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
+  let #(
+    field_errors,
+    missing_file_ids,
+    non_ready_file_ids,
+    target_errors,
+    unsupported_filename_indexes,
+    invalid_filename_extension_indexes,
+  ) =
     inputs
     |> enumerate_objects
-    |> list.fold(#([], [], [], []), fn(acc, entry) {
-      let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
-        acc
+    |> list.fold(#([], [], [], [], [], []), fn(acc, entry) {
+      let #(
+        field_errors,
+        missing_file_ids,
+        non_ready_file_ids,
+        target_errors,
+        unsupported_filename_indexes,
+        invalid_filename_extension_indexes,
+      ) = acc
       let #(input, index) = entry
       let input_field_errors = validate_file_update_input_fields(input, index)
       case input_field_errors {
         [] -> {
-          let #(missing_ids, non_ready_ids, input_target_errors) =
-            validate_file_update_target(store, input, index)
+          let #(
+            missing_ids,
+            non_ready_ids,
+            input_target_errors,
+            input_unsupported_filename_indexes,
+            input_invalid_filename_extension_indexes,
+          ) = validate_file_update_target(store, input, index)
           #(
             field_errors,
             list.append(missing_file_ids, missing_ids),
             list.append(non_ready_file_ids, non_ready_ids),
             list.append(target_errors, input_target_errors),
+            list.append(
+              unsupported_filename_indexes,
+              input_unsupported_filename_indexes,
+            ),
+            list.append(
+              invalid_filename_extension_indexes,
+              input_invalid_filename_extension_indexes,
+            ),
           )
         }
         _ -> #(
@@ -877,6 +939,8 @@ fn validate_file_update_inputs(
           missing_file_ids,
           non_ready_file_ids,
           target_errors,
+          unsupported_filename_indexes,
+          invalid_filename_extension_indexes,
         )
       }
     })
@@ -888,6 +952,12 @@ fn validate_file_update_inputs(
     file_update_non_ready_errors(dedupe_strings(non_ready_file_ids)),
   )
   |> list.append(target_errors)
+  |> list.append(file_update_unsupported_filename_errors(
+    unsupported_filename_indexes,
+  ))
+  |> list.append(file_update_invalid_filename_extension_errors(
+    invalid_filename_extension_indexes,
+  ))
 }
 
 fn validate_file_update_input_fields(
@@ -927,8 +997,13 @@ fn validate_file_update_input_fields(
   {
     Some(original), Some(preview) if original != "" && preview != "" -> [
       media_types.FilesUserError(
-        ["files", int.to_string(index)],
-        "Specify either originalSource or previewImageSource, not both.",
+        ["files", int.to_string(index), "previewImageSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
+        "INVALID",
+      ),
+      media_types.FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "Cannot update the preview image and image at the same time because they are one and the same.",
         "INVALID",
       ),
     ]
@@ -1104,7 +1179,13 @@ fn validate_file_update_target(
   store: Store,
   input: Dict(String, ResolvedValue),
   index: Int,
-) -> #(List(String), List(String), List(media_types.FilesUserError)) {
+) -> #(
+  List(String),
+  List(String),
+  List(media_types.FilesUserError),
+  List(Int),
+  List(Int),
+) {
   case read_string_field(input, "id") {
     Some(file_id) ->
       case get_effective_file_like_record(store, file_id) {
@@ -1112,20 +1193,29 @@ fn validate_file_update_target(
           case file_update_identity_matches(file, file_id) {
             True -> {
               case file.file_status {
-                "READY" -> #(
-                  [],
-                  [],
-                  validate_file_update_supported_changes(file, input, index),
-                )
-                _ -> #([], [file_id], [])
+                "READY" -> {
+                  let #(
+                    target_errors,
+                    unsupported_filename_indexes,
+                    invalid_filename_extension_indexes,
+                  ) = validate_file_update_supported_changes(file, input, index)
+                  #(
+                    [],
+                    [],
+                    target_errors,
+                    unsupported_filename_indexes,
+                    invalid_filename_extension_indexes,
+                  )
+                }
+                _ -> #([], [file_id], [], [], [])
               }
             }
-            False -> #([file_id], [], [])
+            False -> #([file_id], [], [], [], [])
           }
         }
-        None -> #([file_id], [], [])
+        None -> #([file_id], [], [], [], [])
       }
-    _ -> #([], [], [])
+    _ -> #([], [], [], [], [])
   }
 }
 
@@ -1229,10 +1319,15 @@ fn validate_file_update_supported_changes(
   file: FileRecord,
   input: Dict(String, ResolvedValue),
   index: Int,
-) -> List(media_types.FilesUserError) {
-  []
-  |> list.append(validate_original_source_update(file, input, index))
-  |> list.append(validate_filename_update(file, input, index))
+) -> #(List(media_types.FilesUserError), List(Int), List(Int)) {
+  let target_errors = validate_original_source_update(file, input, index)
+  let #(unsupported_filename_indexes, invalid_filename_extension_indexes) =
+    validate_filename_update(file, input, index)
+  #(
+    target_errors,
+    unsupported_filename_indexes,
+    invalid_filename_extension_indexes,
+  )
 }
 
 fn validate_original_source_update(
@@ -1260,41 +1355,59 @@ fn validate_filename_update(
   file: FileRecord,
   input: Dict(String, ResolvedValue),
   index: Int,
-) -> List(media_types.FilesUserError) {
+) -> #(List(Int), List(Int)) {
   case read_string_field(input, "filename") {
     Some(filename) if filename != "" ->
       case file_allows_source_or_filename_update(file) {
-        False -> [
-          media_types.FilesUserError(
-            ["files"],
-            "Updating the filename is only supported on images and generic files",
-            "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE",
-          ),
-        ]
+        False -> #([index], [])
         True -> validate_filename_extension(file, filename, index)
       }
-    _ -> []
+    _ -> #([], [])
   }
 }
 
 fn validate_filename_extension(
   file: FileRecord,
   filename: String,
-  _index: Int,
-) -> List(media_types.FilesUserError) {
+  index: Int,
+) -> #(List(Int), List(Int)) {
   case file.filename {
     Some(existing) ->
       case filename_extension(existing) == filename_extension(filename) {
-        True -> []
-        False -> [
-          media_types.FilesUserError(
-            ["files"],
-            "The filename extension provided must match the original filename.",
-            "INVALID_FILENAME_EXTENSION",
-          ),
-        ]
+        True -> #([], [])
+        False -> #([], [index])
       }
-    None -> []
+    None -> #([], [])
+  }
+}
+
+fn file_update_unsupported_filename_errors(
+  indexes: List(Int),
+) -> List(media_types.FilesUserError) {
+  case indexes {
+    [] -> []
+    _ -> [
+      media_types.FilesUserError(
+        ["files"],
+        "Updating the filename is only supported on images and generic files",
+        "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE",
+      ),
+    ]
+  }
+}
+
+fn file_update_invalid_filename_extension_errors(
+  indexes: List(Int),
+) -> List(media_types.FilesUserError) {
+  case indexes {
+    [] -> []
+    _ -> [
+      media_types.FilesUserError(
+        ["files"],
+        "The filename extension provided must match the original filename.",
+        "INVALID_FILENAME_EXTENSION",
+      ),
+    ]
   }
 }
 
@@ -2519,6 +2632,9 @@ fn product_record_from_node(
           description_html: "",
           online_store_preview_url: None,
           template_suffix: None,
+          is_gift_card: None,
+          gift_card_template_suffix: None,
+          has_bundle_ownership: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
           requires_selling_plan: None,

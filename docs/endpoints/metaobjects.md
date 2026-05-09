@@ -17,7 +17,7 @@ HAR-241 promotes the first metaobject runtime slice from registry-only coverage 
 The supported fields are limited to the captured 2026-04 definition payload:
 
 - definition identity and display metadata: `id`, `type`, `name`, `description`, `displayNameKey`
-- `access.admin` and `access.storefront`
+- `access.admin`, `access.storefront`, and `access.customerAccount`
 - `capabilities.publishable.enabled`, `translatable.enabled`, `renderable.enabled`, and `onlineStore.enabled`
 - ordered `fieldDefinitions` with `key`, `name`, `description`, `required`, `type.name`, `type.category`, and `validations`
 - `hasThumbnailField`, `metaobjectsCount`, and `standardTemplate.type` / `standardTemplate.name`
@@ -79,10 +79,12 @@ Supported definition mutations never proxy to Shopify at runtime. They append th
 Create support models the captured merchant-owned definition shape:
 
 - `type`, `name`, `description`, and `displayNameKey`
-- default merchant access `admin: PUBLIC_READ_WRITE` and `storefront: NONE`
+- default merchant access `admin: PUBLIC_READ_WRITE`, `storefront: NONE`, and `customerAccount: NONE`
 - `capabilities.publishable`, `translatable`, `renderable`, and `onlineStore` with false defaults when omitted
 - ordered field definitions with `key`, `name`, `description`, `required`, scalar type name/category, and validations
 - `metaobjectsCount: 0`, `hasThumbnailField: false`, and `standardTemplate: null`
+
+Create and update persist `access.customerAccount` for the public 2026-04 `MetaobjectCustomerAccountAccess` enum values `NONE` and `READ`; downstream definition reads project the effective value after local writes. Invalid literal values are rejected by GraphQL enum coercion before resolver side effects, matching the captured Shopify top-level error shape.
 
 Captured guardrail: merchant-owned create input that specifies `access.admin` returns a local `ADMIN_ACCESS_INPUT_NOT_ALLOWED` userError with Shopify's captured message instead of staging or proxying.
 
@@ -125,6 +127,8 @@ HAR-244 adds local staging for the core Admin GraphQL 2026-04 metaobject row lif
 Supported entry mutations never proxy to Shopify at runtime. They append the original GraphQL request body to the meta mutation log for later `POST /__meta/commit` replay, stage changes in the normalized `metaobjects` state bucket or `deletedMetaobjectIds` tombstone map, and make downstream `metaobject`, `metaobjectByHandle`, and `metaobjects` reads observe staged row writes immediately.
 
 Create support requires an existing effective definition. In live-hybrid mode, cold creates first hydrate the matching upstream definition by type through `MetaobjectDefinitionHydrateByType`, then stage the create locally; snapshot mode remains local-only. The create path stages a synthetic `Metaobject` ID, explicit or generated handle, selected field values projected through the effective definition's ordered field definitions, null-valued placeholders for omitted field definitions, `displayName` from the definition's `displayNameKey`, default/selected publishable status, nullable online-store capability shape, and an incremented effective definition `metaobjectsCount`. Captured 2026-04 behavior defaults omitted publishable status to `DRAFT` while the definition's publishable capability is enabled. If a requested create handle is already taken, Shopify auto-suffixes the handle instead of returning a duplicate-handle userError; the local model mirrors that for create while preserving duplicate-handle errors for update.
+
+When `metaobjectCreate` omits `handle` and no display field value is available, captured 2026-04 behavior generates a handle shaped as `<type-dasherized>-<8 lowercase alphanumeric>` and derives fallback `displayName` as the titleized base plus `#SUFFIX`. Explicit mixed-case handles are lowercased for storage on the public Admin API path, but the no-conflict fallback display name is titleized from the submitted handle; a subsequent lower-case duplicate is compared case-insensitively and auto-suffixed.
 
 `metaobjectCreate` and the create branch of `metaobjectUpsert` reject non-standard definitions whose cached effective `metaobjectsCount` is already at the default 1,000,000 per-type cap. The benchmark override of 16,777,216 and custom entitlement overrides are not modeled. Standard-template definitions skip this cap. Cold live-hybrid creates hydrate the definition once and then use the stored count for subsequent local staging, so the proxy does not ask Shopify for a fresh count for every staged row.
 

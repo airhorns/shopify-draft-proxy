@@ -299,6 +299,7 @@ pub fn make_default_variant_record(
       identity_after_variant,
       "InventoryItem",
     )
+  let is_gift_card = product.is_gift_card == Some(True)
   #(
     ProductVariantRecord(
       id: variant_id,
@@ -308,9 +309,18 @@ pub fn make_default_variant_record(
       barcode: None,
       price: Some("0.00"),
       compare_at_price: None,
-      taxable: None,
+      requires_shipping: Some(!is_gift_card),
+      taxable: case is_gift_card {
+        True -> Some(False)
+        False -> None
+      },
+      tax_code: None,
       inventory_policy: None,
       inventory_quantity: Some(0),
+      position: None,
+      requires_components: None,
+      unit_price_measurement: None,
+      show_unit_price: None,
       selected_options: [
         ProductVariantSelectedOptionRecord(
           name: "Title",
@@ -322,7 +332,7 @@ pub fn make_default_variant_record(
         InventoryItemRecord(
           id: inventory_item_id,
           tracked: Some(False),
-          requires_shipping: Some(True),
+          requires_shipping: Some(!is_gift_card),
           measurement: None,
           country_code_of_origin: None,
           province_code_of_origin: None,

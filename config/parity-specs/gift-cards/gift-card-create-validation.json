@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.proxyVariables.createValidation"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-692 captures and replays giftCardCreate validation behavior for initial value, code length, code format, duplicate code, missing customer, explicit success, and generated-code success. The live fixture uses a run-unique valid code because Shopify keeps gift-card code uniqueness scoped to the shop even after cleanup deactivation.",
+  "notes": "Captures and replays giftCardCreate validation behavior for initial value, code length, code format, duplicate code, missing customer, explicit success, and generated-code success. The live fixture uses a run-unique valid code because Shopify keeps gift-card code uniqueness scoped to the shop even after cleanup deactivation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -39,6 +39,12 @@
         "name": "invalid code format returns INVALID",
         "capturePath": "$.operations.createValidation.response.payload.data.invalidCode",
         "proxyPath": "$.data.invalidCode",
+        "selectedPaths": ["$.giftCard", "$.giftCardCode", "$.userErrors"]
+      },
+      {
+        "name": "missing customer wins over short code",
+        "capturePath": "$.operations.createValidation.response.payload.data.shortCodeMissingCustomer",
+        "proxyPath": "$.data.shortCodeMissingCustomer",
         "selectedPaths": ["$.giftCard", "$.giftCardCode", "$.userErrors"]
       },
       {

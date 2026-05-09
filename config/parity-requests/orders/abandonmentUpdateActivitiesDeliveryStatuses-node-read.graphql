@@ -1,0 +1,9 @@
+query AbandonmentDeliveryStatusNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on Abandonment {
+      id
+      emailState
+      emailSentAt
+    }
+  }
+}

@@ -38,7 +38,7 @@ import shopify_draft_proxy/proxy/products/inventory_core.{
   read_inventory_set_on_hand_quantity_inputs, read_inventory_set_quantity_inputs,
   replace_inventory_level, reverse_inventory_item_variants,
   valid_inventory_adjustment_reason, valid_inventory_set_quantity_name,
-  variant_inventory_levels,
+  variant_inventory_levels, write_inventory_quantity_amount,
 }
 import shopify_draft_proxy/proxy/products/inventory_validation.{
   filtered_inventory_item_variants, inventory_adjust_202604_contract_error,
@@ -86,8 +86,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryLocationRecord,
-  type ProductVariantRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryQuantityRecord, ProductVariantRecord,
+  type ProductVariantRecord, type StorePropertyRecord,
+  type UnitPriceMeasurementRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, ProductVariantRecord, StorePropertyString,
 }
 
 // ===== from inventory_l07 =====
@@ -97,6 +98,7 @@ pub fn product_variant_source_with_inventory(
   variant: ProductVariantRecord,
   inventory_item: SourceValue,
 ) -> SourceValue {
+  let fulfillment_service = gift_card_fulfillment_service_source(store, variant)
   src_object([
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
@@ -108,7 +110,13 @@ pub fn product_variant_source_with_inventory(
       "compareAtPrice",
       graphql_helpers.option_string_source(variant.compare_at_price),
     ),
+    #(
+      "requiresShipping",
+      graphql_helpers.option_bool_source(variant.requires_shipping),
+    ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #("fulfillmentService", fulfillment_service),
+    #("taxCode", graphql_helpers.option_string_source(variant.tax_code)),
     #(
       "inventoryPolicy",
       graphql_helpers.option_string_source(variant.inventory_policy),
@@ -116,6 +124,19 @@ pub fn product_variant_source_with_inventory(
     #(
       "inventoryQuantity",
       graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
+    #("position", graphql_helpers.option_int_source(variant.position)),
+    #(
+      "requiresComponents",
+      graphql_helpers.option_bool_source(variant.requires_components),
+    ),
+    #(
+      "unitPriceMeasurement",
+      unit_price_measurement_source(variant.unit_price_measurement),
+    ),
+    #(
+      "showUnitPrice",
+      graphql_helpers.option_bool_source(variant.show_unit_price),
     ),
     #(
       "selectedOptions",
@@ -149,6 +170,45 @@ pub fn product_variant_source_with_inventory(
       optional_captured_json_source(variant.contextual_pricing),
     ),
   ])
+}
+
+fn gift_card_fulfillment_service_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  case store.get_effective_product_by_id(store, variant.product_id) {
+    Some(product) if product.is_gift_card == Some(True) ->
+      src_object([
+        #("__typename", SrcString("FulfillmentService")),
+        #("serviceName", SrcString("Gift Card")),
+        #("type", SrcString("GIFT_CARD")),
+      ])
+    _ -> SrcNull
+  }
+}
+
+fn unit_price_measurement_source(
+  measurement: Option(UnitPriceMeasurementRecord),
+) -> SourceValue {
+  case measurement {
+    Some(value) ->
+      src_object([
+        #("quantityValue", optional_captured_json_source(value.quantity_value)),
+        #(
+          "quantityUnit",
+          graphql_helpers.option_string_source(value.quantity_unit),
+        ),
+        #(
+          "referenceValue",
+          optional_captured_json_source(value.reference_value),
+        ),
+        #(
+          "referenceUnit",
+          graphql_helpers.option_string_source(value.reference_unit),
+        ),
+      ])
+    None -> SrcNull
+  }
 }
 
 @internal
@@ -747,19 +807,39 @@ fn known_inventory_location(
   case store.get_effective_location_by_id(store, location_id) {
     Some(location) ->
       Some(InventoryLocationRecord(id: location.id, name: location.name))
-    None -> {
-      store.list_effective_product_variants(store)
-      |> list.filter_map(fn(variant) {
-        case
-          find_inventory_level(variant_inventory_levels(variant), location_id)
-        {
-          Some(level) -> Ok(level.location)
-          None -> Error(Nil)
+    None ->
+      case
+        store.get_effective_store_property_location_by_id(store, location_id)
+      {
+        Some(location) ->
+          Some(InventoryLocationRecord(
+            id: location.id,
+            name: store_property_location_name(location),
+          ))
+        None -> {
+          store.list_effective_product_variants(store)
+          |> list.filter_map(fn(variant) {
+            case
+              find_inventory_level(
+                variant_inventory_levels(variant),
+                location_id,
+              )
+            {
+              Some(level) -> Ok(level.location)
+              None -> Error(Nil)
+            }
+          })
+          |> list.first
+          |> option.from_result
         }
-      })
-      |> list.first
-      |> option.from_result
-    }
+      }
+  }
+}
+
+fn store_property_location_name(location: StorePropertyRecord) -> String {
+  case dict.get(location.data, "name") {
+    Ok(StorePropertyString(name)) -> name
+    _ -> ""
   }
 }
 
@@ -818,19 +898,74 @@ fn new_inventory_activation_level(
   store: Store,
   inventory_item_id: String,
   location_id: String,
+  available: Option(Int),
+  on_hand: Option(Int),
 ) -> InventoryLevelRecord {
+  let available_amount = activation_available_amount(available, on_hand)
+  let on_hand_amount = activation_on_hand_amount(available, on_hand)
   InventoryLevelRecord(
     id: product_set_inventory_level_id(inventory_item_id, location_id),
     cursor: None,
     is_active: Some(True),
     location: product_set_inventory_location(store, None, location_id),
     quantities: [
-      InventoryQuantityRecord(name: "available", quantity: 0, updated_at: None),
-      InventoryQuantityRecord(name: "on_hand", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(
+        name: "available",
+        quantity: available_amount,
+        updated_at: None,
+      ),
+      InventoryQuantityRecord(
+        name: "on_hand",
+        quantity: on_hand_amount,
+        updated_at: None,
+      ),
       InventoryQuantityRecord(name: "incoming", quantity: 0, updated_at: None),
       InventoryQuantityRecord(name: "reserved", quantity: 0, updated_at: None),
     ],
   )
+}
+
+fn activation_available_amount(
+  available: Option(Int),
+  on_hand: Option(Int),
+) -> Int {
+  case available {
+    Some(amount) -> amount
+    None -> option.unwrap(on_hand, 0)
+  }
+}
+
+fn activation_on_hand_amount(
+  available: Option(Int),
+  on_hand: Option(Int),
+) -> Int {
+  case on_hand {
+    Some(amount) -> amount
+    None -> activation_available_amount(available, on_hand)
+  }
+}
+
+fn apply_inventory_activate_quantities(
+  level: InventoryLevelRecord,
+  available: Option(Int),
+  on_hand: Option(Int),
+) -> InventoryLevelRecord {
+  case available, on_hand {
+    None, None -> level
+    _, _ ->
+      InventoryLevelRecord(
+        ..level,
+        quantities: level.quantities
+          |> write_inventory_quantity_amount(
+            "available",
+            activation_available_amount(available, on_hand),
+          )
+          |> write_inventory_quantity_amount(
+            "on_hand",
+            activation_on_hand_amount(available, on_hand),
+          ),
+      )
+  }
 }
 
 @internal
@@ -938,6 +1073,8 @@ pub fn handle_inventory_activate(
         False -> {
           let #(next_level, next_identity) =
             reactivate_inventory_level(level, identity)
+          let next_level =
+            apply_inventory_activate_quantities(next_level, available, on_hand)
           let next_levels =
             replace_inventory_level(
               variant_inventory_levels(variant),
@@ -957,7 +1094,13 @@ pub fn handle_inventory_activate(
       case variant, location {
         Some(variant), Some(_) -> {
           let next_level =
-            new_inventory_activation_level(store, item_id, location_id)
+            new_inventory_activation_level(
+              store,
+              item_id,
+              location_id,
+              available,
+              on_hand,
+            )
           let next_levels =
             list.append(variant_inventory_levels(variant), [next_level])
           let next_variant = variant_with_inventory_levels(variant, next_levels)
@@ -1143,7 +1286,13 @@ pub fn handle_inventory_bulk_toggle_activation(
       case variant, location {
         Some(variant), Some(_) -> {
           let next_level =
-            new_inventory_activation_level(store, item_id, location_id)
+            new_inventory_activation_level(
+              store,
+              item_id,
+              location_id,
+              None,
+              None,
+            )
           let next_levels =
             list.append(variant_inventory_levels(variant), [next_level])
           let next_store =

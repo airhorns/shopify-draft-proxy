@@ -1,0 +1,450 @@
+{
+  "capturedAt": "2026-05-08T11:41:29.641Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Metaobject definition customerAccount access capture for READ/NONE create and update, invalid enum coercion, and read-after-write projection.",
+  "seed": {
+    "runId": "1778240488176",
+    "types": {
+      "read": "customer_account_read_1778240488176",
+      "none": "customer_account_none_1778240488176",
+      "invalidCreate": "customer_account_invalid_create_1778240488176"
+    },
+    "createdDefinitionIds": [
+      "gid://shopify/MetaobjectDefinition/17961419058",
+      "gid://shopify/MetaobjectDefinition/17961451826"
+    ]
+  },
+  "cases": {
+    "createRead": {
+      "name": "create-read-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "customer_account_read_1778240488176",
+            "name": "Customer Account Read 1778240488176",
+            "access": {
+              "customerAccount": "READ"
+            },
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17961419058",
+              "type": "customer_account_read_1778240488176",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE",
+                "customerAccount": "READ"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterCreate": {
+      "name": "read-after-create-read-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+        "query": "query MetaobjectDefinitionCustomerAccountAccessRead($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    access {\n      admin\n      storefront\n      customerAccount\n    }\n  }\n}\n",
+        "variables": {
+          "type": "customer_account_read_1778240488176"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": {
+            "id": "gid://shopify/MetaobjectDefinition/17961419058",
+            "type": "customer_account_read_1778240488176",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE",
+              "customerAccount": "READ"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateNone": {
+      "name": "update-none-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17961419058",
+          "definition": {
+            "access": {
+              "customerAccount": "NONE"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17961419058",
+              "type": "customer_account_read_1778240488176",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE",
+                "customerAccount": "NONE"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdateNone": {
+      "name": "read-after-update-none-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+        "query": "query MetaobjectDefinitionCustomerAccountAccessRead($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    access {\n      admin\n      storefront\n      customerAccount\n    }\n  }\n}\n",
+        "variables": {
+          "type": "customer_account_read_1778240488176"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": {
+            "id": "gid://shopify/MetaobjectDefinition/17961419058",
+            "type": "customer_account_read_1778240488176",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE",
+              "customerAccount": "NONE"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateRead": {
+      "name": "update-read-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17961419058",
+          "definition": {
+            "access": {
+              "customerAccount": "READ"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17961419058",
+              "type": "customer_account_read_1778240488176",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE",
+                "customerAccount": "READ"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdateRead": {
+      "name": "read-after-update-read-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql",
+        "query": "query MetaobjectDefinitionCustomerAccountAccessRead($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    access {\n      admin\n      storefront\n      customerAccount\n    }\n  }\n}\n",
+        "variables": {
+          "type": "customer_account_read_1778240488176"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": {
+            "id": "gid://shopify/MetaobjectDefinition/17961419058",
+            "type": "customer_account_read_1778240488176",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE",
+              "customerAccount": "READ"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createNone": {
+      "name": "create-none-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "customer_account_none_1778240488176",
+            "name": "Customer Account None 1778240488176",
+            "access": {
+              "customerAccount": "NONE"
+            },
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17961451826",
+              "type": "customer_account_none_1778240488176",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE",
+                "customerAccount": "NONE"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidCreate": {
+      "name": "invalid-create-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-create.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessInvalidCreate($type: String!) {\n  metaobjectDefinitionCreate(\n    definition: {\n      type: $type\n      name: \"Invalid Customer Account Access\"\n      displayNameKey: \"title\"\n      access: { customerAccount: BANANA }\n      fieldDefinitions: [{ key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }]\n    }\n  ) {\n    metaobjectDefinition {\n      id\n      access {\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "type": "customer_account_invalid_create_1778240488176"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+            "locations": [
+              {
+                "line": 7,
+                "column": 15
+              }
+            ],
+            "path": [
+              "mutation MetaobjectDefinitionCustomerAccountAccessInvalidCreate",
+              "metaobjectDefinitionCreate",
+              "definition",
+              "access",
+              "customerAccount"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "customerAccount"
+            }
+          }
+        ]
+      }
+    },
+    "invalidUpdate": {
+      "name": "invalid-update-access",
+      "request": {
+        "documentPath": "config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-update.graphql",
+        "query": "mutation MetaobjectDefinitionCustomerAccountAccessInvalidUpdate($id: ID!) {\n  metaobjectDefinitionUpdate(id: $id, definition: { access: { customerAccount: BANANA } }) {\n    metaobjectDefinition {\n      id\n      access {\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17961419058"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 61
+              }
+            ],
+            "path": [
+              "mutation MetaobjectDefinitionCustomerAccountAccessInvalidUpdate",
+              "metaobjectDefinitionUpdate",
+              "definition",
+              "access",
+              "customerAccount"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "customerAccount"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17961419058"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17961419058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17961451826"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17961451826",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -4,15 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productVariantsBulkCreate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productVariantsBulkCreate-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Shopify accepted `optionValues` plus `inventoryItem.sku`, returned the new variant immediately on `product.variants`, and still left immediate sku-filtered `products` / `productsCount` empty.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Shopify accepted `taxCode`, `requiresComponents`, `showUnitPrice`, `unitPriceMeasurement`, variant metafields, and nested `inventoryItem` origin/HS/weight fields; Shopify normalized `inventoryItem.harmonizedSystemCode` by stripping punctuation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -62,7 +61,9 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.productVariantsBulkCreate.product.id"
             },
-            "query": "sku:HERMES-BULK-810153-BLUE"
+            "query": {
+              "fromCapturePath": "$.downstreamRead.requestVariables.query"
+            }
           }
         },
         "proxyPath": "$.data"

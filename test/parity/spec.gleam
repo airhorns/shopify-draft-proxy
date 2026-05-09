@@ -119,6 +119,7 @@ pub type Spec {
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
     operation_names: List(String),
+    now_iso: Option(String),
   )
 }
 
@@ -143,6 +144,11 @@ fn spec_decoder() -> Decoder(Spec) {
     [],
     decode.list(decode.string),
   )
+  use now_iso <- decode.optional_field(
+    "nowIso",
+    None,
+    decode.optional(decode.string),
+  )
   case captures {
     [first, ..] ->
       decode.success(Spec(
@@ -152,6 +158,7 @@ fn spec_decoder() -> Decoder(Spec) {
         targets: comparison.0,
         expected_differences: comparison.1,
         operation_names: operation_names,
+        now_iso: now_iso,
       ))
     [] -> decode.failure(empty_spec(), "liveCaptureFiles cannot be empty")
   }
@@ -165,6 +172,7 @@ fn empty_spec() -> Spec {
     targets: [],
     expected_differences: [],
     operation_names: [],
+    now_iso: None,
   )
 }
 

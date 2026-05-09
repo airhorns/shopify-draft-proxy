@@ -1,0 +1,22 @@
+mutation OrderCancelRestockRefundMethodParity(
+  $orderId: ID!
+  $restock: Boolean!
+  $reason: OrderCancelReason!
+  $notifyCustomer: Boolean
+  $staffNote: String
+  $refundMethod: OrderCancelRefundMethodInput
+) {
+  orderCancel(
+    orderId: $orderId
+    restock: $restock
+    reason: $reason
+    notifyCustomer: $notifyCustomer
+    staffNote: $staffNote
+    refundMethod: $refundMethod
+  ) {
+    orderCancelUserErrors {
+      field
+      message
+    }
+  }
+}
