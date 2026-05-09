@@ -2746,6 +2746,31 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
     == 1
 }
 
+pub fn product_update_stages_gift_card_ownership_and_metafields_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", giftCard: true, giftCardTemplateSuffix: \\\"birthday\\\", claimOwnership: { bundles: true }, metafields: [{ namespace: \\\"custom\\\", key: \\\"color\\\", type: \\\"single_line_text_field\\\", value: \\\"blue\\\" }] }) { product { id isGiftCard templateSuffix hasBundleOwnership } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id isGiftCard templateSuffix hasBundleOwnership metafield(namespace: \\\"custom\\\", key: \\\"color\\\") { namespace key type value ownerType } metafields(first: 5) { nodes { namespace key value } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"metafield\":{\"namespace\":\"custom\",\"key\":\"color\",\"type\":\"single_line_text_field\",\"value\":\"blue\",\"ownerType\":\"PRODUCT\"},\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\"}]}}}}"
+}
+
 pub fn product_update_stages_category_and_requires_selling_plan_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -3155,6 +3180,74 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_create_stages_gift_card_fields_variant_defaults_and_metafields_test() {
+  let proxy = draft_proxy.new()
+  let query =
+    "mutation { productCreate(product: { title: \\\"Gift Card Board\\\", giftCard: true, giftCardTemplateSuffix: \\\"birthday\\\", claimOwnership: { bundles: true }, metafields: [{ namespace: \\\"custom\\\", key: \\\"occasion\\\", type: \\\"single_line_text_field\\\", value: \\\"birthday\\\" }] }) { product { id isGiftCard templateSuffix hasBundleOwnership variants(first: 1) { nodes { id requiresShipping taxable fulfillmentService { serviceName type } inventoryItem { requiresShipping } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"requiresShipping\":false,\"taxable\":false,\"fulfillmentService\":{\"serviceName\":\"Gift Card\",\"type\":\"GIFT_CARD\"},\"inventoryItem\":{\"requiresShipping\":false}}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id isGiftCard templateSuffix hasBundleOwnership metafield(namespace: \\\"custom\\\", key: \\\"occasion\\\") { namespace key type value ownerType } variants(first: 1) { nodes { requiresShipping taxable fulfillmentService { serviceName type } inventoryItem { requiresShipping } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"isGiftCard\":true,\"templateSuffix\":\"birthday\",\"hasBundleOwnership\":true,\"metafield\":{\"namespace\":\"custom\",\"key\":\"occasion\",\"type\":\"single_line_text_field\",\"value\":\"birthday\",\"ownerType\":\"PRODUCT\"},\"variants\":{\"nodes\":[{\"requiresShipping\":false,\"taxable\":false,\"fulfillmentService\":{\"serviceName\":\"Gift Card\",\"type\":\"GIFT_CARD\"},\"inventoryItem\":{\"requiresShipping\":false}}]}}}}"
+}
+
+pub fn product_create_rejects_invalid_metafields_with_indexed_errors_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Bad Metafield\\\", metafields: [{ namespace: \\\"custom\\\", key: \\\"\\\", type: \\\"single_line_text_field\\\", value: \\\"x\\\" }] }) { product { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"key\"],\"message\":\"Key is required.\",\"code\":\"BLANK\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productCreate")
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_create_stages_product_publications_membership_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: product_publication_store(),
+    )
+  let query =
+    "mutation { productCreate(product: { title: \\\"Published Product\\\", productPublications: [{ publicationId: \\\"gid://shopify/Publication/1\\\" }] }) { product { id resourcePublicationsCount { count } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"resourcePublicationsCount\":{\"count\":1}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") resourcePublications(first: 5) { nodes { publication { id } isPublished } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"publishedOnPublication\":true,\"resourcePublications\":{\"nodes\":[{\"publication\":{\"id\":\"gid://shopify/Publication/1\"},\"isPublished\":true}]}}}}"
 }
 
 pub fn product_create_stages_category_requires_selling_plan_and_collections_test() {
@@ -6890,6 +6983,9 @@ fn default_product() -> ProductRecord {
     description_html: "",
     online_store_preview_url: None,
     template_suffix: None,
+    is_gift_card: None,
+    gift_card_template_suffix: None,
+    has_bundle_ownership: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     requires_selling_plan: None,

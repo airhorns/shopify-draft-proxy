@@ -98,6 +98,7 @@ pub fn product_variant_source_with_inventory(
   variant: ProductVariantRecord,
   inventory_item: SourceValue,
 ) -> SourceValue {
+  let fulfillment_service = gift_card_fulfillment_service_source(store, variant)
   src_object([
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
@@ -114,6 +115,7 @@ pub fn product_variant_source_with_inventory(
       graphql_helpers.option_bool_source(variant.requires_shipping),
     ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #("fulfillmentService", fulfillment_service),
     #("taxCode", graphql_helpers.option_string_source(variant.tax_code)),
     #(
       "inventoryPolicy",
@@ -168,6 +170,21 @@ pub fn product_variant_source_with_inventory(
       optional_captured_json_source(variant.contextual_pricing),
     ),
   ])
+}
+
+fn gift_card_fulfillment_service_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  case store.get_effective_product_by_id(store, variant.product_id) {
+    Some(product) if product.is_gift_card == Some(True) ->
+      src_object([
+        #("__typename", SrcString("FulfillmentService")),
+        #("serviceName", SrcString("Gift Card")),
+        #("type", SrcString("GIFT_CARD")),
+      ])
+    _ -> SrcNull
+  }
 }
 
 fn unit_price_measurement_source(
