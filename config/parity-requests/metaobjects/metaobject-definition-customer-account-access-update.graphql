@@ -1,0 +1,20 @@
+mutation MetaobjectDefinitionCustomerAccountAccessUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

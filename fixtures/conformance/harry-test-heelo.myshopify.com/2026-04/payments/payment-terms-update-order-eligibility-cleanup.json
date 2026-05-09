@@ -1,0 +1,66 @@
+{
+  "capturedAt": "2026-05-08T13:48:29.890Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cleanup": {
+    "paymentTermsDelete": {
+      "query": "mutation PaymentTermsUpdateEligibilityTermsCleanup($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/146330812722"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/146330812722",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderCancel": {
+      "query": "mutation PaymentTermsUpdateEligibilityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8736291586354",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/34ceb863-28a7-4839-a1b4-5d11af8ab06f",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

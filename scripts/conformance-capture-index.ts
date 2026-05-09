@@ -809,6 +809,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-dropped-inputs',
+    scriptPath: 'scripts/capture-product-create-dropped-inputs-conformance.ts',
+    purpose:
+      'productCreate giftCard, giftCardTemplateSuffix, claimOwnership.bundles, metafields, and productPublications staging with immediate downstream readback.',
+    requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productCreate-dropped-inputs-parity.json`,
+      'config/parity-specs/products/productCreate-dropped-inputs-parity.json',
+      'config/parity-requests/products/productCreate-dropped-inputs-parity.graphql',
+      'config/parity-requests/products/productCreate-dropped-inputs-downstream-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable gift-card/metafield and publication-staged products, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-no-key-on-create',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-create-no-key-on-create-conformance.ts',
@@ -1109,6 +1126,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-filename-extension-aggregation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-filename-extension-aggregation.ts',
+    purpose:
+      'Files API fileUpdate filename validation aggregation for single and multi-input image extension mismatches plus multi-input unsupported external-video filename updates.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-filename-extension-aggregation.json`,
+      'config/parity-specs/media/file_update_filename_extension/filename-extension-aggregation.json',
+      'config/parity-requests/media/file_update_filename_extension/file-update.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable image and external-video files and deletes all returned file IDs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-fabricated-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-fabricated-validation.ts',
@@ -1188,6 +1221,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['write_files'],
     fixtureOutputs: [`${CAPTURE_ROOT}media-file-create-validation-branches.json`],
     cleanupBehavior: 'Deletes any file successfully created by the acceptance branch.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'file-create-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-file-create-input-validation-conformance.mts',
+    purpose:
+      'fileCreate FileCreateInput originalSource input-class validation for missing, empty, and 2049-character values.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [`${CAPTURE_ROOT}media-file-create-input-validation.json`],
+    cleanupBehavior: 'Validation-only requests are rejected before creating Shopify files.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2306,6 +2351,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-customer-account-access',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-customer-account-access-conformance.ts',
+    purpose:
+      'Metaobject definition access.customerAccount READ/NONE create/update persistence, read-after-write projection, and invalid enum coercion.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-customer-account-access.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-customer-account-access.json',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-customer-account-access-invalid-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable READ and NONE access definitions, captures update/readback branches, captures invalid enum validation-only branches, then deletes created definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-name-type-description-length',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',
@@ -2609,6 +2675,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable metaobject definition and one valid row; rejected validation branches create no rows, then cleanup deletes the row and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-auto-handle-generation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-auto-handle-generation-conformance.ts',
+    purpose:
+      'metaobjectCreate generated handle and fallback displayName shape when no handle is supplied and the definition has no displayNameKey, plus explicit mixed-case handle lowercasing, titleized display-name fallback, and case-insensitive conflict suffixing.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-auto-handle-generation.json`,
+      'config/parity-specs/metaobjects/metaobject-auto-handle-generation.json',
+      'config/parity-requests/metaobjects/metaobject-auto-handle-generation-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-auto-handle-generation-definition-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and four rows, then deletes the rows and definition during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6127,6 +6211,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable paid, closed, and cancelled test Orders, captures paymentTermsCreate eligibility payloads, deletes closed-order payment terms when Shopify accepts them, and best-effort cancels created Orders afterward.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'payment-terms-update-order-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-update-order-eligibility-conformance.ts',
+    purpose:
+      'paymentTermsUpdate Order eligibility rejection after an existing payment terms owner Order is marked paid.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-update-order-eligibility.json`,
+      `${CAPTURE_ROOT}payment-terms-update-order-eligibility-cleanup.json`,
+      'config/parity-specs/payments/payment-terms-update-order-eligibility.json',
+      'config/parity-requests/payments/payment-terms-update-order-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable unpaid test Order, creates payment terms, marks the Order paid, captures the rejected paymentTermsUpdate payload, then best-effort deletes payment terms and cancels the Order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Channel-policy-disallowed update evidence remains fixture-conditional until a captureable sales-channel setup path is available.',
   },
   {
     domain: 'payments',

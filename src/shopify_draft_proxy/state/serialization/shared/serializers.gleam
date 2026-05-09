@@ -404,6 +404,12 @@ pub fn product_json(record: types.ProductRecord) -> Json {
     #("descriptionHtml", json.string(record.description_html)),
     #("onlineStorePreviewUrl", optional_string(record.online_store_preview_url)),
     #("templateSuffix", optional_string(record.template_suffix)),
+    #("isGiftCard", optional_bool(record.is_gift_card)),
+    #(
+      "giftCardTemplateSuffix",
+      optional_string(record.gift_card_template_suffix),
+    ),
+    #("hasBundleOwnership", optional_bool(record.has_bundle_ownership)),
     #("seo", product_seo_json(record.seo)),
     #("category", optional_to_json(record.category, product_category_json)),
     #("requiresSellingPlan", optional_bool(record.requires_selling_plan)),

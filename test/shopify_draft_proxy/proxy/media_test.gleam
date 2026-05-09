@@ -157,6 +157,9 @@ fn seeded_variant_media_proxy() {
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
+      is_gift_card: None,
+      gift_card_template_suffix: None,
+      has_bundle_ownership: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       requires_selling_plan: None,
@@ -457,18 +460,20 @@ pub fn file_create_does_not_apply_per_input_references_to_add_validation_test() 
 }
 
 pub fn file_create_validates_length_and_duplicate_modes_test() {
-  let #(Response(status: empty_status, body: empty_body, ..), _) =
+  let #(Response(status: empty_status, body: empty_body, ..), empty_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \"\" }]) { files { id } userErrors { field message code } } }",
     )
   assert empty_status == 200
   assert json.to_string(empty_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too short (minimum is 1)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too short (minimum is 1)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(empty_proxy))
+    == "{\"entries\":[]}"
 
   let long_source =
     "https://cdn.example.com/" <> string.repeat("a", times: 2050) <> ".png"
-  let #(Response(status: long_status, body: long_body, ..), _) =
+  let #(Response(status: long_status, body: long_body, ..), long_proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \""
@@ -477,7 +482,9 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
     )
   assert long_status == 200
   assert json.to_string(long_body)
-    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too long (maximum is 2048)\",\"code\":\"INVALID\"}]}}}"
+    == "{\"errors\":[{\"message\":\"originalSource is too long (maximum is 2048)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileCreate\"]}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(long_proxy))
+    == "{\"entries\":[]}"
 
   let #(Response(status: mode_status, body: mode_body, ..), _) =
     graphql(
@@ -496,6 +503,48 @@ pub fn file_create_validates_length_and_duplicate_modes_test() {
   assert replace_status == 200
   assert json.to_string(replace_body)
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Missing filename argument when attempting to use REPLACE duplicate mode.\",\"code\":\"MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE\"}]}}}"
+}
+
+pub fn file_create_missing_original_source_is_top_level_validation_test() {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ contentType: IMAGE }]) { files { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"data\":{\"fileCreate\":null}")
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn file_create_variable_missing_original_source_stays_schema_error_test() {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"mutation Missing($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id } userErrors { field message code } } }\",\"variables\":{\"files\":[{\"contentType\":\"IMAGE\"}]}}",
+    )
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(registry_proxy(), request)
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "0.originalSource")
+  assert !string.contains(serialized, "Original source is required")
+  assert !string.contains(serialized, "\"userErrors\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn file_create_accepts_long_alt_and_valid_duplicate_mode_test() {
@@ -666,6 +715,23 @@ pub fn file_update_rejects_video_filename_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
 }
 
+pub fn file_update_aggregates_video_filename_errors_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_video(),
+      FileRecord(..ready_video(), id: "gid://shopify/Video/4"),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/Video/2\", filename: \"clip-new.mp4\" }, { id: \"gid://shopify/Video/4\", filename: \"clip-other.mp4\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
+}
+
 pub fn file_update_image_original_source_updates_preview_only_test() {
   let #(Response(status: status, body: body, ..), proxy) =
     graphql(
@@ -718,6 +784,27 @@ pub fn file_update_rejects_filename_extension_mismatch_test() {
     graphql(
       registry_proxy_with_files([ready_image()]),
       "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", filename: \"seed.png\" }]) { files { id fileStatus alt filename __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"The filename extension provided must match the original filename.\",\"code\":\"INVALID_FILENAME_EXTENSION\"}]}}}"
+}
+
+pub fn file_update_aggregates_filename_extension_mismatch_errors_test() {
+  let proxy =
+    registry_proxy_with_files([
+      ready_image(),
+      FileRecord(
+        ..ready_image(),
+        id: "gid://shopify/MediaImage/5",
+        filename: Some("second.jpg"),
+      ),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", filename: \"seed.png\" }, { id: \"gid://shopify/MediaImage/5\", filename: \"second.gif\" }]) { files { id fileStatus alt filename __typename } userErrors { field message code } } }",
     )
 
   assert status == 200

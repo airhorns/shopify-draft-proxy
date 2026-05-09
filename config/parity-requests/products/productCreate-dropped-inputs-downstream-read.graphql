@@ -1,0 +1,34 @@
+query ProductCreateDroppedInputsDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    isGiftCard
+    giftCardTemplateSuffix
+    metafield(namespace: "custom", key: "occasion") {
+      namespace
+      key
+      type
+      value
+      ownerType
+    }
+    metafields(first: 5) {
+      nodes {
+        namespace
+        key
+        type
+        value
+        ownerType
+      }
+    }
+    variants(first: 1) {
+      nodes {
+        id
+        taxable
+        inventoryItem {
+          id
+          requiresShipping
+        }
+      }
+    }
+  }
+}

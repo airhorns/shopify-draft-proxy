@@ -173,6 +173,15 @@ pub fn process_request(
   proxy: DraftProxy,
   request: Request,
 ) -> #(Response, DraftProxy) {
+  process_request_at(proxy, request, iso_timestamp.now_iso())
+}
+
+@internal
+pub fn process_request_at(
+  proxy: DraftProxy,
+  request: Request,
+  now_iso: String,
+) -> #(Response, DraftProxy) {
   case route(request) {
     Health -> #(health_response(), proxy)
     MetaConfig -> #(ok_json_response(get_config_snapshot(proxy)), proxy)
@@ -180,7 +189,7 @@ pub fn process_request(
     MetaState -> #(ok_json_response(get_state_snapshot(proxy)), proxy)
     MetaReset -> #(reset_response(), reset(proxy))
     MetaCommit -> dispatch_meta_commit_sync(proxy, request)
-    GraphQL(version: _) -> dispatch_graphql(proxy, request)
+    GraphQL(version: _) -> dispatch_graphql_at(proxy, request, now_iso)
     NotFound -> #(not_found_response(), proxy)
     MethodNotAllowed -> #(method_not_allowed_response(), proxy)
   }
@@ -460,9 +469,10 @@ fn error_response(status: Int, message: String) -> Response {
   )
 }
 
-fn dispatch_graphql(
+fn dispatch_graphql_at(
   proxy: DraftProxy,
   request: Request,
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   case parse_request_body(request.body) {
     Error(message) -> #(bad_request(message), proxy)
@@ -499,6 +509,7 @@ fn dispatch_graphql(
                         body.query,
                         field,
                         body.variables,
+                        now_iso,
                       )
                     _, _ -> #(bad_request("Operation has no root field"), proxy)
                   }
@@ -735,6 +746,7 @@ fn route_mutation(
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   // Schema-driven required-field validation runs once, here, before
   // any domain handler executes. Mirrors how a real GraphQL server
@@ -752,6 +764,7 @@ fn route_mutation(
         query,
         primary_root_field,
         variables,
+        now_iso,
       )
     _ ->
       case schema_validation_errors(parsed, query, variables, request_headers) {
@@ -764,6 +777,7 @@ fn route_mutation(
             query,
             primary_root_field,
             variables,
+            now_iso,
           )
         errors -> #(schema_validation_error_response(errors), proxy)
       }
@@ -1812,6 +1826,7 @@ fn route_mutation_to_domain(
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
+  now_iso: String,
 ) -> #(Response, DraftProxy) {
   let upstream =
     upstream_query.UpstreamContext(
@@ -1823,15 +1838,30 @@ fn route_mutation_to_domain(
 
   case mutation_handler_for(proxy, parsed, query, primary_root_field) {
     Some(handler) -> {
-      let outcome =
-        handler(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream,
-        )
+      let outcome = case primary_root_field {
+        "giftCardCredit"
+        | "giftCardDebit"
+        | "giftCardSendNotificationToCustomer"
+        | "giftCardSendNotificationToRecipient" ->
+          gift_cards.process_mutation_at(
+            proxy.store,
+            proxy.synthetic_identity,
+            request_path,
+            query,
+            variables,
+            upstream,
+            now_iso,
+          )
+        _ ->
+          handler(
+            proxy.store,
+            proxy.synthetic_identity,
+            request_path,
+            query,
+            variables,
+            upstream,
+          )
+      }
       finalize_mutation_outcome(
         proxy,
         request_path,

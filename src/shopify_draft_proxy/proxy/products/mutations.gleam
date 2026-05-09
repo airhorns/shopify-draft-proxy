@@ -404,6 +404,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let #(entry_status, note) = case result.staging_failed {
                 False -> #(store_types.Staged, "Staged productCreate locally.")

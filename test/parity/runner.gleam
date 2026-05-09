@@ -169,6 +169,7 @@ pub fn run_with_config(
     "<primary>",
     parsed.proxy_request.api_version,
     parsed.proxy_request.headers,
+    parsed.now_iso,
     config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
@@ -548,6 +549,7 @@ fn actual_response_for(
             target.name,
             request.api_version,
             request.headers,
+            parsed.now_iso,
             config.debug,
           ))
           use value <- result.try(parse_response_body(response))
@@ -825,6 +827,7 @@ fn execute(
   context: String,
   api_version: Option(String),
   headers: List(#(String, String)),
+  now_iso: Option(String),
   debug: Bool,
 ) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
@@ -841,7 +844,10 @@ fn execute(
     True -> log_request(context, executed, variables)
     False -> Nil
   }
-  let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+  let #(response, next_proxy) = case now_iso {
+    Some(now) -> draft_proxy.process_request_at(proxy, request, now)
+    None -> draft_proxy.process_request(proxy, request)
+  }
   case debug {
     True -> log_response(context, response)
     False -> Nil
