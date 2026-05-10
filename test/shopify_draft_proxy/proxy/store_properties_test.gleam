@@ -2410,11 +2410,16 @@ pub fn location_delete_uses_location_state_guards_and_read_back_test() {
     |> store.upsert_base_store_property_location(
       StorePropertyRecord(
         ..make_location(primary_id, "Delete primary", False, True, True, False),
-        data: dict.insert(
-          make_location(primary_id, "Delete primary", False, True, True, False).data,
-          "isPrimary",
-          StorePropertyBool(True),
-        ),
+        data: make_location(
+            primary_id,
+            "Delete primary",
+            False,
+            True,
+            True,
+            False,
+          ).data
+          |> dict.insert("isPrimary", StorePropertyBool(True))
+          |> dict.insert("deletable", StorePropertyBool(False)),
       ),
     )
     |> store.upsert_base_store_property_location(
@@ -2566,8 +2571,13 @@ pub fn location_delete_uses_location_state_guards_and_read_back_test() {
       proxy,
       graphql_request(delete_body <> primary_id <> "\"}}"),
     )
+  let primary_serialized = json.to_string(primary_json)
   assert string.contains(
-    json.to_string(primary_json),
+    primary_serialized,
+    "\"code\":\"LOCATION_NOT_DELETABLE\"",
+  )
+  assert !string.contains(
+    primary_serialized,
     "\"code\":\"LOCATION_IS_PRIMARY\"",
   )
 
