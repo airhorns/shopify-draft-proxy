@@ -1037,6 +1037,59 @@ pub fn payment_customization_create_allows_six_enabled_customizations_test() {
   assert string.contains(meta_state_json(proxy), "Payment customization 6")
 }
 
+pub fn payment_customization_activation_returns_only_toggled_ids_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), valid_payment_customization_create_query("1"))
+  assert create_status == 200
+
+  let #(Response(status: activation_status, body: activation_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/1\", \"gid://shopify/PaymentCustomization/999\"], enabled: false) { ids userErrors { field code message } } }",
+    )
+  assert activation_status == 200
+  let activation_json = json.to_string(activation_body)
+  assert string.contains(
+    activation_json,
+    "\"ids\":[\"gid://shopify/PaymentCustomization/1\"]",
+  )
+  assert string.contains(activation_json, "\"field\":[\"ids\"]")
+  assert string.contains(
+    activation_json,
+    "\"code\":\"PAYMENT_CUSTOMIZATION_NOT_FOUND\"",
+  )
+  assert string.contains(
+    activation_json,
+    "gid://shopify/PaymentCustomization/999",
+  )
+
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/1\"], enabled: false) { ids userErrors { field code message } } }",
+    )
+  assert second_status == 200
+  let second_json = json.to_string(second_body)
+  assert string.contains(second_json, "\"ids\":[]")
+  assert string.contains(second_json, "\"userErrors\":[]")
+}
+
+pub fn payment_customization_activation_all_invalid_returns_empty_ids_test() {
+  let #(Response(status: activation_status, body: activation_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/999\"], enabled: true) { ids userErrors { field code message } } }",
+    )
+  assert activation_status == 200
+  let activation_json = json.to_string(activation_body)
+  assert string.contains(activation_json, "\"ids\":[]")
+  assert string.contains(activation_json, "\"field\":[\"ids\"]")
+  assert string.contains(
+    activation_json,
+    "\"code\":\"PAYMENT_CUSTOMIZATION_NOT_FOUND\"",
+  )
+}
+
 fn valid_payment_customization_create_query(suffix: String) -> String {
   "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Payment customization "
   <> suffix

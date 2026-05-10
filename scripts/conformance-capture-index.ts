@@ -6325,6 +6325,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-customization-activation-mixed',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-activation-mixed-conformance.ts',
+    purpose:
+      'paymentCustomizationActivation mixed valid/missing id bucketing and filtered ids return payload against a disposable payment customization.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-activation-mixed.json`,
+      'config/parity-specs/payments/payment-customization-activation-mixed.json',
+      'config/parity-requests/payments/payment-customization-activation-mixed.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable payment customization, activates it with one valid id plus one known-missing id, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-create-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',
