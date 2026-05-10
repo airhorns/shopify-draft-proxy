@@ -5355,11 +5355,14 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Mutation,
       domain: ShippingFulfillments,
       execution: StageLocally,
-      implemented: False,
+      implemented: True,
       match_names: ["fulfillmentOrderClose", "FulfillmentOrderClose"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured the merchant-managed guardrail `The fulfillment order's assigned fulfillment service must be of api type`; this root remains unimplemented for full lifecycle support because no success path was captured for API fulfillment-service orders.",
+        "Locally stages fulfillment-order close for IN_PROGRESS orders and OPEN orders assigned to a known THIRD_PARTY fulfillment-service location, transitions the record to CLOSED/requestStatus CLOSED, preserves the captured merchant-managed API-type guardrail, and leaves state unchanged for invalid status or missing-id failures. Existing HAR-234 parity covers the merchant-managed guardrail branch; success-path coverage is local runtime evidence until an API-service success capture is added.",
       ),
     ),
     RegistryEntry(
@@ -5490,11 +5493,14 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Mutation,
       domain: ShippingFulfillments,
       execution: StageLocally,
-      implemented: False,
+      implemented: True,
       match_names: ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured the open-order guardrail `Fulfillment order must be scheduled.`; this root remains unimplemented for full lifecycle support until scheduled fulfillment-order setup and success read-after-write behavior are captured.",
+        "Locally stages reschedule for SCHEDULED fulfillment orders, updates fulfillAt/updatedAt, preserves the captured non-scheduled guardrail, validates past or malformed fulfillAt separately, and leaves state unchanged for invalid status, invalid date, or missing-id failures. Existing HAR-234 parity covers the non-scheduled guardrail branch; success-path coverage is local runtime evidence until a scheduled success capture is added.",
       ),
     ),
     RegistryEntry(

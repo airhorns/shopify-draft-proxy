@@ -57,6 +57,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   captured_json_source, fulfillment_order_source, is_active_location,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -921,6 +922,301 @@ pub fn handle_fulfillment_order_simple_status(
         payload_typename,
       )
   }
+}
+
+@internal
+pub fn handle_fulfillment_order_reschedule(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let args = resolved_args(field, variables)
+  case read_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+        Some(order) ->
+          case order.status == "SCHEDULED" {
+            False ->
+              fulfillment_order_state_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderReschedulePayload",
+                "Fulfillment order must be scheduled.",
+                "INVALID_FULFILLMENT_ORDER_STATUS",
+              )
+            True ->
+              case read_string(args, "fulfillAt") {
+                Some(fulfill_at) ->
+                  case fulfillment_order_fulfill_at_in_future(fulfill_at) {
+                    False ->
+                      fulfillment_order_single_user_error_result(
+                        draft_store,
+                        identity,
+                        field,
+                        fragments,
+                        "FulfillmentOrderReschedulePayload",
+                        ["fulfillAt"],
+                        "Fulfill at must be a future date.",
+                        "INVALID_FULFILL_AT",
+                      )
+                    True -> {
+                      let updated =
+                        update_fulfillment_order_fields(order, [
+                          #("fulfillAt", CapturedString(fulfill_at)),
+                          #(
+                            "updatedAt",
+                            CapturedString(synthetic_timestamp_string()),
+                          ),
+                        ])
+                      fulfillment_order_single_payload_result(
+                        draft_store,
+                        identity,
+                        field,
+                        fragments,
+                        "FulfillmentOrderReschedulePayload",
+                        updated,
+                      )
+                    }
+                  }
+                None ->
+                  fulfillment_order_single_user_error_result(
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    "FulfillmentOrderReschedulePayload",
+                    ["fulfillAt"],
+                    "Fulfill at must be present.",
+                    "INVALID_FULFILL_AT",
+                  )
+              }
+          }
+        None ->
+          fulfillment_order_not_found_result(
+            draft_store,
+            identity,
+            field,
+            fragments,
+            "FulfillmentOrderReschedulePayload",
+          )
+      }
+    None ->
+      fulfillment_order_not_found_result(
+        draft_store,
+        identity,
+        field,
+        fragments,
+        "FulfillmentOrderReschedulePayload",
+      )
+  }
+}
+
+@internal
+pub fn handle_fulfillment_order_close(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let args = resolved_args(field, variables)
+  case read_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+        Some(order) ->
+          case fulfillment_order_close_allowed(draft_store, order) {
+            True -> {
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString("CLOSED")),
+                  #("requestStatus", CapturedString("CLOSED")),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #("supportedActions", CapturedArray([])),
+                ])
+              let updated =
+                FulfillmentOrderRecord(
+                  ..updated,
+                  status: "CLOSED",
+                  request_status: "CLOSED",
+                )
+              fulfillment_order_single_payload_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderClosePayload",
+                updated,
+              )
+            }
+            False ->
+              case order.status == "OPEN" {
+                True ->
+                  fulfillment_order_state_user_error_result(
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    "FulfillmentOrderClosePayload",
+                    "The fulfillment order's assigned fulfillment service must be of api type",
+                    "FULFILLMENT_SERVICE_NOT_API_TYPE",
+                  )
+                False ->
+                  fulfillment_order_state_user_error_result(
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    "FulfillmentOrderClosePayload",
+                    "Fulfillment order must be in progress.",
+                    "INVALID_FULFILLMENT_ORDER_STATUS",
+                  )
+              }
+          }
+        None ->
+          fulfillment_order_not_found_result(
+            draft_store,
+            identity,
+            field,
+            fragments,
+            "FulfillmentOrderClosePayload",
+          )
+      }
+    None ->
+      fulfillment_order_not_found_result(
+        draft_store,
+        identity,
+        field,
+        fragments,
+        "FulfillmentOrderClosePayload",
+      )
+  }
+}
+
+fn fulfillment_order_close_allowed(
+  draft_store: Store,
+  order: FulfillmentOrderRecord,
+) -> Bool {
+  case order.status {
+    "IN_PROGRESS" -> True
+    "OPEN" -> fulfillment_order_assigned_to_api_service(draft_store, order)
+    _ -> False
+  }
+}
+
+fn fulfillment_order_assigned_to_api_service(
+  draft_store: Store,
+  order: FulfillmentOrderRecord,
+) -> Bool {
+  case order.assigned_location_id {
+    Some(location_id) ->
+      store.list_effective_fulfillment_services(draft_store)
+      |> list.any(fn(service) {
+        service.location_id == Some(location_id)
+        && service.type_ == "THIRD_PARTY"
+      })
+    None -> False
+  }
+}
+
+fn fulfillment_order_fulfill_at_in_future(fulfill_at: String) -> Bool {
+  case
+    iso_timestamp.parse_iso(fulfill_at),
+    iso_timestamp.parse_iso(synthetic_timestamp_string())
+  {
+    Ok(fulfill_at_ms), Ok(now_ms) -> fulfill_at_ms > now_ms
+    _, _ -> False
+  }
+}
+
+fn fulfillment_order_not_found_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  payload_typename: String,
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  fulfillment_order_single_user_error_result(
+    draft_store,
+    identity,
+    field,
+    fragments,
+    payload_typename,
+    ["id"],
+    "Fulfillment order does not exist.",
+    "FULFILLMENT_ORDER_NOT_FOUND",
+  )
+}
+
+fn fulfillment_order_state_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  payload_typename: String,
+  message: String,
+  code: String,
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  fulfillment_order_single_user_error_result(
+    draft_store,
+    identity,
+    field,
+    fragments,
+    payload_typename,
+    [],
+    message,
+    code,
+  )
+}
+
+fn fulfillment_order_single_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  payload_typename: String,
+  field_path: List(String),
+  message: String,
+  code: String,
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    shipping_types.MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString(payload_typename)),
+        #("fulfillmentOrder", SrcNull),
+        #(
+          "userErrors",
+          SrcList([
+            fulfillment_order_lifecycle_user_error(field_path, message, code),
+          ]),
+        ),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn fulfillment_order_lifecycle_user_error(
+  field_path: List(String),
+  message: String,
+  code: String,
+) -> SourceValue {
+  src_object([
+    #("field", case field_path {
+      [] -> SrcNull
+      [_, ..] -> SrcList(list.map(field_path, SrcString))
+    }),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
 }
 
 fn fulfillment_order_release_hold_user_error_result(

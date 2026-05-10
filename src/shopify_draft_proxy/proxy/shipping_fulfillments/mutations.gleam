@@ -30,12 +30,12 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/delivery_profiles.{
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers.{
   fulfillment_order_merge_ids, fulfillment_order_split_ids,
-  fulfillment_order_user_error_payload,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_orders.{
-  handle_fulfillment_order_cancel, handle_fulfillment_order_hold,
-  handle_fulfillment_order_merge, handle_fulfillment_order_move,
-  handle_fulfillment_order_release_hold, handle_fulfillment_order_simple_status,
+  handle_fulfillment_order_cancel, handle_fulfillment_order_close,
+  handle_fulfillment_order_hold, handle_fulfillment_order_merge,
+  handle_fulfillment_order_move, handle_fulfillment_order_release_hold,
+  handle_fulfillment_order_reschedule, handle_fulfillment_order_simple_status,
   handle_fulfillment_order_split, handle_fulfillment_orders_set_deadline,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_requests.{
@@ -288,13 +288,12 @@ pub fn handle_mutation_fields(
                 variables,
               ))
             "fulfillmentOrderReschedule" ->
-              Some(fulfillment_order_user_error_payload(
+              Some(handle_fulfillment_order_reschedule(
                 current_store,
                 current_identity,
                 field,
                 fragments,
-                "FulfillmentOrderReschedulePayload",
-                "Fulfillment order must be scheduled.",
+                variables,
               ))
             "fulfillmentOrderReportProgress" ->
               Some(handle_fulfillment_order_simple_status(
@@ -317,13 +316,12 @@ pub fn handle_mutation_fields(
                 "OPEN",
               ))
             "fulfillmentOrderClose" ->
-              Some(fulfillment_order_user_error_payload(
+              Some(handle_fulfillment_order_close(
                 current_store,
                 current_identity,
                 field,
                 fragments,
-                "FulfillmentOrderClosePayload",
-                "The fulfillment order's assigned fulfillment service must be of api type",
+                variables,
               ))
             "fulfillmentOrderCancel" ->
               Some(handle_fulfillment_order_cancel(
