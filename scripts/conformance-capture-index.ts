@@ -3220,6 +3220,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'markets-user-error-typename',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-markets-user-error-typename-conformance.ts',
+    purpose:
+      'Typed userErrors __typename discriminator validation for price-list, quantity-rules, and web-presence mutation payloads.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}markets-user-error-typename.json`,
+      'config/parity-specs/markets/markets-user-error-typename.json',
+      'config/parity-requests/markets/markets-user-error-typename.graphql',
+    ],
+    cleanupBehavior:
+      'Runs safe validation branches with blank input or unknown ids; no store records are created, updated, or deleted.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'price-list-update-detach-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-update-detach-catalog-conformance.ts',
