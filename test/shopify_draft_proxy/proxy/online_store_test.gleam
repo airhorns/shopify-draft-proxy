@@ -1104,6 +1104,22 @@ pub fn storefront_access_token_create_blank_title_returns_blank_user_error_test(
   assert log.staged_resource_ids == []
 }
 
+pub fn storefront_access_token_delete_not_found_uses_input_id_field_test() {
+  let query =
+    "mutation { storefrontAccessTokenDelete(input: { id: \"gid://shopify/StorefrontAccessToken/not-found\" }) { deletedStorefrontAccessTokenId userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"storefrontAccessTokenDelete\":{\"deletedStorefrontAccessTokenId\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Storefront access token does not exist\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 0
+}
+
 pub fn storefront_access_token_create_reaches_limit_at_100_tokens_test() {
   let proxy = create_storefront_token_loop(proxy(), 100)
   assert store.list_effective_online_store_integrations(
