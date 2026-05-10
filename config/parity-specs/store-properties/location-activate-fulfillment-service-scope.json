@@ -1,0 +1,38 @@
+{
+  "scenarioId": "location-activate-fulfillment-service-scope",
+  "operationNames": ["locationActivate", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "scope-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-fulfillment-service-scope.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-activate-fulfillment-service-scope.graphql",
+    "variablesCapturePath": "$.workflow.activateFulfillmentServiceLocation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fulfillment-service-location-activate-scope-error",
+        "capturePath": "$.workflow.activateFulfillmentServiceLocation.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate"
+      },
+      {
+        "name": "fulfillment-service-location-read-after-activate",
+        "capturePath": "$.workflow.readAfterActivate.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-fulfillment-service-scope-read.graphql",
+          "variablesCapturePath": "$.workflow.readAfterActivate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture for locationActivate against a fulfillment-service-managed Location. The public API creates fulfillment-service locations active, and a recorded locationDeactivate attempt returns PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR while the location remains active, so this checked-in parity scenario records the real fulfillment-service scope error on the active FS-managed branch. The runtime test covers the inactive FS-managed branch directly and verifies no staged activation or read-after-write change."
+}
