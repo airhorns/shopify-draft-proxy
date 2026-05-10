@@ -609,13 +609,15 @@ pub fn shipping_package_make_default_clears_previous_default_test() {
       seeded_store(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
-      "mutation MakeDefault($id: ID!) { shippingPackageMakeDefault(id: $id) { userErrors { field message } } }",
+      "mutation MakeDefault($id: ID!) { shippingPackageMakeDefault(id: $id) { shippingPackage { id name default updatedAt } userErrors { field message code } } }",
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/ShippingPackage/2")),
       ]),
       empty_upstream_context(),
     )
 
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shippingPackageMakeDefault\":{\"shippingPackage\":{\"id\":\"gid://shopify/ShippingPackage/2\",\"name\":\"Backup mailer\",\"default\":true,\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
   let assert Some(first) =
     store.get_effective_shipping_package_by_id(
       outcome.store,
@@ -628,6 +630,62 @@ pub fn shipping_package_make_default_clears_previous_default_test() {
     )
   assert first.default == False
   assert second.default == True
+}
+
+pub fn shipping_package_make_default_unknown_id_returns_resource_not_found_test() {
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      seeded_store(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "mutation MakeDefault($id: ID!) { shippingPackageMakeDefault(id: $id) { shippingPackage { id default } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/ShippingPackage/999")),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"shippingPackageMakeDefault\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"shippingPackageMakeDefault\":null}}"
+  let assert Some(first) =
+    store.get_effective_shipping_package_by_id(
+      outcome.store,
+      "gid://shopify/ShippingPackage/1",
+    )
+  let assert Some(second) =
+    store.get_effective_shipping_package_by_id(
+      outcome.store,
+      "gid://shopify/ShippingPackage/2",
+    )
+  assert first.default == True
+  assert second.default == False
+}
+
+pub fn shipping_package_make_default_missing_id_returns_resource_not_found_test() {
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      seeded_store(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "mutation MakeDefault { shippingPackageMakeDefault { shippingPackage { id default } userErrors { field message } } }",
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"shippingPackageMakeDefault\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"shippingPackageMakeDefault\":null}}"
+  let assert Some(first) =
+    store.get_effective_shipping_package_by_id(
+      outcome.store,
+      "gid://shopify/ShippingPackage/1",
+    )
+  let assert Some(second) =
+    store.get_effective_shipping_package_by_id(
+      outcome.store,
+      "gid://shopify/ShippingPackage/2",
+    )
+  assert first.default == True
+  assert second.default == False
 }
 
 pub fn shipping_package_delete_marks_staged_deletion_test() {

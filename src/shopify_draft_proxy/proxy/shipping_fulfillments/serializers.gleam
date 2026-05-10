@@ -30,7 +30,8 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   fulfillment_source, local_pickup_user_error_source, option_to_source,
   optional_store_property_source, reverse_delivery_source,
   reverse_fulfillment_order_source, shipping_order_source,
-  shipping_package_update_user_error_source, store_property_record_source,
+  shipping_package_source, shipping_package_update_user_error_source,
+  store_property_record_source,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
 import shopify_draft_proxy/search_query_parser
@@ -41,7 +42,7 @@ import shopify_draft_proxy/state/types.{
   type FulfillmentOrderRecord, type FulfillmentRecord,
   type FulfillmentServiceRecord, type ReverseDeliveryRecord,
   type ReverseFulfillmentOrderRecord, type ShippingOrderRecord,
-  type StorePropertyRecord, type StorePropertyValue,
+  type ShippingPackageRecord, type StorePropertyRecord, type StorePropertyValue,
 }
 
 @internal
@@ -91,6 +92,40 @@ pub fn shipping_package_update_payload_json(
       ..,
     ) -> project_graphql_value(source, child_selections, fragments)
     _ -> json.object([])
+  }
+}
+
+@internal
+pub fn shipping_package_make_default_payload_json(
+  field: Selection,
+  fragments: FragmentMap,
+  shipping_package: Option(ShippingPackageRecord),
+  user_errors: List(shipping_types.ShippingPackageUpdateUserError),
+) -> Json {
+  let source =
+    src_object([
+      #("__typename", SrcString("ShippingPackageMakeDefaultPayload")),
+      #("shippingPackage", optional_shipping_package_source(shipping_package)),
+      #(
+        "userErrors",
+        SrcList(list.map(user_errors, shipping_package_update_user_error_source)),
+      ),
+    ])
+  case field {
+    Field(
+      selection_set: Some(SelectionSet(selections: child_selections, ..)),
+      ..,
+    ) -> project_graphql_value(source, child_selections, fragments)
+    _ -> json.object([])
+  }
+}
+
+fn optional_shipping_package_source(
+  shipping_package: Option(ShippingPackageRecord),
+) -> SourceValue {
+  case shipping_package {
+    Some(record) -> shipping_package_source(record)
+    None -> SrcNull
   }
 }
 

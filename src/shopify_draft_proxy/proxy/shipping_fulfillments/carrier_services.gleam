@@ -30,7 +30,8 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/serializers.{
   delivery_profile_payload_json, delivery_profile_remove_payload_json,
   fulfillment_service_delete_payload_json, fulfillment_service_payload_json,
   local_pickup_disable_payload_json, local_pickup_enable_payload_json,
-  payload_json, shipping_package_update_payload_json,
+  payload_json, shipping_package_make_default_payload_json,
+  shipping_package_update_payload_json,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   blank_delivery_profile_name_error, carrier_service_formatted_name,
@@ -1462,9 +1463,11 @@ pub fn handle_shipping_package_make_default(
   case read_string(args, "id") {
     Some(package_id) -> {
       case store.get_effective_shipping_package_by_id(draft_store, package_id) {
-        Some(_) -> {
+        Some(base) -> {
           let #(updated_at, next_identity) =
             synthetic_identity.make_synthetic_timestamp(identity)
+          let updated_default =
+            ShippingPackageRecord(..base, default: True, updated_at: updated_at)
           let packages = store.list_effective_shipping_packages(draft_store)
           let next_store =
             list.fold(
@@ -1485,11 +1488,11 @@ pub fn handle_shipping_package_make_default(
           #(
             shipping_types.MutationFieldResult(
               key: get_field_response_key(field),
-              payload: payload_json(
+              payload: shipping_package_make_default_payload_json(
                 field,
                 fragments,
-                "ShippingPackageMakeDefaultPayload",
-                None,
+                Some(updated_default),
+                [],
               ),
               errors: [],
               staged_resource_ids: [package_id],
@@ -1501,21 +1504,7 @@ pub fn handle_shipping_package_make_default(
         None -> invalid_shipping_package_result(draft_store, identity, field)
       }
     }
-    None -> #(
-      shipping_types.MutationFieldResult(
-        key: get_field_response_key(field),
-        payload: payload_json(
-          field,
-          fragments,
-          "ShippingPackageMakeDefaultPayload",
-          None,
-        ),
-        errors: [],
-        staged_resource_ids: [],
-      ),
-      draft_store,
-      identity,
-    )
+    None -> invalid_shipping_package_result(draft_store, identity, field)
   }
 }
 
