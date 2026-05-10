@@ -6168,6 +6168,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-reminder-send-malformed-gid',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-payment-reminder-malformed-gid-conformance.ts',
+    purpose:
+      'Records paymentReminderSend paymentScheduleId GID coercion errors for empty, non-GID, and wrong-resource GID variables.',
+    requiredAuthScopes: ['read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json',
+      'config/parity-specs/payments/payment-reminder-send-malformed-gid.json',
+      'config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql',
+    ],
+    cleanupBehavior: 'No setup or cleanup; the capture sends validation-only malformed IDs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'platform-payments-orphaned-fixtures-payments',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01', ORPHAN_FIXTURE_GROUP: 'payments' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
