@@ -6988,6 +6988,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-create-uniqueness',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-create-uniqueness-conformance.ts',
+    purpose:
+      'DeliveryCarrierService active per-app uniqueness validation for carrierServiceCreate duplicate active services.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-create-uniqueness.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-create-uniqueness.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active carrier service, records the duplicate create rejection for the same app/shop, then deletes the created carrier service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-callback-url-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-callback-url-validation-conformance.ts',
