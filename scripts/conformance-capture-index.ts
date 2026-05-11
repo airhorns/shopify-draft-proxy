@@ -2001,7 +2001,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-filter-projection-conformance.ts',
     purpose:
-      'SavedSearch filters projection for range comparators, exists syntax, bounded ranges, and negated range terms.',
+      'SavedSearch filters projection and filters.__typename for range comparators, exists syntax, bounded ranges, and negated range terms.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-filter-projection.json`,
