@@ -6346,6 +6346,8 @@ fn metafield_definition(
     constraints: None,
     pinned_position: None,
     validation_status: "ALL_VALID",
+    app_config_managed: False,
+    standard_template_app_dependent: False,
   )
 }
 

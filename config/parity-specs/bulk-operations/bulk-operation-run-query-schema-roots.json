@@ -1,0 +1,36 @@
+{
+  "scenarioId": "bulk-operation-run-query-schema-roots",
+  "operationNames": ["bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "schema-validation-parity", "cassette-replay-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-schema-roots.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-schema-roots.graphql",
+    "variablesCapturePath": "$.cases.ordersRoot.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 accepting schema-known non-product bulk query roots. The orders root proves validation is not limited to products/productVariants. The draftOrders case selects DraftOrder.warnings, a list-but-not-connection field outside the former local curated list. Local JSONL synthesis for these roots is intentionally not implemented here; LiveHybrid parity replays the recorded upstream bulkOperationRunQuery payload unchanged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "orders-root.bulkOperationRunQuery",
+        "capturePath": "$.cases.ordersRoot.run.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery"
+      },
+      {
+        "name": "draft-orders-warnings-list.bulkOperationRunQuery",
+        "capturePath": "$.cases.draftOrdersWarningsList.run.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-schema-roots.graphql",
+          "variablesCapturePath": "$.cases.draftOrdersWarningsList.run.variables"
+        }
+      }
+    ]
+  }
+}

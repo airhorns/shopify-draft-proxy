@@ -12,8 +12,8 @@ import shopify_draft_proxy/graphql/root_field.{
 }
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, SrcList, SrcNull, SrcString, get_document_fragments,
-  get_field_response_key,
+  type FragmentMap, SrcList, SrcNull, SrcString, field_locations_json,
+  get_document_fragments, get_field_response_key,
 }
 import shopify_draft_proxy/proxy/media/serializers
 import shopify_draft_proxy/proxy/media/types as media_types
@@ -106,6 +106,12 @@ const file_like_gid_types: List(String) = [
   "GenericFile",
 ]
 
+const max_file_create_batch_size: Int = 250
+
+const manage_products_header: String = "x-shopify-draft-proxy-manage-products"
+
+const media_quota_errors_header: String = "x-shopify-draft-proxy-media-quota-errors"
+
 type FileVersionEvidence {
   FileVersionEvidence(id: String, file_id: String)
 }
@@ -181,30 +187,34 @@ fn process_mutation_with_options(
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
-      case file_input_top_level_errors(fields, variables) {
+      case file_input_top_level_errors(fields, variables, document) {
         #(errors, data_entries) if errors != [] ->
-          MutationOutcome(
-            data: json.object([
-              #("errors", json.preprocessed_array(errors)),
-              #("data", json.object(data_entries)),
-            ]),
-            store: store,
-            identity: identity,
-            staged_resource_ids: [],
-            log_drafts: [],
-          )
+          top_level_error_outcome(store, identity, errors, data_entries)
         _ -> {
-          let fragments = get_document_fragments(document)
-          handle_mutation_fields(
-            store,
-            identity,
-            fields,
-            fragments,
-            variables,
-            upstream,
-            staged_upload_resource_permissions,
-            force_staged_upload_url_generation_failure,
-          )
+          case
+            authorization_top_level_errors(
+              fields,
+              variables,
+              upstream,
+              document,
+            )
+          {
+            #(errors, data_entries) if errors != [] ->
+              top_level_error_outcome(store, identity, errors, data_entries)
+            _ -> {
+              let fragments = get_document_fragments(document)
+              handle_mutation_fields(
+                store,
+                identity,
+                fields,
+                fragments,
+                variables,
+                upstream,
+                staged_upload_resource_permissions,
+                force_staged_upload_url_generation_failure,
+              )
+            }
+          }
         }
       }
     }
@@ -214,6 +224,7 @@ fn process_mutation_with_options(
 fn file_input_top_level_errors(
   fields: List(Selection),
   variables: Dict(String, ResolvedValue),
+  document: String,
 ) -> #(List(json.Json), List(#(String, json.Json))) {
   fields
   |> list.fold(#([], []), fn(acc, field) {
@@ -251,40 +262,198 @@ fn file_input_top_level_errors(
         let inputs =
           graphql_helpers.field_args(field, variables)
           |> read_object_list_arg("files")
-        let input_errors =
-          inputs
-          |> enumerate_objects
-          |> list.filter_map(fn(entry) {
-            let #(input, index) = entry
-            case read_string_field(input, "originalSource") {
-              Some("") ->
-                Ok(file_create_invalid_field_arguments_error(
-                  key,
-                  "originalSource is too short (minimum is 1)",
-                ))
-              Some(value) ->
-                case string.length(value) > 2048 {
-                  True ->
-                    Ok(file_create_invalid_field_arguments_error(
-                      key,
-                      "originalSource is too long (maximum is 2048)",
-                    ))
-                  False -> Error(Nil)
-                }
-              None -> Ok(file_create_missing_original_source_error(key, index))
-            }
-          })
+        let exceeds_batch_limit =
+          list.length(inputs) > max_file_create_batch_size
+        let input_errors = case exceeds_batch_limit {
+          True -> [
+            file_create_max_batch_size_error(
+              key,
+              list.length(inputs),
+              field,
+              document,
+            ),
+          ]
+          False ->
+            inputs
+            |> enumerate_objects
+            |> list.filter_map(fn(entry) {
+              let #(input, index) = entry
+              case read_string_field(input, "originalSource") {
+                Some("") ->
+                  Ok(file_create_invalid_field_arguments_error(
+                    key,
+                    "originalSource is too short (minimum is 1)",
+                  ))
+                Some(value) ->
+                  case string.length(value) > 2048 {
+                    True ->
+                      Ok(file_create_invalid_field_arguments_error(
+                        key,
+                        "originalSource is too long (maximum is 2048)",
+                      ))
+                    False -> Error(Nil)
+                  }
+                None ->
+                  Ok(file_create_missing_original_source_error(key, index))
+              }
+            })
+        }
         case input_errors {
           [] -> acc
-          _ -> #(
-            list.append(errors, input_errors),
-            list.append(data_entries, [#(key, json.null())]),
-          )
+          _ -> #(list.append(errors, input_errors), case exceeds_batch_limit {
+            True -> data_entries
+            False -> list.append(data_entries, [#(key, json.null())])
+          })
         }
       }
       _ -> acc
     }
   })
+}
+
+fn top_level_error_outcome(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  errors: List(json.Json),
+  data_entries: List(#(String, json.Json)),
+) -> MutationOutcome {
+  let entries = case data_entries {
+    [] -> [#("errors", json.preprocessed_array(errors))]
+    _ -> [
+      #("errors", json.preprocessed_array(errors)),
+      #("data", json.object(data_entries)),
+    ]
+  }
+  MutationOutcome(
+    data: json.object(entries),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    log_drafts: [],
+  )
+}
+
+fn file_create_max_batch_size_error(
+  root_key: String,
+  size: Int,
+  field: Selection,
+  document: String,
+) -> json.Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(size)
+        <> " is greater than the maximum allowed of 250.",
+      ),
+    ),
+    #("locations", field_locations_json(field, document)),
+    #("path", json.array([root_key, "files"], json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+    ),
+  ])
+}
+
+fn authorization_top_level_errors(
+  fields: List(Selection),
+  variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+  document: String,
+) -> #(List(json.Json), List(#(String, json.Json))) {
+  case session_has_manage_products(upstream.headers) {
+    True -> #([], [])
+    False ->
+      fields
+      |> list.fold(#([], []), fn(acc, field) {
+        let #(errors, data_entries) = acc
+        case field {
+          Field(name: name, ..)
+            if name.value == "fileCreate" || name.value == "fileUpdate"
+          -> {
+            let key = get_field_response_key(field)
+            let inputs =
+              graphql_helpers.field_args(field, variables)
+              |> read_object_list_arg("files")
+            case input_list_has_product_references(inputs) {
+              True -> #(
+                list.append(errors, [
+                  manage_products_access_error(key, field, document),
+                ]),
+                list.append(data_entries, [#(key, json.null())]),
+              )
+              False -> acc
+            }
+          }
+          _ -> acc
+        }
+      })
+  }
+}
+
+fn manage_products_access_error(
+  root_key: String,
+  field: Selection,
+  document: String,
+) -> json.Json {
+  json.object([
+    #(
+      "message",
+      json.string("Access denied: Missing permission to manage products."),
+    ),
+    #("locations", field_locations_json(field, document)),
+    #("path", json.array([root_key], json.string)),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("ACCESS_DENIED")),
+        #(
+          "documentation",
+          json.string("https://shopify.dev/api/usage/access-scopes"),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn session_has_manage_products(headers: Dict(String, String)) -> Bool {
+  case read_request_header(headers, manage_products_header) {
+    Some(value) -> !false_header_value(value)
+    None -> True
+  }
+}
+
+fn false_header_value(value: String) -> Bool {
+  case string.lowercase(string.trim(value)) {
+    "false" | "0" | "no" -> True
+    _ -> False
+  }
+}
+
+fn input_list_has_product_references(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> Bool {
+  list.any(inputs, fn(input) {
+    !list.is_empty(read_string_list_field(input, "referencesToAdd"))
+    || !list.is_empty(read_string_list_field(input, "referencesToRemove"))
+  })
+}
+
+fn read_request_header(
+  headers: Dict(String, String),
+  header_name: String,
+) -> Option(String) {
+  dict.to_list(headers)
+  |> list.find_map(fn(header) {
+    let #(name, value) = header
+    case string.lowercase(name) == header_name {
+      True -> Ok(string.trim(value))
+      False -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 fn file_update_invalid_field_arguments_error(root_key: String) -> json.Json {
@@ -396,6 +565,7 @@ fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               #(result, next_store, next_identity, [], True)
             }
@@ -542,6 +712,7 @@ fn handle_file_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let inputs =
@@ -554,6 +725,7 @@ fn handle_file_create(
       let #(input, index) = entry
       validate_file_input(input, index)
     })
+    |> list.append(validate_media_quota_errors(inputs, upstream))
   case errors {
     [] -> {
       let #(_reserved_log_id, identity) =
@@ -925,6 +1097,86 @@ fn validate_file_input(
       }
     _ -> source_errors
   }
+}
+
+fn validate_media_quota_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+  upstream: UpstreamContext,
+) -> List(media_types.FilesUserError) {
+  let enabled_codes = media_quota_error_codes(upstream.headers)
+  let video_errors = case
+    list.contains(enabled_codes, "VIDEO_THROTTLE_EXCEEDED")
+    && input_list_has_content_type(inputs, "VIDEO")
+  {
+    True -> [
+      media_types.FilesUserError(
+        ["files"],
+        "Video upload limit exceeded for this shop.",
+        "VIDEO_THROTTLE_EXCEEDED",
+      ),
+    ]
+    False -> []
+  }
+  let model_errors = case
+    list.contains(enabled_codes, "MODEL3D_THROTTLE_EXCEEDED")
+    && input_list_has_content_type(inputs, "MODEL_3D")
+  {
+    True -> [
+      media_types.FilesUserError(
+        ["files"],
+        "Model 3D upload limit exceeded for this shop.",
+        "MODEL3D_THROTTLE_EXCEEDED",
+      ),
+    ]
+    False -> []
+  }
+  let non_image_errors = case
+    list.contains(enabled_codes, "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
+    && input_list_has_non_image_media(inputs)
+  {
+    True -> [
+      media_types.FilesUserError(
+        ["files"],
+        "Non-image media limit exceeded for this shop.",
+        "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED",
+      ),
+    ]
+    False -> []
+  }
+
+  list.append(video_errors, list.append(model_errors, non_image_errors))
+}
+
+fn media_quota_error_codes(headers: Dict(String, String)) -> List(String) {
+  case read_request_header(headers, media_quota_errors_header) {
+    Some(value) ->
+      value
+      |> string.split(",")
+      |> list.map(fn(code) { string.trim(code) |> string.uppercase })
+      |> list.filter(fn(code) { code != "" })
+      |> dedupe_strings
+    None -> []
+  }
+}
+
+fn input_list_has_content_type(
+  inputs: List(Dict(String, ResolvedValue)),
+  content_type: String,
+) -> Bool {
+  list.any(inputs, fn(input) {
+    read_string_field(input, "contentType") == Some(content_type)
+  })
+}
+
+fn input_list_has_non_image_media(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> Bool {
+  list.any(inputs, fn(input) {
+    case read_string_field(input, "contentType") {
+      Some("IMAGE") | None -> False
+      Some(_) -> True
+    }
+  })
 }
 
 fn validate_original_source_url(

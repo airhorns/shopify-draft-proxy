@@ -1,0 +1,27 @@
+mutation OrderEditShippingLineValidationUpdate(
+  $id: ID!
+  $shippingLineId: ID!
+  $shippingLine: OrderEditUpdateShippingLineInput!
+) {
+  orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {
+    calculatedOrder {
+      id
+      shippingLines {
+        id
+        title
+        stagedStatus
+        price {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

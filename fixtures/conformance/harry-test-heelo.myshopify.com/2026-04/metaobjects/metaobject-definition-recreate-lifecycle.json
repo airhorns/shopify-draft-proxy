@@ -1,0 +1,1635 @@
+{
+  "capturedAt": "2026-05-09T16:33:28.393Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "type": "codex_recreate_definition_1778344385895",
+    "name": "Codex Recreate Definition 1778344385895",
+    "oldHandle": "codex-recreate-old-1778344385895",
+    "newFirstHandle": "codex-recreate-new-first-1778344385895",
+    "newSecondHandle": "codex-recreate-new-second-1778344385895",
+    "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+    "oldEntryId": "gid://shopify/Metaobject/188742205746",
+    "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997529394",
+    "newFirstId": "gid://shopify/Metaobject/188742238514",
+    "newSecondId": "gid://shopify/Metaobject/188742271282"
+  },
+  "hydrate": [
+    {
+      "name": "hydrate-definition-by-type-before-create",
+      "request": {
+        "query": "#graphql\n  query MetaobjectDefinitionHydrateByType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n  }\n",
+        "variables": {
+          "type": "codex_recreate_definition_1778344385895"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "setup": [
+    {
+      "name": "setup-old-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
+            "description": "Temporary definition before delete/recreate lifecycle capture.",
+            "displayNameKey": "old_title",
+            "fieldDefinitions": [
+              {
+                "key": "old_title",
+                "name": "Old Title",
+                "description": "Display title on the first definition generation.",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "old_body",
+                "name": "Old Body",
+                "description": "Body text on the first definition generation.",
+                "type": "multi_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17997496626",
+              "type": "codex_recreate_definition_1778344385895",
+              "name": "Codex Recreate Definition 1778344385895",
+              "description": "Temporary definition before delete/recreate lifecycle capture.",
+              "displayNameKey": "old_title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "old_title",
+                  "name": "Old Title",
+                  "description": "Display title on the first definition generation.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "old_body",
+                  "name": "Old Body",
+                  "description": "Body text on the first definition generation.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-old-entry-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895",
+            "fields": [
+              {
+                "key": "old_title",
+                "value": "Old title 1778344385895"
+              },
+              {
+                "key": "old_body",
+                "value": "Old body 1778344385895"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188742205746",
+              "handle": "codex-recreate-old-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "Old title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:06Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "old_title",
+                  "type": "single_line_text_field",
+                  "value": "Old title 1778344385895",
+                  "jsonValue": "Old title 1778344385895",
+                  "definition": {
+                    "key": "old_title",
+                    "name": "Old Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "old_body",
+                  "type": "multi_line_text_field",
+                  "value": "Old body 1778344385895",
+                  "jsonValue": "Old body 1778344385895",
+                  "definition": {
+                    "key": "old_body",
+                    "name": "Old Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "oldTitleField": {
+                "key": "old_title",
+                "type": "single_line_text_field",
+                "value": "Old title 1778344385895",
+                "jsonValue": "Old title 1778344385895",
+                "definition": {
+                  "key": "old_title",
+                  "name": "Old Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              "oldBodyField": {
+                "key": "old_body",
+                "type": "multi_line_text_field",
+                "value": "Old body 1778344385895",
+                "jsonValue": "Old body 1778344385895",
+                "definition": {
+                  "key": "old_body",
+                  "name": "Old Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              "newTitleField": null,
+              "newSummaryField": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "delete": [
+    {
+      "name": "delete-old-definition",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17997496626"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17997496626",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postDeleteReads": [
+    {
+      "name": "post-delete-read-before-recreate",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreatePostDeleteDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  fieldDefinitions {\n    key\n    name\n    required\n    type {\n      name\n      category\n    }\n  }\n  metaobjectsCount\n}\n\nfragment MetaobjectDefinitionRecreatePostDeleteEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  fields {\n    key\n    type\n    value\n    jsonValue\n  }\n}\n\nquery MetaobjectDefinitionRecreatePostDeleteRead(\n  $oldDefinitionId: ID!\n  $type: String!\n  $oldEntryId: ID!\n  $oldHandle: MetaobjectHandleInput!\n) {\n  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {\n    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields\n  }\n  oldEntry: metaobject(id: $oldEntryId) {\n    ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n  }\n  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {\n    ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionRecreatePostDeleteEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+          "type": "codex_recreate_definition_1778344385895",
+          "oldEntryId": "gid://shopify/Metaobject/188742205746",
+          "oldHandle": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "oldDefinition": null,
+          "byType": null,
+          "oldEntry": null,
+          "oldEntryByHandle": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "recreate": [
+    {
+      "name": "recreate-definition-same-type-and-name",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
+            "description": "Temporary definition after delete/recreate lifecycle capture.",
+            "displayNameKey": "new_title",
+            "fieldDefinitions": [
+              {
+                "key": "new_title",
+                "name": "New Title",
+                "description": "Display title on the recreated definition generation.",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "new_summary",
+                "name": "New Summary",
+                "description": "Summary text only present on the recreated definition generation.",
+                "type": "multi_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17997529394",
+              "type": "codex_recreate_definition_1778344385895",
+              "name": "Codex Recreate Definition 1778344385895",
+              "description": "Temporary definition after delete/recreate lifecycle capture.",
+              "displayNameKey": "new_title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "description": "Display title on the recreated definition generation.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "description": "Summary text only present on the recreated definition generation.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postRecreateEntries": [
+    {
+      "name": "post-recreate-first-entry-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-first-1778344385895",
+            "fields": [
+              {
+                "key": "new_title",
+                "value": "New first title 1778344385895"
+              },
+              {
+                "key": "new_summary",
+                "value": "New first summary 1778344385895"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188742238514",
+              "handle": "codex-recreate-new-first-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "New first title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:12Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "new_title",
+                  "type": "single_line_text_field",
+                  "value": "New first title 1778344385895",
+                  "jsonValue": "New first title 1778344385895",
+                  "definition": {
+                    "key": "new_title",
+                    "name": "New Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "new_summary",
+                  "type": "multi_line_text_field",
+                  "value": "New first summary 1778344385895",
+                  "jsonValue": "New first summary 1778344385895",
+                  "definition": {
+                    "key": "new_summary",
+                    "name": "New Summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "oldTitleField": null,
+              "oldBodyField": null,
+              "newTitleField": {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              "newSummaryField": {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-recreate-second-entry-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreateEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionRecreateEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionRecreateEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-second-1778344385895",
+            "fields": [
+              {
+                "key": "new_title",
+                "value": "New second title 1778344385895"
+              },
+              {
+                "key": "new_summary",
+                "value": "New second summary 1778344385895"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188742271282",
+              "handle": "codex-recreate-new-second-1778344385895",
+              "type": "codex_recreate_definition_1778344385895",
+              "displayName": "New second title 1778344385895",
+              "updatedAt": "2026-05-09T16:33:12Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "new_title",
+                  "type": "single_line_text_field",
+                  "value": "New second title 1778344385895",
+                  "jsonValue": "New second title 1778344385895",
+                  "definition": {
+                    "key": "new_title",
+                    "name": "New Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "new_summary",
+                  "type": "multi_line_text_field",
+                  "value": "New second summary 1778344385895",
+                  "jsonValue": "New second summary 1778344385895",
+                  "definition": {
+                    "key": "new_summary",
+                    "name": "New Summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "oldTitleField": null,
+              "oldBodyField": null,
+              "newTitleField": {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              "newSummaryField": {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "finalReads": [
+    {
+      "name": "final-post-recreate-read",
+      "request": {
+        "query": "fragment MetaobjectDefinitionRecreateDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectDefinitionRecreateReadEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldTitleField: field(key: \"old_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  oldBodyField: field(key: \"old_body\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newTitleField: field(key: \"new_title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  newSummaryField: field(key: \"new_summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectDefinitionRecreateRead(\n  $oldDefinitionId: ID!\n  $newDefinitionId: ID!\n  $type: String!\n  $oldEntryId: ID!\n  $oldHandle: MetaobjectHandleInput!\n  $newFirstId: ID!\n  $newSecondId: ID!\n  $newFirstHandle: MetaobjectHandleInput!\n  $newSecondHandle: MetaobjectHandleInput!\n) {\n  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  newDefinition: metaobjectDefinition(id: $newDefinitionId) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionRecreateDefinitionFields\n  }\n  oldEntry: metaobject(id: $oldEntryId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newFirst: metaobject(id: $newFirstId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newSecond: metaobject(id: $newSecondId) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newFirstByHandle: metaobjectByHandle(handle: $newFirstHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  newSecondByHandle: metaobjectByHandle(handle: $newSecondHandle) {\n    ...MetaobjectDefinitionRecreateReadEntryFields\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionRecreateReadEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionRecreateReadEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "oldDefinitionId": "gid://shopify/MetaobjectDefinition/17997496626",
+          "newDefinitionId": "gid://shopify/MetaobjectDefinition/17997529394",
+          "type": "codex_recreate_definition_1778344385895",
+          "oldEntryId": "gid://shopify/Metaobject/188742205746",
+          "oldHandle": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-old-1778344385895"
+          },
+          "newFirstId": "gid://shopify/Metaobject/188742238514",
+          "newSecondId": "gid://shopify/Metaobject/188742271282",
+          "newFirstHandle": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-first-1778344385895"
+          },
+          "newSecondHandle": {
+            "type": "codex_recreate_definition_1778344385895",
+            "handle": "codex-recreate-new-second-1778344385895"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "oldDefinition": null,
+          "newDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17997529394",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
+            "description": "Temporary definition after delete/recreate lifecycle capture.",
+            "displayNameKey": "new_title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "new_title",
+                "name": "New Title",
+                "description": "Display title on the recreated definition generation.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "new_summary",
+                "name": "New Summary",
+                "description": "Summary text only present on the recreated definition generation.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "metaobjectsCount": 2,
+            "standardTemplate": null
+          },
+          "byType": {
+            "id": "gid://shopify/MetaobjectDefinition/17997529394",
+            "type": "codex_recreate_definition_1778344385895",
+            "name": "Codex Recreate Definition 1778344385895",
+            "description": "Temporary definition after delete/recreate lifecycle capture.",
+            "displayNameKey": "new_title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "new_title",
+                "name": "New Title",
+                "description": "Display title on the recreated definition generation.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "new_summary",
+                "name": "New Summary",
+                "description": "Summary text only present on the recreated definition generation.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "metaobjectsCount": 2,
+            "standardTemplate": null
+          },
+          "oldEntry": null,
+          "oldEntryByHandle": null,
+          "newFirst": {
+            "id": "gid://shopify/Metaobject/188742238514",
+            "handle": "codex-recreate-new-first-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New first title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "oldTitleField": null,
+            "oldBodyField": null,
+            "newTitleField": {
+              "key": "new_title",
+              "type": "single_line_text_field",
+              "value": "New first title 1778344385895",
+              "jsonValue": "New first title 1778344385895",
+              "definition": {
+                "key": "new_title",
+                "name": "New Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            "newSummaryField": {
+              "key": "new_summary",
+              "type": "multi_line_text_field",
+              "value": "New first summary 1778344385895",
+              "jsonValue": "New first summary 1778344385895",
+              "definition": {
+                "key": "new_summary",
+                "name": "New Summary",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "newSecond": {
+            "id": "gid://shopify/Metaobject/188742271282",
+            "handle": "codex-recreate-new-second-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New second title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "oldTitleField": null,
+            "oldBodyField": null,
+            "newTitleField": {
+              "key": "new_title",
+              "type": "single_line_text_field",
+              "value": "New second title 1778344385895",
+              "jsonValue": "New second title 1778344385895",
+              "definition": {
+                "key": "new_title",
+                "name": "New Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            "newSummaryField": {
+              "key": "new_summary",
+              "type": "multi_line_text_field",
+              "value": "New second summary 1778344385895",
+              "jsonValue": "New second summary 1778344385895",
+              "definition": {
+                "key": "new_summary",
+                "name": "New Summary",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "newFirstByHandle": {
+            "id": "gid://shopify/Metaobject/188742238514",
+            "handle": "codex-recreate-new-first-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New first title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New first title 1778344385895",
+                "jsonValue": "New first title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New first summary 1778344385895",
+                "jsonValue": "New first summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "oldTitleField": null,
+            "oldBodyField": null,
+            "newTitleField": {
+              "key": "new_title",
+              "type": "single_line_text_field",
+              "value": "New first title 1778344385895",
+              "jsonValue": "New first title 1778344385895",
+              "definition": {
+                "key": "new_title",
+                "name": "New Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            "newSummaryField": {
+              "key": "new_summary",
+              "type": "multi_line_text_field",
+              "value": "New first summary 1778344385895",
+              "jsonValue": "New first summary 1778344385895",
+              "definition": {
+                "key": "new_summary",
+                "name": "New Summary",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "newSecondByHandle": {
+            "id": "gid://shopify/Metaobject/188742271282",
+            "handle": "codex-recreate-new-second-1778344385895",
+            "type": "codex_recreate_definition_1778344385895",
+            "displayName": "New second title 1778344385895",
+            "updatedAt": "2026-05-09T16:33:12Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "new_title",
+                "type": "single_line_text_field",
+                "value": "New second title 1778344385895",
+                "jsonValue": "New second title 1778344385895",
+                "definition": {
+                  "key": "new_title",
+                  "name": "New Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "new_summary",
+                "type": "multi_line_text_field",
+                "value": "New second summary 1778344385895",
+                "jsonValue": "New second summary 1778344385895",
+                "definition": {
+                  "key": "new_summary",
+                  "name": "New Summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "oldTitleField": null,
+            "oldBodyField": null,
+            "newTitleField": {
+              "key": "new_title",
+              "type": "single_line_text_field",
+              "value": "New second title 1778344385895",
+              "jsonValue": "New second title 1778344385895",
+              "definition": {
+                "key": "new_title",
+                "name": "New Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            "newSummaryField": {
+              "key": "new_summary",
+              "type": "multi_line_text_field",
+              "value": "New second summary 1778344385895",
+              "jsonValue": "New second summary 1778344385895",
+              "definition": {
+                "key": "new_summary",
+                "name": "New Summary",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODg3NDIyMzg1MTQsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0NDM4NTg5NSJ9",
+                "node": {
+                  "id": "gid://shopify/Metaobject/188742238514",
+                  "handle": "codex-recreate-new-first-1778344385895",
+                  "type": "codex_recreate_definition_1778344385895",
+                  "displayName": "New first title 1778344385895",
+                  "updatedAt": "2026-05-09T16:33:12Z",
+                  "capabilities": {
+                    "publishable": null,
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "new_title",
+                      "type": "single_line_text_field",
+                      "value": "New first title 1778344385895",
+                      "jsonValue": "New first title 1778344385895",
+                      "definition": {
+                        "key": "new_title",
+                        "name": "New Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "new_summary",
+                      "type": "multi_line_text_field",
+                      "value": "New first summary 1778344385895",
+                      "jsonValue": "New first summary 1778344385895",
+                      "definition": {
+                        "key": "new_summary",
+                        "name": "New Summary",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "oldTitleField": null,
+                  "oldBodyField": null,
+                  "newTitleField": {
+                    "key": "new_title",
+                    "type": "single_line_text_field",
+                    "value": "New first title 1778344385895",
+                    "jsonValue": "New first title 1778344385895",
+                    "definition": {
+                      "key": "new_title",
+                      "name": "New Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  "newSummaryField": {
+                    "key": "new_summary",
+                    "type": "multi_line_text_field",
+                    "value": "New first summary 1778344385895",
+                    "jsonValue": "New first summary 1778344385895",
+                    "definition": {
+                      "key": "new_summary",
+                      "name": "New Summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODg3NDIyNzEyODIsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDQzODU4OTUifQ==",
+                "node": {
+                  "id": "gid://shopify/Metaobject/188742271282",
+                  "handle": "codex-recreate-new-second-1778344385895",
+                  "type": "codex_recreate_definition_1778344385895",
+                  "displayName": "New second title 1778344385895",
+                  "updatedAt": "2026-05-09T16:33:12Z",
+                  "capabilities": {
+                    "publishable": null,
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "new_title",
+                      "type": "single_line_text_field",
+                      "value": "New second title 1778344385895",
+                      "jsonValue": "New second title 1778344385895",
+                      "definition": {
+                        "key": "new_title",
+                        "name": "New Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "new_summary",
+                      "type": "multi_line_text_field",
+                      "value": "New second summary 1778344385895",
+                      "jsonValue": "New second summary 1778344385895",
+                      "definition": {
+                        "key": "new_summary",
+                        "name": "New Summary",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "oldTitleField": null,
+                  "oldBodyField": null,
+                  "newTitleField": {
+                    "key": "new_title",
+                    "type": "single_line_text_field",
+                    "value": "New second title 1778344385895",
+                    "jsonValue": "New second title 1778344385895",
+                    "definition": {
+                      "key": "new_title",
+                      "name": "New Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  "newSummaryField": {
+                    "key": "new_summary",
+                    "type": "multi_line_text_field",
+                    "value": "New second summary 1778344385895",
+                    "jsonValue": "New second summary 1778344385895",
+                    "definition": {
+                      "key": "new_summary",
+                      "name": "New Summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/188742238514",
+                "handle": "codex-recreate-new-first-1778344385895",
+                "type": "codex_recreate_definition_1778344385895",
+                "displayName": "New first title 1778344385895",
+                "updatedAt": "2026-05-09T16:33:12Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "new_title",
+                    "type": "single_line_text_field",
+                    "value": "New first title 1778344385895",
+                    "jsonValue": "New first title 1778344385895",
+                    "definition": {
+                      "key": "new_title",
+                      "name": "New Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "new_summary",
+                    "type": "multi_line_text_field",
+                    "value": "New first summary 1778344385895",
+                    "jsonValue": "New first summary 1778344385895",
+                    "definition": {
+                      "key": "new_summary",
+                      "name": "New Summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "oldTitleField": null,
+                "oldBodyField": null,
+                "newTitleField": {
+                  "key": "new_title",
+                  "type": "single_line_text_field",
+                  "value": "New first title 1778344385895",
+                  "jsonValue": "New first title 1778344385895",
+                  "definition": {
+                    "key": "new_title",
+                    "name": "New Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                "newSummaryField": {
+                  "key": "new_summary",
+                  "type": "multi_line_text_field",
+                  "value": "New first summary 1778344385895",
+                  "jsonValue": "New first summary 1778344385895",
+                  "definition": {
+                    "key": "new_summary",
+                    "name": "New Summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Metaobject/188742271282",
+                "handle": "codex-recreate-new-second-1778344385895",
+                "type": "codex_recreate_definition_1778344385895",
+                "displayName": "New second title 1778344385895",
+                "updatedAt": "2026-05-09T16:33:12Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "new_title",
+                    "type": "single_line_text_field",
+                    "value": "New second title 1778344385895",
+                    "jsonValue": "New second title 1778344385895",
+                    "definition": {
+                      "key": "new_title",
+                      "name": "New Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "new_summary",
+                    "type": "multi_line_text_field",
+                    "value": "New second summary 1778344385895",
+                    "jsonValue": "New second summary 1778344385895",
+                    "definition": {
+                      "key": "new_summary",
+                      "name": "New Summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "oldTitleField": null,
+                "oldBodyField": null,
+                "newTitleField": {
+                  "key": "new_title",
+                  "type": "single_line_text_field",
+                  "value": "New second title 1778344385895",
+                  "jsonValue": "New second title 1778344385895",
+                  "definition": {
+                    "key": "new_title",
+                    "name": "New Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                "newSummaryField": {
+                  "key": "new_summary",
+                  "type": "multi_line_text_field",
+                  "value": "New second summary 1778344385895",
+                  "jsonValue": "New second summary 1778344385895",
+                  "definition": {
+                    "key": "new_summary",
+                    "name": "New Summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxODg3NDIyMzg1MTQsImxhc3RfdmFsdWUiOiJuZXcgZmlyc3QgdGl0bGUgMTc3ODM0NDM4NTg5NSJ9",
+              "endCursor": "eyJsYXN0X2lkIjoxODg3NDIyNzEyODIsImxhc3RfdmFsdWUiOiJuZXcgc2Vjb25kIHRpdGxlIDE3NzgzNDQzODU4OTUifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 301,
+            "actualQueryCost": 116,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1884,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188742238514"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188742238514",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1896,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188742271282"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188742271282",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1902,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation DeleteMetaobject($id: ID!) { metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188742205746"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1905,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17997529394"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17997529394",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1904,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17997496626"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1907,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "codex_recreate_definition_1778344385895"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

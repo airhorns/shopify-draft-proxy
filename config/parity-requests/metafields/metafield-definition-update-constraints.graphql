@@ -123,6 +123,32 @@ mutation MetafieldDefinitionUpdateConstraints(
     }
   }
 
+  rejectEmptyConstraintValues: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "tier"
+      ownerType: PRODUCT
+      constraintsUpdates: { key: "product_category", values: [] }
+    }
+  ) {
+    updatedDefinition {
+      id
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
   pinUnconstrained: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "tier" }) {
     pinnedDefinition {
       id

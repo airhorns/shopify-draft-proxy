@@ -5,9 +5,16 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{
+  type Definition, type Location, type Selection, type VariableDefinition,
+  Argument, Field, OperationDefinition, StringValue, VariableDefinition,
+  VariableValue,
+}
+import shopify_draft_proxy/graphql/parser as graphql_parser
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, SrcList, SrcNull, SrcString, default_selected_field_options,
@@ -37,7 +44,7 @@ import shopify_draft_proxy/proxy/payments/serializers.{
 import shopify_draft_proxy/proxy/payments/types.{
   type MutationFieldResult, type UserError, MutationFieldResult, UserError,
   customization_app_id, decode_duplication_data, gid_tail, has_key,
-  mutation_payload_result, option_string_source, project_payload,
+  is_shopify_gid, mutation_payload_result, option_string_source, project_payload,
   read_bool_field, read_string_field, user_errors_source,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
@@ -60,17 +67,31 @@ pub fn process_mutation(
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
-      let fragments = get_document_fragments(document)
-      let store =
-        hydrate_before_payments_mutation(store, fields, variables, upstream)
-      handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        document,
-        variables,
-      )
+      case
+        payment_reminder_invalid_global_id_errors(fields, variables, document)
+      {
+        [] -> {
+          let fragments = get_document_fragments(document)
+          let store =
+            hydrate_before_payments_mutation(store, fields, variables, upstream)
+          handle_mutation_fields(
+            store,
+            identity,
+            fields,
+            fragments,
+            document,
+            variables,
+          )
+        }
+        errors ->
+          MutationOutcome(
+            data: mutation_envelope([], errors),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [],
+          )
+      }
     }
   }
 }
@@ -224,10 +245,7 @@ fn payment_mutation_hydrate_inputs(
           [],
           [],
           [],
-          option_to_list(graphql_helpers.read_arg_string_nonempty(
-            args,
-            "paymentScheduleId",
-          )),
+          payment_schedule_hydrate_ids(args),
           [],
         )
         _ -> #([], [], [], [], [])
@@ -244,6 +262,19 @@ fn option_to_list(value: Option(String)) -> List(String) {
   }
 }
 
+fn payment_schedule_hydrate_ids(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case graphql_helpers.read_arg_string_nonempty(args, "paymentScheduleId") {
+    Some(id) ->
+      case is_shopify_gid(Some(id), "PaymentSchedule") {
+        True -> [id]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -252,30 +283,49 @@ fn handle_mutation_fields(
   query: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(entries, final_store, final_identity, staged_ids) =
+  let initial = #([], [], store, identity, [])
+  let #(entries, top_level_errors, final_store, final_identity, staged_ids) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entry_acc, current_store, current_identity, staged_acc) = acc
-      let #(result, next_store, next_identity) =
-        handle_mutation_field(
+      let #(entry_acc, error_acc, current_store, current_identity, staged_acc) =
+        acc
+      case payment_reminder_schedule_id_validation(field, variables, query) {
+        Some(PaymentScheduleIdInvalidGlobalId(error)) -> #(
+          entry_acc,
+          list.append(error_acc, [error]),
           current_store,
           current_identity,
-          field,
-          fragments,
-          variables,
+          staged_acc,
         )
-      let result_staged = result.staged_resource_ids
-      #(
-        list.append(entry_acc, [#(result.key, result.payload)]),
-        next_store,
-        next_identity,
-        list.append(staged_acc, result_staged),
-      )
+        Some(PaymentScheduleIdWrongResourceType(error)) -> #(
+          list.append(entry_acc, [#(get_field_response_key(field), json.null())]),
+          list.append(error_acc, [error]),
+          current_store,
+          current_identity,
+          staged_acc,
+        )
+        None | Some(PaymentScheduleIdValid) -> {
+          let #(result, next_store, next_identity) =
+            handle_mutation_field(
+              current_store,
+              current_identity,
+              field,
+              fragments,
+              variables,
+            )
+          let result_staged = result.staged_resource_ids
+          #(
+            list.append(entry_acc, [#(result.key, result.payload)]),
+            error_acc,
+            next_store,
+            next_identity,
+            list.append(staged_acc, result_staged),
+          )
+        }
+      }
     })
   let root_names = root_names(fields)
-  let drafts = case root_names {
-    [] -> []
-    [primary, ..] -> [
+  let drafts = case top_level_errors, root_names {
+    [], [primary, ..] -> [
       LogDraft(
         operation_name: Some(primary),
         root_fields: root_names,
@@ -291,14 +341,245 @@ fn handle_mutation_fields(
         ),
       ),
     ]
+    _, _ -> []
   }
   MutationOutcome(
-    data: json.object([#("data", json.object(entries))]),
+    data: mutation_envelope(entries, top_level_errors),
     store: final_store,
     identity: final_identity,
-    staged_resource_ids: staged_ids,
+    staged_resource_ids: case top_level_errors {
+      [] -> staged_ids
+      _ -> []
+    },
     log_drafts: drafts,
   )
+}
+
+fn mutation_envelope(
+  entries: List(#(String, Json)),
+  errors: List(Json),
+) -> Json {
+  case errors, entries {
+    [], _ -> json.object([#("data", json.object(entries))])
+    _, [] -> json.object([#("errors", json.preprocessed_array(errors))])
+    _, _ ->
+      json.object([
+        #("errors", json.preprocessed_array(errors)),
+        #("data", json.object(entries)),
+      ])
+  }
+}
+
+type PaymentScheduleIdValidation {
+  PaymentScheduleIdValid
+  PaymentScheduleIdInvalidGlobalId(error: Json)
+  PaymentScheduleIdWrongResourceType(error: Json)
+}
+
+type PaymentScheduleIdSource {
+  PaymentScheduleIdVariable(name: String)
+  PaymentScheduleIdLiteral
+}
+
+fn payment_reminder_invalid_global_id_errors(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> List(Json) {
+  list.filter_map(fields, fn(field) {
+    case payment_reminder_schedule_id_validation(field, variables, document) {
+      Some(PaymentScheduleIdInvalidGlobalId(error)) -> Ok(error)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn payment_reminder_schedule_id_validation(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(PaymentScheduleIdValidation) {
+  case field {
+    Field(name: name, ..) if name.value == "paymentReminderSend" -> {
+      let args = graphql_helpers.field_args(field, variables)
+      case graphql_helpers.read_arg_string(args, "paymentScheduleId") {
+        Some(value) ->
+          case is_shopify_gid(Some(value), "PaymentSchedule") {
+            True -> Some(PaymentScheduleIdValid)
+            False ->
+              case string.starts_with(value, "gid://shopify/") {
+                True ->
+                  Some(
+                    PaymentScheduleIdWrongResourceType(
+                      payment_reminder_invalid_id_error(
+                        field,
+                        document,
+                        name.value,
+                      ),
+                    ),
+                  )
+                False ->
+                  Some(
+                    PaymentScheduleIdInvalidGlobalId(
+                      payment_reminder_invalid_global_id_error(
+                        payment_schedule_id_source(field),
+                        value,
+                        document,
+                      ),
+                    ),
+                  )
+              }
+          }
+        None -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn payment_schedule_id_source(field: Selection) -> PaymentScheduleIdSource {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: VariableValue(variable), ..)
+            if name.value == "paymentScheduleId"
+          -> Ok(PaymentScheduleIdVariable(variable.name.value))
+          Argument(name: name, value: StringValue(..), ..)
+            if name.value == "paymentScheduleId"
+          -> Ok(PaymentScheduleIdLiteral)
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap(PaymentScheduleIdLiteral)
+    _ -> PaymentScheduleIdLiteral
+  }
+}
+
+fn payment_reminder_invalid_global_id_error(
+  source: PaymentScheduleIdSource,
+  value: String,
+  document: String,
+) -> Json {
+  let message = "Invalid global id '" <> value <> "'"
+  case source {
+    PaymentScheduleIdVariable(variable_name) -> {
+      let base = [
+        #(
+          "message",
+          json.string(
+            "Variable $"
+            <> variable_name
+            <> " of type ID! was provided invalid value",
+          ),
+        ),
+      ]
+      let with_locations = case
+        variable_definition_location(document, variable_name)
+      {
+        Some(loc) ->
+          list.append(base, [
+            #("locations", graphql_helpers.locations_json(loc, document)),
+          ])
+        None -> base
+      }
+      json.object(
+        list.append(with_locations, [
+          #(
+            "extensions",
+            json.object([
+              #("code", json.string("INVALID_VARIABLE")),
+              #("value", json.string(value)),
+              #(
+                "problems",
+                json.preprocessed_array([
+                  json.object([
+                    #("path", json.preprocessed_array([])),
+                    #("explanation", json.string(message)),
+                    #("message", json.string(message)),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      )
+    }
+    PaymentScheduleIdLiteral ->
+      json.object([
+        #("message", json.string(message)),
+        #(
+          "path",
+          json.array(
+            ["mutation", "paymentReminderSend", "paymentScheduleId"],
+            json.string,
+          ),
+        ),
+        #(
+          "extensions",
+          json.object([
+            #("code", json.string("argumentLiteralsIncompatible")),
+            #("typeName", json.string("CoercionError")),
+          ]),
+        ),
+      ])
+  }
+}
+
+fn payment_reminder_invalid_id_error(
+  field: Selection,
+  document: String,
+  root_name: String,
+) -> Json {
+  json.object([
+    #("message", json.string("invalid id")),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+    #("path", json.array([root_name], json.string)),
+  ])
+}
+
+fn variable_definition_location(
+  document: String,
+  variable_name: String,
+) -> Option(Location) {
+  case graphql_parser.parse(graphql_source.new(document)) {
+    Error(_) -> None
+    Ok(doc) ->
+      case find_first_operation(doc.definitions) {
+        Some(OperationDefinition(variable_definitions: definitions, ..)) ->
+          find_variable_definition_location(definitions, variable_name)
+        _ -> None
+      }
+  }
+}
+
+fn find_first_operation(definitions: List(Definition)) -> Option(Definition) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] ->
+      case definition {
+        OperationDefinition(..) -> Some(definition)
+        _ -> find_first_operation(rest)
+      }
+  }
+}
+
+fn find_variable_definition_location(
+  definitions: List(VariableDefinition),
+  variable_name: String,
+) -> Option(Location) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] -> {
+      let VariableDefinition(variable: variable, loc: loc, ..) = definition
+      case variable.name.value == variable_name {
+        True -> loc
+        False -> find_variable_definition_location(rest, variable_name)
+      }
+    }
+  }
 }
 
 fn root_names(fields: List(Selection)) -> List(String) {
@@ -1102,6 +1383,12 @@ fn activate_payment_customizations(
     list.fold(ids, #(store, [], []), fn(acc, id) {
       let #(current_store, updated, missing) = acc
       case store.get_effective_payment_customization_by_id(current_store, id) {
+        Some(state_types.PaymentCustomizationRecord(
+          enabled: Some(current_enabled),
+          ..,
+        ))
+          if current_enabled == enabled
+        -> #(current_store, updated, missing)
         Some(record) -> {
           let next =
             store.upsert_staged_payment_customization(
