@@ -4,6 +4,7 @@
 
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/commit
@@ -46,11 +47,19 @@ fn live_hybrid_registry_proxy_with_files(files: List(FileRecord)) {
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
+  graphql_with_headers(proxy, query, dict.new())
+}
+
+fn graphql_with_headers(
+  proxy: draft_proxy.DraftProxy,
+  query: String,
+  headers: dict.Dict(String, String),
+) {
   let request =
     Request(
       method: "POST",
       path: "/admin/api/2026-04/graphql.json",
-      headers: dict.new(),
+      headers: headers,
       body: "{\"query\":\"" <> escape(query) <> "\"}",
     )
   draft_proxy.process_request(proxy, request)
@@ -426,6 +435,33 @@ pub fn file_create_rejects_shopify_validation_branches_test() {
     == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
 }
 
+pub fn file_create_rejects_more_than_250_inputs_before_staging_test() {
+  let input =
+    "{ originalSource: \"https://cdn.example.com/foo.png\", contentType: IMAGE }"
+  let files = list.repeat(input, times: 251) |> string.join(", ")
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: ["
+        <> files
+        <> "]) { files { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"fileCreate\",\"files\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
+  assert string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(next_proxy)),
+    "\"files\":{}",
+  )
+  assert string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(next_proxy)),
+    "\"fileOrder\":[]",
+  )
+}
+
 pub fn file_create_uses_shopify_validation_precedence_test() {
   let #(Response(status: url_status, body: url_body, ..), _) =
     graphql(
@@ -457,6 +493,65 @@ pub fn file_create_does_not_apply_per_input_references_to_add_validation_test() 
   let body_json = json.to_string(body)
   assert string.contains(body_json, "\"userErrors\":[]")
   assert !string.contains(body_json, "TOO_MANY_PRODUCT_IDS_SPECIFIED")
+}
+
+pub fn file_create_references_require_manage_products_permission_test() {
+  let headers =
+    dict.from_list([
+      #("x-shopify-draft-proxy-manage-products", "false"),
+    ])
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql_with_headers(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", contentType: IMAGE, referencesToAdd: [\"gid://shopify/Product/1\"] }]) { files { id } userErrors { field message code } } }",
+      headers,
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Access denied: Missing permission to manage products.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"fileCreate\"],\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\"}}],\"data\":{\"fileCreate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn file_create_quota_affordance_rejects_video_model_and_non_image_test() {
+  let headers =
+    dict.from_list([
+      #(
+        "x-shopify-draft-proxy-media-quota-errors",
+        "VIDEO_THROTTLE_EXCEEDED, MODEL3D_THROTTLE_EXCEEDED, NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED",
+      ),
+    ])
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql_with_headers(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/clip.mp4\", contentType: VIDEO }, { originalSource: \"https://cdn.example.com/model.glb\", contentType: MODEL_3D }]) { files { id } userErrors { field message code } } }",
+      headers,
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Video upload limit exceeded for this shop.\",\"code\":\"VIDEO_THROTTLE_EXCEEDED\"},{\"field\":[\"files\"],\"message\":\"Model 3D upload limit exceeded for this shop.\",\"code\":\"MODEL3D_THROTTLE_EXCEEDED\"},{\"field\":[\"files\"],\"message\":\"Non-image media limit exceeded for this shop.\",\"code\":\"NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED\"}]}}}"
+  assert string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(next_proxy)),
+    "\"files\":{}",
+  )
+}
+
+pub fn file_create_non_image_media_default_has_no_throttle_test() {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/clip.mp4\", contentType: VIDEO }]) { files { id __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[{\"id\":\"gid://shopify/Video/2\",\"__typename\":\"Video\"}],\"userErrors\":[]}}}"
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(next_proxy)),
+    "\"fileCreate\"",
+  )
 }
 
 pub fn file_create_validates_length_and_duplicate_modes_test() {
@@ -648,6 +743,25 @@ pub fn file_update_references_to_remove_clears_variant_media_ids_test() {
       "gid://shopify/ProductVariant/1",
     )
   assert variant.media_ids == []
+}
+
+pub fn file_update_references_require_manage_products_permission_test() {
+  let headers =
+    dict.from_list([
+      #("x-shopify-draft-proxy-manage-products", "false"),
+    ])
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql_with_headers(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", referencesToRemove: [\"gid://shopify/Product/1\"] }]) { files { id } userErrors { field message code } } }",
+      headers,
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Access denied: Missing permission to manage products.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"fileUpdate\"],\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\"}}],\"data\":{\"fileUpdate\":null}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(next_proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn file_update_rejects_non_ready_file_test() {

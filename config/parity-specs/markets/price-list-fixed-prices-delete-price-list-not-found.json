@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-fixed-prices-delete-price-list-not-found",
+  "operationNames": ["priceListFixedPricesDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-delete-validation.graphql",
+    "variablesCapturePath": "$.cases.deletePriceListNotFound.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delete-price-list-not-found",
+        "capturePath": "$.cases.deletePriceListNotFound.response.payload.data.priceListFixedPricesDelete",
+        "proxyPath": "$.data.priceListFixedPricesDelete"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesDelete unknown price list validation. Shopify returns PRICE_LIST_NOT_FOUND and null deletedFixedPriceVariantIds."
+}

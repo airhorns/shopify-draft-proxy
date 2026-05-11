@@ -222,15 +222,7 @@ fn handle_mutation_field(
           update_theme(outcome, field, fragments, variables, "themeUpdate")
         "themePublish" ->
           update_theme(outcome, field, fragments, variables, "themePublish")
-        "themeDelete" ->
-          delete_integration(
-            outcome,
-            field,
-            variables,
-            root,
-            "theme",
-            "deletedThemeId",
-          )
+        "themeDelete" -> delete_theme(outcome, field, variables, root)
         "themeFilesUpsert" -> theme_files_upsert(outcome, field, variables)
         "themeFilesCopy" -> theme_files_copy(outcome, field, variables)
         "themeFilesDelete" -> theme_files_delete(outcome, field, variables)
@@ -1966,12 +1958,7 @@ fn update_theme(
   case serializers.lookup_integration_by_id(outcome.store, "theme", id) {
     serializers.IntegrationFound(existing) -> {
       let id = existing.id
-      let current_role =
-        serializers.source_string_field(
-          serializers.captured_to_source(existing.data),
-          "role",
-          "",
-        )
+      let current_role = theme_record_role(existing)
       let publish_blocked =
         root == "themePublish" && is_publish_blocked_theme_role(current_role)
       let input =
@@ -2114,12 +2101,7 @@ fn is_publish_blocked_theme_role(role: String) -> Bool {
 fn demote_previous_main_themes(store_in: Store, published_id: String) -> Store {
   store.list_effective_online_store_integrations(store_in, "theme")
   |> list.fold(store_in, fn(acc, record) {
-    let role =
-      serializers.source_string_field(
-        serializers.captured_to_source(record.data),
-        "role",
-        "",
-      )
+    let role = theme_record_role(record)
     case record.id != published_id && role == "MAIN" {
       True -> {
         let demoted =
@@ -2138,6 +2120,102 @@ fn demote_previous_main_themes(store_in: Store, published_id: String) -> Store {
       False -> acc
     }
   })
+}
+
+fn theme_record_role(record: OnlineStoreIntegrationRecord) -> String {
+  serializers.source_string_field(
+    serializers.captured_to_source(record.data),
+    "role",
+    "",
+  )
+}
+
+fn delete_theme(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let id =
+    serializers.input_string(graphql_helpers.field_args(field, variables), "id")
+  let #(deleted, errors, store) = case
+    serializers.lookup_integration_by_id(outcome.store, "theme", id)
+  {
+    serializers.IntegrationFound(record) -> {
+      case deleting_only_main_theme(outcome.store, record) {
+        True -> #(
+          SrcNull,
+          [
+            serializers.integration_user_error(
+              "theme",
+              ["id"],
+              "You can't delete your only published theme.",
+              "INVALID",
+            ),
+          ],
+          outcome.store,
+        )
+        False -> #(
+          SrcString(record.id),
+          [],
+          store.delete_staged_online_store_integration(outcome.store, record.id),
+        )
+      }
+    }
+    serializers.IntegrationInvalidId -> #(
+      SrcNull,
+      [serializers.integration_invalid_id_error("theme")],
+      outcome.store,
+    )
+    serializers.IntegrationMissing -> #(
+      SrcNull,
+      [serializers.integration_not_found_error("theme")],
+      outcome.store,
+    )
+  }
+  let payload =
+    serializers.project_payload_source(
+      field,
+      src_object([
+        #("deletedThemeId", deleted),
+        #("userErrors", serializers.user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(
+    key,
+    payload,
+    serializers.mutation_outcome(
+      outcome,
+      store,
+      outcome.identity,
+      root,
+      case errors {
+        [] -> serializers.option_list(id)
+        _ -> []
+      },
+    ),
+  )
+}
+
+fn deleting_only_main_theme(
+  store_in: Store,
+  target: OnlineStoreIntegrationRecord,
+) -> Bool {
+  case theme_record_role(target) {
+    "MAIN" ->
+      case
+        store.list_effective_online_store_integrations(store_in, "theme")
+        |> list.any(fn(record) {
+          record.id != target.id && theme_record_role(record) == "MAIN"
+        })
+      {
+        True -> False
+        False -> True
+      }
+    _ -> False
+  }
 }
 
 fn theme_files_upsert(

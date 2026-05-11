@@ -1,0 +1,61 @@
+{
+  "scenarioId": "payment-reminder-send-malformed-gid",
+  "operationNames": ["paymentReminderSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["top-level-errors-parity", "payload-shape", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "empty-schedule-id-errors",
+        "capturePath": "$.cases[0].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"]
+      },
+      {
+        "name": "non-gid-schedule-id-errors",
+        "capturePath": "$.cases[1].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      },
+      {
+        "name": "wrong-type-schedule-id-errors",
+        "capturePath": "$.cases[2].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      },
+      {
+        "name": "wrong-type-schedule-id-data",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for paymentReminderSend paymentScheduleId GID coercion: empty and non-GID variables are top-level INVALID_VARIABLE errors with no mutation payload, while a Shopify GID for a non-PaymentSchedule resource is a top-level RESOURCE_NOT_FOUND error with data.paymentReminderSend null. Well-formed but absent PaymentSchedule IDs remain covered by the eligibility scenario's payload-level userError branch."
+}

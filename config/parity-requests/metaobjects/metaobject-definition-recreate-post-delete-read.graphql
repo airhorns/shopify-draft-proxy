@@ -1,0 +1,67 @@
+fragment MetaobjectDefinitionRecreatePostDeleteDefinitionFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  fieldDefinitions {
+    key
+    name
+    required
+    type {
+      name
+      category
+    }
+  }
+  metaobjectsCount
+}
+
+fragment MetaobjectDefinitionRecreatePostDeleteEntryFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  fields {
+    key
+    type
+    value
+    jsonValue
+  }
+}
+
+query MetaobjectDefinitionRecreatePostDeleteRead(
+  $oldDefinitionId: ID!
+  $type: String!
+  $oldEntryId: ID!
+  $oldHandle: MetaobjectHandleInput!
+) {
+  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {
+    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields
+  }
+  byType: metaobjectDefinitionByType(type: $type) {
+    ...MetaobjectDefinitionRecreatePostDeleteDefinitionFields
+  }
+  oldEntry: metaobject(id: $oldEntryId) {
+    ...MetaobjectDefinitionRecreatePostDeleteEntryFields
+  }
+  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {
+    ...MetaobjectDefinitionRecreatePostDeleteEntryFields
+  }
+  catalog: metaobjects(type: $type, first: 10, sortKey: "display_name") {
+    edges {
+      cursor
+      node {
+        ...MetaobjectDefinitionRecreatePostDeleteEntryFields
+      }
+    }
+    nodes {
+      ...MetaobjectDefinitionRecreatePostDeleteEntryFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

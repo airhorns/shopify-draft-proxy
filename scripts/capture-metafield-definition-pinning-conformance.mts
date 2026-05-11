@@ -227,7 +227,7 @@ const unpinByIdMutation = `#graphql
 `;
 
 const createdDefinitionIds: string[] = [];
-const namespace = `har256_pin_${Date.now().toString(36)}`;
+const namespace = `metafield_definition_pin_${Date.now().toString(36)}`;
 const downstreamReadVariables = { namespace };
 
 async function createDefinition(key: string): Promise<string> {
@@ -257,6 +257,14 @@ try {
   const definitionAId = await createDefinition('pin_a');
   const definitionBId = await createDefinition('pin_b');
   const baselineRead = await runGraphql(seedDefinitionsQuery, downstreamReadVariables);
+  const baselineData =
+    baselineRead.data && typeof baselineRead.data === 'object' ? (baselineRead.data as Record<string, unknown>) : {};
+  const hydrateByNamespaceCassetteBody = {
+    data: {
+      metafieldDefinitions: baselineData.seedCatalog ?? baselineData.metafieldDefinitions,
+    },
+    extensions: baselineRead.extensions,
+  };
 
   const pinByIdentifierVariables = {
     identifier: {
@@ -266,6 +274,7 @@ try {
     },
   };
   const pinByIdentifierResponse = await runGraphql(pinByIdentifierMutation, pinByIdentifierVariables);
+  const pinAlreadyPinnedResponse = await runGraphql(pinByIdentifierMutation, pinByIdentifierVariables);
   const afterPinByIdentifierRead = await runGraphql(readDefinitionsQuery, downstreamReadVariables);
 
   const pinByIdVariables = { definitionId: definitionBId };
@@ -280,6 +289,7 @@ try {
     },
   };
   const unpinByIdentifierResponse = await runGraphql(unpinByIdentifierMutation, unpinByIdentifierVariables);
+  const unpinNotPinnedResponse = await runGraphql(unpinByIdentifierMutation, unpinByIdentifierVariables);
   const afterUnpinByIdentifierRead = await runGraphql(readDefinitionsQuery, downstreamReadVariables);
 
   const unpinByIdVariables = { definitionId: definitionBId };
@@ -291,6 +301,9 @@ try {
     path.join(outputDir, captureFile),
     `${JSON.stringify(
       {
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
         response: baselineRead,
         downstreamReadVariables,
         createdDefinitionIds: {
@@ -300,6 +313,10 @@ try {
         pinByIdentifier: {
           variables: pinByIdentifierVariables,
           response: pinByIdentifierResponse,
+        },
+        pinAlreadyPinned: {
+          variables: pinByIdentifierVariables,
+          response: pinAlreadyPinnedResponse,
         },
         afterPinByIdentifierRead,
         pinById: {
@@ -311,12 +328,29 @@ try {
           variables: unpinByIdentifierVariables,
           response: unpinByIdentifierResponse,
         },
+        unpinNotPinned: {
+          variables: unpinByIdentifierVariables,
+          response: unpinNotPinnedResponse,
+        },
         afterUnpinByIdentifierRead,
         unpinById: {
           variables: unpinByIdVariables,
           response: unpinByIdResponse,
         },
         afterUnpinByIdRead,
+        upstreamCalls: [
+          {
+            operationName: 'MetafieldDefinitionsHydrateByNamespace',
+            variables: {
+              ownerType: 'PRODUCT',
+              namespace,
+            },
+            response: {
+              status: 200,
+              body: hydrateByNamespaceCassetteBody,
+            },
+          },
+        ],
       },
       null,
       2,

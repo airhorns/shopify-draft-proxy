@@ -437,6 +437,8 @@ pub fn build_enabled_standard_definition(
       constraints: Some(template.constraints),
       pinned_position: None,
       validation_status: "ALL_VALID",
+      app_config_managed: False,
+      standard_template_app_dependent: False,
     ),
     next_identity,
   )
@@ -940,6 +942,90 @@ pub fn pin_definition(
           None,
         )),
       )
+  }
+}
+
+@internal
+pub fn validate_definition_already_pinned(
+  _store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition.pinned_position {
+    Some(_) -> [
+      UserError(
+        field: None,
+        message: "Definition already pinned.",
+        code: "ALREADY_PINNED",
+      ),
+    ]
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_definition_not_pinned(
+  _store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition.pinned_position {
+    None -> [
+      UserError(
+        field: None,
+        message: "Definition "
+          <> resource_tail(definition.id)
+          <> " isn't pinned.",
+        code: "NOT_PINNED",
+      ),
+    ]
+    Some(_) -> []
+  }
+}
+
+@internal
+pub fn validate_definition_app_config_managed(
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition.app_config_managed {
+    True -> [
+      UserError(
+        field: Some(["id"]),
+        message: "App-managed metafield definitions cannot be modified by other apps.",
+        code: "APP_CONFIG_MANAGED",
+      ),
+    ]
+    False -> []
+  }
+}
+
+@internal
+pub fn validate_definition_delete_guards(
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case validate_definition_app_config_managed(definition) {
+    [_, ..] as user_errors -> user_errors
+    [] ->
+      case definition.standard_template_app_dependent {
+        True -> [
+          UserError(
+            field: Some(["id"]),
+            message: "Standard metafield definition is in use by an installed app.",
+            code: "STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+@internal
+pub fn resource_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail_with_query) ->
+      case string.split(tail_with_query, "?") {
+        [tail, ..] -> tail
+        [] -> tail_with_query
+      }
+    Error(_) -> id
   }
 }
 
@@ -2845,6 +2931,13 @@ pub fn metafield_definition_from_json(
     pinned_position: json_get_int(value, "pinnedPosition"),
     validation_status: json_get_string(value, "validationStatus")
       |> option.unwrap("ALL_VALID"),
+    app_config_managed: json_get_bool(value, "appConfigManaged")
+      |> option.unwrap(False),
+    standard_template_app_dependent: json_get_bool(
+      value,
+      "standardTemplateAppDependent",
+    )
+      |> option.unwrap(False),
   ))
 }
 

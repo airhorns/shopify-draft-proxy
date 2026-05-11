@@ -1,0 +1,11 @@
+mutation CatalogDeleteSuccess($id: ID!) {
+  catalogDelete(id: $id) {
+    deletedId
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

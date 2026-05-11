@@ -431,8 +431,30 @@ fn reminder_mutation(schedule_id: String) -> String {
   <> "\") { success userErrors { field message code } } }"
 }
 
+fn reminder_variable_mutation() -> String {
+  "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) { paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field message code } } }"
+}
+
 fn run_reminder(proxy: DraftProxy, schedule_id: String) {
   graphql_with_proxy(proxy, reminder_mutation(schedule_id))
+}
+
+fn run_reminder_with_variable(proxy: DraftProxy, schedule_id: String) {
+  let query = reminder_variable_mutation()
+  let body =
+    "{\"query\":\""
+    <> escape(query)
+    <> "\",\"variables\":{\"paymentScheduleId\":\""
+    <> escape(schedule_id)
+    <> "\"}}"
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2025-01/graphql.json",
+      headers: dict.new(),
+      body: body,
+    )
+  draft_proxy.process_request(proxy, request)
 }
 
 pub fn payment_reminder_rejects_unknown_schedule_test() {
@@ -445,14 +467,69 @@ pub fn payment_reminder_rejects_unknown_schedule_test() {
   assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 0
 }
 
-pub fn payment_reminder_rejects_invalid_schedule_gid_test() {
-  let proxy = draft_proxy.new()
+pub fn payment_reminder_rejects_malformed_schedule_gid_variables_with_top_level_errors_test() {
+  let cases = [
+    #("", "Invalid global id ''"),
+    #("not-a-gid", "Invalid global id 'not-a-gid'"),
+  ]
+  list.each(cases, fn(case_) {
+    let #(schedule_id, message) = case_
+    let proxy = draft_proxy.new()
+    let #(Response(status: status, body: body, ..), proxy) =
+      run_reminder_with_variable(proxy, schedule_id)
+
+    assert status == 200
+    let body_json = json.to_string(body)
+    assert string.contains(
+      body_json,
+      "\"message\":\"Variable $paymentScheduleId of type ID! was provided invalid value\"",
+    )
+    assert string.contains(body_json, "\"code\":\"INVALID_VARIABLE\"")
+    assert string.contains(body_json, "\"explanation\":\"" <> message <> "\"")
+    assert !string.contains(body_json, "\"data\"")
+    assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 0
+  })
+}
+
+pub fn payment_reminder_malformed_schedule_gid_aborts_sibling_mutations_test() {
+  let query =
+    "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) { paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field message code } } paymentCustomizationCreate(paymentCustomization: { title: \"Should not stage\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id } userErrors { field code message } } }"
+  let body =
+    "{\"query\":\""
+    <> escape(query)
+    <> "\",\"variables\":{\"paymentScheduleId\":\"not-a-gid\"}}"
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2025-01/graphql.json",
+      headers: dict.new(),
+      body: body,
+    )
   let #(Response(status: status, body: body, ..), proxy) =
-    run_reminder(proxy, "gid://shopify/Order/1")
+    draft_proxy.process_request(draft_proxy.new(), request)
 
   assert status == 200
-  assert json.to_string(body)
-    == "{\"data\":{\"paymentReminderSend\":{\"success\":false,\"userErrors\":[{\"field\":[\"paymentScheduleId\"],\"message\":\"Payment schedule ID is invalid\",\"code\":\"INVALID_PAYMENT_SCHEDULE_ID\"}]}}}"
+  let body_json = json.to_string(body)
+  assert string.contains(
+    body_json,
+    "\"message\":\"Variable $paymentScheduleId of type ID! was provided invalid value\"",
+  )
+  assert !string.contains(body_json, "\"data\"")
+  assert !string.contains(body_json, "paymentCustomizationCreate")
+  assert dict.size(proxy.store.staged_state.payment_customizations) == 0
+}
+
+pub fn payment_reminder_rejects_wrong_schedule_gid_type_with_top_level_error_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: status, body: body, ..), proxy) =
+    run_reminder_with_variable(proxy, "gid://shopify/Order/1")
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"message\":\"invalid id\"")
+  assert string.contains(body_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(body_json, "\"path\":[\"paymentReminderSend\"]")
+  assert string.contains(body_json, "\"data\":{\"paymentReminderSend\":null}")
   assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 0
 }
 
@@ -1035,6 +1112,59 @@ pub fn payment_customization_create_allows_six_enabled_customizations_test() {
   assert list.length(store.list_effective_payment_customizations(proxy.store))
     == 6
   assert string.contains(meta_state_json(proxy), "Payment customization 6")
+}
+
+pub fn payment_customization_activation_returns_only_toggled_ids_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), valid_payment_customization_create_query("1"))
+  assert create_status == 200
+
+  let #(Response(status: activation_status, body: activation_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/1\", \"gid://shopify/PaymentCustomization/999\"], enabled: false) { ids userErrors { field code message } } }",
+    )
+  assert activation_status == 200
+  let activation_json = json.to_string(activation_body)
+  assert string.contains(
+    activation_json,
+    "\"ids\":[\"gid://shopify/PaymentCustomization/1\"]",
+  )
+  assert string.contains(activation_json, "\"field\":[\"ids\"]")
+  assert string.contains(
+    activation_json,
+    "\"code\":\"PAYMENT_CUSTOMIZATION_NOT_FOUND\"",
+  )
+  assert string.contains(
+    activation_json,
+    "gid://shopify/PaymentCustomization/999",
+  )
+
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/1\"], enabled: false) { ids userErrors { field code message } } }",
+    )
+  assert second_status == 200
+  let second_json = json.to_string(second_body)
+  assert string.contains(second_json, "\"ids\":[]")
+  assert string.contains(second_json, "\"userErrors\":[]")
+}
+
+pub fn payment_customization_activation_all_invalid_returns_empty_ids_test() {
+  let #(Response(status: activation_status, body: activation_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { paymentCustomizationActivation(ids: [\"gid://shopify/PaymentCustomization/999\"], enabled: true) { ids userErrors { field code message } } }",
+    )
+  assert activation_status == 200
+  let activation_json = json.to_string(activation_body)
+  assert string.contains(activation_json, "\"ids\":[]")
+  assert string.contains(activation_json, "\"field\":[\"ids\"]")
+  assert string.contains(
+    activation_json,
+    "\"code\":\"PAYMENT_CUSTOMIZATION_NOT_FOUND\"",
+  )
 }
 
 fn valid_payment_customization_create_query(suffix: String) -> String {
