@@ -3590,7 +3590,7 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
     store.new()
     |> store.upsert_base_fulfillment_orders([
       fulfillment_order_record(closed_order_id, "CLOSED", "UNSUBMITTED"),
-      fulfillment_order_record(progress_order_id, "IN_PROGRESS", "UNSUBMITTED"),
+      fulfillment_order_record(progress_order_id, "OPEN", "UNSUBMITTED"),
     ])
 
   let cancel_mutation =
@@ -3701,6 +3701,14 @@ pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test(
       "2026-04-04T00:00:00Z",
       False,
     )
+  let open_in_progress_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-in-progress",
+      "IN_PROGRESS",
+      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "HOLD", "MARK_AS_OPEN"],
+      "2026-04-04T12:00:00Z",
+      True,
+    )
   let report_open_order =
     fulfillment_order_record_with_lifecycle_fields(
       "gid://shopify/FulfillmentOrder/progress-precondition-open",
@@ -3757,6 +3765,7 @@ pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test(
       held_order,
       cancelled_order,
       scheduled_order,
+      open_in_progress_order,
       report_open_order,
       report_scheduled_order,
       report_closed_order,
@@ -3849,6 +3858,20 @@ pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test(
   assert json.to_string(open_on_scheduled.data)
     == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/open-precondition-scheduled\",\"status\":\"OPEN\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
 
+  let open_on_in_progress =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(open_in_progress_order.id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_in_progress.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/open-precondition-in-progress\",\"status\":\"OPEN\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
+
   let progress_mutation =
     "
     mutation Progress($id: ID!) {
@@ -3879,8 +3902,7 @@ pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test(
       empty_upstream_context(),
     )
   assert json.to_string(progress_on_open.data)
-    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
-  assert_fulfillment_order_unchanged(progress_on_open.store, report_open_order)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/progress-precondition-open\",\"status\":\"IN_PROGRESS\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
 
   let progress_on_scheduled =
     shipping_fulfillments.process_mutation(
@@ -3992,7 +4014,7 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
     |> store.upsert_base_fulfillment_orders([
       fulfillment_order_record(closed_order_id, "CLOSED", "UNSUBMITTED"),
       fulfillment_order_record(accepted_order_id, "OPEN", "ACCEPTED"),
-      fulfillment_order_record(progress_order_id, "IN_PROGRESS", "UNSUBMITTED"),
+      fulfillment_order_record(progress_order_id, "OPEN", "UNSUBMITTED"),
       fulfillment_order_record(success_order_id, "OPEN", "UNSUBMITTED"),
       fulfillment_order_record_with_assignment_status(
         cancellation_requested_assignment_order_id,

@@ -856,7 +856,7 @@ pub fn handle_fulfillment_order_simple_status(
   variables: Dict(String, root_field.ResolvedValue),
   payload_typename: String,
   status: String,
-  required_status: String,
+  allowed_statuses: List(String),
   invalid_status_message: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
@@ -864,7 +864,7 @@ pub fn handle_fulfillment_order_simple_status(
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          case order.status == required_status {
+          case list.contains(allowed_statuses, order.status) {
             True -> {
               let actions = case status {
                 "IN_PROGRESS" -> [

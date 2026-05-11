@@ -305,7 +305,7 @@ pub fn handle_mutation_fields(
                 variables,
                 "FulfillmentOrderReportProgressPayload",
                 "IN_PROGRESS",
-                "IN_PROGRESS",
+                ["OPEN", "IN_PROGRESS"],
                 "Fulfillment order must be in progress.",
               ))
             "fulfillmentOrderOpen" ->
@@ -317,7 +317,7 @@ pub fn handle_mutation_fields(
                 variables,
                 "FulfillmentOrderOpenPayload",
                 "OPEN",
-                "SCHEDULED",
+                ["SCHEDULED", "IN_PROGRESS"],
                 "Fulfillment order must be scheduled.",
               ))
             "fulfillmentOrderClose" ->

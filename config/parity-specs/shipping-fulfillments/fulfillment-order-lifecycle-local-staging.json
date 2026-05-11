@@ -5,6 +5,8 @@
     "fulfillmentOrderReleaseHold",
     "fulfillmentOrderMove",
     "fulfillmentOrderReschedule",
+    "fulfillmentOrderReportProgress",
+    "fulfillmentOrderOpen",
     "fulfillmentOrderClose",
     "fulfillmentOrderCancel",
     "fulfillmentOrderSplit",
@@ -228,6 +230,79 @@
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
           "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReschedule.orderRead.variables"
         }
+      },
+      {
+        "name": "report-progress-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
+        "proxyPath": "$.data.fulfillmentOrderReportProgress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-report-progress.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-report-progress-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "cancel-after-report-progress-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.cancelAfterReportProgress.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-cancel.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.cancelAfterReportProgress.variables"
+        }
+      },
+      {
+        "name": "open-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.open.response.payload.data.fulfillmentOrderOpen",
+        "proxyPath": "$.data.fulfillmentOrderOpen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-open.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.open.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-open-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
       },
       {
         "name": "close-guardrail-data",
@@ -479,5 +554,5 @@
       }
     ]
   },
-  "notes": "HAR-234/HAR-367 executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, cancel, split, deadline, and merge mutations against the local proxy harness, and compares captured Shopify payload slices to proxy payload slices directly. Target-local expected differences are limited to synthetic IDs and timestamps for locally created staged records. The older schedule-progress-open branch starts report-progress from an OPEN fulfillment order and is no longer replayed by this spec because local status preconditions are covered by focused runtime tests. Reroute, close, reschedule, and prepared-for-pickup remain documented as captured blocker/guardrail branches rather than full local support."
+  "notes": "HAR-234/HAR-367 executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, report-progress/open, cancel, split, deadline, and merge mutations against the local proxy harness, and compares captured Shopify payload slices to proxy payload slices directly. Target-local expected differences are limited to synthetic IDs and timestamps for locally created staged records. Reroute, close, reschedule, and prepared-for-pickup remain documented as captured blocker/guardrail branches rather than full local support."
 }

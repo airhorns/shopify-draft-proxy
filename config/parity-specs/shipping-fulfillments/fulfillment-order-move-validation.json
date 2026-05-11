@@ -1,6 +1,10 @@
 {
   "scenarioId": "fulfillment-order-move-validation",
-  "operationNames": ["fulfillmentOrderSubmitFulfillmentRequest", "fulfillmentOrderMove"],
+  "operationNames": [
+    "fulfillmentOrderReportProgress",
+    "fulfillmentOrderSubmitFulfillmentRequest",
+    "fulfillmentOrderMove"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "mutation-lifecycle", "runtime-staging"],
   "liveCaptureFiles": [
@@ -29,6 +33,33 @@
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.closed.moveAfterClose.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder",
+          "$.originalFulfillmentOrder",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "report-progress-setup",
+        "capturePath": "$.progress.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-report-progress.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.progress.reportProgress.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderReportProgress",
+        "selectedPaths": ["$.fulfillmentOrder.status", "$.fulfillmentOrder.requestStatus", "$.userErrors"]
+      },
+      {
+        "name": "progress-move-user-errors",
+        "capturePath": "$.progress.moveAfterProgress.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.progress.moveAfterProgress.variables"
         },
         "proxyPath": "$.data.fulfillmentOrderMove",
         "selectedPaths": [
@@ -105,5 +136,5 @@
       }
     ]
   },
-  "notes": "HAR-555 captures fulfillmentOrderMove validation preconditions for closed fulfillment orders, submitted request status, full-move remainingFulfillmentOrder shape, and invalid destination locations. Runtime coverage separately covers manually reported progress and inactive local destinations because the active conformance location catalog only exposes active locations and the older report-progress setup starts from an OPEN fulfillment order."
+  "notes": "HAR-555 captures fulfillmentOrderMove validation preconditions for closed fulfillment orders, manually reported progress, submitted request status, full-move remainingFulfillmentOrder shape, and invalid destination locations. Runtime coverage separately covers inactive local destinations because the active conformance location catalog only exposes active locations."
 }
