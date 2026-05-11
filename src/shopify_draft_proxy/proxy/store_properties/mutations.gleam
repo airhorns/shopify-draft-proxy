@@ -2185,7 +2185,6 @@ fn location_delete_guard_errors(
           "The location cannot be deleted while it has an active retail subscription.",
           "LOCATION_HAS_ACTIVE_RETAIL_SUBSCRIPTION",
         )
-        |> append_primary_location_delete_error(record)
       case
         errors,
         store_property_bool_field(record, "deletable") |> option.unwrap(True)
@@ -2199,22 +2198,6 @@ fn location_delete_guard_errors(
         _, _ -> errors
       }
     }
-  }
-}
-
-fn append_primary_location_delete_error(
-  errors: List(SourceValue),
-  record: StorePropertyRecord,
-) -> List(SourceValue) {
-  case errors, location_is_primary(record) {
-    [], True ->
-      list.append(errors, [
-        location_delete_error(
-          "The primary location cannot be deleted.",
-          "LOCATION_IS_PRIMARY",
-        ),
-      ])
-    _, _ -> errors
   }
 }
 

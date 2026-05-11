@@ -1,0 +1,28 @@
+{
+  "scenarioId": "location-delete-primary-location",
+  "operationNames": ["locationDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "scope-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-delete-state-and-scope.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+    "variablesCapturePath": "$.workflow.primaryLocationDelete.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-location-delete-errors",
+        "capturePath": "$.workflow.primaryLocationDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete"
+      }
+    ]
+  },
+  "notes": "Records real Admin API 2026-04 locationDelete behavior for the shop's primary location from the state-and-scope capture. Shopify returned LOCATION_IS_ACTIVE, LOCATION_HAS_INVENTORY, and LOCATION_HAS_PENDING_ORDERS for the captured primary location; it did not return a primary-specific userError code."
+}

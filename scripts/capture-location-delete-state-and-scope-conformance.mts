@@ -444,6 +444,28 @@ function assertHasLocationDeleteErrors(capture: CaptureCase): void {
   }
 }
 
+function locationDeleteErrorCodes(capture: CaptureCase): string[] {
+  return userErrors(capture, 'locationDelete')
+    .map(readObject)
+    .map((error) => error?.['code'])
+    .filter((code): code is string => typeof code === 'string');
+}
+
+function assertPrimaryLocationDeleteErrors(capture: CaptureCase): void {
+  assertHasLocationDeleteErrors(capture);
+  const codes = locationDeleteErrorCodes(capture);
+  if (codes.includes('LOCATION_IS_PRIMARY')) {
+    throw new Error(`${capture.name} returned fabricated LOCATION_IS_PRIMARY code: ${JSON.stringify(codes)}`);
+  }
+  const requiredCodes = ['LOCATION_IS_ACTIVE', 'LOCATION_HAS_INVENTORY', 'LOCATION_HAS_PENDING_ORDERS'];
+  const missingCodes = requiredCodes.filter((code) => !codes.includes(code));
+  if (missingCodes.length > 0) {
+    throw new Error(
+      `${capture.name} missed expected primary delete codes ${JSON.stringify(missingCodes)}: ${JSON.stringify(codes)}`,
+    );
+  }
+}
+
 function readLocationAddId(capture: CaptureCase): string {
   const location = readObject(mutationPayload(capture, 'locationAdd')['location']);
   const id = location?.['id'];
@@ -689,7 +711,7 @@ try {
   const primaryLocationId = readPrimaryLocationId(setup['primaryLocations'] as CaptureCase);
   const primaryHydrate = await hydrateLocation('primaryLocationHydrate', primaryLocationId);
   workflow['primaryLocationDelete'] = await deleteLocation('primaryLocationDelete', primaryLocationId);
-  assertHasLocationDeleteErrors(workflow['primaryLocationDelete'] as CaptureCase);
+  assertPrimaryLocationDeleteErrors(workflow['primaryLocationDelete'] as CaptureCase);
   upstreamCalls.push({
     operationName: 'StorePropertiesLocationHydrate',
     variables: { id: primaryLocationId },

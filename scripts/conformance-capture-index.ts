@@ -4751,6 +4751,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-delete-state-and-scope.json`,
       'config/parity-specs/store-properties/location-delete-state-and-scope.json',
+      'config/parity-specs/store-properties/location-delete-primary-location.json',
     ],
     cleanupBehavior:
       'Creates disposable merchant-managed locations, temporary products/inventory levels, and a fulfillment service, then cleans them up after guard capture.',
