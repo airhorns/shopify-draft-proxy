@@ -3249,6 +3249,20 @@ pub fn validate_discount_top_level_errors(
       errors,
       validate_customer_selection_top_level_errors(input, field, document),
     )
+  let errors =
+    list.append(
+      errors,
+      validate_discount_item_add_remove_top_level_errors(input, field, document),
+    )
+  let errors =
+    list.append(
+      errors,
+      validate_discount_country_add_remove_top_level_errors(
+        input,
+        field,
+        document,
+      ),
+    )
   list.append(
     errors,
     validate_cart_line_combination_tag_top_level_errors(input, field, document),
@@ -3311,35 +3325,58 @@ pub fn validate_customer_selection_top_level_errors(
   document: String,
 ) -> List(Json) {
   case customer_selection_fields(input) {
-    Some(fields) ->
-      case customer_selection_all_is_true(fields) {
-        True ->
-          case
-            customer_selection_has_customers(fields)
-            || customer_selection_has_customer_saved_searches(fields)
-          {
+    Some(fields) -> {
+      let errors = case customer_selection_customer_add_remove_overlap(fields) {
+        True -> [
+          discount_bad_request_error(
+            field,
+            document,
+            "A customer id is present in `add` and `remove` fields",
+          ),
+        ]
+        False -> []
+      }
+      list.append(
+        errors,
+        customer_selection_all_top_level_errors(fields, field, document),
+      )
+    }
+    None -> []
+  }
+}
+
+@internal
+pub fn customer_selection_all_top_level_errors(
+  fields: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case customer_selection_all_is_true(fields) {
+    True ->
+      case
+        customer_selection_has_customers(fields)
+        || customer_selection_has_customer_saved_searches(fields)
+      {
+        True -> [
+          discount_bad_request_error(
+            field,
+            document,
+            "A discount cannot have customerSelection set to all, when customers or customerSavedSearches is specified.",
+          ),
+        ]
+        False ->
+          case customer_selection_has_customer_segments(fields) {
             True -> [
               discount_bad_request_error(
                 field,
                 document,
-                "A discount cannot have customerSelection set to all, when customers or customerSavedSearches is specified.",
+                "A discount cannot have customerSelection set to all, when customerSegments is specified.",
               ),
             ]
-            False ->
-              case customer_selection_has_customer_segments(fields) {
-                True -> [
-                  discount_bad_request_error(
-                    field,
-                    document,
-                    "A discount cannot have customerSelection set to all, when customerSegments is specified.",
-                  ),
-                ]
-                False -> []
-              }
+            False -> []
           }
-        False -> []
       }
-    None -> []
+    False -> []
   }
 }
 
@@ -3382,6 +3419,177 @@ pub fn customer_selection_has_customer_segments(
   fields: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
   input_value_is_present(fields, "customerSegments")
+}
+
+@internal
+pub fn customer_selection_customer_add_remove_overlap(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(fields, "customers") {
+    Ok(root_field.ObjectVal(customers)) ->
+      add_remove_array_overlap(customers, "add", "remove")
+    _ -> False
+  }
+}
+
+@internal
+pub fn validate_discount_item_add_remove_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case discount_item_add_remove_overlap_message(input) {
+    Some(message) -> [
+      discount_bad_request_error(field, document, message),
+    ]
+    None -> []
+  }
+}
+
+@internal
+pub fn discount_item_add_remove_overlap_message(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case discount_item_root_add_remove_overlap_message(input, "customerGets") {
+    Some(message) -> Some(message)
+    None -> discount_item_root_add_remove_overlap_message(input, "customerBuys")
+  }
+}
+
+@internal
+pub fn discount_item_root_add_remove_overlap_message(
+  input: Dict(String, root_field.ResolvedValue),
+  item_root: String,
+) -> Option(String) {
+  case discount_types.read_value(input, item_root) {
+    root_field.ObjectVal(fields) ->
+      case discount_types.read_value(fields, "items") {
+        root_field.ObjectVal(items) ->
+          discount_items_add_remove_overlap_message(items)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+@internal
+pub fn discount_items_add_remove_overlap_message(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case discount_products_add_remove_overlap_message(items) {
+    Some(message) -> Some(message)
+    None -> discount_collections_add_remove_overlap_message(items)
+  }
+}
+
+@internal
+pub fn discount_products_add_remove_overlap_message(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case dict.get(items, "products") {
+    Ok(root_field.ObjectVal(products)) -> {
+      case
+        add_remove_array_overlap(products, "productsToAdd", "productsToRemove")
+      {
+        True ->
+          Some(
+            "The same Product id is present in both 'add' and 'remove' fields",
+          )
+        False ->
+          case
+            add_remove_array_overlap(
+              products,
+              "productVariantsToAdd",
+              "productVariantsToRemove",
+            )
+          {
+            True ->
+              Some(
+                "The same ProductVariant id is present in both 'add' and 'remove' fields",
+              )
+            False -> None
+          }
+      }
+    }
+    _ -> None
+  }
+}
+
+@internal
+pub fn discount_collections_add_remove_overlap_message(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case dict.get(items, "collections") {
+    Ok(root_field.ObjectVal(collections)) ->
+      case add_remove_array_overlap(collections, "add", "remove") {
+        True ->
+          Some(
+            "The same Collection id is present in both 'add' and 'remove' fields",
+          )
+        False -> None
+      }
+    _ -> None
+  }
+}
+
+@internal
+pub fn validate_discount_country_add_remove_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case discount_country_add_remove_overlap(input) {
+    True -> [
+      discount_bad_request_error(
+        field,
+        document,
+        "A country code is present in `add` and `remove` field",
+      ),
+    ]
+    False -> []
+  }
+}
+
+@internal
+pub fn discount_country_add_remove_overlap(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  country_add_remove_overlap_at_destination(input)
+  || country_add_remove_overlap_at_minimum_requirement(input)
+}
+
+@internal
+pub fn country_add_remove_overlap_at_destination(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case discount_types.read_value(input, "destination") {
+    root_field.ObjectVal(destination) ->
+      case discount_types.read_value(destination, "countries") {
+        root_field.ObjectVal(countries) ->
+          add_remove_array_overlap(countries, "add", "remove")
+        _ -> False
+      }
+    _ -> False
+  }
+}
+
+@internal
+pub fn country_add_remove_overlap_at_minimum_requirement(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case discount_types.read_value(input, "minimumRequirement") {
+    root_field.ObjectVal(minimum_requirement) ->
+      case discount_types.read_value(minimum_requirement, "shippingMethods") {
+        root_field.ObjectVal(shipping_methods) ->
+          case discount_types.read_value(shipping_methods, "countries") {
+            root_field.ObjectVal(countries) ->
+              add_remove_array_overlap(countries, "add", "remove")
+            _ -> False
+          }
+        _ -> False
+      }
+    _ -> False
+  }
 }
 
 @internal
@@ -3488,9 +3696,18 @@ pub fn product_discounts_with_tags_settings(
 pub fn tag_add_remove_overlap(
   settings: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
-  let add_tags = discount_types.read_string_array(settings, "add", [])
-  let remove_tags = discount_types.read_string_array(settings, "remove", [])
-  list.any(remove_tags, fn(tag) { list.contains(add_tags, tag) })
+  add_remove_array_overlap(settings, "add", "remove")
+}
+
+@internal
+pub fn add_remove_array_overlap(
+  input: Dict(String, root_field.ResolvedValue),
+  add_field: String,
+  remove_field: String,
+) -> Bool {
+  let add_values = discount_types.read_string_array(input, add_field, [])
+  let remove_values = discount_types.read_string_array(input, remove_field, [])
+  list.any(remove_values, fn(value) { list.contains(add_values, value) })
 }
 
 @internal

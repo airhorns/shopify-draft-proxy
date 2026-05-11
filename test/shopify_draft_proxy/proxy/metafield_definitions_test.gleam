@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
@@ -12,6 +13,7 @@ import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types.{MetafieldDefinitionRecord}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -1442,6 +1444,33 @@ fn create_app_definition_only(
   #(created.store, created.identity, json.to_string(created.data))
 }
 
+fn create_definition_with_flags(
+  app_config_managed: Bool,
+  standard_template_app_dependent: Bool,
+) -> #(store.Store, synthetic_identity.SyntheticIdentityRegistry) {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("guarded"),
+    )
+  let assert Some(definition) =
+    store.get_effective_metafield_definition_by_id(
+      created.store,
+      "gid://shopify/MetafieldDefinition/1",
+    )
+  let guarded =
+    MetafieldDefinitionRecord(
+      ..definition,
+      app_config_managed: app_config_managed,
+      standard_template_app_dependent: standard_template_app_dependent,
+    )
+  #(
+    store.upsert_staged_metafield_definitions(created.store, [guarded]),
+    created.identity,
+  )
+}
+
 fn create_proxy_definition(
   proxy: draft_proxy.DraftProxy,
   index: Int,
@@ -1944,6 +1973,130 @@ pub fn metafield_definition_update_applies_constraint_inputs_test() {
   assert string.contains(legacy_json, "\"value\":\"ap-2-12\"")
 }
 
+pub fn metafield_definition_update_rejects_keyed_empty_constraints_updates_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint update empty values\",
+        namespace: \"constraint_update\",
+        key: \"empty_values\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let reject_empty_values =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"empty_values\",
+        ownerType: PRODUCT,
+        constraintsUpdates: { key: \"product_category\", values: [] }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, reject_empty_values)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(update_json, "\"field\":[\"definition\"]")
+  assert string.contains(update_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    update_json,
+    "\"message\":\"Cannot change the constraint key without providing values.\"",
+  )
+
+  let read =
+    "query {
+      metafieldDefinition(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"empty_values\"
+      }) {
+        constraints { key values(first: 10) { nodes { value } } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"key\":null")
+  assert string.contains(read_json, "\"nodes\":[]")
+}
+
+pub fn metafield_definition_update_rejects_keyed_empty_constraints_set_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint set empty values\",
+        namespace: \"constraint_update\",
+        key: \"empty_set\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let reject_empty_values =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"empty_set\",
+        ownerType: PRODUCT,
+        constraintsSet: { key: \"product_category\", values: [] }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, reject_empty_values)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(update_json, "\"field\":[\"definition\"]")
+  assert string.contains(update_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    update_json,
+    "\"message\":\"Cannot change the constraint key without providing values.\"",
+  )
+
+  let read =
+    "query {
+      metafieldDefinition(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"empty_set\"
+      }) {
+        constraints { key values(first: 10) { nodes { value } } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"key\":null")
+  assert string.contains(read_json, "\"nodes\":[]")
+}
+
 pub fn metafield_definition_update_constraints_updates_unconstrains_test() {
   let proxy = draft_proxy.new()
   let create =
@@ -2026,24 +2179,107 @@ pub fn metafield_definition_unpin_compacts_pinned_positions_test() {
     == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[{\"key\":\"pin_3\",\"pinnedPosition\":2},{\"key\":\"pin_1\",\"pinnedPosition\":1}]}}}"
 }
 
-pub fn metafield_definition_unpin_rejects_unpinned_definition_test() {
-  let create =
+pub fn metafield_definition_pin_rejects_already_pinned_definition_test() {
+  let created =
     run_mutation(
       store.new(),
       synthetic_identity.new(),
-      "mutation { metafieldDefinitionCreate(definition: { name: \"Unpinned\", namespace: \"unpin_guard\", key: \"target\", ownerType: PRODUCT, type: \"single_line_text_field\" }) { createdDefinition { id pinnedPosition } userErrors { field message code } } }",
+      create_definition_query("pin_once"),
     )
+  let pinned =
+    run_mutation(
+      created.store,
+      created.identity,
+      pin_definition_query("pin_once"),
+    )
+  let repinned =
+    run_mutation(
+      pinned.store,
+      pinned.identity,
+      pin_definition_query("pin_once"),
+    )
+
+  assert repinned.staged_resource_ids == []
+  assert json.to_string(repinned.data)
+    == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition already pinned.\",\"code\":\"ALREADY_PINNED\"}]}}}"
+}
+
+pub fn metafield_definition_unpin_rejects_unpinned_definition_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("not_pinned"),
+    )
+  let unpinned =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metafieldDefinitionUnpin(identifier: {
+          ownerType: PRODUCT,
+          namespace: \"har699\",
+          key: \"not_pinned\"
+        }) {
+          unpinnedDefinition { id key pinnedPosition }
+          userErrors { __typename field message code }
+        }
+      }",
+    )
+
+  assert unpinned.staged_resource_ids == []
+  assert json.to_string(unpinned.data)
+    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"__typename\":\"MetafieldDefinitionUnpinUserError\",\"field\":null,\"message\":\"Definition 1 isn't pinned.\",\"code\":\"NOT_PINNED\"}]}}}"
+}
+
+pub fn metafield_definition_pin_unpin_delete_reject_app_config_managed_definition_test() {
+  let #(guarded_store, guarded_identity) =
+    create_definition_with_flags(True, False)
+
+  let pin =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      pin_definition_query("guarded"),
+    )
+  assert pin.staged_resource_ids == []
+  assert json.to_string(pin.data)
+    == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
 
   let unpin =
     run_mutation(
-      create.store,
-      create.identity,
-      "mutation { metafieldDefinitionUnpin(id: \"gid://shopify/MetafieldDefinition/1\") { unpinnedDefinition { id pinnedPosition } userErrors { __typename field message code } } }",
+      guarded_store,
+      guarded_identity,
+      unpin_definition_query("guarded"),
+    )
+  assert unpin.staged_resource_ids == []
+  assert json.to_string(unpin.data)
+    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
+
+  let delete =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) { deletedDefinitionId deletedDefinition { ownerType namespace key } userErrors { field message code } } }",
+    )
+  assert delete.staged_resource_ids == []
+  assert json.to_string(delete.data)
+    == "{\"data\":{\"metafieldDefinitionDelete\":{\"deletedDefinitionId\":null,\"deletedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
+}
+
+pub fn metafield_definition_delete_rejects_standard_template_app_dependent_definition_test() {
+  let #(guarded_store, guarded_identity) =
+    create_definition_with_flags(False, True)
+  let delete =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) { deletedDefinitionId deletedDefinition { ownerType namespace key } userErrors { field message code } } }",
     )
 
-  assert json.to_string(unpin.data)
-    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"__typename\":\"MetafieldDefinitionUnpinUserError\",\"field\":null,\"message\":\"Definition is not pinned.\",\"code\":\"NOT_PINNED\"}]}}}"
-  assert unpin.staged_resource_ids == []
+  assert delete.staged_resource_ids == []
+  assert json.to_string(delete.data)
+    == "{\"data\":{\"metafieldDefinitionDelete\":{\"deletedDefinitionId\":null,\"deletedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Standard metafield definition is in use by an installed app.\",\"code\":\"STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP\"}]}}}"
 }
 
 pub fn metafield_definition_create_with_pin_rejects_owner_type_cap_test() {

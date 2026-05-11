@@ -1,0 +1,32 @@
+{
+  "scenarioId": "metafield-definition-update-empty-constraint-values",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionPin",
+    "metafieldDefinition"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["validation-errors"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-constraints.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "constraints-updates-key-with-empty-values-rejected",
+        "capturePath": "$.primary.response.data.rejectEmptyConstraintValues",
+        "proxyPath": "$.data.rejectEmptyConstraintValues"
+      }
+    ]
+  },
+  "notes": "Focused parity evidence for the captured 2026-04 metafieldDefinitionUpdate `constraintsUpdates: { key: <string>, values: [] }` rejection. Shopify returns `updatedDefinition: null` with field `[\"definition\"]`, code `INVALID_INPUT`, and message `Cannot change the constraint key without providing values.`. The same capture records a non-parity `constraintsSetProbe` showing public 2026-04 rejects `constraintsSet` at GraphQL validation before resolver execution."
+}

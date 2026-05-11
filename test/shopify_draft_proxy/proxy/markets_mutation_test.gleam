@@ -95,6 +95,17 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
 }
 
+pub fn markets_typed_mutation_user_errors_include_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { __typename field message code } } priceListUpdate(id: \"gid://shopify/PriceList/0\", input: { name: \"Missing\" }) { priceList { id } userErrors { __typename field message code } } priceListDelete(id: \"gid://shopify/PriceList/0\") { deletedId userErrors { __typename field message code } } quantityRulesDelete(priceListId: \"gid://shopify/PriceList/0\", variantIds: [\"gid://shopify/ProductVariant/0\"]) { deletedQuantityRulesVariantIds userErrors { __typename field message code } } webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"x\" }) { webPresence { id } userErrors { __typename field message code } } webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/0\", input: { defaultLocale: \"en\" }) { webPresence { id } userErrors { __typename field message code } } webPresenceDelete(id: \"gid://shopify/MarketWebPresence/0\") { deletedId userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"input\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"BLANK\"}]},\"priceListUpdate\":{\"priceList\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"id\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]},\"priceListDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"id\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]},\"quantityRulesDelete\":{\"deletedQuantityRulesVariantIds\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"priceListId\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_DOES_NOT_EXIST\"}]},\"webPresenceCreate\":{\"webPresence\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must be at least 2 letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS\"}]},\"webPresenceUpdate\":{\"webPresence\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"id\"],\"message\":\"The market web presence wasn't found.\",\"code\":\"WEB_PRESENCE_NOT_FOUND\"}]},\"webPresenceDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"id\"],\"message\":\"The market web presence wasn't found.\",\"code\":\"WEB_PRESENCE_NOT_FOUND\"}]}}}"
+}
+
 pub fn price_list_create_matches_parent_adjustment_value_bounds_test() {
   let #(Response(status: zero_status, body: zero_body, ..), _) =
     graphql(
@@ -488,6 +499,29 @@ pub fn quantity_rules_add_rejects_maximum_below_existing_price_break_test() {
     == "{\"data\":{\"priceList\":{\"quantityRules\":null}}}"
 }
 
+pub fn quantity_pricing_by_variant_update_deletes_existing_price_break_by_id_test() {
+  let proxy = product_bulk_fixed_price_proxy_with_quantity_break(10)
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { quantityPricingByVariantUpdate(priceListId: \"gid://shopify/PriceList/test\", input: { quantityPriceBreaksToDelete: [\"gid://shopify/QuantityPriceBreak/test\"] }) { productVariants { id } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { priceList(id: \"gid://shopify/PriceList/test\") { prices(first: 10, originType: FIXED) { nodes { quantityPriceBreaks(first: 10) { edges { node { id minimumQuantity } } } } } } }",
+    )
+
+  assert status == 200
+  assert read_status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityPricingByVariantUpdate\":{\"productVariants\":[{\"id\":\"gid://shopify/ProductVariant/test\"}],\"userErrors\":[]}}}"
+  assert string.contains(
+    json.to_string(read_body),
+    "\"quantityPriceBreaks\":{\"edges\":[]",
+  )
+}
+
 pub fn quantity_rules_delete_rejects_variant_without_existing_rule_test() {
   let proxy = product_bulk_fixed_price_proxy()
   let #(Response(status: status, body: body, ..), _) =
@@ -744,7 +778,7 @@ pub fn price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test() 
   ) =
     graphql_with_proxy(
       proxy_after_update,
-      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/beta\", \"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { field message code } } }",
+      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { field message code } } }",
     )
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql_with_proxy(
@@ -783,7 +817,7 @@ pub fn price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test() 
   assert !string.contains(read_json, "\"variant\":{\"id\"")
 }
 
-pub fn price_list_fixed_prices_validates_target_variant_currency_and_duplicates_test() {
+pub fn price_list_fixed_prices_validates_target_variant_and_currency_test() {
   let #(Response(status: missing_status, body: missing_body, ..), _) =
     graphql_with_proxy(
       price_list_fixed_price_proxy(),
@@ -805,34 +839,78 @@ pub fn price_list_fixed_prices_validates_target_variant_currency_and_duplicates_
   )
   assert string.contains(
     missing_json,
-    "\"field\":[\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"",
+    "\"field\":[\"priceListId\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"",
   )
   assert string.contains(
     input_json,
-    "\"field\":[\"prices\",\"0\",\"variantId\"],\"message\":\"Variant not found.\",\"code\":\"VARIANT_NOT_FOUND\"",
+    "\"field\":[\"prices\",\"0\",\"variantId\"],\"message\":\"Product variant ID does not exist.\",\"code\":\"VARIANT_NOT_FOUND\"",
   )
   assert string.contains(
     input_json,
-    "\"field\":[\"prices\",\"1\",\"price\",\"currencyCode\"],\"message\":\"Currency must match price list currency.\",\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
+    "\"field\":[\"prices\",\"1\",\"price\",\"currencyCode\"],\"message\":\"The specified currency does not match the price list's currency.\",\"code\":\"PRICE_LIST_CURRENCY_MISMATCH\"",
   )
-  assert string.contains(
-    input_json,
-    "\"field\":[\"prices\",\"2\",\"variantId\"],\"message\":\"Duplicate variant ID in input.\",\"code\":\"DUPLICATE_ID_IN_INPUT\"",
-  )
-  assert string.contains(input_json, "\"prices\":null")
+  assert !string.contains(input_json, "DUPLICATE_ID_IN_INPUT")
+  assert string.contains(input_json, "\"prices\":[]")
 }
 
-pub fn price_list_fixed_prices_update_rejects_missing_fixed_price_test() {
+pub fn price_list_fixed_prices_add_and_update_duplicate_variant_last_wins_test() {
+  let #(Response(status: add_status, body: add_body, ..), proxy_after_add) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/fixed\", prices: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"12.50\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"13.75\", currencyCode: EUR } }]) { prices { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy_after_add,
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"14.00\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { pricesAdded { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+
+  let add_json = json.to_string(add_body)
+  let update_json = json.to_string(update_body)
+  assert add_status == 200
+  assert update_status == 200
+  assert string.contains(add_json, "\"userErrors\":[]")
+  assert string.contains(
+    add_json,
+    "\"amount\":\"13.75\",\"currencyCode\":\"EUR\"",
+  )
+  assert !string.contains(add_json, "\"amount\":\"12.5\"")
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(
+    update_json,
+    "\"amount\":\"15.0\",\"currencyCode\":\"EUR\"",
+  )
+  assert !string.contains(update_json, "DUPLICATE_ID_IN_INPUT")
+}
+
+pub fn price_list_fixed_prices_update_adds_missing_fixed_price_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       price_list_fixed_price_proxy(),
-      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { priceList { id } userErrors { __typename field message code } } }",
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { priceList { id fixedPricesCount } pricesAdded { price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"fixedPricesCount\":1")
+  assert string.contains(
+    serialized,
+    "\"amount\":\"15.0\",\"currencyCode\":\"EUR\"",
+  )
+}
+
+pub fn price_list_fixed_prices_delete_rejects_missing_fixed_price_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { __typename field message code } } }",
     )
 
   assert status == 200
   assert string.contains(
     json.to_string(body),
-    "\"field\":[\"pricesToAdd\",\"0\",\"variantId\"],\"message\":\"Price is not fixed.\",\"code\":\"PRICE_NOT_FIXED\"",
+    "\"field\":[\"variantIds\",\"0\"],\"message\":\"Only fixed prices can be deleted.\",\"code\":\"PRICE_NOT_FIXED\"",
   )
 }
 
@@ -1869,6 +1947,10 @@ fn product_bulk_fixed_price_edge_with_quantity_break(
                     "node",
                     CapturedObject([
                       #("__typename", CapturedString("QuantityPriceBreak")),
+                      #(
+                        "id",
+                        CapturedString("gid://shopify/QuantityPriceBreak/test"),
+                      ),
                       #("minimumQuantity", CapturedInt(minimum_quantity)),
                     ]),
                   ),
@@ -3195,6 +3277,28 @@ pub fn catalog_delete_detaches_surviving_price_list_test() {
     == "{\"data\":{\"catalogDelete\":{\"deletedId\":\"gid://shopify/MarketCatalog/attached\",\"userErrors\":[]}}}"
   assert json.to_string(read_body)
     == "{\"data\":{\"catalog\":null,\"priceList\":{\"id\":\"gid://shopify/PriceList/attached\",\"catalog\":null}}}"
+}
+
+pub fn catalog_delete_unknown_id_includes_catalog_user_error_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogDelete(id: \"gid://shopify/MarketCatalog/missing\") { deletedId userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"CatalogUserError\",\"field\":[\"id\"],\"message\":\"Catalog does not exist\",\"code\":\"CATALOG_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_validation_includes_catalog_user_error_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/missing\"] } }) { catalog { id } userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"__typename\":\"CatalogUserError\",\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
 }
 
 pub fn price_list_delete_detaches_catalog_and_clears_fixed_prices_test() {

@@ -1,0 +1,20 @@
+mutation OrderEditShippingLineValidationAddMissingPrice($id: ID!) {
+  orderEditAddShippingLine(id: $id, shippingLine: { title: "" }) {
+    calculatedOrder {
+      id
+      shippingLines {
+        id
+        title
+      }
+    }
+    calculatedShippingLine {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

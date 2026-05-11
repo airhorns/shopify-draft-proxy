@@ -15,7 +15,7 @@ const outputPath = path.join(outputDir, 'metafield-definition-update-constraints
 const primaryDocumentPath = 'config/parity-requests/metafields/metafield-definition-update-constraints.graphql';
 const readAfterDocumentPath = 'config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql';
 
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -35,6 +35,28 @@ const variables = {
 
 const primaryDocument = await readFile(primaryDocumentPath, 'utf8');
 const readAfterDocument = await readFile(readAfterDocumentPath, 'utf8');
+
+const constraintsSetProbeDocument = `#graphql
+  mutation MetafieldDefinitionUpdateConstraintsSetProbe($namespace: String!) {
+    constraintsSetProbe: metafieldDefinitionUpdate(
+      definition: {
+        namespace: $namespace
+        key: "tier"
+        ownerType: PRODUCT
+        constraintsSet: { key: "category", values: [] }
+      }
+    ) {
+      updatedDefinition {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
 
 const readNamespaceDefinitionsQuery = `#graphql
   query TemporaryNamespaceDefinitions($namespace: String!) {
@@ -75,12 +97,14 @@ async function deleteNamespaceDefinitions(): Promise<DefinitionNode[]> {
 
 let primaryResponse: unknown = null;
 let readAfterResponse: unknown = null;
+let constraintsSetProbeResponse: unknown = null;
 let deletedDefinitions: DefinitionNode[] = [];
 
 try {
   await mkdir(outputDir, { recursive: true });
   primaryResponse = await runGraphql(primaryDocument, variables);
   readAfterResponse = await runGraphql(readAfterDocument, variables);
+  constraintsSetProbeResponse = await runGraphqlRequest(constraintsSetProbeDocument, { namespace });
 } finally {
   deletedDefinitions = await deleteNamespaceDefinitions();
 }
@@ -105,6 +129,13 @@ await writeFile(
           variables,
         },
         response: readAfterResponse,
+      },
+      constraintsSetProbe: {
+        request: {
+          document: constraintsSetProbeDocument,
+          variables: { namespace },
+        },
+        response: constraintsSetProbeResponse,
       },
       cleanup: {
         deletedDefinitions,

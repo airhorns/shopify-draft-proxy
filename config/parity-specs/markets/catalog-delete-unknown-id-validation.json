@@ -4,21 +4,22 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-lifecycle-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-delete-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/catalog-delete-unknown-id-validation.graphql",
-    "variablesCapturePath": "$.cases[3].variables"
+    "variablesCapturePath": "$.notFound.request.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe live Shopify Catalog validation capture for Admin GraphQL 2026-04. Unknown catalogDelete ID returns CatalogUserError without mutating catalog state.",
+  "notes": "Safe live Shopify Catalog validation capture for Admin GraphQL 2026-04. Unknown catalogDelete ID returns typed CatalogUserError without mutating catalog state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
         "name": "unknown-id-catalog-delete-data",
-        "capturePath": "$.cases[3].response.payload.data",
+        "capturePath": "$.notFound.response.payload.data",
         "proxyPath": "$.data"
       }
     ]
