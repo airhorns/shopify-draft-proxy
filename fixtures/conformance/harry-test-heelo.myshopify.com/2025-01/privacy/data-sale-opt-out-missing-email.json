@@ -1,0 +1,27 @@
+{
+  "mutation": {
+    "query": "#graphql\n  mutation DataSaleOptOutMissingEmail {\n    dataSaleOptOut {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'dataSaleOptOut' is missing required arguments: email",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": ["mutation DataSaleOptOutMissingEmail", "dataSaleOptOut"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "dataSaleOptOut",
+            "arguments": "email"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

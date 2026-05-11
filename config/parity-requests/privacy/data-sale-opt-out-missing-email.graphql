@@ -1,0 +1,10 @@
+mutation DataSaleOptOutMissingEmail {
+  dataSaleOptOut {
+    customerId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

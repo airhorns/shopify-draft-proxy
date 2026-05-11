@@ -39,6 +39,16 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "metafield-definition-pin-already-pinned",
+        "capturePath": "$.pinAlreadyPinned.response.data.metafieldDefinitionPin",
+        "proxyPath": "$.data.metafieldDefinitionPin",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldDefinitionPin-by-identifier.graphql",
+          "variablesCapturePath": "$.pinAlreadyPinned.variables"
+        }
+      },
+      {
         "name": "metafield-definition-after-pin-by-identifier-read",
         "capturePath": "$.afterPinByIdentifierRead.data",
         "proxyPath": "$.data",
@@ -76,6 +86,16 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafieldDefinitionUnpin-by-identifier.graphql",
           "variablesCapturePath": "$.unpinByIdentifier.variables"
+        }
+      },
+      {
+        "name": "metafield-definition-unpin-not-pinned",
+        "capturePath": "$.unpinNotPinned.response.data.metafieldDefinitionUnpin",
+        "proxyPath": "$.data.metafieldDefinitionUnpin",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldDefinitionUnpin-by-identifier.graphql",
+          "variablesCapturePath": "$.unpinNotPinned.variables"
         }
       },
       {

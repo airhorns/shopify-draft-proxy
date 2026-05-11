@@ -649,8 +649,10 @@ pub fn order_edit_add_line_item_discount(
   let fixed_value =
     read_object(discount, "fixedValue") |> option.unwrap(discount)
   let discount_amount = read_number(fixed_value, "amount") |> option.unwrap(0.0)
+  let line_items = order_edit_session_line_items(session)
   let currency_code =
-    read_string(fixed_value, "currencyCode") |> option.unwrap("CAD")
+    read_string(fixed_value, "currencyCode")
+    |> option.unwrap(order_edit_currency_code(order.data, line_items))
   let #(staged_change_id, identity_after_change) =
     synthetic_identity.make_synthetic_gid(
       identity,
@@ -667,7 +669,7 @@ pub fn order_edit_add_line_item_discount(
       #("description", CapturedString(description)),
     ])
   let line_items =
-    order_edit_session_line_items(session)
+    line_items
     |> list.map(fn(line_item) {
       case captured_string_field(line_item, "id") == line_item_id {
         True ->
@@ -755,26 +757,41 @@ pub fn order_edit_add_shipping_line(
 ) -> #(String, Json, Store, SyntheticIdentityRegistry) {
   let shipping_input =
     read_object(args, "shippingLine") |> option.unwrap(dict.new())
-  let #(shipping_line, next_identity) =
-    build_order_edit_shipping_line(identity, shipping_input, "ADDED")
-  let shipping_lines =
-    list.append(order_edit_session_shipping_lines(session), [shipping_line])
-  let updated_session =
-    replace_captured_object_fields(session, [
-      #("shippingLines", CapturedArray(shipping_lines)),
-    ])
-  let #(next_store, calculated_order) =
-    stage_updated_order_edit_session(store, order, updated_session)
-  let payload =
-    serialize_order_edit_residual_payload(
-      field,
-      Some(calculated_order),
-      None,
-      Some(shipping_line),
-      None,
-      fragments,
-    )
-  #(key, payload, next_store, next_identity)
+  let session_line_items = order_edit_session_line_items(session)
+  let currency_code = order_edit_currency_code(order.data, session_line_items)
+  case order_edit_shipping_line_currency_error(shipping_input, currency_code) {
+    Some(user_error) -> {
+      let payload = serialize_order_edit_error_payload(field, [user_error])
+      #(key, payload, store, identity)
+    }
+    None -> {
+      let #(shipping_line, next_identity) =
+        build_order_edit_shipping_line(
+          identity,
+          shipping_input,
+          "ADDED",
+          currency_code,
+        )
+      let shipping_lines =
+        list.append(order_edit_session_shipping_lines(session), [shipping_line])
+      let updated_session =
+        replace_captured_object_fields(session, [
+          #("shippingLines", CapturedArray(shipping_lines)),
+        ])
+      let #(next_store, calculated_order) =
+        stage_updated_order_edit_session(store, order, updated_session)
+      let payload =
+        serialize_order_edit_residual_payload(
+          field,
+          Some(calculated_order),
+          None,
+          Some(shipping_line),
+          None,
+          fragments,
+        )
+      #(key, payload, next_store, next_identity)
+    }
+  }
 }
 
 @internal
@@ -791,30 +808,65 @@ pub fn order_edit_update_shipping_line(
   let shipping_line_id = read_string(args, "shippingLineId")
   let shipping_input =
     read_object(args, "shippingLine") |> option.unwrap(dict.new())
-  let shipping_lines =
-    order_edit_session_shipping_lines(session)
-    |> list.map(fn(shipping_line) {
-      case captured_string_field(shipping_line, "id") == shipping_line_id {
-        True -> update_order_edit_shipping_line(shipping_line, shipping_input)
-        False -> shipping_line
+  let existing = order_edit_session_shipping_lines(session)
+  case order_edit_shipping_line_has_id(existing, shipping_line_id) {
+    False -> {
+      let payload =
+        serialize_order_edit_error_payload(field, [
+          order_edit_invalid_user_error(
+            ["shippingLineId"],
+            "The shipping line can't be updated because it doesn't exist or wasn't added during this edit.",
+          ),
+        ])
+      #(key, payload, store, identity)
+    }
+    True -> {
+      let session_line_items = order_edit_session_line_items(session)
+      let currency_code =
+        order_edit_currency_code(order.data, session_line_items)
+      case
+        order_edit_shipping_line_currency_error(shipping_input, currency_code)
+      {
+        Some(user_error) -> {
+          let payload = serialize_order_edit_error_payload(field, [user_error])
+          #(key, payload, store, identity)
+        }
+        None -> {
+          let shipping_lines =
+            existing
+            |> list.map(fn(shipping_line) {
+              case
+                captured_string_field(shipping_line, "id") == shipping_line_id
+              {
+                True ->
+                  update_order_edit_shipping_line(
+                    shipping_line,
+                    shipping_input,
+                    currency_code,
+                  )
+                False -> shipping_line
+              }
+            })
+          let updated_session =
+            replace_captured_object_fields(session, [
+              #("shippingLines", CapturedArray(shipping_lines)),
+            ])
+          let #(next_store, calculated_order) =
+            stage_updated_order_edit_session(store, order, updated_session)
+          let payload =
+            serialize_order_edit_residual_payload(
+              field,
+              Some(calculated_order),
+              None,
+              None,
+              None,
+              fragments,
+            )
+          #(key, payload, next_store, identity)
+        }
       }
-    })
-  let updated_session =
-    replace_captured_object_fields(session, [
-      #("shippingLines", CapturedArray(shipping_lines)),
-    ])
-  let #(next_store, calculated_order) =
-    stage_updated_order_edit_session(store, order, updated_session)
-  let payload =
-    serialize_order_edit_residual_payload(
-      field,
-      Some(calculated_order),
-      None,
-      None,
-      None,
-      fragments,
-    )
-  #(key, payload, next_store, identity)
+    }
+  }
 }
 
 @internal
@@ -829,27 +881,42 @@ pub fn order_edit_remove_shipping_line(
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, Store, SyntheticIdentityRegistry) {
   let shipping_line_id = read_string(args, "shippingLineId")
-  let shipping_lines =
-    order_edit_session_shipping_lines(session)
-    |> list.filter(fn(shipping_line) {
-      captured_string_field(shipping_line, "id") != shipping_line_id
-    })
-  let updated_session =
-    replace_captured_object_fields(session, [
-      #("shippingLines", CapturedArray(shipping_lines)),
-    ])
-  let #(next_store, calculated_order) =
-    stage_updated_order_edit_session(store, order, updated_session)
-  let payload =
-    serialize_order_edit_residual_payload(
-      field,
-      Some(calculated_order),
-      None,
-      None,
-      None,
-      fragments,
-    )
-  #(key, payload, next_store, identity)
+  let existing = order_edit_session_shipping_lines(session)
+  case order_edit_shipping_line_has_id(existing, shipping_line_id) {
+    False -> {
+      let payload =
+        serialize_order_edit_error_payload(field, [
+          order_edit_invalid_user_error(
+            ["shippingLineId"],
+            "The shipping line can't be removed because it doesn't exist or has already been removed.",
+          ),
+        ])
+      #(key, payload, store, identity)
+    }
+    True -> {
+      let shipping_lines =
+        existing
+        |> list.filter(fn(shipping_line) {
+          captured_string_field(shipping_line, "id") != shipping_line_id
+        })
+      let updated_session =
+        replace_captured_object_fields(session, [
+          #("shippingLines", CapturedArray(shipping_lines)),
+        ])
+      let #(next_store, calculated_order) =
+        stage_updated_order_edit_session(store, order, updated_session)
+      let payload =
+        serialize_order_edit_residual_payload(
+          field,
+          Some(calculated_order),
+          None,
+          None,
+          None,
+          fragments,
+        )
+      #(key, payload, next_store, identity)
+    }
+  }
 }
 
 @internal
@@ -1379,12 +1446,14 @@ pub fn build_order_edit_shipping_line(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
   staged_status: String,
+  fallback_currency_code: String,
 ) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
   let #(id, next_identity) =
     synthetic_identity.make_synthetic_gid(identity, "CalculatedShippingLine")
   let price = read_object(input, "price") |> option.unwrap(dict.new())
   let amount = read_number(price, "amount") |> option.unwrap(0.0)
-  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
+  let currency_code =
+    read_string(price, "currencyCode") |> option.unwrap(fallback_currency_code)
   #(
     CapturedObject([
       #("id", CapturedString(id)),
@@ -1400,14 +1469,45 @@ pub fn build_order_edit_shipping_line(
 pub fn update_order_edit_shipping_line(
   shipping_line: CapturedJsonValue,
   input: Dict(String, root_field.ResolvedValue),
+  fallback_currency_code: String,
 ) -> CapturedJsonValue {
   let price = read_object(input, "price") |> option.unwrap(dict.new())
   let amount = read_number(price, "amount") |> option.unwrap(0.0)
-  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
+  let currency_code =
+    read_string(price, "currencyCode") |> option.unwrap(fallback_currency_code)
   replace_captured_object_fields(shipping_line, [
     #("title", optional_captured_string(read_string(input, "title"))),
     #("price", money_set(amount, currency_code)),
   ])
+}
+
+fn order_edit_shipping_line_currency_error(
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> Option(OrderEditUserError) {
+  let price = read_object(input, "price") |> option.unwrap(dict.new())
+  case read_string(price, "currencyCode") {
+    Some(input_currency) if input_currency != currency_code ->
+      Some(order_edit_invalid_user_error(
+        ["shippingLine", "price"],
+        "The price must be in " <> currency_code <> ".",
+      ))
+    _ -> None
+  }
+}
+
+fn order_edit_shipping_line_has_id(
+  shipping_lines: List(CapturedJsonValue),
+  shipping_line_id: Option(String),
+) -> Bool {
+  case shipping_line_id {
+    Some(id) ->
+      shipping_lines
+      |> list.any(fn(shipping_line) {
+        captured_string_field(shipping_line, "id") == Some(id)
+      })
+    None -> False
+  }
 }
 
 @internal

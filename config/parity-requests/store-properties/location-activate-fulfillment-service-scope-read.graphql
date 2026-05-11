@@ -1,0 +1,7 @@
+query LocationActivateFulfillmentServiceScopeRead($id: ID!) {
+  location(id: $id) {
+    id
+    isActive
+    isFulfillmentService
+  }
+}

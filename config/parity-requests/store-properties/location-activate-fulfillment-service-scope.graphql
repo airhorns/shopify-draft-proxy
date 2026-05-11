@@ -1,0 +1,14 @@
+mutation LocationActivateFulfillmentServiceScope($locationId: ID!) {
+  locationActivate(locationId: $locationId) @idempotent(key: "location-activate-fulfillment-service-scope") {
+    location {
+      id
+      isActive
+      isFulfillmentService
+    }
+    locationActivateUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1868,6 +1868,87 @@ pub fn location_activate_non_activatable_returns_user_error_test() {
   )
 }
 
+pub fn location_activate_fulfillment_service_managed_location_returns_not_found_without_staging_test() {
+  let location_id = "gid://shopify/Location/fs-scope"
+  let fulfillment_service_id = "gid://shopify/FulfillmentService/fs-scope"
+  let base_location =
+    make_location(location_id, "FS Scope Warehouse", False, False, True, True)
+  let fulfillment_service_location =
+    StorePropertyRecord(
+      ..base_location,
+      data: base_location.data
+        |> dict.insert("isFulfillmentService", StorePropertyBool(True))
+        |> dict.insert(
+          "fulfillmentService",
+          StorePropertyObject(
+            dict.from_list([
+              #("id", StorePropertyString(fulfillment_service_id)),
+              #("handle", StorePropertyString("fs-scope")),
+              #("serviceName", StorePropertyString("FS Scope")),
+            ]),
+          ),
+        )
+        |> dict.insert("reachedLocationLimit", StorePropertyBool(True))
+        |> dict.insert("hasIncompleteMassRelocation", StorePropertyBool(True)),
+    )
+  let active_duplicate =
+    make_location(
+      "gid://shopify/Location/active-duplicate",
+      "FS Scope Warehouse",
+      True,
+      True,
+      True,
+      False,
+    )
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(active_duplicate)
+    |> store.upsert_base_store_property_location(fulfillment_service_location)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let body =
+    "{\"query\":\"mutation { locationActivate(locationId: \\\""
+    <> location_id
+    <> "\\\") @idempotent(key: \\\"activate-fs-scope\\\") { location { id isActive isFulfillmentService } locationActivateUserErrors { field code message } } }\"}"
+
+  let #(proxy_state.Response(status: status, body: response_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_json)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"location\":{\"id\":\""
+      <> location_id
+      <> "\",\"isActive\":false,\"isFulfillmentService\":true}",
+  )
+  assert string.contains(serialized, "\"field\":[\"locationId\"]")
+  assert string.contains(serialized, "\"code\":\"LOCATION_NOT_FOUND\"")
+  assert string.contains(serialized, "\"message\":\"Location not found.\"")
+  assert !string.contains(serialized, "\"code\":\"GENERIC_ERROR\"")
+  assert !string.contains(serialized, "\"code\":\"LOCATION_LIMIT\"")
+  assert !string.contains(serialized, "\"code\":\"HAS_ONGOING_RELOCATION\"")
+  assert !string.contains(serialized, "\"code\":\"HAS_NON_UNIQUE_NAME\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+
+  let read_body =
+    "{\"query\":\"query { location(id: \\\""
+    <> location_id
+    <> "\\\") { id isActive isFulfillmentService } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(
+    read_serialized,
+    "\"location\":{\"id\":\""
+      <> location_id
+      <> "\",\"isActive\":false,\"isFulfillmentService\":true}",
+  )
+}
+
 pub fn location_activate_limit_and_relocation_guards_block_staging_test() {
   let limit_id = "gid://shopify/Location/activate-limit"
   let alternate_limit_id = "gid://shopify/Location/activate-alternate-limit"
@@ -2410,11 +2491,16 @@ pub fn location_delete_uses_location_state_guards_and_read_back_test() {
     |> store.upsert_base_store_property_location(
       StorePropertyRecord(
         ..make_location(primary_id, "Delete primary", False, True, True, False),
-        data: dict.insert(
-          make_location(primary_id, "Delete primary", False, True, True, False).data,
-          "isPrimary",
-          StorePropertyBool(True),
-        ),
+        data: make_location(
+            primary_id,
+            "Delete primary",
+            False,
+            True,
+            True,
+            False,
+          ).data
+          |> dict.insert("isPrimary", StorePropertyBool(True))
+          |> dict.insert("deletable", StorePropertyBool(False)),
       ),
     )
     |> store.upsert_base_store_property_location(
@@ -2566,8 +2652,13 @@ pub fn location_delete_uses_location_state_guards_and_read_back_test() {
       proxy,
       graphql_request(delete_body <> primary_id <> "\"}}"),
     )
+  let primary_serialized = json.to_string(primary_json)
   assert string.contains(
-    json.to_string(primary_json),
+    primary_serialized,
+    "\"code\":\"LOCATION_NOT_DELETABLE\"",
+  )
+  assert !string.contains(
+    primary_serialized,
     "\"code\":\"LOCATION_IS_PRIMARY\"",
   )
 

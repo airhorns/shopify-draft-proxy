@@ -1450,8 +1450,8 @@ fn stage_location_activate(
         store.get_effective_store_property_location_by_id(store, location_id)
       {
         Some(record) ->
-          case location_bool_field(record, "isActive", True) {
-            True ->
+          case location_is_merchant_managed(record) {
+            False ->
               location_lifecycle_result(
                 store,
                 identity,
@@ -1459,13 +1459,19 @@ fn stage_location_activate(
                 fragments,
                 "locationActivateUserErrors",
                 Some(record),
+                [
+                  location_error_source(
+                    "locationId",
+                    "Location not found.",
+                    "LOCATION_NOT_FOUND",
+                  ),
+                ],
                 [],
-                [location_id],
-                True,
+                False,
               )
-            False ->
-              case location_bool_field(record, "activatable", True) {
-                False ->
+            True ->
+              case location_bool_field(record, "isActive", True) {
+                True ->
                   location_lifecycle_result(
                     store,
                     identity,
@@ -1473,19 +1479,13 @@ fn stage_location_activate(
                     fragments,
                     "locationActivateUserErrors",
                     Some(record),
-                    [
-                      location_error_source(
-                        "locationId",
-                        "Location cannot be activated.",
-                        "GENERIC_ERROR",
-                      ),
-                    ],
                     [],
-                    False,
+                    [location_id],
+                    True,
                   )
-                True ->
-                  case location_activation_limit_reached(record) {
-                    True ->
+                False ->
+                  case location_bool_field(record, "activatable", True) {
+                    False ->
                       location_lifecycle_result(
                         store,
                         identity,
@@ -1496,15 +1496,15 @@ fn stage_location_activate(
                         [
                           location_error_source(
                             "locationId",
-                            "Your shop has reached its location limit.",
-                            "LOCATION_LIMIT",
+                            "Location cannot be activated.",
+                            "GENERIC_ERROR",
                           ),
                         ],
                         [],
                         False,
                       )
-                    False ->
-                      case location_has_incomplete_mass_relocation(record) {
+                    True ->
+                      case location_activation_limit_reached(record) {
                         True ->
                           location_lifecycle_result(
                             store,
@@ -1516,17 +1516,15 @@ fn stage_location_activate(
                             [
                               location_error_source(
                                 "locationId",
-                                "Location has an ongoing relocation.",
-                                "HAS_ONGOING_RELOCATION",
+                                "Your shop has reached its location limit.",
+                                "LOCATION_LIMIT",
                               ),
                             ],
                             [],
                             False,
                           )
                         False ->
-                          case
-                            has_duplicate_active_location_name(store, record)
-                          {
+                          case location_has_incomplete_mass_relocation(record) {
                             True ->
                               location_lifecycle_result(
                                 store,
@@ -1538,80 +1536,106 @@ fn stage_location_activate(
                                 [
                                   location_error_source(
                                     "locationId",
-                                    "A location with this name already exists.",
-                                    "HAS_NON_UNIQUE_NAME",
+                                    "Location has an ongoing relocation.",
+                                    "HAS_ONGOING_RELOCATION",
                                   ),
                                 ],
                                 [],
                                 False,
                               )
-                            False -> {
-                              let #(now, next_identity) =
-                                synthetic_identity.make_synthetic_timestamp(
-                                  identity,
-                                )
-                              let next_record =
-                                StorePropertyRecord(
-                                  ..record,
-                                  data: record.data
-                                    |> dict.insert(
-                                      "isActive",
-                                      StorePropertyBool(True),
-                                    )
-                                    |> dict.insert(
-                                      "activatable",
-                                      StorePropertyBool(True),
-                                    )
-                                    |> dict.insert(
-                                      "deactivatable",
-                                      StorePropertyBool(True),
-                                    )
-                                    |> dict.insert(
-                                      "deactivatedAt",
-                                      StorePropertyNull,
-                                    )
-                                    |> dict.insert(
-                                      "deletable",
-                                      StorePropertyBool(False),
-                                    )
-                                    |> dict.insert(
-                                      "fulfillsOnlineOrders",
-                                      StorePropertyBool(location_bool_field(
-                                        record,
-                                        "fulfillsOnlineOrders",
-                                        True,
-                                      )),
-                                    )
-                                    |> dict.insert(
-                                      "shipsInventory",
-                                      StorePropertyBool(location_bool_field(
-                                        record,
-                                        "shipsInventory",
-                                        False,
-                                      )),
-                                    )
-                                    |> dict.insert(
-                                      "updatedAt",
-                                      StorePropertyString(now),
-                                    ),
-                                )
-                              let #(_, next_store) =
-                                store.upsert_staged_store_property_location(
+                            False ->
+                              case
+                                has_duplicate_active_location_name(
                                   store,
-                                  next_record,
+                                  record,
                                 )
-                              location_lifecycle_result(
-                                next_store,
-                                next_identity,
-                                field,
-                                fragments,
-                                "locationActivateUserErrors",
-                                Some(next_record),
-                                [],
-                                [location_id],
-                                True,
-                              )
-                            }
+                              {
+                                True ->
+                                  location_lifecycle_result(
+                                    store,
+                                    identity,
+                                    field,
+                                    fragments,
+                                    "locationActivateUserErrors",
+                                    Some(record),
+                                    [
+                                      location_error_source(
+                                        "locationId",
+                                        "A location with this name already exists.",
+                                        "HAS_NON_UNIQUE_NAME",
+                                      ),
+                                    ],
+                                    [],
+                                    False,
+                                  )
+                                False -> {
+                                  let #(now, next_identity) =
+                                    synthetic_identity.make_synthetic_timestamp(
+                                      identity,
+                                    )
+                                  let next_record =
+                                    StorePropertyRecord(
+                                      ..record,
+                                      data: record.data
+                                        |> dict.insert(
+                                          "isActive",
+                                          StorePropertyBool(True),
+                                        )
+                                        |> dict.insert(
+                                          "activatable",
+                                          StorePropertyBool(True),
+                                        )
+                                        |> dict.insert(
+                                          "deactivatable",
+                                          StorePropertyBool(True),
+                                        )
+                                        |> dict.insert(
+                                          "deactivatedAt",
+                                          StorePropertyNull,
+                                        )
+                                        |> dict.insert(
+                                          "deletable",
+                                          StorePropertyBool(False),
+                                        )
+                                        |> dict.insert(
+                                          "fulfillsOnlineOrders",
+                                          StorePropertyBool(location_bool_field(
+                                            record,
+                                            "fulfillsOnlineOrders",
+                                            True,
+                                          )),
+                                        )
+                                        |> dict.insert(
+                                          "shipsInventory",
+                                          StorePropertyBool(location_bool_field(
+                                            record,
+                                            "shipsInventory",
+                                            False,
+                                          )),
+                                        )
+                                        |> dict.insert(
+                                          "updatedAt",
+                                          StorePropertyString(now),
+                                        ),
+                                    )
+                                  let #(_, next_store) =
+                                    store.upsert_staged_store_property_location(
+                                      store,
+                                      next_record,
+                                    )
+                                  location_lifecycle_result(
+                                    next_store,
+                                    next_identity,
+                                    field,
+                                    fragments,
+                                    "locationActivateUserErrors",
+                                    Some(next_record),
+                                    [],
+                                    [location_id],
+                                    True,
+                                  )
+                                }
+                              }
                           }
                       }
                   }
@@ -2161,7 +2185,6 @@ fn location_delete_guard_errors(
           "The location cannot be deleted while it has an active retail subscription.",
           "LOCATION_HAS_ACTIVE_RETAIL_SUBSCRIPTION",
         )
-        |> append_primary_location_delete_error(record)
       case
         errors,
         store_property_bool_field(record, "deletable") |> option.unwrap(True)
@@ -2175,22 +2198,6 @@ fn location_delete_guard_errors(
         _, _ -> errors
       }
     }
-  }
-}
-
-fn append_primary_location_delete_error(
-  errors: List(SourceValue),
-  record: StorePropertyRecord,
-) -> List(SourceValue) {
-  case errors, location_is_primary(record) {
-    [], True ->
-      list.append(errors, [
-        location_delete_error(
-          "The primary location cannot be deleted.",
-          "LOCATION_IS_PRIMARY",
-        ),
-      ])
-    _, _ -> errors
   }
 }
 

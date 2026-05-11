@@ -1136,6 +1136,222 @@ pub fn orders_order_edit_add_custom_item_channel_policy_guard_test() {
   assert outcome.identity == identity
 }
 
+pub fn orders_order_edit_shipping_line_validation_payloads_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/shipping-validation"
+  let order_id = "gid://shopify/Order/shipping-validation"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_currency(
+        order_id,
+        "PAID",
+        None,
+        [order_edit_test_session(order_id, calculated_order_id)],
+        "CAD",
+      ),
+    ])
+  let identity = synthetic_identity.new()
+
+  let missing_price =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+      mutation AddShippingMissingPrice($id: ID!) {
+        orderEditAddShippingLine(id: $id, shippingLine: { title: \"\" }) {
+          calculatedOrder { id }
+          calculatedShippingLine { id }
+          userErrors { field message code }
+        }
+      }
+      ",
+      dict.from_list([#("id", root_field.StringVal(calculated_order_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_price.data)
+    == "{\"errors\":[{\"message\":\"Argument 'price' on InputObject 'OrderEditAddShippingLineInput' is required. Expected type MoneyInput!\",\"locations\":[{\"line\":3,\"column\":57}],\"path\":[\"mutation AddShippingMissingPrice\",\"orderEditAddShippingLine\",\"shippingLine\",\"price\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"price\",\"argumentType\":\"MoneyInput!\",\"inputObjectType\":\"OrderEditAddShippingLineInput\"}}]}"
+  assert missing_price.store == seeded
+  assert missing_price.identity == identity
+
+  let add_currency_mismatch =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+      mutation AddShippingCurrencyMismatch($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {
+        orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {
+          calculatedOrder { shippingLines { title price { shopMoney { amount currencyCode } } } }
+          calculatedShippingLine { title }
+          userErrors { field message code }
+        }
+      }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #(
+          "shippingLine",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("title", root_field.StringVal("Wrong currency")),
+              #(
+                "price",
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("5.00")),
+                    #("currencyCode", root_field.StringVal("USD")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(add_currency_mismatch.data)
+    == "{\"data\":{\"orderEditAddShippingLine\":{\"calculatedOrder\":null,\"calculatedShippingLine\":null,\"userErrors\":[{\"field\":[\"shippingLine\",\"price\"],\"message\":\"The price must be in CAD.\",\"code\":\"INVALID\"}]}}}"
+  assert add_currency_mismatch.store == seeded
+  assert add_currency_mismatch.identity == identity
+
+  let update_unknown =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+      mutation UpdateShippingUnknown($id: ID!, $shippingLineId: ID!, $shippingLine: OrderEditUpdateShippingLineInput!) {
+        orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {
+          calculatedOrder { shippingLines { id title } }
+          userErrors { field message code }
+        }
+      }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #(
+          "shippingLineId",
+          root_field.StringVal("gid://shopify/CalculatedShippingLine/404"),
+        ),
+        #(
+          "shippingLine",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("title", root_field.StringVal("Express")),
+              #(
+                "price",
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("6.00")),
+                    #("currencyCode", root_field.StringVal("CAD")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(update_unknown.data)
+    == "{\"data\":{\"orderEditUpdateShippingLine\":{\"calculatedOrder\":null,\"userErrors\":[{\"field\":[\"shippingLineId\"],\"message\":\"The shipping line can't be updated because it doesn't exist or wasn't added during this edit.\",\"code\":\"INVALID\"}]}}}"
+  assert update_unknown.store == seeded
+  assert update_unknown.identity == identity
+
+  let remove_unknown =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+      mutation RemoveShippingUnknown($id: ID!, $shippingLineId: ID!) {
+        orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+          calculatedOrder { shippingLines { id title } }
+          userErrors { field message code }
+        }
+      }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #(
+          "shippingLineId",
+          root_field.StringVal("gid://shopify/CalculatedShippingLine/404"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(remove_unknown.data)
+    == "{\"data\":{\"orderEditRemoveShippingLine\":{\"calculatedOrder\":null,\"userErrors\":[{\"field\":[\"shippingLineId\"],\"message\":\"The shipping line can't be removed because it doesn't exist or has already been removed.\",\"code\":\"INVALID\"}]}}}"
+  assert remove_unknown.store == seeded
+  assert remove_unknown.identity == identity
+}
+
+pub fn orders_order_edit_add_line_item_discount_rejects_fixed_value_currency_missing_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/discount-currency"
+  let order_id = "gid://shopify/Order/discount-currency"
+  let line_item_id = "gid://shopify/CalculatedLineItem/1"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_currency(
+        order_id,
+        "PAID",
+        None,
+        [
+          order_edit_test_session_with_line_items(
+            order_id,
+            calculated_order_id,
+            [order_edit_test_line_item(1, "EUR")],
+          ),
+        ],
+        "EUR",
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+      mutation AddDiscountWithoutCurrency($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!) {
+        orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+          calculatedLineItem {
+            discountedUnitPriceSet { shopMoney { amount currencyCode } }
+            calculatedDiscountAllocations {
+              allocatedAmountSet { shopMoney { amount currencyCode } }
+            }
+          }
+          userErrors { field message }
+        }
+      }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(calculated_order_id)),
+        #("lineItemId", root_field.StringVal(line_item_id)),
+        #(
+          "discount",
+          root_field.ObjectVal(
+            dict.from_list([
+              #(
+                "fixedValue",
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("5.00")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"Variable $discount of type OrderEditAppliedDiscountInput! was provided invalid value for fixedValue.currencyCode (Expected value to not be null)\",\"locations\":[{\"line\":2,\"column\":71}],\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":{\"fixedValue\":{\"amount\":\"5.00\"}},\"problems\":[{\"path\":[\"fixedValue\",\"currencyCode\"],\"explanation\":\"Expected value to not be null\"}]}}]}"
+  assert outcome.store == seeded
+}
+
 pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
   let begin =
     "

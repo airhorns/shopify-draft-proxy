@@ -1,0 +1,78 @@
+{
+  "scenarioId": "gift-card-notification-error-messages",
+  "operationNames": ["giftCardSendNotificationToCustomer", "giftCardSendNotificationToRecipient"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "notification-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-notification-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+    "variablesCapturePath": "$.proxyVariables.customerDeactivated",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer notification deactivated message",
+        "capturePath": "$.operations.customerDeactivated.response.payload.data.giftCardSendNotificationToCustomer.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer.userErrors[0].message"
+      },
+      {
+        "name": "recipient notification deactivated message",
+        "capturePath": "$.operations.recipientDeactivated.response.payload.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientDeactivated",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "customer notification expired message",
+        "capturePath": "$.operations.customerExpired.response.payload.data.giftCardSendNotificationToCustomer.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variablesCapturePath": "$.proxyVariables.customerExpired",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "recipient notification expired message",
+        "capturePath": "$.operations.recipientExpired.response.payload.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientExpired",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "customer notification no-customer message",
+        "capturePath": "$.operations.customerNoCustomer.response.payload.data.giftCardSendNotificationToCustomer.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variablesCapturePath": "$.proxyVariables.customerNoCustomer",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "recipient notification no-contact message",
+        "capturePath": "$.operations.recipientNoContact.response.payload.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientNoContact",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Strict message-only parity over the existing live gift-card-notification-validation capture. Trial-shop and notify-disabled wording remains covered by runtime tests because the configured conformance shop is not a trial shop and public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct notify=false through the recorder."
+}
