@@ -156,12 +156,13 @@ try {
     apiVersion,
     token,
     notes: [
-      'Live capture for saved-search filter projection shapes.',
+      'Live capture for saved-search filter projection shapes, including filters.__typename.',
       'Range upper-only syntax inventory_total:<10 projected to filters[{ key: "inventory_total_max", value: "10" }] with empty searchTerms.',
       'Range lower-only syntax inventory_total:>2 projected to filters[{ key: "inventory_total_min", value: "2" }] with empty searchTerms.',
       'Bounded ranges are represented by two range tokens and project to both inventory_total_min and inventory_total_max filters.',
       'Exists syntax sku:* projected to filters[{ key: "sku", value: "true" }] with empty searchTerms.',
       'Negated range syntax -inventory_total:<3 projected to inventory_total_min with canonical downstream query inventory_total:>=3.',
+      'Each create payload and the downstream read select filters { __typename key value } and Shopify returns __typename: "SearchFilter".',
       'The fixture includes cleanup delete evidence for every created saved search.',
     ],
     savedSearchFilterProjectionCreate: {

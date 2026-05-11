@@ -773,6 +773,8 @@ pub type MetafieldDefinitionRecord {
     constraints: Option(MetafieldDefinitionConstraintsRecord),
     pinned_position: Option(Int),
     validation_status: String,
+    app_config_managed: Bool,
+    standard_template_app_dependent: Bool,
   )
 }
 

@@ -2431,6 +2431,72 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
 }
 
+pub fn theme_delete_rejects_only_main_theme_test() {
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/current.zip\", name: \"Current main\", role: MAIN) { theme { id role } userErrors { field message code } } }"
+  let #(_, proxy) = run_graphql(draft_proxy.new(), create)
+
+  let delete =
+    "mutation { themeDelete(id: \""
+    <> theme_id
+    <> "\") { deletedThemeId userErrors { field message code } } }"
+  let #(delete_body, proxy) = run_graphql(proxy, delete)
+  assert delete_body
+    == "{\"data\":{\"themeDelete\":{\"deletedThemeId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"You can't delete your only published theme.\",\"code\":\"INVALID\"}]}}}"
+
+  let read =
+    "query { theme(id: \""
+    <> theme_id
+    <> "\") { id role name } themes(first: 10, roles: [MAIN]) { nodes { id role name } } }"
+  let #(read_body, _) = run_graphql(proxy, read)
+  assert read_body
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\",\"name\":\"Current main\"},\"themes\":{\"nodes\":[{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\",\"name\":\"Current main\"}]}}}"
+}
+
+pub fn theme_delete_non_main_theme_succeeds_test() {
+  let main_create =
+    "mutation { themeCreate(source: \"https://example.com/current.zip\", name: \"Current main\", role: MAIN) { theme { id role } userErrors { field message code } } }"
+  let draft_create =
+    "mutation { themeCreate(source: \"https://example.com/draft.zip\", name: \"Draft theme\", role: UNPUBLISHED) { theme { id role } userErrors { field message code } } }"
+  let #(_, proxy) = run_graphql(draft_proxy.new(), main_create)
+  let #(_, proxy) = run_graphql(proxy, draft_create)
+
+  let delete =
+    "mutation { themeDelete(id: \"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\") { deletedThemeId userErrors { field message code } } }"
+  let #(delete_body, proxy) = run_graphql(proxy, delete)
+  assert delete_body
+    == "{\"data\":{\"themeDelete\":{\"deletedThemeId\":\"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\") { id role name } themes(first: 10) { nodes { id role name } } }"
+  let #(read_body, _) = run_graphql(proxy, read)
+  assert read_body
+    == "{\"data\":{\"theme\":null,\"themes\":{\"nodes\":[{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\",\"name\":\"Current main\"}]}}}"
+}
+
+pub fn theme_delete_main_theme_succeeds_when_another_main_exists_test() {
+  let first_create =
+    "mutation { themeCreate(source: \"https://example.com/current.zip\", name: \"First main\", role: MAIN) { theme { id role } userErrors { field message code } } }"
+  let second_create =
+    "mutation { themeCreate(source: \"https://example.com/second.zip\", name: \"Second main\", role: MAIN) { theme { id role } userErrors { field message code } } }"
+  let #(_, proxy) = run_graphql(draft_proxy.new(), first_create)
+  let #(_, proxy) = run_graphql(proxy, second_create)
+
+  let delete =
+    "mutation { themeDelete(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { deletedThemeId userErrors { field message code } } }"
+  let #(delete_body, proxy) = run_graphql(proxy, delete)
+  assert delete_body
+    == "{\"data\":{\"themeDelete\":{\"deletedThemeId\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { id role name } themes(first: 10, roles: [MAIN]) { nodes { id role name } } }"
+  let #(read_body, _) = run_graphql(proxy, read)
+  assert read_body
+    == "{\"data\":{\"theme\":null,\"themes\":{\"nodes\":[{\"id\":\"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\",\"name\":\"Second main\"}]}}}"
+}
+
 pub fn theme_update_rejects_role_input_at_schema_layer_test() {
   let proxy = draft_proxy.new()
   let theme_id =

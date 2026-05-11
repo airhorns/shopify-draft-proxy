@@ -1,0 +1,136 @@
+{
+  "capturedAt": "2026-05-10T00:36:53.923Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "Markets typed userErrors __typename validation",
+  "cases": [
+    {
+      "name": "markets typed userErrors include __typename",
+      "query": "mutation MarketsUserErrorTypename(\n  $priceListCreateInput: PriceListCreateInput!\n  $priceListUpdateId: ID!\n  $priceListUpdateInput: PriceListUpdateInput!\n  $priceListDeleteId: ID!\n  $quantityRulesDeletePriceListId: ID!\n  $quantityRulesDeleteVariantIds: [ID!]!\n  $webPresenceCreateInput: WebPresenceCreateInput!\n  $webPresenceUpdateId: ID!\n  $webPresenceUpdateInput: WebPresenceUpdateInput!\n  $webPresenceDeleteId: ID!\n) {\n  priceListCreate(input: $priceListCreateInput) {\n    priceList {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  priceListUpdate(id: $priceListUpdateId, input: $priceListUpdateInput) {\n    priceList {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  priceListDelete(id: $priceListDeleteId) {\n    deletedId\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  quantityRulesDelete(priceListId: $quantityRulesDeletePriceListId, variantIds: $quantityRulesDeleteVariantIds) {\n    deletedQuantityRulesVariantIds\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  webPresenceCreate(input: $webPresenceCreateInput) {\n    webPresence {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  webPresenceUpdate(id: $webPresenceUpdateId, input: $webPresenceUpdateInput) {\n    webPresence {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  webPresenceDelete(id: $webPresenceDeleteId) {\n    deletedId\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "priceListCreateInput": {
+          "name": "",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        },
+        "priceListUpdateId": "gid://shopify/PriceList/0",
+        "priceListUpdateInput": {
+          "name": "Does not exist"
+        },
+        "priceListDeleteId": "gid://shopify/PriceList/0",
+        "quantityRulesDeletePriceListId": "gid://shopify/PriceList/0",
+        "quantityRulesDeleteVariantIds": ["gid://shopify/ProductVariant/0"],
+        "webPresenceCreateInput": {
+          "defaultLocale": "en",
+          "subfolderSuffix": "x"
+        },
+        "webPresenceUpdateId": "gid://shopify/MarketWebPresence/0",
+        "webPresenceUpdateInput": {
+          "defaultLocale": "en"
+        },
+        "webPresenceDeleteId": "gid://shopify/MarketWebPresence/0"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListUserError",
+                  "code": "BLANK",
+                  "field": ["input", "name"],
+                  "message": "Name can't be blank"
+                }
+              ]
+            },
+            "priceListUpdate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListUserError",
+                  "code": "PRICE_LIST_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "Price list does not exist."
+                }
+              ]
+            },
+            "priceListDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListUserError",
+                  "code": "PRICE_LIST_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "Price list does not exist."
+                }
+              ]
+            },
+            "quantityRulesDelete": {
+              "deletedQuantityRulesVariantIds": [],
+              "userErrors": [
+                {
+                  "__typename": "QuantityRuleUserError",
+                  "code": "PRICE_LIST_DOES_NOT_EXIST",
+                  "field": ["priceListId"],
+                  "message": "Price list does not exist."
+                }
+              ]
+            },
+            "webPresenceCreate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "__typename": "MarketUserError",
+                  "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
+                  "field": ["input", "subfolderSuffix"],
+                  "message": "Subfolder suffix must be at least 2 letters"
+                }
+              ]
+            },
+            "webPresenceUpdate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "__typename": "MarketUserError",
+                  "code": "WEB_PRESENCE_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "The market web presence wasn't found."
+                }
+              ]
+            },
+            "webPresenceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "__typename": "MarketUserError",
+                  "code": "WEB_PRESENCE_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "The market web presence wasn't found."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 70,
+              "actualQueryCost": 70,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1930,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

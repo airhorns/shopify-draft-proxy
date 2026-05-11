@@ -1,0 +1,61 @@
+{
+  "scenarioId": "payment-customization-activation-mixed",
+  "operationNames": ["paymentCustomizationCreate", "paymentCustomizationActivation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-customization-immutable-create.graphql",
+    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.paymentCustomization.id",
+        "matcher": "shopify-gid:PaymentCustomization",
+        "reason": "Shopify and the local proxy generate independent payment customization IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.operations.paymentCustomizationCreate.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate"
+      },
+      {
+        "name": "mixed-activation-payload",
+        "capturePath": "$.operations.paymentCustomizationActivationMixed.response.data.paymentCustomizationActivation",
+        "proxyPath": "$.data.paymentCustomizationActivation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-activation-mixed.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+              },
+              {
+                "fromCapturePath": "$.operations.paymentCustomizationActivationMixed.variables.ids[1]"
+              }
+            ],
+            "enabled": {
+              "fromCapturePath": "$.operations.paymentCustomizationActivationMixed.variables.enabled"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.ids[0]",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy activate independently generated payment customization IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executable parity for paymentCustomizationActivation bucketing: a captured Shopify call submits one valid disposable PaymentCustomization id and one missing id. Shopify returns only the valid id in ids and reports the missing id through the ids userError bucket."
+}

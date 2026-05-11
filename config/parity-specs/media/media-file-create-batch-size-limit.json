@@ -1,0 +1,28 @@
+{
+  "scenarioId": "media-file-create-batch-size-limit",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-batch-size-limit.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-batch-size-limit.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 max-input-size behavior for fileCreate(files:). Shopify returns only a top-level MAX_INPUT_SIZE_EXCEEDED error for 251 files; no mutation payload data is returned and no file is created.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create-batch-size-errors",
+        "capturePath": "$.mutation.response.payload.errors",
+        "proxyPath": "$.errors"
+      }
+    ]
+  }
+}

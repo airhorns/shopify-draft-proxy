@@ -1,0 +1,33 @@
+{
+  "scenarioId": "catalog-delete-success-payload",
+  "operationNames": ["catalogDelete", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "delete", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-delete-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-delete-success-setup-read.graphql",
+    "variablesCapturePath": "$.success.setupRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Admin GraphQL 2026-04 capture creates a disposable MarketCatalog against an existing market, records a setup read into the cassette, then deletes the catalog. The parity target confirms the successful catalogDelete payload shape, including deletedId and empty CatalogUserError list.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-delete-success-payload",
+        "capturePath": "$.success.delete.response.payload.data.catalogDelete",
+        "proxyPath": "$.data.catalogDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-delete-success.graphql",
+          "variablesCapturePath": "$.success.delete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

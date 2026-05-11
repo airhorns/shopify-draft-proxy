@@ -167,6 +167,55 @@ pub fn data_sale_opt_out_tab_email_matches_shopify_error_test() {
   assert string.contains(opt_json, "\"code\":\"FAILED\"")
 }
 
+pub fn data_sale_opt_out_missing_email_returns_top_level_error_test() {
+  let proxy = registry_proxy()
+  let #(Response(status: opt_status, body: opt_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { dataSaleOptOut { customerId userErrors { field message code } } }",
+    )
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(
+    opt_json,
+    "Field 'dataSaleOptOut' is missing required arguments: email",
+  )
+  assert string.contains(opt_json, "\"code\":\"missingRequiredArguments\"")
+  assert !string.contains(opt_json, "\"data\":")
+  assert !string.contains(opt_json, "\"dataSaleOptOut\":{")
+}
+
+pub fn data_sale_opt_out_null_email_variable_returns_top_level_error_test() {
+  let proxy = registry_proxy()
+  let body =
+    "{\"query\":\"mutation DataSaleOptOut($email: String!) { dataSaleOptOut(email: $email) { customerId userErrors { field message code } } }\",\"variables\":{\"email\":null}}"
+  let #(Response(status: opt_status, body: opt_body, ..), _) =
+    graphql_body(proxy, body)
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(
+    opt_json,
+    "Variable $email of type String! was provided invalid value",
+  )
+  assert string.contains(opt_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert !string.contains(opt_json, "\"data\":")
+  assert !string.contains(opt_json, "\"dataSaleOptOut\":{")
+}
+
+pub fn data_sale_opt_out_empty_email_reaches_resolver_failed_user_error_test() {
+  let proxy = registry_proxy()
+  let body =
+    "{\"query\":\"mutation DataSaleOptOut($email: String!) { dataSaleOptOut(email: $email) { customerId userErrors { field message code } } }\",\"variables\":{\"email\":\"\"}}"
+  let #(Response(status: opt_status, body: opt_body, ..), _) =
+    graphql_body(proxy, body)
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(opt_json, "\"dataSaleOptOut\"")
+  assert string.contains(opt_json, "\"customerId\":null")
+  assert string.contains(opt_json, "\"message\":\"Data sale opt out failed.\"")
+  assert string.contains(opt_json, "\"code\":\"FAILED\"")
+}
+
 pub fn data_sale_opt_out_invalid_email_matches_shopify_error_test() {
   let proxy = registry_proxy()
   let #(Response(status: opt_status, body: opt_body, ..), proxy) =

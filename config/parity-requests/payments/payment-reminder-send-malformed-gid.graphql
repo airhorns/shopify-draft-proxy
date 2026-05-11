@@ -1,0 +1,10 @@
+mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {
+  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+    success
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

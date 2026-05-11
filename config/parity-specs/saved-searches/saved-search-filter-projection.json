@@ -2,7 +2,7 @@
   "scenarioId": "saved-search-filter-projection",
   "operationNames": ["productSavedSearches", "savedSearchCreate", "savedSearchDelete"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "query-grammar-parity", "downstream-read-parity"],
+  "assertionKinds": ["payload-shape", "query-grammar-parity", "typename-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-filter-projection.json"
   ],
@@ -13,7 +13,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence for SavedSearch.filters projection of range comparators, exists syntax, bounded ranges expressed as two range tokens, and negated non-equality range terms. The downstream productSavedSearches read proves staged saved-search records expose the same parsed filters/searchTerms projection.",
+  "notes": "Live evidence for SavedSearch.filters projection of range comparators, exists syntax, bounded ranges expressed as two range tokens, negated non-equality range terms, and schema-valid filters.__typename values. The savedSearchCreate payloads and downstream productSavedSearches read both select filters { __typename key value }, proving staged saved-search records expose SearchFilter typename plus the same parsed filters/searchTerms projection.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

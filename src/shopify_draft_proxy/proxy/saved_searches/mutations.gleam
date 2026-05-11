@@ -1485,7 +1485,7 @@ fn mutation_record_source(
       SrcList(
         list.map(record.filters, fn(f) {
           src_object([
-            #("__typename", SrcString("SavedSearchFilter")),
+            #("__typename", SrcString("SearchFilter")),
             #("key", SrcString(f.key)),
             #("value", SrcString(f.value)),
           ])

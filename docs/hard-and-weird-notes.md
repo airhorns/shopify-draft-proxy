@@ -64,6 +64,24 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Variant fixed-price duplicate inputs are last-write-wins
+
+Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`
+do not reject duplicate `variantId` entries with a user error. For the
+variant-level fixed-price mutations, Shopify accepts duplicate input rows and
+uses the last price for the variant. This differs from
+`priceListFixedPricesByProductUpdate`, whose
+`PriceListFixedPricesByProductBulkUpdateUserError` enum does include duplicate
+input codes.
+
+The same capture showed that schema-current `priceListFixedPricesUpdate` uses
+the `pricesToAdd` argument name and creates a fixed row when the variant does
+not already have one. `priceListFixedPricesDelete` is the branch that rejects a
+known variant without a fixed row, with `PRICE_NOT_FIXED` at `variantIds[i]`.
+The checked-in anchor is the
+`price-list-fixed-prices-*-*.json` Markets parity set backed by
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json`.
+
 ## Current: delegateAccessTokenCreate EXPIRES_AFTER_PARENT returns a null field
 
 A 2026-04 `delegateAccessTokenCreate` capture against
@@ -2480,6 +2498,7 @@ Live evidence refreshed on this host:
 - deleting an active unstocked location returns only `LOCATION_IS_ACTIVE`; deleting an active stocked location returns `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` without mutating the location
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
+- activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:

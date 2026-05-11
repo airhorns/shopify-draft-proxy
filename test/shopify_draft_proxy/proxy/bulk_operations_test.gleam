@@ -789,6 +789,37 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn run_query_accepts_schema_connection_root_before_local_synthesis_test() {
+  let response = run_query_mutation("{ orders { edges { node { id name } } } }")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk query root `orders` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer.\",\"code\":\"UNSUPPORTED_IN_PROXY\"}]}}}"
+}
+
+pub fn run_query_schema_connection_root_can_replay_upstream_cassette_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ orders { edges { node { id name } } } }\") { bulkOperation { id status type } userErrors { field message code } } }"
+  let upstream_body =
+    "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/901\",\"status\":\"CREATED\",\"type\":\"QUERY\"},\"userErrors\":[]}}}"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      upstream_context_with_body(upstream_body),
+    )
+
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"id\":\"gid://shopify/BulkOperation/901\"")
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"type\":\"QUERY\"")
+  assert string.contains(response, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn run_query_empty_string_returns_invalid_bulk_query_error_test() {
   let response = run_query_mutation("")
 
@@ -860,7 +891,7 @@ pub fn run_query_rejects_connection_nesting_depth_greater_than_two_test() {
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain connections with a nesting depth greater than 2.\",\"code\":\"INVALID\"}]}}}"
 }
 
-pub fn run_query_rejects_connection_within_curated_list_field_test() {
+pub fn run_query_rejects_connection_within_schema_list_field_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { bulkOperationRunQuery(query: \"{ orders { edges { node { id fulfillments { events { edges { node { id } } } } } } } }\") { bulkOperation { id } userErrors { field message code } } }"
@@ -876,6 +907,30 @@ pub fn run_query_rejects_connection_within_curated_list_field_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Queries that contain a connection field within a list field are not currently supported.\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_query_schema_list_field_outside_old_curated_list_can_replay_upstream_cassette_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ draftOrders { edges { node { id warnings { message } } } } }\") { bulkOperation { id status type } userErrors { field message code } } }"
+  let upstream_body =
+    "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/902\",\"status\":\"CREATED\",\"type\":\"QUERY\"},\"userErrors\":[]}}}"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      upstream_context_with_body(upstream_body),
+    )
+
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"id\":\"gid://shopify/BulkOperation/902\"")
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"type\":\"QUERY\"")
+  assert string.contains(response, "\"userErrors\":[]")
   assert outcome.staged_resource_ids == []
 }
 

@@ -1181,6 +1181,11 @@ pub fn metafield_definition_json(
     ),
     #("pinnedPosition", optional_int(record.pinned_position)),
     #("validationStatus", json.string(record.validation_status)),
+    #("appConfigManaged", json.bool(record.app_config_managed)),
+    #(
+      "standardTemplateAppDependent",
+      json.bool(record.standard_template_app_dependent),
+    ),
   ])
 }
 

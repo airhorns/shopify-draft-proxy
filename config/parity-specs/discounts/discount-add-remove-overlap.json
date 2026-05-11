@@ -1,0 +1,234 @@
+{
+  "scenarioId": "discount-add-remove-overlap",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeBxgyCreate",
+    "discountCodeBxgyUpdate",
+    "discountCodeFreeShippingCreate",
+    "discountCodeFreeShippingUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-add-remove-overlap.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-setup.graphql",
+    "variablesCapturePath": "$.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-add-remove-overlap-setup-user-errors",
+        "capturePath": "$.setup.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.basicCode.userErrors", "$.bxgyCode.userErrors", "$.freeShippingCode.userErrors"]
+      },
+      {
+        "name": "customer-selection-create-errors",
+        "capturePath": "$.cases.customerSelectionCreate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-create.graphql",
+          "variablesCapturePath": "$.cases.customerSelectionCreate.variables"
+        }
+      },
+      {
+        "name": "customer-selection-create-data",
+        "capturePath": "$.cases.customerSelectionCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-create.graphql",
+          "variablesCapturePath": "$.cases.customerSelectionCreate.variables"
+        }
+      },
+      {
+        "name": "customer-selection-update-errors",
+        "capturePath": "$.cases.customerSelectionUpdate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.basicCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerSelectionUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-selection-update-data",
+        "capturePath": "$.cases.customerSelectionUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.basicCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerSelectionUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-gets-create-errors",
+        "capturePath": "$.cases.customerGetsCreate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-create.graphql",
+          "variablesCapturePath": "$.cases.customerGetsCreate.variables"
+        }
+      },
+      {
+        "name": "customer-gets-create-data",
+        "capturePath": "$.cases.customerGetsCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-create.graphql",
+          "variablesCapturePath": "$.cases.customerGetsCreate.variables"
+        }
+      },
+      {
+        "name": "customer-gets-update-errors",
+        "capturePath": "$.cases.customerGetsUpdate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.basicCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerGetsUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-gets-update-data",
+        "capturePath": "$.cases.customerGetsUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.basicCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerGetsUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-buys-create-errors",
+        "capturePath": "$.cases.customerBuysCreate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-bxgy-create.graphql",
+          "variablesCapturePath": "$.cases.customerBuysCreate.variables"
+        }
+      },
+      {
+        "name": "customer-buys-create-data",
+        "capturePath": "$.cases.customerBuysCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-bxgy-create.graphql",
+          "variablesCapturePath": "$.cases.customerBuysCreate.variables"
+        }
+      },
+      {
+        "name": "customer-buys-update-errors",
+        "capturePath": "$.cases.customerBuysUpdate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-bxgy-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.bxgyCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerBuysUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-buys-update-data",
+        "capturePath": "$.cases.customerBuysUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-bxgy-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.bxgyCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.customerBuysUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "countries-create-errors",
+        "capturePath": "$.cases.countriesCreate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-create.graphql",
+          "variablesCapturePath": "$.cases.countriesCreate.variables"
+        }
+      },
+      {
+        "name": "countries-create-data",
+        "capturePath": "$.cases.countriesCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-create.graphql",
+          "variablesCapturePath": "$.cases.countriesCreate.variables"
+        }
+      },
+      {
+        "name": "countries-update-errors",
+        "capturePath": "$.cases.countriesUpdate.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.freeShippingCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.countriesUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "countries-update-data",
+        "capturePath": "$.cases.countriesUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.freeShippingCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.countriesUpdate.variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for top-level BAD_REQUEST add/remove overlap guards on DiscountCustomersInput, DiscountItemsInput through customerGets and customerBuys, and DiscountCountriesInput through the public free-shipping destination.countries field. The proxy also validates the currently non-public minimumRequirement.shippingMethods.countries shape in runtime tests because the pricing service guard is implemented on the same countries input family."
+}

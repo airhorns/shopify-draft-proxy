@@ -30,7 +30,7 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
 });
 
 const productCreateMutation = `#graphql
-  mutation HAR697CreateProduct($product: ProductCreateInput!) {
+  mutation MetafieldDefinitionPreconditionCreateProduct($product: ProductCreateInput!) {
     productCreate(product: $product) {
       product { id title }
       userErrors { field message }
@@ -39,7 +39,7 @@ const productCreateMutation = `#graphql
 `;
 
 const productDeleteMutation = `#graphql
-  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {
+  mutation MetafieldDefinitionPreconditionDeleteProduct($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
       userErrors { field message }
@@ -48,10 +48,47 @@ const productDeleteMutation = `#graphql
 `;
 
 const deleteDefinitionMutation = `#graphql
-  mutation HAR697CleanupDefinition($id: ID!) {
+  mutation MetafieldDefinitionPreconditionCleanupDefinition($id: ID!) {
     metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {
       deletedDefinitionId
       userErrors { field message code }
+    }
+  }
+`;
+
+const deleteGuardCandidateDiscoveryQuery = `#graphql
+  query MetafieldDefinitionDeleteGuardCandidateDiscovery($first: Int!) {
+    metafieldDefinitionType: __type(name: "MetafieldDefinition") {
+      fields {
+        name
+      }
+    }
+    standardTemplateType: __type(name: "StandardMetafieldDefinitionTemplate") {
+      fields {
+        name
+      }
+    }
+    standardMetafieldDefinitionTemplates(first: $first) {
+      nodes {
+        id
+        namespace
+        key
+        ownerTypes
+      }
+    }
+    shopifyProductDefinitions: metafieldDefinitions(ownerType: PRODUCT, first: $first, namespace: "shopify") {
+      nodes {
+        id
+        namespace
+        key
+        ownerType
+        standardTemplate {
+          id
+          namespace
+          key
+          ownerTypes
+        }
+      }
     }
   }
 `;
@@ -125,7 +162,7 @@ async function captureQuery(
 
 async function createProduct(label: string, suffix: string): Promise<CapturedInteraction> {
   return captureQuery(`${label} productCreate`, productCreateMutation, {
-    product: { title: `HAR-697 ${label} ${suffix}` },
+    product: { title: `Metafield definition precondition ${label} ${suffix}` },
   });
 }
 
@@ -156,7 +193,7 @@ async function setupFlow(label: string, suffix: string, withMetafield: boolean):
   const productId = product ? createdProductId(product) : undefined;
   const create = await captureDocument(`${label} metafieldDefinitionCreate`, createDocumentPath, {
     definition: {
-      name: `HAR-697 ${label}`,
+      name: `Metafield definition precondition ${label}`,
       namespace,
       key,
       ownerType: 'PRODUCT',
@@ -209,7 +246,7 @@ async function cleanup(productId?: string, definitionId?: string): Promise<Captu
   return cleanupCaptures;
 }
 
-const suffix = `har697_${Date.now().toString(36)}`;
+const suffix = `metafield_precondition_${Date.now().toString(36)}`;
 const cleanupCaptures: CapturedInteraction[] = [];
 
 const deleteWithoutFlag = await setupFlow('delete_without_flag', suffix, true);
@@ -261,7 +298,7 @@ const updateNamespaceUpdate = await captureDocument('update namespace preconditi
     namespace: `${updateNamespace.namespace}_changed`,
     key: updateNamespace.key,
     ownerType: 'PRODUCT',
-    name: 'HAR-697 namespace changed',
+    name: 'Metafield definition namespace changed',
   },
 });
 cleanupCaptures.push(...(await cleanup(undefined, updateNamespace.definitionId)));
@@ -272,7 +309,7 @@ const updateKeyUpdate = await captureDocument('update key precondition', updateD
     namespace: updateKey.namespace,
     key: 'tier_changed',
     ownerType: 'PRODUCT',
-    name: 'HAR-697 key changed',
+    name: 'Metafield definition key changed',
   },
 });
 cleanupCaptures.push(...(await cleanup(undefined, updateKey.definitionId)));
@@ -283,10 +320,18 @@ const updateOwnerTypeUpdate = await captureDocument('update owner type precondit
     namespace: updateOwnerType.namespace,
     key: updateOwnerType.key,
     ownerType: 'CUSTOMER',
-    name: 'HAR-697 owner type changed',
+    name: 'Metafield definition owner type changed',
   },
 });
 cleanupCaptures.push(...(await cleanup(undefined, updateOwnerType.definitionId)));
+
+const deleteGuardCandidateDiscovery = await captureQuery(
+  'delete guard candidate discovery',
+  deleteGuardCandidateDiscoveryQuery,
+  {
+    first: 50,
+  },
+);
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(
@@ -339,6 +384,19 @@ await writeFile(
         create: updateOwnerType.create,
         update: updateOwnerTypeUpdate,
       },
+      deleteGuardCandidateDiscovery,
+      unavailableDeleteGuardEvidence: [
+        {
+          code: 'APP_CONFIG_MANAGED',
+          reason:
+            'Public Admin GraphQL does not expose app_config_managed metadata on MetafieldDefinition, and the current conformance shop exposes no safe other-app app-managed definition candidate through this credential.',
+        },
+        {
+          code: 'STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP',
+          reason:
+            'Public Admin GraphQL exposes standardTemplate but not the internal dependent_on_app metadata needed to identify a standard metafield definition whose owning app remains installed.',
+        },
+      ],
       cleanup: cleanupCaptures,
       upstreamCalls: [],
     },

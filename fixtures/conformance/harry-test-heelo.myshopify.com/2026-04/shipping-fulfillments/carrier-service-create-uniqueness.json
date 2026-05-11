@@ -1,0 +1,112 @@
+{
+  "capturedAt": "2026-05-10T00:17:31.886Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures DeliveryCarrierService active per-app uniqueness for carrierServiceCreate against live Shopify Admin GraphQL.",
+    "The first create stages an active carrier service for the calling app; the second create with the same name returns a base CARRIER_SERVICE_CREATE_FAILED userError.",
+    "The created carrier service is deleted during cleanup."
+  ],
+  "firstCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+    "variables": {
+      "input": {
+        "name": "Hermes Carrier Uniqueness moz0x7cl",
+        "callbackUrl": "https://mock.shop/carrier-service-rates",
+        "supportsServiceDiscovery": false,
+        "active": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/103076593970",
+              "name": "Hermes Carrier Uniqueness moz0x7cl",
+              "formattedName": "Hermes Carrier Uniqueness moz0x7cl (Rates provided by app)",
+              "callbackUrl": "https://mock.shop/carrier-service-rates",
+              "active": true,
+              "supportsServiceDiscovery": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "duplicateCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+    "variables": {
+      "input": {
+        "name": "Hermes Carrier Uniqueness moz0x7cl",
+        "callbackUrl": "https://mock.shop/carrier-service-rates-2",
+        "supportsServiceDiscovery": false,
+        "active": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Hermes Carrier Uniqueness moz0x7cl is already configured",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "carrierServiceDelete": {
+          "deletedId": "gid://shopify/DeliveryCarrierService/103076593970",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
