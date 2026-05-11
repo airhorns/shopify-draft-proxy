@@ -1,0 +1,11 @@
+mutation PriceListFixedPricesDeleteValidation($priceListId: ID!, $variantIds: [ID!]!) {
+  priceListFixedPricesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+    deletedFixedPriceVariantIds
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

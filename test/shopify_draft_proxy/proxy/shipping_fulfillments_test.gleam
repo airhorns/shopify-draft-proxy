@@ -784,6 +784,166 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
     == None
 }
 
+pub fn carrier_service_create_rejects_duplicate_active_name_without_staging_test() {
+  let create_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let first_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", create_input)]),
+      empty_upstream_context(),
+    )
+  let assert [first_id] = first_outcome.staged_resource_ids
+
+  let duplicate_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("  Hermes Carrier  ")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates-2"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let duplicate_outcome =
+    shipping_fulfillments.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DuplicateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(duplicate_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Hermes Carrier is already configured\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert duplicate_outcome.staged_resource_ids == []
+  assert list.length(store.list_effective_carrier_services(
+      duplicate_outcome.store,
+    ))
+    == 1
+  assert store.get_effective_carrier_service_by_id(
+      duplicate_outcome.store,
+      first_id,
+    )
+    != None
+}
+
+pub fn carrier_service_create_allows_duplicate_name_after_inactive_or_deleted_test() {
+  let inactive_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates"),
+        ),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let inactive_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", inactive_input)]),
+      empty_upstream_context(),
+    )
+
+  let active_duplicate_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates-2"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let after_inactive_outcome =
+    shipping_fulfillments.process_mutation(
+      inactive_outcome.store,
+      inactive_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  let assert [after_inactive_id] = after_inactive_outcome.staged_resource_ids
+  assert json.to_string(after_inactive_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":{\"id\":\""
+    <> after_inactive_id
+    <> "\",\"name\":\"Hermes Carrier\",\"active\":true},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_carrier_services(
+      after_inactive_outcome.store,
+    ))
+    == 2
+
+  let active_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+  let assert [active_id] = active_outcome.staged_resource_ids
+  let delete_outcome =
+    shipping_fulfillments.process_mutation(
+      active_outcome.store,
+      active_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteCarrier($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(active_id))]),
+      empty_upstream_context(),
+    )
+  let after_delete_outcome =
+    shipping_fulfillments.process_mutation(
+      delete_outcome.store,
+      delete_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  let assert [after_delete_id] = after_delete_outcome.staged_resource_ids
+  assert json.to_string(after_delete_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":{\"id\":\""
+    <> after_delete_id
+    <> "\",\"name\":\"Hermes Carrier\",\"active\":true},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_carrier_services(
+      after_delete_outcome.store,
+    ))
+    == 1
+  assert store.get_effective_carrier_service_by_id(
+      after_delete_outcome.store,
+      active_id,
+    )
+    == None
+}
+
 pub fn carrier_service_validation_branches_return_user_errors_test() {
   let blank_input =
     root_field.ObjectVal(dict.from_list([#("name", root_field.StringVal(""))]))

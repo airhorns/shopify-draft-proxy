@@ -1,0 +1,14 @@
+mutation BulkOperationRunQuerySchemaRootsParity($query: String!) {
+  bulkOperationRunQuery(query: $query) {
+    bulkOperation {
+      id
+      status
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -24,16 +24,21 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   captured_field, captured_json_source, captured_object_upsert,
   captured_string_field, catalog_connection_from_ids,
   catalog_create_input_errors, catalog_data, catalog_update_input_errors,
-  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
-  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
+  catalog_user_error, delete_fixed_price_nodes,
+  delete_quantity_price_break_nodes_by_ids,
+  delete_quantity_price_break_nodes_by_variant_ids, delete_quantity_rule_nodes,
+  enumerate_dicts, enumerate_strings, fixed_price_edge_variant_id,
+  market_connection_from_ids, market_data, market_handle_in_use,
+  market_localization_payload, market_name_in_use, market_user_error,
+  markets_log_draft, mutation_variant_ids, option_to_result,
   optional_captured_string, price_edges, price_list_currency, price_list_data,
   price_list_fixed_prices_by_product_user_error, price_list_input_errors,
-  product_level_fixed_price_errors, product_payloads, project_record,
-  quantity_pricing_input_errors, quantity_rule_delete_errors,
-  quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
-  read_arg_object_array, read_arg_string_allow_empty, read_arg_string_array,
+  price_list_user_error, product_level_fixed_price_errors, product_payloads,
+  project_record, quantity_price_break_variant_ids_by_ids,
+  quantity_pricing_by_variant_user_error, quantity_pricing_input_errors,
+  quantity_rule_delete_errors, quantity_rule_payloads, quantity_rule_user_error,
+  quantity_rules_input_errors, read_arg_object_array,
+  read_arg_string_allow_empty, read_arg_string_array,
   read_explicit_market_handle, read_market_region_inputs,
   read_price_list_catalog_input, read_price_list_id, result_to_option,
   string_array, translation_user_error, upsert_fixed_price_nodes,
@@ -1373,7 +1378,7 @@ fn handle_catalog_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          catalog_not_found_mutation_result(
             key,
             field,
             fragments,
@@ -1387,7 +1392,7 @@ fn handle_catalog_update(
           )
       }
     None ->
-      not_found_mutation_result(
+      catalog_not_found_mutation_result(
         key,
         field,
         fragments,
@@ -1429,7 +1434,7 @@ fn handle_catalog_context_update(
                 "catalog",
                 CapturedNull,
                 [
-                  user_error(
+                  catalog_user_error(
                     ["contextsToAdd"],
                     "Must have `contexts_to_add` or `contexts_to_remove` argument.",
                     "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
@@ -1512,7 +1517,7 @@ fn handle_catalog_context_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          catalog_not_found_mutation_result(
             key,
             field,
             fragments,
@@ -1526,7 +1531,7 @@ fn handle_catalog_context_update(
           )
       }
     None ->
-      not_found_mutation_result(
+      catalog_not_found_mutation_result(
         key,
         field,
         fragments,
@@ -1553,7 +1558,7 @@ fn catalog_context_market_not_found_errors(
     case store.get_effective_market_by_id(store, id) {
       Some(_) -> Error(Nil)
       None ->
-        Ok(user_error(
+        Ok(catalog_user_error(
           [context_field, "marketIds", int.to_string(index)],
           "Market does not exist",
           "MARKET_NOT_FOUND",
@@ -1625,7 +1630,7 @@ fn handle_catalog_delete(
             identity,
           )
         None ->
-          delete_error_result(
+          catalog_delete_error_result(
             key,
             field,
             fragments,
@@ -1638,7 +1643,7 @@ fn handle_catalog_delete(
           )
       }
     None ->
-      delete_error_result(
+      catalog_delete_error_result(
         key,
         field,
         fragments,
@@ -1755,28 +1760,28 @@ fn handle_price_list_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          price_list_not_found_mutation_result(
             key,
             field,
             fragments,
             "priceListUpdate",
             "priceList",
             ["id"],
-            "Price list does not exist",
+            "Price list does not exist.",
             "PRICE_LIST_NOT_FOUND",
             store,
             identity,
           )
       }
     None ->
-      not_found_mutation_result(
+      price_list_not_found_mutation_result(
         key,
         field,
         fragments,
         "priceListUpdate",
         "priceList",
         ["id"],
-        "Price list does not exist",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
         store,
         identity,
@@ -1839,26 +1844,26 @@ fn handle_price_list_delete(
           )
         }
         None ->
-          delete_error_result(
+          price_list_delete_not_found_result(
             key,
             field,
             fragments,
             "priceListDelete",
             ["id"],
-            "Price list does not exist",
+            "Price list does not exist.",
             "PRICE_LIST_NOT_FOUND",
             store,
             identity,
           )
       }
     None ->
-      delete_error_result(
+      price_list_delete_not_found_result(
         key,
         field,
         fragments,
         "priceListDelete",
         ["id"],
-        "Price list does not exist",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
         store,
         identity,
@@ -1912,6 +1917,7 @@ fn handle_price_list_fixed_prices_add(
         fragments,
         "priceListFixedPricesAdd",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -1941,11 +1947,6 @@ fn handle_price_list_fixed_prices_update(
           combine_error_lists([
             fixed_price_input_errors(
               store,
-              existing,
-              price_inputs,
-              price_input_field,
-            ),
-            fixed_price_not_fixed_errors(
               existing,
               price_inputs,
               price_input_field,
@@ -1991,6 +1992,7 @@ fn handle_price_list_fixed_prices_update(
         fragments,
         "priceListFixedPricesUpdate",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -2015,8 +2017,16 @@ fn handle_price_list_fixed_prices_delete(
     combine_error_lists([
       price_list_fixed_price_target_errors(price_list_id, price_list),
       case price_list {
-        Some(_) ->
-          fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+        Some(existing) ->
+          combine_error_lists([
+            fixed_price_delete_variant_errors(store, variant_ids, "variantIds"),
+            fixed_price_delete_not_fixed_errors(
+              store,
+              existing,
+              variant_ids,
+              "variantIds",
+            ),
+          ])
         None -> []
       },
     ])
@@ -2046,6 +2056,7 @@ fn handle_price_list_fixed_prices_delete(
         fragments,
         "priceListFixedPricesDelete",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -2182,7 +2193,7 @@ fn price_list_fixed_price_target_errors(
     _, _ -> [
       price_list_price_user_error(
         ["priceListId"],
-        "Price list not found.",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
       ),
     ]
@@ -2197,7 +2208,6 @@ fn fixed_price_input_errors(
 ) -> List(CapturedJsonValue) {
   fixed_price_variant_errors(store, inputs, field_name)
   |> list.append(fixed_price_currency_errors(price_list, inputs, field_name))
-  |> list.append(fixed_price_duplicate_errors(inputs, field_name))
 }
 
 fn fixed_price_variant_errors(
@@ -2217,7 +2227,7 @@ fn fixed_price_variant_errors(
       None ->
         Ok(price_list_price_user_error(
           [field_name, int.to_string(index), "variantId"],
-          "Variant not found.",
+          "Product variant ID does not exist.",
           "VARIANT_NOT_FOUND",
         ))
     }
@@ -2238,9 +2248,36 @@ fn fixed_price_delete_variant_errors(
       None ->
         Ok(price_list_price_user_error(
           [field_name, int.to_string(index)],
-          "Variant not found.",
+          "Product variant ID does not exist.",
           "VARIANT_NOT_FOUND",
         ))
+    }
+  })
+}
+
+fn fixed_price_delete_not_fixed_errors(
+  store: Store,
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  variant_ids
+  |> enumerate_strings
+  |> list.filter_map(fn(entry) {
+    let #(variant_id, index) = entry
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) ->
+        case list.contains(fixed_variant_ids, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index)],
+              "Only fixed prices can be deleted.",
+              "PRICE_NOT_FIXED",
+            ))
+        }
+      None -> Error(Nil)
     }
   })
 }
@@ -2265,65 +2302,8 @@ fn fixed_price_currency_errors(
           False ->
             Ok(price_list_price_user_error(
               [field_name, int.to_string(index), "price", "currencyCode"],
-              "Currency must match price list currency.",
-              "PRICES_TO_ADD_CURRENCY_MISMATCH",
-            ))
-        }
-      None -> Error(Nil)
-    }
-  })
-}
-
-fn fixed_price_duplicate_errors(
-  inputs: List(Dict(String, root_field.ResolvedValue)),
-  field_name: String,
-) -> List(CapturedJsonValue) {
-  let #(_, errors) =
-    inputs
-    |> enumerate_dicts
-    |> list.fold(#([], []), fn(acc, entry) {
-      let #(seen_ids, current_errors) = acc
-      let #(input, index) = entry
-      case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
-        Some(variant_id) ->
-          case list.contains(seen_ids, variant_id) {
-            True -> #(
-              seen_ids,
-              list.append(current_errors, [
-                price_list_price_user_error(
-                  [field_name, int.to_string(index), "variantId"],
-                  "Duplicate variant ID in input.",
-                  "DUPLICATE_ID_IN_INPUT",
-                ),
-              ]),
-            )
-            False -> #(list.append(seen_ids, [variant_id]), current_errors)
-          }
-        None -> #(seen_ids, current_errors)
-      }
-    })
-  errors
-}
-
-fn fixed_price_not_fixed_errors(
-  price_list: PriceListRecord,
-  inputs: List(Dict(String, root_field.ResolvedValue)),
-  field_name: String,
-) -> List(CapturedJsonValue) {
-  let fixed_variant_ids = fixed_price_variant_ids(price_list)
-  inputs
-  |> enumerate_dicts
-  |> list.filter_map(fn(entry) {
-    let #(input, index) = entry
-    case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
-      Some(variant_id) ->
-        case list.contains(fixed_variant_ids, variant_id) {
-          True -> Error(Nil)
-          False ->
-            Ok(price_list_price_user_error(
-              [field_name, int.to_string(index), "variantId"],
-              "Price is not fixed.",
-              "PRICE_NOT_FIXED",
+              "The specified currency does not match the price list's currency.",
+              "PRICE_LIST_CURRENCY_MISMATCH",
             ))
         }
       None -> Error(Nil)
@@ -2422,6 +2402,7 @@ fn fixed_prices_error_result(
   fragments: FragmentMap,
   root_name: String,
   errors: List(CapturedJsonValue),
+  price_list: Option(PriceListRecord),
   store: Store,
   identity: SyntheticIdentityRegistry,
 ) -> MutationFieldResult {
@@ -2430,7 +2411,7 @@ fn fixed_prices_error_result(
     field,
     fragments,
     root_name,
-    fixed_prices_error_payload(root_name, errors),
+    fixed_prices_error_payload(root_name, errors, price_list),
     store,
     identity,
     [],
@@ -2440,23 +2421,39 @@ fn fixed_prices_error_result(
 fn fixed_prices_error_payload(
   root_name: String,
   errors: List(CapturedJsonValue),
+  price_list: Option(PriceListRecord),
 ) -> CapturedJsonValue {
   case root_name {
     "priceListFixedPricesAdd" ->
       CapturedObject([
-        #("prices", CapturedNull),
+        #("prices", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     "priceListFixedPricesUpdate" ->
       CapturedObject([
-        #("priceList", CapturedNull),
-        #("pricesAdded", CapturedNull),
-        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("priceList", case price_list {
+          Some(existing) -> existing.data
+          None -> CapturedNull
+        }),
+        #("pricesAdded", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
+        #("deletedFixedPriceVariantIds", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     "priceListFixedPricesDelete" ->
       CapturedObject([
-        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("deletedFixedPriceVariantIds", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     _ -> CapturedObject([#("userErrors", CapturedArray(errors))])
@@ -2491,9 +2488,9 @@ fn handle_quantity_pricing_by_variant_update(
   let price_list =
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
   let errors = case price_list {
-    Some(_) -> quantity_pricing_input_errors(store, input)
+    Some(existing) -> quantity_pricing_input_errors(store, existing, input)
     None -> [
-      user_error(
+      quantity_pricing_by_variant_user_error(
         ["priceListId"],
         "Price list not found.",
         "PRICE_LIST_NOT_FOUND",
@@ -2512,6 +2509,17 @@ fn handle_quantity_pricing_by_variant_update(
         |> option.unwrap([])
       let price_break_inputs =
         read_arg_object_array(input, "quantityPriceBreaksToAdd")
+      let price_break_delete_ids =
+        read_arg_string_array(input, "quantityPriceBreaksToDelete")
+        |> option.unwrap([])
+      let price_break_delete_variant_ids =
+        read_arg_string_array(input, "quantityPriceBreaksToDeleteByVariantId")
+        |> option.unwrap([])
+      let price_break_delete_ids_variant_ids =
+        quantity_price_break_variant_ids_by_ids(
+          existing,
+          price_break_delete_ids,
+        )
       let updated =
         existing
         |> upsert_fixed_price_nodes(store, fixed_inputs)
@@ -2523,6 +2531,10 @@ fn handle_quantity_pricing_by_variant_update(
           identity,
           price_break_inputs,
         )
+        |> delete_quantity_price_break_nodes_by_ids(price_break_delete_ids)
+        |> delete_quantity_price_break_nodes_by_variant_ids(
+          price_break_delete_variant_ids,
+        )
       let #(_, next_store) = store.upsert_staged_price_list(store, updated)
       let changed_variant_ids =
         mutation_variant_ids(fixed_inputs)
@@ -2530,6 +2542,8 @@ fn handle_quantity_pricing_by_variant_update(
         |> append_unique_strings(mutation_variant_ids(price_break_inputs))
         |> append_unique_strings(delete_variant_ids)
         |> append_unique_strings(rule_delete_ids)
+        |> append_unique_strings(price_break_delete_ids_variant_ids)
+        |> append_unique_strings(price_break_delete_variant_ids)
       let payload =
         CapturedObject([
           #("productVariants", variant_payloads(store, changed_variant_ids)),
@@ -2644,7 +2658,7 @@ fn handle_quantity_rules_delete(
   let errors = case price_list {
     Some(existing) -> quantity_rule_delete_errors(store, existing, variant_ids)
     None -> [
-      user_error(
+      quantity_rule_user_error(
         ["priceListId"],
         "Price list does not exist.",
         "PRICE_LIST_DOES_NOT_EXIST",
@@ -3205,7 +3219,7 @@ fn handle_web_presence_delete(
         Some(record) ->
           case store.web_presence_matches_shop_primary_host(store, record) {
             True ->
-              delete_error_result(
+              web_presence_delete_error_result(
                 key,
                 field,
                 fragments,
@@ -3503,6 +3517,32 @@ fn mutation_payload_result(
   )
 }
 
+fn catalog_not_found_mutation_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  resource_key: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    resource_key,
+    CapturedNull,
+    [catalog_user_error(error_field, message, code)],
+    store,
+    identity,
+    [],
+  )
+}
+
 fn not_found_mutation_result(
   key: String,
   field: Selection,
@@ -3523,6 +3563,32 @@ fn not_found_mutation_result(
     resource_key,
     CapturedNull,
     [user_error(error_field, message, code)],
+    store,
+    identity,
+    [],
+  )
+}
+
+fn price_list_not_found_mutation_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  resource_key: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    resource_key,
+    CapturedNull,
+    [price_list_user_error(error_field, message, code)],
     store,
     identity,
     [],
@@ -3553,6 +3619,35 @@ fn delete_result(
   )
 }
 
+fn price_list_delete_not_found_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([price_list_user_error(error_field, message, code)]),
+      ),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
 fn delete_error_result(
   key: String,
   field: Selection,
@@ -3579,6 +3674,64 @@ fn delete_error_result(
   )
 }
 
+fn catalog_delete_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([catalog_user_error(error_field, message, code)]),
+      ),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn web_presence_delete_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([market_user_error(error_field, message, code)]),
+      ),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
 fn web_presence_not_found_result(
   key: String,
   field: Selection,
@@ -3596,7 +3749,7 @@ fn web_presence_not_found_result(
     resource_key,
     CapturedNull,
     [
-      user_error(
+      market_user_error(
         ["id"],
         "The market web presence wasn't found.",
         "WEB_PRESENCE_NOT_FOUND",
@@ -3622,7 +3775,7 @@ fn web_presence_delete_not_found_result(
       #(
         "userErrors",
         CapturedArray([
-          user_error(
+          market_user_error(
             ["id"],
             "The market web presence wasn't found.",
             "WEB_PRESENCE_NOT_FOUND",
@@ -3705,7 +3858,7 @@ fn web_presence_input_errors(
       case web_presence_domain_for_id(store, domain_id) {
         Some(_) -> []
         None -> [
-          user_error(
+          market_user_error(
             ["input", "domainId"],
             "Domain does not exist",
             "DOMAIN_NOT_FOUND",
@@ -3751,7 +3904,7 @@ fn web_presence_route_errors(
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   case domain_id, suffix {
     Some(_), Some(_) -> [
-      user_error(
+      market_user_error(
         ["input"],
         "Cannot have both subfolder suffix and domain",
         "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
@@ -3760,7 +3913,7 @@ fn web_presence_route_errors(
     None, None ->
       case require_route {
         True -> [
-          user_error(
+          market_user_error(
             ["input"],
             "Requires domain or subfolder",
             "REQUIRES_DOMAIN_OR_SUBFOLDER",
@@ -3780,7 +3933,7 @@ fn web_presence_update_route_errors(
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   case suffix, web_presence_record_has_domain(existing) {
     Some(_), True -> [
-      user_error(
+      market_user_error(
         ["input"],
         "Cannot have both subfolder suffix and domain",
         "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
@@ -3795,7 +3948,7 @@ fn web_presence_default_locale_errors(
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_string(input, "defaultLocale") {
     Some("") -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale can't be blank",
         "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
@@ -3805,7 +3958,7 @@ fn web_presence_default_locale_errors(
       case canonical_web_presence_locale(locale) {
         Some(_) -> []
         None -> [
-          user_error(
+          market_user_error(
             ["input", "defaultLocale"],
             "Invalid locale codes: " <> locale,
             "INVALID",
@@ -3813,7 +3966,7 @@ fn web_presence_default_locale_errors(
         ]
       }
     None -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale can't be blank",
         "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
@@ -3838,7 +3991,7 @@ fn web_presence_alternate_locale_errors(
   case invalid_locales {
     [] -> []
     _ -> [
-      user_error(
+      market_user_error(
         ["input", "alternateLocales"],
         "Invalid locale codes: " <> to_sentence(invalid_locales),
         "INVALID",
@@ -3916,7 +4069,7 @@ fn duplicate_default_locale_errors(
 ) -> List(CapturedJsonValue) {
   case check_default_locale {
     True -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale The alternate languages already include "
           <> default_locale
@@ -3935,7 +4088,7 @@ fn duplicate_alternate_locale_errors(
 ) -> List(CapturedJsonValue) {
   case check_alternate_locales {
     True -> [
-      user_error(
+      market_user_error(
         ["input", "alternateLocales"],
         "Alternate locales Duplicates were found in the following languages: "
           <> to_duplicate_language_sentence([
@@ -3956,7 +4109,7 @@ fn web_presence_subfolder_suffix_errors(
     Some(suffix) -> {
       let length_errors = case subfolder_suffix_letter_count(suffix) < 2 {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix must be at least 2 letters",
             "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
@@ -3966,7 +4119,7 @@ fn web_presence_subfolder_suffix_errors(
       }
       let script_errors = case is_web_presence_script_code(suffix) {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix cannot be script code",
             "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE",
@@ -3976,7 +4129,7 @@ fn web_presence_subfolder_suffix_errors(
       }
       let letter_only_errors = case is_lowercase_ascii_letters(suffix) {
         False -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix must contain only letters",
             "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS",
@@ -3999,7 +4152,7 @@ fn web_presence_subfolder_suffix_taken_errors(
     Some(suffix) ->
       case web_presence_subfolder_suffix_taken(store, suffix, current_id) {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix has already been taken",
             "TAKEN",

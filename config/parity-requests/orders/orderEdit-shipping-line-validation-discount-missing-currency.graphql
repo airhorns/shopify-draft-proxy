@@ -1,0 +1,25 @@
+mutation OrderEditShippingLineValidationDiscountMissingCurrency($id: ID!, $lineItemId: ID!) {
+  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: { fixedValue: { amount: "5.00" } }) {
+    calculatedLineItem {
+      id
+      discountedUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      calculatedDiscountAllocations {
+        allocatedAmountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -268,5 +268,6 @@
       }
     ]
   },
-  "notes": "HAR-697 records current Shopify Admin 2026-04 behavior. Contrary to the original ticket text, 2026-04 deletes product-owned metafield definitions without `deleteAllAssociatedMetafields` and with the flag explicitly false, returns empty userErrors, and leaves associated product metafields in place. With the flag true, Shopify removes the associated product metafield. `MetafieldDefinitionUpdateInput` has no `id` or `type` field in 2026-04; changing namespace, key, or ownerType through the identifier-shaped input returns NOT_FOUND."
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "notes": "This scenario records current Shopify Admin 2026-04 behavior. Contrary to the original ticket text, 2026-04 deletes product-owned metafield definitions without `deleteAllAssociatedMetafields` and with the flag explicitly false, returns empty userErrors, and leaves associated product metafields in place. With the flag true, Shopify removes the associated product metafield. `MetafieldDefinitionUpdateInput` has no `id` or `type` field in 2026-04; changing namespace, key, or ownerType through the identifier-shaped input returns NOT_FOUND. The delete guard branches for APP_CONFIG_MANAGED and STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP are runtime-test-backed: public Admin GraphQL does not expose app_config_managed or dependent_on_app metadata, and the fixture records the schema/candidate-discovery limitation instead of synthesizing delete evidence."
 }

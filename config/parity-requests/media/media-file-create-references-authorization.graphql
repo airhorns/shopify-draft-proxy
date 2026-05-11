@@ -1,0 +1,12 @@
+mutation MediaFileCreateReferencesAuthorization($files: [FileUpdateInput!]!) {
+  fileUpdate(files: $files) {
+    files {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

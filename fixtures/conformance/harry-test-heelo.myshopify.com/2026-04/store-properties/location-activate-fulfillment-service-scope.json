@@ -1,0 +1,309 @@
+{
+  "scenarioId": "location-activate-fulfillment-service-scope",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "recordedAt": "2026-05-10T00:10:36.832Z",
+  "notes": [
+    "Captures locationActivate against a fulfillment-service-managed Location returning LOCATION_NOT_FOUND.",
+    "The public Admin API creates fulfillment-service locations active; a recorded deactivate attempt proves that this store cannot construct the inactive fulfillment-service-managed branch through public lifecycle mutations."
+  ],
+  "setup": {
+    "fulfillmentServiceCreate": {
+      "name": "fulfillmentServiceCreate",
+      "query": "mutation LocationActivateFulfillmentServiceScopeCreate($name: String!) { fulfillmentServiceCreate( name: $name trackingSupport: true inventoryManagement: true requiresShippingMethod: true ) { fulfillmentService { id handle serviceName location { id name isFulfillmentService isActive fulfillsOnlineOrders shipsInventory } } userErrors { field message } } }",
+      "variables": {
+        "name": "Location Activate FS Scope 20260510001035"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71933755698?id=true",
+                "handle": "location-activate-fs-scope-20260510001035",
+                "serviceName": "Location Activate FS Scope 20260510001035",
+                "location": {
+                  "id": "gid://shopify/Location/112925671730",
+                  "name": "Location Activate FS Scope 20260510001035",
+                  "isFulfillmentService": true,
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflow": {
+    "deactivateAttempt": {
+      "name": "deactivateAttempt",
+      "query": "mutation LocationActivateFulfillmentServiceScopeDeactivateAttempt($locationId: ID!) { locationDeactivate(locationId: $locationId) @idempotent(key: \"location-activate-fulfillment-service-scope-deactivate\") { location { id isActive isFulfillmentService } locationDeactivateUserErrors { field message code } } }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112925671730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112925671730",
+                "isActive": true,
+                "isFulfillmentService": true
+              },
+              "locationDeactivateUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.",
+                  "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterDeactivateAttempt": {
+      "name": "readAfterDeactivateAttempt",
+      "query": "query LocationActivateFulfillmentServiceScopeRead($id: ID!) { location(id: $id) { id isActive isFulfillmentService } }",
+      "variables": {
+        "id": "gid://shopify/Location/112925671730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112925671730",
+              "isActive": true,
+              "isFulfillmentService": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activateFulfillmentServiceLocation": {
+      "name": "activateFulfillmentServiceLocation",
+      "query": "mutation LocationActivateFulfillmentServiceScope($locationId: ID!) { locationActivate(locationId: $locationId) @idempotent(key: \"location-activate-fulfillment-service-scope\") { location { id isActive isFulfillmentService } locationActivateUserErrors { field message code } } }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112925671730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationActivate": {
+              "location": {
+                "id": "gid://shopify/Location/112925671730",
+                "isActive": true,
+                "isFulfillmentService": true
+              },
+              "locationActivateUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "Location not found.",
+                  "code": "LOCATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterActivate": {
+      "name": "readAfterActivate",
+      "query": "query LocationActivateFulfillmentServiceScopeRead($id: ID!) { location(id: $id) { id isActive isFulfillmentService } }",
+      "variables": {
+        "id": "gid://shopify/Location/112925671730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112925671730",
+              "isActive": true,
+              "isFulfillmentService": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "fulfillmentServiceDelete": {
+      "name": "fulfillmentServiceDelete",
+      "query": "mutation LocationActivateFulfillmentServiceScopeCleanup($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } } }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71933755698?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71933755698",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112925671730"
+      },
+      "query": "be970cb205a53b797c73fc1f9e10c32b2bc4a9c65edfca65caab490653c8b039",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112925671730",
+              "legacyResourceId": "112925671730",
+              "name": "Location Activate FS Scope 20260510001035",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-10T00:10:35Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": true,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": true,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-10T00:10:35Z",
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71933755698?id=true",
+                "handle": "location-activate-fs-scope-20260510001035",
+                "serviceName": "Location Activate FS Scope 20260510001035"
+              },
+              "address": {
+                "address1": null,
+                "address2": null,
+                "city": null,
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["Canada"],
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": null,
+                "provinceCode": null,
+                "zip": null
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

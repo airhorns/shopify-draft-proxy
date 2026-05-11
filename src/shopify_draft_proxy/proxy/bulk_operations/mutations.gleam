@@ -13,6 +13,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Selection, Field, FragmentDefinition, FragmentSpread,
@@ -29,6 +30,11 @@ import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/bulk_operations/serializers.{
   created_bulk_operation_response, project_bulk_operation,
 }
+import shopify_draft_proxy/proxy/bulk_query_schema.{
+  type BulkSchemaFieldKind, BulkSchemaConnection, BulkSchemaLeaf, BulkSchemaList,
+  BulkSchemaObject,
+}
+import shopify_draft_proxy/proxy/bulk_query_schema_lookup
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/discounts
@@ -368,7 +374,33 @@ fn handle_bulk_operation_run_query(
               store,
               identity,
             )
-            Ok(result) -> {
+            Ok(UpstreamBulkQueryPayload(payload)) -> #(
+              MutationFieldResult(
+                key: key,
+                payload: payload,
+                staged_resource_ids: [],
+                log_drafts: [
+                  LogDraft(
+                    operation_name: Some("bulkOperationRunQuery"),
+                    root_fields: ["bulkOperationRunQuery"],
+                    primary_root_field: Some("bulkOperationRunQuery"),
+                    domain: "bulk-operations",
+                    execution: "passthrough-cassette",
+                    query: Some(query_string),
+                    variables: None,
+                    staged_resource_ids: [],
+                    status: store_types.Staged,
+                    notes: Some(
+                      "Replayed a recorded upstream bulkOperationRunQuery response for a schema-valid root the local JSONL builder does not synthesize yet.",
+                    ),
+                  ),
+                ],
+                suppress_outer_log: True,
+              ),
+              store,
+              identity,
+            )
+            Ok(LocalBulkQuery(result)) -> {
               let BulkQueryResult(
                 result_jsonl: result_jsonl,
                 object_count: object_count,
@@ -436,21 +468,27 @@ type BulkQueryResult {
   )
 }
 
+type BulkQueryExecution {
+  LocalBulkQuery(BulkQueryResult)
+  UpstreamBulkQueryPayload(Json)
+}
+
 fn build_run_query_jsonl(
   store: Store,
   query_string: String,
   client_identifier: Option(String),
   upstream: UpstreamContext,
-) -> Result(BulkQueryResult, List(UserError)) {
+) -> Result(BulkQueryExecution, List(UserError)) {
   case parse_bulk_query_document(query_string) {
     Ok(#(fields, fragments)) -> {
       case validate_admin_bulk_query(fields, fragments) {
         [_, ..] as validation_errors -> Error(validation_errors)
         [] ->
-          build_supported_run_query_jsonl(
+          build_run_query_execution(
             store,
             fields,
             fragments,
+            query_string,
             client_identifier,
             upstream,
           )
@@ -497,14 +535,15 @@ fn parse_bulk_query_document(
   }
 }
 
-fn build_supported_run_query_jsonl(
+fn build_run_query_execution(
   store: Store,
   fields: List(Selection),
   fragments: FragmentMap,
+  query_string: String,
   client_identifier: Option(String),
   upstream: UpstreamContext,
-) -> Result(BulkQueryResult, List(UserError)) {
-  case find_supported_bulk_query_root(fields, fragments) {
+) -> Result(BulkQueryExecution, List(UserError)) {
+  case find_bulk_query_root(fields, fragments) {
     Some(#(root, node_fields)) ->
       case find_in_progress_bulk_operation(store, "QUERY", client_identifier) {
         Some(operation) ->
@@ -515,60 +554,119 @@ fn build_supported_run_query_jsonl(
               let products = store.list_effective_products(store)
               let root_count =
                 local_or_upstream_products_count(products, root, upstream)
-              Ok(BulkQueryResult(
-                result_jsonl: make_jsonl(
-                  list.map(products, fn(product) {
-                    project_graphql_value(
-                      product_export_source(product),
-                      node_fields,
-                      fragments,
-                    )
-                  }),
-                ),
-                object_count: root_count,
-                root_object_count: root_count,
-              ))
+              Ok(
+                LocalBulkQuery(BulkQueryResult(
+                  result_jsonl: make_jsonl(
+                    list.map(products, fn(product) {
+                      project_graphql_value(
+                        product_export_source(product),
+                        node_fields,
+                        fragments,
+                      )
+                    }),
+                  ),
+                  object_count: root_count,
+                  root_object_count: root_count,
+                )),
+              )
             }
             Some("productVariants") -> {
               let variants = store.list_effective_product_variants(store)
               let root_count = list.length(variants)
-              Ok(BulkQueryResult(
-                result_jsonl: make_jsonl(
-                  list.map(variants, fn(variant) {
-                    project_graphql_value(
-                      product_variant_export_source(store, variant),
-                      node_fields,
-                      fragments,
-                    )
-                  }),
-                ),
-                object_count: root_count,
-                root_object_count: root_count,
-              ))
+              Ok(
+                LocalBulkQuery(BulkQueryResult(
+                  result_jsonl: make_jsonl(
+                    list.map(variants, fn(variant) {
+                      project_graphql_value(
+                        product_variant_export_source(store, variant),
+                        node_fields,
+                        fragments,
+                      )
+                    }),
+                  ),
+                  object_count: root_count,
+                  root_object_count: root_count,
+                )),
+              )
             }
-            _ -> Error([no_connection_bulk_query_error()])
+            Some(root_name) ->
+              maybe_fetch_upstream_run_query_payload(query_string, upstream)
+              |> result.map(UpstreamBulkQueryPayload)
+              |> result.replace_error([
+                unsupported_bulk_query_root_error(root_name),
+              ])
+            None -> Error([no_connection_bulk_query_error()])
           }
       }
     None -> Error([no_connection_bulk_query_error()])
   }
 }
 
-fn find_supported_bulk_query_root(
+fn find_bulk_query_root(
   fields: List(Selection),
   fragments: FragmentMap,
 ) -> Option(#(Selection, List(Selection))) {
+  let schema = bulk_query_schema_lookup.default_schema()
   case fields {
     [field] ->
-      case root_field_name(field) {
-        Some("products") | Some("productVariants") ->
+      case
+        bulk_schema_connection_selection(schema, field, fragments, "QueryRoot")
+      {
+        Some(_) ->
           case selected_bulk_query_node_fields(field, fragments) {
             Some(node_fields) -> Some(#(field, node_fields))
             None -> None
           }
-        _ -> None
+        None -> None
       }
     _ -> None
   }
+}
+
+fn maybe_fetch_upstream_run_query_payload(
+  query_string: String,
+  upstream: UpstreamContext,
+) -> Result(Json, Nil) {
+  case upstream.allow_upstream_reads, upstream.transport {
+    True, Some(_) -> {
+      let variables =
+        json.object([
+          #("query", json.string(query_string)),
+        ])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "BulkOperationRunQueryProxyFallback",
+          bulk_query_fallback_mutation(),
+          variables,
+        )
+      {
+        Ok(value) -> {
+          case json_get(value, "data") {
+            Some(data) ->
+              case json_get(data, "bulkOperationRunQuery") {
+                Some(payload) -> Ok(commit.json_value_to_json(payload))
+                None -> Error(Nil)
+              }
+            None -> Error(Nil)
+          }
+        }
+        Error(_) -> Error(Nil)
+      }
+    }
+    _, _ -> Error(Nil)
+  }
+}
+
+fn bulk_query_fallback_mutation() -> String {
+  "mutation BulkOperationRunQueryProxyFallback($query: String!) { "
+  <> "bulkOperationRunQuery(query: $query) { "
+  <> "bulkOperation { id status type } "
+  <> "userErrors { field message code } "
+  <> "} "
+  <> "}"
 }
 
 fn local_or_upstream_products_count(
@@ -647,6 +745,16 @@ fn invalid_operation_type_bulk_query_error() -> UserError {
   )
 }
 
+fn unsupported_bulk_query_root_error(root_name: String) -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Bulk query root `"
+      <> root_name
+      <> "` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer.",
+    code: Some("UNSUPPORTED_IN_PROXY"),
+  )
+}
+
 type BulkQueryAnalysis {
   BulkQueryAnalysis(
     connection_count: Int,
@@ -672,6 +780,7 @@ fn empty_bulk_query_analysis() -> BulkQueryAnalysis {
 type ConnectionSelection {
   ConnectionSelection(
     name: String,
+    node_type: Option(String),
     nodes_field: Option(Selection),
     edges_node_field: Option(Selection),
   )
@@ -681,6 +790,7 @@ fn validate_admin_bulk_query(
   root_fields: List(Selection),
   fragments: FragmentMap,
 ) -> List(UserError) {
+  let schema = bulk_query_schema_lookup.default_schema()
   let analysis =
     list.fold(root_fields, empty_bulk_query_analysis(), fn(acc, field) {
       let acc = case field {
@@ -688,7 +798,15 @@ fn validate_admin_bulk_query(
           BulkQueryAnalysis(..acc, top_level_node: True)
         _ -> acc
       }
-      analyze_bulk_query_field(field, fragments, -1, False, acc)
+      analyze_bulk_query_field(
+        schema,
+        field,
+        fragments,
+        "QueryRoot",
+        -1,
+        False,
+        acc,
+      )
     })
   let structural_errors =
     []
@@ -735,13 +853,15 @@ fn append_errors(
 }
 
 fn analyze_bulk_query_field(
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
   field: Selection,
   fragments: FragmentMap,
+  parent_type: String,
   connection_depth: Int,
   inside_list_field: Bool,
   analysis: BulkQueryAnalysis,
 ) -> BulkQueryAnalysis {
-  case connection_selection(field, fragments) {
+  case bulk_schema_connection_selection(schema, field, fragments, parent_type) {
     Some(connection) -> {
       let next_depth = connection_depth + 1
       let analysis =
@@ -769,30 +889,78 @@ fn analyze_bulk_query_field(
       analyze_connection_node_selections(
         connection,
         fragments,
+        schema,
         next_depth,
         analysis,
       )
     }
     None -> {
-      let child_inside_list =
-        inside_list_field || is_curated_bulk_query_list_field(field)
+      analyze_non_connection_bulk_query_field(
+        field,
+        fragments,
+        schema,
+        parent_type,
+        connection_depth,
+        inside_list_field,
+        analysis,
+      )
+    }
+  }
+}
+
+fn analyze_non_connection_bulk_query_field(
+  field: Selection,
+  fragments: FragmentMap,
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
+  parent_type: String,
+  connection_depth: Int,
+  inside_list_field: Bool,
+  analysis: BulkQueryAnalysis,
+) -> BulkQueryAnalysis {
+  let schema_field = bulk_schema_field_kind(schema, parent_type, field)
+  let child_parent_type = case schema_field {
+    BulkSchemaList(element_type) | BulkSchemaObject(element_type) ->
+      Some(element_type)
+    _ -> None
+  }
+  let child_inside_list = case schema_field {
+    BulkSchemaList(_) -> True
+    _ -> inside_list_field
+  }
+  case child_parent_type {
+    Some(type_name) ->
       direct_field_children(field, fragments)
       |> list.fold(analysis, fn(acc, child) {
         analyze_bulk_query_field(
+          schema,
           child,
           fragments,
+          type_name,
           connection_depth,
           child_inside_list,
           acc,
         )
       })
-    }
+    None ->
+      direct_field_children(field, fragments)
+      |> list.fold(analysis, fn(acc, child) {
+        analyze_bulk_query_field(
+          schema,
+          child,
+          fragments,
+          parent_type,
+          connection_depth,
+          inside_list_field,
+          acc,
+        )
+      })
   }
 }
 
 fn analyze_connection_node_selections(
   connection: ConnectionSelection,
   fragments: FragmentMap,
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
   connection_depth: Int,
   analysis: BulkQueryAnalysis,
 ) -> BulkQueryAnalysis {
@@ -805,7 +973,12 @@ fn analyze_connection_node_selections(
     let node_has_id = node_selection_has_unaliased_id(node_field, fragments)
     let acc = case
       node_has_id,
-      node_selection_contains_connection(node_field, fragments)
+      node_selection_contains_connection(
+        schema,
+        node_field,
+        fragments,
+        option.unwrap(connection.node_type, ""),
+      )
     {
       False, True ->
         BulkQueryAnalysis(
@@ -819,65 +992,100 @@ fn analyze_connection_node_selections(
     }
     direct_field_children(node_field, fragments)
     |> list.fold(acc, fn(inner_acc, child) {
-      analyze_bulk_query_field(
-        child,
-        fragments,
-        connection_depth,
-        False,
-        inner_acc,
-      )
+      case connection.node_type {
+        Some(node_type) ->
+          analyze_bulk_query_field(
+            schema,
+            child,
+            fragments,
+            node_type,
+            connection_depth,
+            False,
+            inner_acc,
+          )
+        None -> inner_acc
+      }
     })
   })
 }
 
-fn is_curated_bulk_query_list_field(field: Selection) -> Bool {
+fn bulk_schema_connection_selection(
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
+  field: Selection,
+  fragments: FragmentMap,
+  parent_type: String,
+) -> Option(ConnectionSelection) {
+  case bulk_schema_field_kind(schema, parent_type, field) {
+    BulkSchemaConnection(node_type) -> {
+      let children = direct_field_children(field, fragments)
+      let nodes_field = find_child_field(children, "nodes")
+      let edges_node_field =
+        find_child_field(children, "edges")
+        |> option.then(fn(edges_field) {
+          find_child_field(
+            direct_field_children(edges_field, fragments),
+            "node",
+          )
+        })
+      Some(ConnectionSelection(
+        name: field_response_name(field),
+        node_type: Some(node_type),
+        nodes_field: nodes_field,
+        edges_node_field: edges_node_field,
+      ))
+    }
+    _ -> None
+  }
+}
+
+fn bulk_schema_field_kind(
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
+  parent_type: String,
+  field: Selection,
+) -> BulkSchemaFieldKind {
   case field {
     Field(name: name, ..) ->
-      case name.value {
-        "additionalFees"
-        | "alerts"
-        | "bundleConsolidatedOptions"
-        | "companyContactProfiles"
-        | "customAttributes"
-        | "currentTaxLines"
-        | "discountAllocations"
-        | "discountCodes"
-        | "disputes"
-        | "duties"
-        | "fields"
-        | "formatted"
-        | "fulfillments"
-        | "merchantEditableErrors"
-        | "optionValues"
-        | "options"
-        | "paymentGatewayNames"
-        | "profileLocationGroups"
-        | "refunds"
-        | "selectedOptions"
-        | "shareableUrls"
-        | "shopPolicies"
-        | "tags"
-        | "taxExemptions"
-        | "taxLines"
-        | "transactions"
-        | "translations"
-        | "unassignedLocations"
-        | "values" -> True
-        _ -> False
-      }
-    _ -> False
+      bulk_query_schema_lookup.field_kind(schema, parent_type, name.value)
+    _ -> BulkSchemaLeaf
+  }
+}
+
+fn field_response_name(field: Selection) -> String {
+  case field {
+    Field(name: name, ..) -> name.value
+    _ -> ""
   }
 }
 
 fn node_selection_contains_connection(
+  schema: bulk_query_schema_lookup.BulkQuerySchema,
   field: Selection,
   fragments: FragmentMap,
+  parent_type: String,
 ) -> Bool {
   direct_field_children(field, fragments)
   |> list.any(fn(child) {
-    case connection_selection(child, fragments) {
+    case
+      bulk_schema_connection_selection(schema, child, fragments, parent_type)
+    {
       Some(_) -> True
-      None -> node_selection_contains_connection(child, fragments)
+      None ->
+        case bulk_schema_field_kind(schema, parent_type, child) {
+          BulkSchemaList(child_type) | BulkSchemaObject(child_type) ->
+            node_selection_contains_connection(
+              schema,
+              child,
+              fragments,
+              child_type,
+            )
+          _ ->
+            node_selection_contains_connection(
+              schema,
+              child,
+              fragments,
+              parent_type,
+            )
+        }
     }
   })
 }
@@ -889,36 +1097,6 @@ fn append_optional_selection(
   case maybe_selection {
     Some(selection) -> list.append(selections, [selection])
     None -> selections
-  }
-}
-
-fn connection_selection(
-  field: Selection,
-  fragments: FragmentMap,
-) -> Option(ConnectionSelection) {
-  case field {
-    Field(name: name, ..) -> {
-      let children = direct_field_children(field, fragments)
-      let nodes_field = find_child_field(children, "nodes")
-      let edges_node_field =
-        find_child_field(children, "edges")
-        |> option.then(fn(edges_field) {
-          find_child_field(
-            direct_field_children(edges_field, fragments),
-            "node",
-          )
-        })
-      case nodes_field, find_child_field(children, "edges") {
-        None, None -> None
-        _, _ ->
-          Some(ConnectionSelection(
-            name: name.value,
-            nodes_field: nodes_field,
-            edges_node_field: edges_node_field,
-          ))
-      }
-    }
-    _ -> None
   }
 }
 

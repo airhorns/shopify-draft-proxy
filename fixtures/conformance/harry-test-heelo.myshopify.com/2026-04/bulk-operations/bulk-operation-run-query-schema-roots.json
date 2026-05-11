@@ -1,0 +1,438 @@
+{
+  "scenarioId": "bulk-operation-run-query-schema-roots",
+  "capturedAt": "2026-05-09T17:27:15.561Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "ordersRoot": {
+      "bulkQuery": "#graphql\n{\n  orders {\n    edges {\n      node {\n        id\n        name\n      }\n    }\n  }\n}",
+      "beforeCleanup": {
+        "before": {
+          "operationName": "ordersRootBeforeCurrentBulkOperationBefore",
+          "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+          "variables": {},
+          "status": 200,
+          "response": {
+            "data": {
+              "currentBulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768705990962",
+                "status": "COMPLETED",
+                "type": "QUERY"
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 1,
+                "actualQueryCost": 1,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1999,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "run": {
+        "operationName": "BulkOperationRunQueryProxyFallback",
+        "query": "#graphql\n  mutation BulkOperationRunQueryProxyFallback($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "query": "#graphql\n{\n  orders {\n    edges {\n      node {\n        id\n        name\n      }\n    }\n  }\n}"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperationRunQuery": {
+              "bulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768880611634",
+                "status": "CREATED",
+                "type": "QUERY"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "afterCleanup": {
+        "cancel": {
+          "operationName": "ordersRootCancelCapturedBulkOperation",
+          "query": "#graphql\n  mutation BulkOperationSchemaRootCleanupCancel($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/BulkOperation/7768880611634"
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "bulkOperationCancel": {
+                "bulkOperation": {
+                  "id": "gid://shopify/BulkOperation/7768880611634",
+                  "status": "CANCELING",
+                  "type": "QUERY"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "settle": {
+          "before": {
+            "operationName": "ordersRootAfterCurrentBulkOperationBefore",
+            "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+            "variables": {},
+            "status": 200,
+            "response": {
+              "data": {
+                "currentBulkOperation": {
+                  "id": "gid://shopify/BulkOperation/7768880611634",
+                  "status": "CANCELING",
+                  "type": "QUERY"
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 1,
+                  "actualQueryCost": 1,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1999,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "cancel": {
+            "operationName": "ordersRootAfterCancelActiveBulkOperation",
+            "query": "#graphql\n  mutation BulkOperationSchemaRootCleanupCancel($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+            "variables": {
+              "id": "gid://shopify/BulkOperation/7768880611634"
+            },
+            "status": 200,
+            "response": {
+              "data": {
+                "bulkOperationCancel": {
+                  "bulkOperation": {
+                    "id": "gid://shopify/BulkOperation/7768880611634",
+                    "status": "CANCELING",
+                    "type": "QUERY"
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "polls": [
+            {
+              "operationName": "ordersRootAfterCurrentBulkOperationPoll1",
+              "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+              "variables": {},
+              "status": 200,
+              "response": {
+                "data": {
+                  "currentBulkOperation": {
+                    "id": "gid://shopify/BulkOperation/7768880611634",
+                    "status": "CANCELED",
+                    "type": "QUERY"
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 1,
+                    "actualQueryCost": 1,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1999,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "draftOrdersWarningsList": {
+      "bulkQuery": "#graphql\n{\n  draftOrders {\n    edges {\n      node {\n        id\n        warnings {\n          message\n        }\n      }\n    }\n  }\n}",
+      "beforeCleanup": {
+        "before": {
+          "operationName": "draftOrdersWarningsListBeforeCurrentBulkOperationBefore",
+          "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+          "variables": {},
+          "status": 200,
+          "response": {
+            "data": {
+              "currentBulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768880611634",
+                "status": "CANCELED",
+                "type": "QUERY"
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 1,
+                "actualQueryCost": 1,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1999,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "run": {
+        "operationName": "BulkOperationRunQueryProxyFallback",
+        "query": "#graphql\n  mutation BulkOperationRunQueryProxyFallback($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "query": "#graphql\n{\n  draftOrders {\n    edges {\n      node {\n        id\n        warnings {\n          message\n        }\n      }\n    }\n  }\n}"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperationRunQuery": {
+              "bulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768880677170",
+                "status": "CREATED",
+                "type": "QUERY"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "afterCleanup": {
+        "cancel": {
+          "operationName": "draftOrdersWarningsListCancelCapturedBulkOperation",
+          "query": "#graphql\n  mutation BulkOperationSchemaRootCleanupCancel($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/BulkOperation/7768880677170"
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "bulkOperationCancel": {
+                "bulkOperation": {
+                  "id": "gid://shopify/BulkOperation/7768880677170",
+                  "status": "CANCELING",
+                  "type": "QUERY"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "settle": {
+          "before": {
+            "operationName": "draftOrdersWarningsListAfterCurrentBulkOperationBefore",
+            "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+            "variables": {},
+            "status": 200,
+            "response": {
+              "data": {
+                "currentBulkOperation": {
+                  "id": "gid://shopify/BulkOperation/7768880677170",
+                  "status": "CANCELING",
+                  "type": "QUERY"
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 1,
+                  "actualQueryCost": 1,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1999,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "cancel": {
+            "operationName": "draftOrdersWarningsListAfterCancelActiveBulkOperation",
+            "query": "#graphql\n  mutation BulkOperationSchemaRootCleanupCancel($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        id\n        status\n        type\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+            "variables": {
+              "id": "gid://shopify/BulkOperation/7768880677170"
+            },
+            "status": 200,
+            "response": {
+              "data": {
+                "bulkOperationCancel": {
+                  "bulkOperation": {
+                    "id": "gid://shopify/BulkOperation/7768880677170",
+                    "status": "CANCELING",
+                    "type": "QUERY"
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "polls": [
+            {
+              "operationName": "draftOrdersWarningsListAfterCurrentBulkOperationPoll1",
+              "query": "#graphql\n  query CurrentBulkQueryOperationForSchemaRootCapture {\n    currentBulkOperation(type: QUERY) {\n      id\n      status\n      type\n    }\n  }\n",
+              "variables": {},
+              "status": 200,
+              "response": {
+                "data": {
+                  "currentBulkOperation": {
+                    "id": "gid://shopify/BulkOperation/7768880677170",
+                    "status": "CANCELED",
+                    "type": "QUERY"
+                  }
+                },
+                "extensions": {
+                  "cost": {
+                    "requestedQueryCost": 1,
+                    "actualQueryCost": 1,
+                    "throttleStatus": {
+                      "maximumAvailable": 2000,
+                      "currentlyAvailable": 1999,
+                      "restoreRate": 100
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationRunQueryProxyFallback",
+      "variables": {
+        "query": "#graphql\n{\n  orders {\n    edges {\n      node {\n        id\n        name\n      }\n    }\n  }\n}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperationRunQuery": {
+              "bulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768880611634",
+                "status": "CREATED",
+                "type": "QUERY"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunQueryProxyFallback",
+      "variables": {
+        "query": "#graphql\n{\n  draftOrders {\n    edges {\n      node {\n        id\n        warnings {\n          message\n        }\n      }\n    }\n  }\n}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperationRunQuery": {
+              "bulkOperation": {
+                "id": "gid://shopify/BulkOperation/7768880677170",
+                "status": "CREATED",
+                "type": "QUERY"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

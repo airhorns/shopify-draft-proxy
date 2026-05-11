@@ -1,0 +1,13 @@
+mutation DiscountAddRemoveOverlapBxgyCreate($input: DiscountCodeBxgyInput!) {
+  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
