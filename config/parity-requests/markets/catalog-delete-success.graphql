@@ -1,5 +1,4 @@
-#graphql
-mutation CatalogDeleteUnknownId($id: ID!) {
+mutation CatalogDeleteSuccess($id: ID!) {
   catalogDelete(id: $id) {
     deletedId
     userErrors {

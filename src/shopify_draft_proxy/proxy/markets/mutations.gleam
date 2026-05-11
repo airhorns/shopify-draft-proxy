@@ -24,13 +24,14 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   captured_field, captured_json_source, captured_object_upsert,
   captured_string_field, catalog_connection_from_ids,
   catalog_create_input_errors, catalog_data, catalog_update_input_errors,
-  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
-  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, market_user_error, markets_log_draft, mutation_variant_ids,
-  option_to_result, optional_captured_string, price_edges, price_list_currency,
-  price_list_data, price_list_fixed_prices_by_product_user_error,
-  price_list_input_errors, price_list_user_error,
+  catalog_user_error, delete_fixed_price_nodes, delete_quantity_rule_nodes,
+  enumerate_dicts, enumerate_strings, fixed_price_edge_variant_id,
+  market_connection_from_ids, market_data, market_handle_in_use,
+  market_localization_payload, market_name_in_use, market_user_error,
+  markets_log_draft, mutation_variant_ids, option_to_result,
+  optional_captured_string, price_edges, price_list_currency, price_list_data,
+  price_list_fixed_prices_by_product_user_error, price_list_input_errors,
+  price_list_user_error,
   product_level_fixed_price_errors, product_payloads, project_record,
   quantity_pricing_input_errors, quantity_rule_delete_errors,
   quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
@@ -1374,7 +1375,7 @@ fn handle_catalog_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          catalog_not_found_mutation_result(
             key,
             field,
             fragments,
@@ -1388,7 +1389,7 @@ fn handle_catalog_update(
           )
       }
     None ->
-      not_found_mutation_result(
+      catalog_not_found_mutation_result(
         key,
         field,
         fragments,
@@ -1430,7 +1431,7 @@ fn handle_catalog_context_update(
                 "catalog",
                 CapturedNull,
                 [
-                  user_error(
+                  catalog_user_error(
                     ["contextsToAdd"],
                     "Must have `contexts_to_add` or `contexts_to_remove` argument.",
                     "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
@@ -1513,7 +1514,7 @@ fn handle_catalog_context_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          catalog_not_found_mutation_result(
             key,
             field,
             fragments,
@@ -1527,7 +1528,7 @@ fn handle_catalog_context_update(
           )
       }
     None ->
-      not_found_mutation_result(
+      catalog_not_found_mutation_result(
         key,
         field,
         fragments,
@@ -1554,7 +1555,7 @@ fn catalog_context_market_not_found_errors(
     case store.get_effective_market_by_id(store, id) {
       Some(_) -> Error(Nil)
       None ->
-        Ok(user_error(
+        Ok(catalog_user_error(
           [context_field, "marketIds", int.to_string(index)],
           "Market does not exist",
           "MARKET_NOT_FOUND",
@@ -1626,7 +1627,7 @@ fn handle_catalog_delete(
             identity,
           )
         None ->
-          delete_error_result(
+          catalog_delete_error_result(
             key,
             field,
             fragments,
@@ -1639,7 +1640,7 @@ fn handle_catalog_delete(
           )
       }
     None ->
-      delete_error_result(
+      catalog_delete_error_result(
         key,
         field,
         fragments,
@@ -3504,6 +3505,32 @@ fn mutation_payload_result(
   )
 }
 
+fn catalog_not_found_mutation_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  resource_key: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    resource_key,
+    CapturedNull,
+    [catalog_user_error(error_field, message, code)],
+    store,
+    identity,
+    [],
+  )
+}
+
 fn not_found_mutation_result(
   key: String,
   field: Selection,
@@ -3628,6 +3655,35 @@ fn delete_error_result(
     CapturedObject([
       #("deletedId", CapturedNull),
       #("userErrors", CapturedArray([user_error(error_field, message, code)])),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn catalog_delete_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([catalog_user_error(error_field, message, code)]),
+      ),
     ]),
     store,
     identity,
