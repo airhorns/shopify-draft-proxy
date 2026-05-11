@@ -1,0 +1,677 @@
+{
+  "capturedAt": "2026-05-09T20:31:44.840Z",
+  "scenarioId": "orderEdit-shipping-line-validation",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live orderEdit shipping-line validation capture against one disposable CAD order-edit session. Invalid branches do not stage shipping lines or discounts; the source order is cancelled in cleanup.",
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  fragment OrderEditShippingLineValidationOrderFields on Order {\n    id\n    name\n    email\n    phone\n    poNumber\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    paymentGatewayNames\n    note\n    tags\n    customAttributes {\n      key\n      value\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    shippingLines(first: 10) {\n      nodes {\n        id\n        title\n        code\n        source\n        originalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        discountedPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n  }\n\n  mutation OrderEditShippingLineValidationCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...OrderEditShippingLineValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+          "note": "orderEdit shipping line validation capture 20260509203143",
+          "tags": ["order-edit-shipping-line-validation", "20260509203143"],
+          "test": true,
+          "currency": "CAD",
+          "shippingAddress": {
+            "firstName": "Conformance",
+            "lastName": "ShippingLine",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "title": "Order edit source item 20260509203143",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true,
+              "sku": "order-edit-shipping-line-20260509203143"
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8739057434930",
+                "name": "#1410",
+                "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+                "phone": null,
+                "poNumber": null,
+                "createdAt": "2026-05-09T20:31:43Z",
+                "updatedAt": "2026-05-09T20:31:43Z",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "cancelReason": null,
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "presentmentCurrencyCode": "CAD",
+                "paymentGatewayNames": [],
+                "note": "orderEdit shipping line validation capture 20260509203143",
+                "tags": ["20260509203143", "order-edit-shipping-line-validation"],
+                "customAttributes": [],
+                "customer": {
+                  "id": "gid://shopify/Customer/10596587503922",
+                  "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+                  "displayName": "Conformance ShippingLine"
+                },
+                "currentSubtotalLineItemsQuantity": 1,
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "shippingLines": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19319241408818",
+                      "title": "Order edit source item 20260509203143",
+                      "name": "Order edit source item 20260509203143",
+                      "quantity": 1,
+                      "currentQuantity": 1,
+                      "sku": "order-edit-shipping-line-20260509203143",
+                      "variantTitle": null,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "originalTotalSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "variant": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadBeforeEdit": {
+      "query": "#graphql\n  fragment OrderEditShippingLineValidationOrderFields on Order {\n    id\n    name\n    email\n    phone\n    poNumber\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    paymentGatewayNames\n    note\n    tags\n    customAttributes {\n      key\n      value\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    shippingLines(first: 10) {\n      nodes {\n        id\n        title\n        code\n        source\n        originalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        discountedPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n  }\n\n  query OrderEditShippingLineValidationHydrate($id: ID!) {\n    order(id: $id) {\n      ...OrderEditShippingLineValidationOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8739057434930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8739057434930",
+              "name": "#1410",
+              "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+              "phone": null,
+              "poNumber": null,
+              "createdAt": "2026-05-09T20:31:43Z",
+              "updatedAt": "2026-05-09T20:31:43Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": [],
+              "note": "orderEdit shipping line validation capture 20260509203143",
+              "tags": ["20260509203143", "order-edit-shipping-line-validation"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10596587503922",
+                "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+                "displayName": "Conformance ShippingLine"
+              },
+              "currentSubtotalLineItemsQuantity": 1,
+              "currentSubtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19319241408818",
+                    "title": "Order edit source item 20260509203143",
+                    "name": "Order edit source item 20260509203143",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "order-edit-shipping-line-20260509203143",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "begin": {
+    "query": "mutation OrderEditShippingLineValidationBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      subtotalLineItemsQuantity\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8739057434930"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderEditBegin": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/107075797298",
+              "subtotalLineItemsQuantity": 1,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CalculatedLineItem/19319241408818",
+                    "title": "Order edit source item 20260509203143",
+                    "quantity": 1,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "shippingLines": []
+            },
+            "orderEditSession": {
+              "id": "gid://shopify/OrderEditSession/107075797298"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "addMissingPrice": {
+      "query": "mutation OrderEditShippingLineValidationAddMissingPrice($id: ID!) {\n  orderEditAddShippingLine(id: $id, shippingLine: { title: \"\" }) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n      }\n    }\n    calculatedShippingLine {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/107075797298"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'price' on InputObject 'OrderEditAddShippingLineInput' is required. Expected type MoneyInput!",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 51
+                }
+              ],
+              "path": [
+                "mutation OrderEditShippingLineValidationAddMissingPrice",
+                "orderEditAddShippingLine",
+                "shippingLine",
+                "price"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "price",
+                "argumentType": "MoneyInput!",
+                "inputObjectType": "OrderEditAddShippingLineInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "addCurrencyMismatch": {
+      "query": "mutation OrderEditShippingLineValidationAdd($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {\n  orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    calculatedShippingLine {\n      id\n      title\n      stagedStatus\n      price {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/107075797298",
+        "shippingLine": {
+          "title": "Currency mismatch shipping",
+          "price": {
+            "amount": "5.00",
+            "currencyCode": "USD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddShippingLine": {
+              "calculatedOrder": null,
+              "calculatedShippingLine": null,
+              "userErrors": [
+                {
+                  "field": ["shippingLine", "price"],
+                  "message": "The price must be in CAD.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateUnknown": {
+      "query": "mutation OrderEditShippingLineValidationUpdate(\n  $id: ID!\n  $shippingLineId: ID!\n  $shippingLine: OrderEditUpdateShippingLineInput!\n) {\n  orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/107075797298",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999",
+        "shippingLine": {
+          "title": "Unknown update",
+          "price": {
+            "amount": "6.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditUpdateShippingLine": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["shippingLineId"],
+                  "message": "The shipping line can't be updated because it doesn't exist or wasn't added during this edit.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeUnknown": {
+      "query": "mutation OrderEditShippingLineValidationRemove($id: ID!, $shippingLineId: ID!) {\n  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {\n    calculatedOrder {\n      id\n      shippingLines {\n        id\n        title\n        stagedStatus\n        price {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/107075797298",
+        "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditRemoveShippingLine": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["shippingLineId"],
+                  "message": "The shipping line can't be removed because it doesn't exist or has already been removed.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "discountMissingCurrency": {
+      "query": "mutation OrderEditShippingLineValidationDiscountMissingCurrency($id: ID!, $lineItemId: ID!) {\n  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: { fixedValue: { amount: \"5.00\" } }) {\n    calculatedLineItem {\n      id\n      discountedUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      calculatedDiscountAllocations {\n        allocatedAmountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/107075797298",
+        "lineItemId": "gid://shopify/CalculatedLineItem/19319241408818"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'currencyCode' on InputObject 'MoneyInput' is required. Expected type CurrencyCode!",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 90
+                }
+              ],
+              "path": [
+                "mutation OrderEditShippingLineValidationDiscountMissingCurrency",
+                "orderEditAddLineItemDiscount",
+                "discount",
+                "fixedValue",
+                "currencyCode"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "currencyCode",
+                "argumentType": "CurrencyCode!",
+                "inputObjectType": "MoneyInput"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation OrderEditShippingLineValidationCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8739057434930",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/3ec5432d-c5f0-4c8f-bf30-f24fd3551028"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8739057434930"
+      },
+      "query": "hand-synthesized from live setup order read for orderEdit shipping-line validation replay",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8739057434930",
+              "name": "#1410",
+              "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+              "phone": null,
+              "poNumber": null,
+              "createdAt": "2026-05-09T20:31:43Z",
+              "updatedAt": "2026-05-09T20:31:43Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": [],
+              "note": "orderEdit shipping line validation capture 20260509203143",
+              "tags": ["20260509203143", "order-edit-shipping-line-validation"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10596587503922",
+                "email": "order-edit-shipping-line-validation-20260509203143@example.com",
+                "displayName": "Conformance ShippingLine"
+              },
+              "currentSubtotalLineItemsQuantity": 1,
+              "currentSubtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19319241408818",
+                    "title": "Order edit source item 20260509203143",
+                    "name": "Order edit source item 20260509203143",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "order-edit-shipping-line-20260509203143",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
