@@ -2480,6 +2480,7 @@ Live evidence refreshed on this host:
 - deleting an active unstocked location returns only `LOCATION_IS_ACTIVE`; deleting an active stocked location returns `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` without mutating the location
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
+- activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:

@@ -4581,6 +4581,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-activate-fulfillment-service-scope',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-fulfillment-service-scope-conformance.mts',
+    purpose:
+      'locationActivate fulfillment-service-managed Location scope behavior plus downstream read-after-write state.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-fulfillment-service-scope.json`,
+      'config/parity-specs/store-properties/location-activate-fulfillment-service-scope.json',
+      'config/parity-requests/store-properties/location-activate-fulfillment-service-scope.graphql',
+      'config/parity-requests/store-properties/location-activate-fulfillment-service-scope-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service, records activation scope rejection and read-back for the associated Location, then deletes the fulfillment service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-delete-state-and-scope',
     scriptPath: 'scripts/capture-location-delete-state-and-scope-conformance.mts',
     purpose:
