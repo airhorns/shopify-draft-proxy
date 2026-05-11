@@ -5355,11 +5355,14 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Mutation,
       domain: ShippingFulfillments,
       execution: StageLocally,
-      implemented: False,
+      implemented: True,
       match_names: ["fulfillmentOrderClose", "FulfillmentOrderClose"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured the merchant-managed guardrail `The fulfillment order's assigned fulfillment service must be of api type`; this root remains unimplemented for full lifecycle support because no success path was captured for API fulfillment-service orders.",
+        "Local staging rejects merchant-managed fulfillment orders with the captured API-service guardrail, stages API-service assigned fulfillment orders to CLOSED with empty supportedActions, and exposes the staged record through downstream fulfillment-order reads without invoking service callbacks.",
       ),
     ),
     RegistryEntry(
@@ -5496,11 +5499,14 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Mutation,
       domain: ShippingFulfillments,
       execution: StageLocally,
-      implemented: False,
+      implemented: True,
       match_names: ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-234 captured the open-order guardrail `Fulfillment order must be scheduled.`; this root remains unimplemented for full lifecycle support until scheduled fulfillment-order setup and success read-after-write behavior are captured.",
+        "Local staging rejects non-scheduled fulfillment orders with the captured scheduled-status guardrail, updates fulfillAt/updatedAt for scheduled fulfillment orders, and exposes the staged value through downstream fulfillment-order reads.",
       ),
     ),
     RegistryEntry(
