@@ -499,6 +499,29 @@ pub fn quantity_rules_add_rejects_maximum_below_existing_price_break_test() {
     == "{\"data\":{\"priceList\":{\"quantityRules\":null}}}"
 }
 
+pub fn quantity_pricing_by_variant_update_deletes_existing_price_break_by_id_test() {
+  let proxy = product_bulk_fixed_price_proxy_with_quantity_break(10)
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { quantityPricingByVariantUpdate(priceListId: \"gid://shopify/PriceList/test\", input: { quantityPriceBreaksToDelete: [\"gid://shopify/QuantityPriceBreak/test\"] }) { productVariants { id } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { priceList(id: \"gid://shopify/PriceList/test\") { prices(first: 10, originType: FIXED) { nodes { quantityPriceBreaks(first: 10) { edges { node { id minimumQuantity } } } } } } }",
+    )
+
+  assert status == 200
+  assert read_status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityPricingByVariantUpdate\":{\"productVariants\":[{\"id\":\"gid://shopify/ProductVariant/test\"}],\"userErrors\":[]}}}"
+  assert string.contains(
+    json.to_string(read_body),
+    "\"quantityPriceBreaks\":{\"edges\":[]",
+  )
+}
+
 pub fn quantity_rules_delete_rejects_variant_without_existing_rule_test() {
   let proxy = product_bulk_fixed_price_proxy()
   let #(Response(status: status, body: body, ..), _) =
@@ -1880,6 +1903,10 @@ fn product_bulk_fixed_price_edge_with_quantity_break(
                     "node",
                     CapturedObject([
                       #("__typename", CapturedString("QuantityPriceBreak")),
+                      #(
+                        "id",
+                        CapturedString("gid://shopify/QuantityPriceBreak/test"),
+                      ),
                       #("minimumQuantity", CapturedInt(minimum_quantity)),
                     ]),
                   ),
