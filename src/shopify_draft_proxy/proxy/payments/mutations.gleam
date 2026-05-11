@@ -1102,6 +1102,12 @@ fn activate_payment_customizations(
     list.fold(ids, #(store, [], []), fn(acc, id) {
       let #(current_store, updated, missing) = acc
       case store.get_effective_payment_customization_by_id(current_store, id) {
+        Some(state_types.PaymentCustomizationRecord(
+          enabled: Some(current_enabled),
+          ..,
+        ))
+          if current_enabled == enabled
+        -> #(current_store, updated, missing)
         Some(record) -> {
           let next =
             store.upsert_staged_payment_customization(
