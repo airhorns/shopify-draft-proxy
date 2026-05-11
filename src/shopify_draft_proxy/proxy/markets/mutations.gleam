@@ -1918,6 +1918,7 @@ fn handle_price_list_fixed_prices_add(
         fragments,
         "priceListFixedPricesAdd",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -1947,11 +1948,6 @@ fn handle_price_list_fixed_prices_update(
           combine_error_lists([
             fixed_price_input_errors(
               store,
-              existing,
-              price_inputs,
-              price_input_field,
-            ),
-            fixed_price_not_fixed_errors(
               existing,
               price_inputs,
               price_input_field,
@@ -1997,6 +1993,7 @@ fn handle_price_list_fixed_prices_update(
         fragments,
         "priceListFixedPricesUpdate",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -2021,8 +2018,16 @@ fn handle_price_list_fixed_prices_delete(
     combine_error_lists([
       price_list_fixed_price_target_errors(price_list_id, price_list),
       case price_list {
-        Some(_) ->
-          fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+        Some(existing) ->
+          combine_error_lists([
+            fixed_price_delete_variant_errors(store, variant_ids, "variantIds"),
+            fixed_price_delete_not_fixed_errors(
+              store,
+              existing,
+              variant_ids,
+              "variantIds",
+            ),
+          ])
         None -> []
       },
     ])
@@ -2052,6 +2057,7 @@ fn handle_price_list_fixed_prices_delete(
         fragments,
         "priceListFixedPricesDelete",
         errors,
+        price_list,
         store,
         identity,
       )
@@ -2188,7 +2194,7 @@ fn price_list_fixed_price_target_errors(
     _, _ -> [
       price_list_price_user_error(
         ["priceListId"],
-        "Price list not found.",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
       ),
     ]
@@ -2203,7 +2209,6 @@ fn fixed_price_input_errors(
 ) -> List(CapturedJsonValue) {
   fixed_price_variant_errors(store, inputs, field_name)
   |> list.append(fixed_price_currency_errors(price_list, inputs, field_name))
-  |> list.append(fixed_price_duplicate_errors(inputs, field_name))
 }
 
 fn fixed_price_variant_errors(
@@ -2223,7 +2228,7 @@ fn fixed_price_variant_errors(
       None ->
         Ok(price_list_price_user_error(
           [field_name, int.to_string(index), "variantId"],
-          "Variant not found.",
+          "Product variant ID does not exist.",
           "VARIANT_NOT_FOUND",
         ))
     }
@@ -2244,9 +2249,36 @@ fn fixed_price_delete_variant_errors(
       None ->
         Ok(price_list_price_user_error(
           [field_name, int.to_string(index)],
-          "Variant not found.",
+          "Product variant ID does not exist.",
           "VARIANT_NOT_FOUND",
         ))
+    }
+  })
+}
+
+fn fixed_price_delete_not_fixed_errors(
+  store: Store,
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  variant_ids
+  |> enumerate_strings
+  |> list.filter_map(fn(entry) {
+    let #(variant_id, index) = entry
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) ->
+        case list.contains(fixed_variant_ids, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index)],
+              "Only fixed prices can be deleted.",
+              "PRICE_NOT_FIXED",
+            ))
+        }
+      None -> Error(Nil)
     }
   })
 }
@@ -2271,65 +2303,8 @@ fn fixed_price_currency_errors(
           False ->
             Ok(price_list_price_user_error(
               [field_name, int.to_string(index), "price", "currencyCode"],
-              "Currency must match price list currency.",
-              "PRICES_TO_ADD_CURRENCY_MISMATCH",
-            ))
-        }
-      None -> Error(Nil)
-    }
-  })
-}
-
-fn fixed_price_duplicate_errors(
-  inputs: List(Dict(String, root_field.ResolvedValue)),
-  field_name: String,
-) -> List(CapturedJsonValue) {
-  let #(_, errors) =
-    inputs
-    |> enumerate_dicts
-    |> list.fold(#([], []), fn(acc, entry) {
-      let #(seen_ids, current_errors) = acc
-      let #(input, index) = entry
-      case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
-        Some(variant_id) ->
-          case list.contains(seen_ids, variant_id) {
-            True -> #(
-              seen_ids,
-              list.append(current_errors, [
-                price_list_price_user_error(
-                  [field_name, int.to_string(index), "variantId"],
-                  "Duplicate variant ID in input.",
-                  "DUPLICATE_ID_IN_INPUT",
-                ),
-              ]),
-            )
-            False -> #(list.append(seen_ids, [variant_id]), current_errors)
-          }
-        None -> #(seen_ids, current_errors)
-      }
-    })
-  errors
-}
-
-fn fixed_price_not_fixed_errors(
-  price_list: PriceListRecord,
-  inputs: List(Dict(String, root_field.ResolvedValue)),
-  field_name: String,
-) -> List(CapturedJsonValue) {
-  let fixed_variant_ids = fixed_price_variant_ids(price_list)
-  inputs
-  |> enumerate_dicts
-  |> list.filter_map(fn(entry) {
-    let #(input, index) = entry
-    case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
-      Some(variant_id) ->
-        case list.contains(fixed_variant_ids, variant_id) {
-          True -> Error(Nil)
-          False ->
-            Ok(price_list_price_user_error(
-              [field_name, int.to_string(index), "variantId"],
-              "Price is not fixed.",
-              "PRICE_NOT_FIXED",
+              "The specified currency does not match the price list's currency.",
+              "PRICE_LIST_CURRENCY_MISMATCH",
             ))
         }
       None -> Error(Nil)
@@ -2428,6 +2403,7 @@ fn fixed_prices_error_result(
   fragments: FragmentMap,
   root_name: String,
   errors: List(CapturedJsonValue),
+  price_list: Option(PriceListRecord),
   store: Store,
   identity: SyntheticIdentityRegistry,
 ) -> MutationFieldResult {
@@ -2436,7 +2412,7 @@ fn fixed_prices_error_result(
     field,
     fragments,
     root_name,
-    fixed_prices_error_payload(root_name, errors),
+    fixed_prices_error_payload(root_name, errors, price_list),
     store,
     identity,
     [],
@@ -2446,23 +2422,39 @@ fn fixed_prices_error_result(
 fn fixed_prices_error_payload(
   root_name: String,
   errors: List(CapturedJsonValue),
+  price_list: Option(PriceListRecord),
 ) -> CapturedJsonValue {
   case root_name {
     "priceListFixedPricesAdd" ->
       CapturedObject([
-        #("prices", CapturedNull),
+        #("prices", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     "priceListFixedPricesUpdate" ->
       CapturedObject([
-        #("priceList", CapturedNull),
-        #("pricesAdded", CapturedNull),
-        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("priceList", case price_list {
+          Some(existing) -> existing.data
+          None -> CapturedNull
+        }),
+        #("pricesAdded", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
+        #("deletedFixedPriceVariantIds", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     "priceListFixedPricesDelete" ->
       CapturedObject([
-        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("deletedFixedPriceVariantIds", case price_list {
+          Some(_) -> CapturedArray([])
+          None -> CapturedNull
+        }),
         #("userErrors", CapturedArray(errors)),
       ])
     _ -> CapturedObject([#("userErrors", CapturedArray(errors))])

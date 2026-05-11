@@ -2104,6 +2104,7 @@ pub fn upsert_fixed_price_nodes(
   store: Store,
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> PriceListRecord {
+  let inputs = last_fixed_price_inputs_by_variant(inputs)
   let existing_edges = price_edges(price_list.data)
   let input_variant_ids = mutation_variant_ids(inputs)
   let retained =
@@ -2132,6 +2133,24 @@ pub fn upsert_fixed_price_nodes(
       ))
     })
   rebuild_price_list_prices(price_list, list.append(new_edges, retained))
+}
+
+fn last_fixed_price_inputs_by_variant(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  inputs
+  |> list.fold([], fn(acc, input) {
+    case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
+      Some(variant_id) ->
+        acc
+        |> list.filter(fn(existing) {
+          graphql_helpers.read_arg_string_nonempty(existing, "variantId")
+          != Some(variant_id)
+        })
+        |> list.append([input])
+      None -> list.append(acc, [input])
+    }
+  })
 }
 
 @internal
