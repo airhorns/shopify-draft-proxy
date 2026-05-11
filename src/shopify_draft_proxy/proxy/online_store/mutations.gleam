@@ -2745,8 +2745,22 @@ fn create_pixel(
       store.list_effective_online_store_integrations(outcome.store, "webPixel"),
       serializers.same_current_app_web_pixel,
     )
-  case duplicate_web_pixel {
-    True ->
+  let duplicate_server_pixel =
+    kind == "serverPixel"
+    && list.any(
+      store.list_effective_online_store_integrations(
+        outcome.store,
+        "serverPixel",
+      ),
+      serializers.same_current_app_integration,
+    )
+  let duplicate_pixel = duplicate_web_pixel || duplicate_server_pixel
+  case duplicate_pixel {
+    True -> {
+      let errors = case kind {
+        "serverPixel" -> [serializers.server_pixel_taken_error()]
+        _ -> [serializers.web_pixel_taken_error()]
+      }
       integration_payload_result(
         outcome,
         field,
@@ -2755,11 +2769,12 @@ fn create_pixel(
         root,
         kind,
         None,
-        [serializers.web_pixel_taken_error()],
+        errors,
         outcome.store,
         outcome.identity,
         [],
       )
+    }
     False ->
       create_pixel_record(
         outcome,
@@ -2795,7 +2810,7 @@ fn create_pixel_record(
     _ -> [
       #("__typename", SrcString(type_name)),
       #("settings", settings),
-      #("status", SrcString("CONNECTED")),
+      #("status", SrcString("NEEDS_CONFIGURATION")),
       #("webhookEndpointAddress", SrcNull),
     ]
   }
@@ -3307,11 +3322,15 @@ fn update_server_pixel_endpoint(
           let record =
             OnlineStoreIntegrationRecord(
               ..existing,
-              data: serializers.maybe_insert_string(
-                existing.data,
-                "webhookEndpointAddress",
-                address,
-              ),
+              data: existing.data
+                |> serializers.maybe_insert_string(
+                  "webhookEndpointAddress",
+                  address,
+                )
+                |> serializers.captured_object_insert(
+                  "status",
+                  CapturedString("CONNECTED"),
+                ),
             )
           let #(_, store) =
             store.upsert_staged_online_store_integration(outcome.store, record)

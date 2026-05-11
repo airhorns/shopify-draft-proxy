@@ -59,7 +59,7 @@
         "serverPixelCreate": {
           "serverPixel": {
             "id": "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic",
-            "status": "CONNECTED",
+            "status": "NEEDS_CONFIGURATION",
             "webhookEndpointAddress": null
           },
           "userErrors": []
