@@ -1,0 +1,28 @@
+{
+  "scenarioId": "data-sale-opt-out-missing-email",
+  "operationNames": ["dataSaleOptOut"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-missing-email.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/privacy/data-sale-opt-out-missing-email.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 schema-level validation for dataSaleOptOut with the required email argument omitted. Shopify rejects the mutation before resolver execution with a top-level missingRequiredArguments error and no data.dataSaleOptOut payload; empty strings remain a resolver-level FAILED userError case covered separately.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-envelope",
+        "capturePath": "$.mutation.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.errors[0].locations"]
+      }
+    ]
+  }
+}
