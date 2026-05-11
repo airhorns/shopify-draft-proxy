@@ -873,6 +873,9 @@ fn handle_gift_card_create(
   let raw_code = graphql_helpers.read_arg_string(input, "code")
   let customer_id =
     graphql_helpers.read_arg_string_nonempty(input, "customerId")
+  let notify =
+    graphql_helpers.read_arg_bool(input, "notify")
+    |> option.unwrap(True)
   case gift_card_trial_assignment_user_error(store, input) {
     Some(error) ->
       gift_card_create_error_result(
@@ -1006,7 +1009,7 @@ fn handle_gift_card_create(
                               masked_code: masked,
                               code: Some(code),
                               enabled: True,
-                              notify: True,
+                              notify: notify,
                               deactivated_at: None,
                               expires_on: graphql_helpers.read_arg_string_nonempty(
                                 input,
