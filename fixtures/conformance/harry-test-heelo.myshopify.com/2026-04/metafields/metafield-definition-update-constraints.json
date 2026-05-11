@@ -2,7 +2,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "namespace": "constraint_update_motg0oyy",
+    "namespace": "constraint_update_moyv8eqc",
     "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
     "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
   },
@@ -10,7 +10,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints.graphql",
       "variables": {
-        "namespace": "constraint_update_motg0oyy",
+        "namespace": "constraint_update_moyv8eqc",
         "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
         "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
       }
@@ -19,7 +19,7 @@
       "data": {
         "createDefinition": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "id": "gid://shopify/MetafieldDefinition/207885828402",
             "key": "tier",
             "constraints": {
               "key": null,
@@ -33,7 +33,7 @@
         },
         "setConstraints": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "id": "gid://shopify/MetafieldDefinition/207885828402",
             "constraints": {
               "key": "category",
               "values": {
@@ -59,7 +59,7 @@
         },
         "updateConstraints": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "id": "gid://shopify/MetafieldDefinition/207885828402",
             "constraints": {
               "key": "category",
               "values": {
@@ -75,7 +75,7 @@
         },
         "unconstrain": {
           "updatedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "id": "gid://shopify/MetafieldDefinition/207885828402",
             "constraints": {
               "key": null,
               "values": {
@@ -85,9 +85,19 @@
           },
           "userErrors": []
         },
+        "rejectEmptyConstraintValues": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Cannot change the constraint key without providing values.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        },
         "pinUnconstrained": {
           "pinnedDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "id": "gid://shopify/MetafieldDefinition/207885828402",
             "key": "tier",
             "pinnedPosition": 3
           },
@@ -96,11 +106,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 88,
-          "actualQueryCost": 82,
+          "requestedQueryCost": 105,
+          "actualQueryCost": 92,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1913,
+            "currentlyAvailable": 1908,
             "restoreRate": 100
           }
         }
@@ -111,7 +121,7 @@
     "request": {
       "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql",
       "variables": {
-        "namespace": "constraint_update_motg0oyy",
+        "namespace": "constraint_update_moyv8eqc",
         "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
         "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
       }
@@ -119,7 +129,7 @@
     "response": {
       "data": {
         "definition": {
-          "id": "gid://shopify/MetafieldDefinition/206800159026",
+          "id": "gid://shopify/MetafieldDefinition/207885828402",
           "key": "tier",
           "constraints": {
             "key": null,
@@ -136,17 +146,53 @@
           "actualQueryCost": 8,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1914,
+            "currentlyAvailable": 1933,
             "restoreRate": 100
           }
         }
       }
     }
   },
+  "constraintsSetProbe": {
+    "request": {
+      "document": "#graphql\n  mutation MetafieldDefinitionUpdateConstraintsSetProbe($namespace: String!) {\n    constraintsSetProbe: metafieldDefinitionUpdate(\n      definition: {\n        namespace: $namespace\n        key: \"tier\"\n        ownerType: PRODUCT\n        constraintsSet: { key: \"category\", values: [] }\n      }\n    ) {\n      updatedDefinition {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "namespace": "constraint_update_moyv8eqc"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "InputObject 'MetafieldDefinitionUpdateInput' doesn't accept argument 'constraintsSet'",
+            "locations": [
+              {
+                "line": 8,
+                "column": 9
+              }
+            ],
+            "path": [
+              "mutation MetafieldDefinitionUpdateConstraintsSetProbe",
+              "constraintsSetProbe",
+              "definition",
+              "constraintsSet"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "MetafieldDefinitionUpdateInput",
+              "typeName": "InputObject",
+              "argumentName": "constraintsSet"
+            }
+          }
+        ]
+      }
+    }
+  },
   "cleanup": {
     "deletedDefinitions": [
       {
-        "id": "gid://shopify/MetafieldDefinition/206800159026",
+        "id": "gid://shopify/MetafieldDefinition/207885828402",
         "key": "tier"
       }
     ]

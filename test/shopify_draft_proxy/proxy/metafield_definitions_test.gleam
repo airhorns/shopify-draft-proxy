@@ -1944,6 +1944,130 @@ pub fn metafield_definition_update_applies_constraint_inputs_test() {
   assert string.contains(legacy_json, "\"value\":\"ap-2-12\"")
 }
 
+pub fn metafield_definition_update_rejects_keyed_empty_constraints_updates_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint update empty values\",
+        namespace: \"constraint_update\",
+        key: \"empty_values\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let reject_empty_values =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"empty_values\",
+        ownerType: PRODUCT,
+        constraintsUpdates: { key: \"product_category\", values: [] }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, reject_empty_values)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(update_json, "\"field\":[\"definition\"]")
+  assert string.contains(update_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    update_json,
+    "\"message\":\"Cannot change the constraint key without providing values.\"",
+  )
+
+  let read =
+    "query {
+      metafieldDefinition(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"empty_values\"
+      }) {
+        constraints { key values(first: 10) { nodes { value } } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"key\":null")
+  assert string.contains(read_json, "\"nodes\":[]")
+}
+
+pub fn metafield_definition_update_rejects_keyed_empty_constraints_set_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint set empty values\",
+        namespace: \"constraint_update\",
+        key: \"empty_set\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let reject_empty_values =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"empty_set\",
+        ownerType: PRODUCT,
+        constraintsSet: { key: \"product_category\", values: [] }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, reject_empty_values)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(update_json, "\"field\":[\"definition\"]")
+  assert string.contains(update_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    update_json,
+    "\"message\":\"Cannot change the constraint key without providing values.\"",
+  )
+
+  let read =
+    "query {
+      metafieldDefinition(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"empty_set\"
+      }) {
+        constraints { key values(first: 10) { nodes { value } } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"key\":null")
+  assert string.contains(read_json, "\"nodes\":[]")
+}
+
 pub fn metafield_definition_update_constraints_updates_unconstrains_test() {
   let proxy = draft_proxy.new()
   let create =

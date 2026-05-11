@@ -1,0 +1,47 @@
+{
+  "scenarioId": "carrier-service-create-uniqueness",
+  "operationNames": ["carrierServiceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-create-uniqueness.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+    "variablesCapturePath": "$.firstCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence that carrierServiceCreate rejects a second active carrier service for the same app/shop with a base CARRIER_SERVICE_CREATE_FAILED userError whose message names the already configured carrier service. Local runtime tests cover the proxy's trimmed-name emulation boundary and prove the rejected duplicate stages no additional CarrierServiceRecord.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-create-payload",
+        "capturePath": "$.firstCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-create-user-error",
+        "capturePath": "$.duplicateCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+          "variablesCapturePath": "$.duplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

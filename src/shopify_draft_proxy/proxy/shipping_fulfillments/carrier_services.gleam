@@ -79,6 +79,10 @@ pub fn handle_carrier_service_create(
   let user_errors =
     validate_carrier_service_name(name)
     |> list.append(validate_carrier_service_create_callback_url(callback_url))
+    |> list.append(validate_carrier_service_create_unique_active_name(
+      draft_store,
+      name,
+    ))
   case user_errors, name {
     [], Some(valid_name) -> {
       let #(id, identity_after_id) =
@@ -138,6 +142,38 @@ pub fn handle_carrier_service_create(
       draft_store,
       identity,
     )
+  }
+}
+
+fn validate_carrier_service_create_unique_active_name(
+  draft_store: Store,
+  name: Option(String),
+) -> List(shipping_types.CarrierServiceUserError) {
+  case name {
+    Some(valid_name) ->
+      case
+        store.list_effective_carrier_services(draft_store)
+        |> list.find(fn(service) {
+          service.active
+          && {
+            case service.name {
+              Some(existing_name) -> string.trim(existing_name) == valid_name
+              None -> False
+            }
+          }
+        })
+      {
+        Ok(existing) -> [
+          shipping_types.CarrierServiceUserError(
+            field: None,
+            message: option.unwrap(existing.name, valid_name)
+              <> " is already configured",
+            code: "CARRIER_SERVICE_CREATE_FAILED",
+          ),
+        ]
+        Error(_) -> []
+      }
+    None -> []
   }
 }
 

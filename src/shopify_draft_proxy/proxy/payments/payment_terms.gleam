@@ -1499,13 +1499,9 @@ pub fn send_payment_reminder(store, identity, field, fragments, variables) {
         field,
         fragments,
         [
-          UserError(
-            field: Some(["paymentScheduleId"]),
-            message: "Payment schedule ID is invalid",
-            code: Some("INVALID_PAYMENT_SCHEDULE_ID"),
-          ),
+          payment_reminder_not_found_error(),
         ],
-        SrcBool(False),
+        SrcNull,
       )
   }
 }

@@ -1,0 +1,44 @@
+mutation PriceListFixedPricesUpdateValidation(
+  $priceListId: ID!
+  $pricesToAdd: [PriceListPriceInput!]!
+  $variantIdsToDelete: [ID!]!
+) {
+  priceListFixedPricesUpdate(
+    priceListId: $priceListId
+    pricesToAdd: $pricesToAdd
+    variantIdsToDelete: $variantIdsToDelete
+  ) {
+    priceList {
+      id
+      name
+      currency
+      fixedPricesCount
+    }
+    pricesAdded {
+      price {
+        amount
+        currencyCode
+      }
+      compareAtPrice {
+        amount
+        currencyCode
+      }
+      originType
+      variant {
+        id
+        sku
+        product {
+          id
+          title
+        }
+      }
+    }
+    deletedFixedPriceVariantIds
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

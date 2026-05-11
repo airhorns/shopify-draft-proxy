@@ -3479,6 +3479,109 @@ pub fn definition_delete_cascades_associated_entries_locally_test() {
     == "{\"data\":{\"definition\":null,\"byType\":null,\"one\":null,\"two\":null,\"byHandle\":null,\"catalog\":{\"nodes\":[]}}}"
 }
 
+pub fn definition_recreate_same_type_uses_new_catalog_generation_test() {
+  let old_definition =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_recreate_rows\",
+          name: \"Codex Recreate Rows\",
+          displayNameKey: \"old_title\",
+          fieldDefinitions: [
+            { key: \"old_title\", name: \"Old Title\", type: \"single_line_text_field\", required: true },
+            { key: \"old_body\", name: \"Old Body\", type: \"multi_line_text_field\" }
+          ]
+        }) {
+          metaobjectDefinition { id type fieldDefinitions { key } }
+          userErrors { message code }
+        }
+      }",
+    )
+  let old_entry =
+    run_mutation(
+      old_definition.store,
+      old_definition.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_recreate_rows\",
+          handle: \"old-entry\",
+          fields: [
+            { key: \"old_title\", value: \"Old title\" },
+            { key: \"old_body\", value: \"Old body\" }
+          ]
+        }) {
+          metaobject { id handle fields { key value } }
+          userErrors { message code }
+        }
+      }",
+    )
+  let delete_old =
+    run_mutation(
+      old_entry.store,
+      old_entry.identity,
+      "mutation {
+        metaobjectDefinitionDelete(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") {
+          deletedId
+          userErrors { message code }
+        }
+      }",
+    )
+  let read_after_delete =
+    run_query(
+      delete_old.store,
+      "{ oldDefinition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { id } byType: metaobjectDefinitionByType(type: \"codex_recreate_rows\") { id } oldEntry: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id } oldEntryByHandle: metaobjectByHandle(handle: { type: \"codex_recreate_rows\", handle: \"old-entry\" }) { id } catalog: metaobjects(type: \"codex_recreate_rows\", first: 10) { nodes { id } } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"oldDefinition\":null,\"byType\":null,\"oldEntry\":null,\"oldEntryByHandle\":null,\"catalog\":{\"nodes\":[]}}}"
+  let new_definition =
+    run_mutation(
+      delete_old.store,
+      delete_old.identity,
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_recreate_rows\",
+          name: \"Codex Recreate Rows\",
+          displayNameKey: \"new_title\",
+          fieldDefinitions: [
+            { key: \"new_title\", name: \"New Title\", type: \"single_line_text_field\", required: true },
+            { key: \"new_summary\", name: \"New Summary\", type: \"multi_line_text_field\" }
+          ]
+        }) {
+          metaobjectDefinition { id type fieldDefinitions { key } }
+          userErrors { message code }
+        }
+      }",
+    )
+  let new_entry =
+    run_mutation(
+      new_definition.store,
+      new_definition.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_recreate_rows\",
+          handle: \"new-entry\",
+          fields: [
+            { key: \"new_title\", value: \"New title\" },
+            { key: \"new_summary\", value: \"New summary\" }
+          ]
+        }) {
+          metaobject { id handle fields { key value } }
+          userErrors { message code }
+        }
+      }",
+    )
+
+  let read_after =
+    run_query(
+      new_entry.store,
+      "{ oldDefinition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { id } newDefinition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/3?shopify-draft-proxy=synthetic\") { fieldDefinitions { key } metaobjectsCount } oldEntry: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id } catalog: metaobjects(type: \"codex_recreate_rows\", first: 10) { nodes { id handle fields { key value } oldTitleField: field(key: \"old_title\") { key value } newTitleField: field(key: \"new_title\") { key value } } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"oldDefinition\":null,\"newDefinition\":{\"fieldDefinitions\":[{\"key\":\"new_title\"},{\"key\":\"new_summary\"}],\"metaobjectsCount\":1},\"oldEntry\":null,\"catalog\":{\"nodes\":[{\"id\":\"gid://shopify/Metaobject/4?shopify-draft-proxy=synthetic\",\"handle\":\"new-entry\",\"fields\":[{\"key\":\"new_title\",\"value\":\"New title\"},{\"key\":\"new_summary\",\"value\":\"New summary\"}],\"oldTitleField\":null,\"newTitleField\":{\"key\":\"new_title\",\"value\":\"New title\"}}]}}}"
+}
+
 pub fn definition_delete_rejects_app_config_managed_definition_test() {
   let definition =
     state_types.MetaobjectDefinitionRecord(
