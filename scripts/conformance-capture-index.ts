@@ -6951,6 +6951,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'shipping-fulfillments',
+    captureId: 'shipping-package-default-lifecycle-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-shipping-package-default-lifecycle-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for shipping package update, make-default, restore-default, and delete staging against deterministic package hydration cassettes.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}shipping-package-default-lifecycle-local-runtime.json`,
+      'config/parity-specs/shipping-fulfillments/shipping-package-default-lifecycle-local-runtime.json',
+      'config/parity-requests/shipping-fulfillments/shipping-package-update-local-runtime.graphql',
+      'config/parity-requests/shipping-fulfillments/shipping-package-make-default-local-runtime.graphql',
+      'config/parity-requests/shipping-fulfillments/shipping-package-delete-local-runtime.graphql',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime with deterministic shipping package hydrate cassettes; no Shopify cleanup required.',
+    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+    notes:
+      'Public Admin GraphQL 2025-01 rejects selecting shippingPackage on ShippingPackageMakeDefaultPayload in the configured conformance store, so the make-default success payload is executable local-runtime evidence.',
+  },
+  {
     domain: 'store-properties',
     captureId: 'orphaned-store-property-fixtures',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
