@@ -6984,6 +6984,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-close-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-close-state-conformance.ts',
+    purpose:
+      'fulfillmentOrderClose success state after a fulfillment order is moved to an API fulfillment service, submitted, and accepted.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'fulfillment service management',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-close-state.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-close-state.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-close-state-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service and one disposable order, closes the accepted fulfillment order, then cancels the order and deletes the service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The captured public Admin API behavior transitions close success to status INCOMPLETE with requestStatus CLOSED.',
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-release-hold-selective',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-release-hold-selective-conformance.ts',

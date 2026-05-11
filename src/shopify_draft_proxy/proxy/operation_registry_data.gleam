@@ -5362,7 +5362,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
       ],
       support_notes: Some(
-        "Locally stages fulfillment-order close for IN_PROGRESS orders and OPEN orders assigned to a known THIRD_PARTY fulfillment-service location, transitions the record to CLOSED/requestStatus CLOSED, preserves the captured merchant-managed API-type guardrail, and leaves state unchanged for invalid status or missing-id failures. Existing HAR-234 parity covers the merchant-managed guardrail branch; success-path coverage is local runtime evidence until an API-service success capture is added.",
+        "Locally stages fulfillment-order close for IN_PROGRESS orders, transitions the record to INCOMPLETE/requestStatus CLOSED, preserves Shopify's captured merchant-managed API-type and open API-service status guardrails, and leaves state unchanged for invalid status or missing-id failures. Parity covers the API-service success branch and downstream read-after-write state.",
       ),
     ),
     RegistryEntry(

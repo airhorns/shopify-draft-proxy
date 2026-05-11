@@ -3723,11 +3723,11 @@ pub fn fulfillment_order_close_reschedule_stateful_handler_test() {
       empty_upstream_context(),
     )
   assert json.to_string(close_outcome.data)
-    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/close-stateful\",\"status\":\"CLOSED\",\"requestStatus\":\"CLOSED\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/close-stateful\",\"status\":\"INCOMPLETE\",\"requestStatus\":\"CLOSED\"},\"userErrors\":[]}}}"
   assert_fulfillment_order_state(
     close_outcome.store,
     close_id,
-    "CLOSED",
+    "INCOMPLETE",
     "CLOSED",
   )
 
@@ -3748,12 +3748,12 @@ pub fn fulfillment_order_close_reschedule_stateful_handler_test() {
       empty_upstream_context(),
     )
   assert json.to_string(open_api_close_outcome.data)
-    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/open-api-close\",\"status\":\"CLOSED\",\"requestStatus\":\"CLOSED\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order is not in an in progress state.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
   assert_fulfillment_order_state(
     open_api_close_outcome.store,
     open_api_close_id,
-    "CLOSED",
-    "CLOSED",
+    "OPEN",
+    "UNSUBMITTED",
   )
 
   let reschedule_outcome =

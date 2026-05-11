@@ -1028,19 +1028,18 @@ pub fn handle_fulfillment_order_close(
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) ->
-          case fulfillment_order_close_allowed(draft_store, order) {
+          case fulfillment_order_close_allowed(order) {
             True -> {
               let updated =
                 update_fulfillment_order_fields(order, [
-                  #("status", CapturedString("CLOSED")),
+                  #("status", CapturedString("INCOMPLETE")),
                   #("requestStatus", CapturedString("CLOSED")),
                   #("updatedAt", CapturedString(synthetic_timestamp_string())),
-                  #("supportedActions", CapturedArray([])),
                 ])
               let updated =
                 FulfillmentOrderRecord(
                   ..updated,
-                  status: "CLOSED",
+                  status: "INCOMPLETE",
                   request_status: "CLOSED",
                 )
               fulfillment_order_single_payload_result(
@@ -1054,16 +1053,35 @@ pub fn handle_fulfillment_order_close(
             }
             False ->
               case order.status == "OPEN" {
-                True ->
-                  fulfillment_order_state_user_error_result(
-                    draft_store,
-                    identity,
-                    field,
-                    fragments,
-                    "FulfillmentOrderClosePayload",
-                    "The fulfillment order's assigned fulfillment service must be of api type",
-                    "FULFILLMENT_SERVICE_NOT_API_TYPE",
-                  )
+                True -> {
+                  case
+                    fulfillment_order_assigned_to_api_service(
+                      draft_store,
+                      order,
+                    )
+                  {
+                    True ->
+                      fulfillment_order_state_user_error_result(
+                        draft_store,
+                        identity,
+                        field,
+                        fragments,
+                        "FulfillmentOrderClosePayload",
+                        "The fulfillment order is not in an in progress state.",
+                        "INVALID_FULFILLMENT_ORDER_STATUS",
+                      )
+                    False ->
+                      fulfillment_order_state_user_error_result(
+                        draft_store,
+                        identity,
+                        field,
+                        fragments,
+                        "FulfillmentOrderClosePayload",
+                        "The fulfillment order's assigned fulfillment service must be of api type",
+                        "FULFILLMENT_SERVICE_NOT_API_TYPE",
+                      )
+                  }
+                }
                 False ->
                   fulfillment_order_state_user_error_result(
                     draft_store,
@@ -1096,13 +1114,9 @@ pub fn handle_fulfillment_order_close(
   }
 }
 
-fn fulfillment_order_close_allowed(
-  draft_store: Store,
-  order: FulfillmentOrderRecord,
-) -> Bool {
+fn fulfillment_order_close_allowed(order: FulfillmentOrderRecord) -> Bool {
   case order.status {
     "IN_PROGRESS" -> True
-    "OPEN" -> fulfillment_order_assigned_to_api_service(draft_store, order)
     _ -> False
   }
 }
