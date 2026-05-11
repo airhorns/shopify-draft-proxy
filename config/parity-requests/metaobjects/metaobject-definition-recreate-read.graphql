@@ -1,0 +1,192 @@
+fragment MetaobjectDefinitionRecreateDefinitionFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+fragment MetaobjectDefinitionRecreateReadEntryFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  oldTitleField: field(key: "old_title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  oldBodyField: field(key: "old_body") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  newTitleField: field(key: "new_title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  newSummaryField: field(key: "new_summary") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+query MetaobjectDefinitionRecreateRead(
+  $oldDefinitionId: ID!
+  $newDefinitionId: ID!
+  $type: String!
+  $oldEntryId: ID!
+  $oldHandle: MetaobjectHandleInput!
+  $newFirstId: ID!
+  $newSecondId: ID!
+  $newFirstHandle: MetaobjectHandleInput!
+  $newSecondHandle: MetaobjectHandleInput!
+) {
+  oldDefinition: metaobjectDefinition(id: $oldDefinitionId) {
+    ...MetaobjectDefinitionRecreateDefinitionFields
+  }
+  newDefinition: metaobjectDefinition(id: $newDefinitionId) {
+    ...MetaobjectDefinitionRecreateDefinitionFields
+  }
+  byType: metaobjectDefinitionByType(type: $type) {
+    ...MetaobjectDefinitionRecreateDefinitionFields
+  }
+  oldEntry: metaobject(id: $oldEntryId) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  oldEntryByHandle: metaobjectByHandle(handle: $oldHandle) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  newFirst: metaobject(id: $newFirstId) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  newSecond: metaobject(id: $newSecondId) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  newFirstByHandle: metaobjectByHandle(handle: $newFirstHandle) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  newSecondByHandle: metaobjectByHandle(handle: $newSecondHandle) {
+    ...MetaobjectDefinitionRecreateReadEntryFields
+  }
+  catalog: metaobjects(type: $type, first: 10, sortKey: "display_name") {
+    edges {
+      cursor
+      node {
+        ...MetaobjectDefinitionRecreateReadEntryFields
+      }
+    }
+    nodes {
+      ...MetaobjectDefinitionRecreateReadEntryFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

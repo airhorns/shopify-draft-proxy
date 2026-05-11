@@ -612,7 +612,7 @@ pub fn is_metaobject_visible_in_catalog(
     None -> True
     Some(definition) ->
       metaobject_has_required_field_values(metaobject, definition)
-      && metaobject_publishable_visible(metaobject, definition)
+      && metaobject_publishable_visible(store, metaobject, definition)
   }
 }
 
@@ -643,6 +643,7 @@ pub fn metaobject_has_required_field_values(
 
 @internal
 pub fn metaobject_publishable_visible(
+  store: Store,
   metaobject: MetaobjectRecord,
   definition: MetaobjectDefinitionRecord,
 ) -> Bool {
@@ -650,9 +651,24 @@ pub fn metaobject_publishable_visible(
     definition.capabilities.publishable,
     metaobject.capabilities.publishable
   {
-    Some(MetaobjectDefinitionCapabilityRecord(enabled: False)), None -> False
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)), None -> False
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)),
+      Some(MetaobjectPublishableCapabilityRecord(Some(status)))
+    -> string.uppercase(status) == "ACTIVE"
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: False)), None ->
+      !type_has_publishable_status_records(store, definition.type_)
     _, _ -> True
   }
+}
+
+fn type_has_publishable_status_records(store: Store, type_: String) -> Bool {
+  list_effective_metaobjects_by_type(store, type_)
+  |> list.any(fn(item) {
+    case item.capabilities.publishable {
+      Some(_) -> True
+      None -> False
+    }
+  })
 }
 
 @internal
