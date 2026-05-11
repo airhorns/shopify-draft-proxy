@@ -451,6 +451,21 @@ pub fn gift_card_create_mints_record_test() {
     )
 }
 
+pub fn gift_card_create_honors_notify_false_for_staged_record_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { giftCardCreate(input: { initialValue: \"10\", notify: false }) { giftCard { id } userErrors { field code message } } }",
+    )
+  let id = "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+  let assert Some(record) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+
+  assert record.notify == False
+  assert run_customer_notification(outcome.store, id)
+    == "{\"data\":{\"giftCardSendNotificationToCustomer\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"INVALID\",\"message\":\"Gift card notifications are disabled.\"}]}}}"
+}
+
 pub fn gift_card_create_zero_initial_value_emits_user_error_test() {
   let body =
     run_mutation(
@@ -1697,7 +1712,7 @@ pub fn gift_card_send_notification_rejects_trial_shop_test() {
     ))
 
   assert run_customer_notification(s, id)
-    == "{\"data\":{\"giftCardSendNotificationToCustomer\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":\"INVALID\",\"message\":\"Gift card notifications are not available for trial shops.\"}]}}}"
+    == "{\"data\":{\"giftCardSendNotificationToCustomer\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":\"INVALID\",\"message\":\"Notifications are not available on trial shops.\"}]}}}"
 }
 
 pub fn gift_card_send_notification_to_customer_rejects_missing_card_test() {
@@ -1847,6 +1862,26 @@ pub fn gift_card_send_notification_to_recipient_returns_card_test() {
     )
   assert body
     == "{\"data\":{\"giftCardSendNotificationToRecipient\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/600?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_send_notification_to_recipient_rejects_trial_shop_test() {
+  let id = "gid://shopify/GiftCard/notification-recipient-trial"
+  let s =
+    store.new()
+    |> store.upsert_base_shop(trial_shop())
+    |> seed_card(notification_card(
+      id,
+      None,
+      Some("gid://shopify/Customer/recipient-trial"),
+    ))
+    |> seed_customer(customer(
+      "gid://shopify/Customer/recipient-trial",
+      Some("ada@example.com"),
+      None,
+    ))
+
+  assert run_recipient_notification(s, id)
+    == "{\"data\":{\"giftCardSendNotificationToRecipient\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"base\"],\"code\":\"INVALID\",\"message\":\"Notifications are not available on trial shops.\"}]}}}"
 }
 
 pub fn gift_card_send_notification_to_recipient_rejects_missing_card_test() {

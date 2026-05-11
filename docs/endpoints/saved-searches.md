@@ -65,7 +65,7 @@ Do not mark URL redirect create/update/delete/import/bulk-delete roots as implem
 
 The current conformance credential was valid for `harry-test-heelo.myshopify.com` / Admin GraphQL `2025-01`.
 
-- Schema introspection confirmed `SavedSearchConnection` roots and `SavedSearch` fields: `id`, `legacyResourceId`, `name`, `query`, `resourceType`, `searchTerms`, and `filters { key value }`.
+- Schema introspection confirmed `SavedSearchConnection` roots and `SavedSearch` fields: `id`, `legacyResourceId`, `name`, `query`, `resourceType`, `searchTerms`, and `filters { __typename key value }`. Filter items use the schema type `SearchFilter`.
 - `savedSearchCreate(resourceType: PRODUCT)` returned a SavedSearch payload with empty `userErrors`.
 - A downstream `productSavedSearches(first:, reverse:)` read returned that saved search with cursor-bearing `pageInfo`.
 - Missing `savedSearchUpdate` and `savedSearchDelete` returned `userErrors[{ field: ["input", "id"], message: "Saved Search does not exist" }]`.
