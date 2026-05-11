@@ -1237,6 +1237,46 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-create-batch-size-limit',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-batch-size-limit-conformance.ts',
+    purpose: 'fileCreate files input max-batch-size validation for 251 FileCreateInput entries.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-batch-size-limit.json`,
+      'config/parity-specs/media/media-file-create-batch-size-limit.json',
+      'config/parity-requests/media/media-file-create-batch-size-limit.graphql',
+    ],
+    cleanupBehavior: 'Validation-only request is rejected before creating Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-file-create-references-authorization',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-references-authorization-conformance.ts',
+    purpose:
+      'fileUpdate referencesToAdd product authorization denial with a short-lived delegate token lacking product write permission.',
+    requiredAuthScopes: [
+      'read_files',
+      'write_files',
+      'read_products',
+      'write_products',
+      'delegate access token creation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-references-authorization.json`,
+      'config/parity-specs/media/media-file-create-references-authorization.json',
+      'config/parity-requests/media/media-file-create-references-authorization.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product and file, issues a reduced-scope delegate-token request, destroys the delegate token, deletes the file, and deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 does not expose referencesToAdd on FileCreateInput, so this live capture anchors fileUpdate reference authorization while local runtime tests cover the same manage-products affordance on fileCreate.',
+  },
+  {
+    domain: 'files',
     captureId: 'file-create-validation-precedence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-create-validation-precedence-conformance.ts',
