@@ -127,17 +127,44 @@ fn payload_entries(
             }
           _ -> []
         }
-      Field(..) -> [
-        payload_field_entry(
-          payload,
-          payload_typename,
-          selection,
-          fragments,
-          variables,
-        ),
-      ]
+      Field(..) ->
+        case selection {
+          Field(name: name, ..) if name.value == "giftCard" ->
+            case payload_type_exposes_gift_card(payload_typename) {
+              False -> []
+              True -> [
+                payload_field_entry(
+                  payload,
+                  payload_typename,
+                  selection,
+                  fragments,
+                  variables,
+                ),
+              ]
+            }
+          _ -> [
+            payload_field_entry(
+              payload,
+              payload_typename,
+              selection,
+              fragments,
+              variables,
+            ),
+          ]
+        }
     }
   })
+}
+
+fn payload_type_exposes_gift_card(payload_typename: String) -> Bool {
+  case payload_typename {
+    "GiftCardCreatePayload"
+    | "GiftCardUpdatePayload"
+    | "GiftCardDeactivatePayload"
+    | "GiftCardSendNotificationToCustomerPayload"
+    | "GiftCardSendNotificationToRecipientPayload" -> True
+    _ -> False
+  }
 }
 
 fn payload_field_entry(
