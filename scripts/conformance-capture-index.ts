@@ -5399,6 +5399,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-add-remove-overlap',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-add-remove-overlap-conformance.ts',
+    purpose: 'Discount customer, item, and country add/remove overlap top-level BAD_REQUEST validation branches.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-add-remove-overlap.json',
+      'config/parity-specs/discounts/discount-add-remove-overlap.json',
+      'config/parity-requests/discounts/discount-add-remove-overlap-setup.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-basic-create.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-basic-update.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-bxgy-create.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-bxgy-update.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-create.graphql',
+      'config/parity-requests/discounts/discount-add-remove-overlap-free-shipping-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable setup discounts for update probes, records validation-only overlap failures, then deletes the setup discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-code-basic-lifecycle-conformance.ts',
