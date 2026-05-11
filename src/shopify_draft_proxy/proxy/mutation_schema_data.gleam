@@ -19060,6 +19060,13 @@ pub fn input_objects() -> List(SchemaInputObject) {
         type_: NamedType("String"),
       ),
       SchemaInputField(
+        name: "notify",
+        is_deprecated: False,
+        deprecation_reason: None,
+        default_value: None,
+        type_: NamedType("Boolean"),
+      ),
+      SchemaInputField(
         name: "recipientAttributes",
         is_deprecated: False,
         deprecation_reason: None,
