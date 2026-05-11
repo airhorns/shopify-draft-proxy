@@ -27,9 +27,10 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
   enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
   market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_edges, price_list_currency, price_list_data,
-  price_list_fixed_prices_by_product_user_error, price_list_input_errors,
+  market_name_in_use, market_user_error, markets_log_draft, mutation_variant_ids,
+  option_to_result, optional_captured_string, price_edges, price_list_currency,
+  price_list_data, price_list_fixed_prices_by_product_user_error,
+  price_list_input_errors, price_list_user_error,
   product_level_fixed_price_errors, product_payloads, project_record,
   quantity_pricing_input_errors, quantity_rule_delete_errors,
   quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
@@ -1755,28 +1756,28 @@ fn handle_price_list_update(
           }
         }
         None ->
-          not_found_mutation_result(
+          price_list_not_found_mutation_result(
             key,
             field,
             fragments,
             "priceListUpdate",
             "priceList",
             ["id"],
-            "Price list does not exist",
+            "Price list does not exist.",
             "PRICE_LIST_NOT_FOUND",
             store,
             identity,
           )
       }
     None ->
-      not_found_mutation_result(
+      price_list_not_found_mutation_result(
         key,
         field,
         fragments,
         "priceListUpdate",
         "priceList",
         ["id"],
-        "Price list does not exist",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
         store,
         identity,
@@ -1839,26 +1840,26 @@ fn handle_price_list_delete(
           )
         }
         None ->
-          delete_error_result(
+          price_list_delete_not_found_result(
             key,
             field,
             fragments,
             "priceListDelete",
             ["id"],
-            "Price list does not exist",
+            "Price list does not exist.",
             "PRICE_LIST_NOT_FOUND",
             store,
             identity,
           )
       }
     None ->
-      delete_error_result(
+      price_list_delete_not_found_result(
         key,
         field,
         fragments,
         "priceListDelete",
         ["id"],
-        "Price list does not exist",
+        "Price list does not exist.",
         "PRICE_LIST_NOT_FOUND",
         store,
         identity,
@@ -2644,7 +2645,7 @@ fn handle_quantity_rules_delete(
   let errors = case price_list {
     Some(existing) -> quantity_rule_delete_errors(store, existing, variant_ids)
     None -> [
-      user_error(
+      quantity_rule_user_error(
         ["priceListId"],
         "Price list does not exist.",
         "PRICE_LIST_DOES_NOT_EXIST",
@@ -3205,7 +3206,7 @@ fn handle_web_presence_delete(
         Some(record) ->
           case store.web_presence_matches_shop_primary_host(store, record) {
             True ->
-              delete_error_result(
+              web_presence_delete_error_result(
                 key,
                 field,
                 fragments,
@@ -3529,6 +3530,32 @@ fn not_found_mutation_result(
   )
 }
 
+fn price_list_not_found_mutation_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  resource_key: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    resource_key,
+    CapturedNull,
+    [price_list_user_error(error_field, message, code)],
+    store,
+    identity,
+    [],
+  )
+}
+
 fn delete_result(
   key: String,
   field: Selection,
@@ -3550,6 +3577,35 @@ fn delete_result(
     store,
     identity,
     [id],
+  )
+}
+
+fn price_list_delete_not_found_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([price_list_user_error(error_field, message, code)]),
+      ),
+    ]),
+    store,
+    identity,
+    [],
   )
 }
 
@@ -3579,6 +3635,35 @@ fn delete_error_result(
   )
 }
 
+fn web_presence_delete_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #(
+        "userErrors",
+        CapturedArray([market_user_error(error_field, message, code)]),
+      ),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
 fn web_presence_not_found_result(
   key: String,
   field: Selection,
@@ -3596,7 +3681,7 @@ fn web_presence_not_found_result(
     resource_key,
     CapturedNull,
     [
-      user_error(
+      market_user_error(
         ["id"],
         "The market web presence wasn't found.",
         "WEB_PRESENCE_NOT_FOUND",
@@ -3622,7 +3707,7 @@ fn web_presence_delete_not_found_result(
       #(
         "userErrors",
         CapturedArray([
-          user_error(
+          market_user_error(
             ["id"],
             "The market web presence wasn't found.",
             "WEB_PRESENCE_NOT_FOUND",
@@ -3705,7 +3790,7 @@ fn web_presence_input_errors(
       case web_presence_domain_for_id(store, domain_id) {
         Some(_) -> []
         None -> [
-          user_error(
+          market_user_error(
             ["input", "domainId"],
             "Domain does not exist",
             "DOMAIN_NOT_FOUND",
@@ -3751,7 +3836,7 @@ fn web_presence_route_errors(
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   case domain_id, suffix {
     Some(_), Some(_) -> [
-      user_error(
+      market_user_error(
         ["input"],
         "Cannot have both subfolder suffix and domain",
         "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
@@ -3760,7 +3845,7 @@ fn web_presence_route_errors(
     None, None ->
       case require_route {
         True -> [
-          user_error(
+          market_user_error(
             ["input"],
             "Requires domain or subfolder",
             "REQUIRES_DOMAIN_OR_SUBFOLDER",
@@ -3780,7 +3865,7 @@ fn web_presence_update_route_errors(
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   case suffix, web_presence_record_has_domain(existing) {
     Some(_), True -> [
-      user_error(
+      market_user_error(
         ["input"],
         "Cannot have both subfolder suffix and domain",
         "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
@@ -3795,7 +3880,7 @@ fn web_presence_default_locale_errors(
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_string(input, "defaultLocale") {
     Some("") -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale can't be blank",
         "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
@@ -3805,7 +3890,7 @@ fn web_presence_default_locale_errors(
       case canonical_web_presence_locale(locale) {
         Some(_) -> []
         None -> [
-          user_error(
+          market_user_error(
             ["input", "defaultLocale"],
             "Invalid locale codes: " <> locale,
             "INVALID",
@@ -3813,7 +3898,7 @@ fn web_presence_default_locale_errors(
         ]
       }
     None -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale can't be blank",
         "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
@@ -3838,7 +3923,7 @@ fn web_presence_alternate_locale_errors(
   case invalid_locales {
     [] -> []
     _ -> [
-      user_error(
+      market_user_error(
         ["input", "alternateLocales"],
         "Invalid locale codes: " <> to_sentence(invalid_locales),
         "INVALID",
@@ -3916,7 +4001,7 @@ fn duplicate_default_locale_errors(
 ) -> List(CapturedJsonValue) {
   case check_default_locale {
     True -> [
-      user_error(
+      market_user_error(
         ["input", "defaultLocale"],
         "Default locale The alternate languages already include "
           <> default_locale
@@ -3935,7 +4020,7 @@ fn duplicate_alternate_locale_errors(
 ) -> List(CapturedJsonValue) {
   case check_alternate_locales {
     True -> [
-      user_error(
+      market_user_error(
         ["input", "alternateLocales"],
         "Alternate locales Duplicates were found in the following languages: "
           <> to_duplicate_language_sentence([
@@ -3956,7 +4041,7 @@ fn web_presence_subfolder_suffix_errors(
     Some(suffix) -> {
       let length_errors = case subfolder_suffix_letter_count(suffix) < 2 {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix must be at least 2 letters",
             "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
@@ -3966,7 +4051,7 @@ fn web_presence_subfolder_suffix_errors(
       }
       let script_errors = case is_web_presence_script_code(suffix) {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix cannot be script code",
             "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE",
@@ -3976,7 +4061,7 @@ fn web_presence_subfolder_suffix_errors(
       }
       let letter_only_errors = case is_lowercase_ascii_letters(suffix) {
         False -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix must contain only letters",
             "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS",
@@ -3999,7 +4084,7 @@ fn web_presence_subfolder_suffix_taken_errors(
     Some(suffix) ->
       case web_presence_subfolder_suffix_taken(store, suffix, current_id) {
         True -> [
-          user_error(
+          market_user_error(
             ["input", "subfolderSuffix"],
             "Subfolder suffix has already been taken",
             "TAKEN",

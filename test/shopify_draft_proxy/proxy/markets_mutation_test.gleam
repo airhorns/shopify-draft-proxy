@@ -95,6 +95,17 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
 }
 
+pub fn markets_typed_mutation_user_errors_include_typename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { __typename field message code } } priceListUpdate(id: \"gid://shopify/PriceList/0\", input: { name: \"Missing\" }) { priceList { id } userErrors { __typename field message code } } priceListDelete(id: \"gid://shopify/PriceList/0\") { deletedId userErrors { __typename field message code } } quantityRulesDelete(priceListId: \"gid://shopify/PriceList/0\", variantIds: [\"gid://shopify/ProductVariant/0\"]) { deletedQuantityRulesVariantIds userErrors { __typename field message code } } webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"x\" }) { webPresence { id } userErrors { __typename field message code } } webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/0\", input: { defaultLocale: \"en\" }) { webPresence { id } userErrors { __typename field message code } } webPresenceDelete(id: \"gid://shopify/MarketWebPresence/0\") { deletedId userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"input\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"BLANK\"}]},\"priceListUpdate\":{\"priceList\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"id\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]},\"priceListDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"PriceListUserError\",\"field\":[\"id\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]},\"quantityRulesDelete\":{\"deletedQuantityRulesVariantIds\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"priceListId\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_DOES_NOT_EXIST\"}]},\"webPresenceCreate\":{\"webPresence\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix must be at least 2 letters\",\"code\":\"SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS\"}]},\"webPresenceUpdate\":{\"webPresence\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"id\"],\"message\":\"The market web presence wasn't found.\",\"code\":\"WEB_PRESENCE_NOT_FOUND\"}]},\"webPresenceDelete\":{\"deletedId\":null,\"userErrors\":[{\"__typename\":\"MarketUserError\",\"field\":[\"id\"],\"message\":\"The market web presence wasn't found.\",\"code\":\"WEB_PRESENCE_NOT_FOUND\"}]}}}"
+}
+
 pub fn price_list_create_matches_parent_adjustment_value_bounds_test() {
   let #(Response(status: zero_status, body: zero_body, ..), _) =
     graphql(

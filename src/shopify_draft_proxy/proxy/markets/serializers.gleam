@@ -89,12 +89,30 @@ pub fn translation_user_error(
 }
 
 @internal
+pub fn price_list_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("PriceListUserError"))
+}
+
+@internal
 pub fn quantity_rule_user_error(
   field: List(String),
   message: String,
   code: String,
 ) -> CapturedJsonValue {
   user_error_with_typename(field, message, code, Some("QuantityRuleUserError"))
+}
+
+@internal
+pub fn market_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("MarketUserError"))
 }
 
 @internal
@@ -1316,13 +1334,15 @@ fn price_list_name_errors(
   existing_id: Option(String),
 ) -> List(CapturedJsonValue) {
   case name {
-    "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
+    "" -> [
+      price_list_user_error(["input", "name"], "Name can't be blank", "BLANK"),
+    ]
     _ -> {
       let length_errors = case
         string.length(name) > price_list_name_max_length
       {
         True -> [
-          user_error(
+          price_list_user_error(
             ["input", "name"],
             "Name is too long (maximum is 255 characters)",
             "TOO_LONG",
@@ -1334,7 +1354,7 @@ fn price_list_name_errors(
         [] ->
           case price_list_name_taken(store, name, existing_id) {
             True -> [
-              user_error(
+              price_list_user_error(
                 ["input", "name"],
                 "Name has already been taken",
                 "TAKEN",
@@ -1371,7 +1391,7 @@ pub fn price_list_currency_errors(
       case valid_currency(currency) {
         True -> []
         False -> [
-          user_error(
+          price_list_user_error(
             ["input", "currency"],
             "Currency isn't included in the list",
             "INCLUSION",
@@ -1382,7 +1402,11 @@ pub fn price_list_currency_errors(
       case existing {
         Some(_) -> []
         None -> [
-          user_error(["input", "currency"], "Currency can't be blank", "BLANK"),
+          price_list_user_error(
+            ["input", "currency"],
+            "Currency can't be blank",
+            "BLANK",
+          ),
         ]
       }
   }
@@ -1400,7 +1424,11 @@ pub fn price_list_parent_errors(
         Some(existing_value) ->
           price_list_existing_parent_adjustment_errors(existing_value)
         None -> [
-          user_error(["input", "parent"], "Parent must exist", "REQUIRED"),
+          price_list_user_error(
+            ["input", "parent"],
+            "Parent must exist",
+            "REQUIRED",
+          ),
         ]
       }
   }
@@ -1450,7 +1478,7 @@ pub fn price_list_parent_adjustment_errors(
             "PERCENTAGE_INCREASE",
           )
         _ -> [
-          user_error(
+          price_list_user_error(
             ["input", "parent", "adjustment", "type"],
             "Type is invalid",
             "INVALID",
@@ -1459,7 +1487,7 @@ pub fn price_list_parent_adjustment_errors(
       }
     }
     None -> [
-      user_error(
+      price_list_user_error(
         ["input", "parent", "adjustment"],
         "Adjustment must exist",
         "REQUIRED",
@@ -1496,7 +1524,7 @@ pub fn price_list_adjustment_number_errors(
   adjustment_type: String,
 ) -> List(CapturedJsonValue) {
   let invalid_adjustment_error = [
-    user_error(
+    price_list_user_error(
       ["input", "parent", "adjustment", "value"],
       "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
       "INVALID_ADJUSTMENT_VALUE",
@@ -2567,14 +2595,14 @@ pub fn quantity_rule_delete_errors(
         case price_list_has_fixed_quantity_rule(price_list, variant_id) {
           True -> Error(Nil)
           False ->
-            Ok(user_error(
+            Ok(quantity_rule_user_error(
               ["variantIds", int.to_string(index)],
               "Quantity rule for variant associated with the price list provided does not exist.",
               "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST",
             ))
         }
       None ->
-        Ok(user_error(
+        Ok(quantity_rule_user_error(
           ["variantIds", int.to_string(index)],
           "Product variant ID does not exist.",
           "PRODUCT_VARIANT_DOES_NOT_EXIST",
