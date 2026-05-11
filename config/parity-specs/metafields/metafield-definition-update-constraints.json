@@ -75,6 +75,11 @@
         ]
       },
       {
+        "name": "constraints-updates-key-with-empty-values-rejected",
+        "capturePath": "$.primary.response.data.rejectEmptyConstraintValues",
+        "proxyPath": "$.data.rejectEmptyConstraintValues"
+      },
+      {
         "name": "pin-after-unconstrain-succeeds",
         "capturePath": "$.primary.response.data.pinUnconstrained",
         "proxyPath": "$.data.pinUnconstrained",
@@ -115,5 +120,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 Shopify behavior for public `constraintsUpdates` on `metafieldDefinitionUpdate`: setting constraint values, enforcing the constrained-definition pin guard, deleting and creating values, clearing constraints with `key: null, values: []`, and pinning after unconstrain. Live 2026-04 introspection rejects legacy `constraints` and `constraintsSet` on `MetafieldDefinitionUpdateInput`, so those internal legacy branches are covered by runtime tests rather than this public Admin API capture."
+  "notes": "Captured 2026-04 Shopify behavior for public `constraintsUpdates` on `metafieldDefinitionUpdate`: setting constraint values, enforcing the constrained-definition pin guard, deleting and creating values, clearing constraints with `key: null, values: []`, rejecting `key` plus empty `values` with field `[\"definition\"]`, code `INVALID_INPUT`, and message `Cannot change the constraint key without providing values.`, and pinning after unconstrain. Live 2026-04 introspection rejects legacy `constraints` and `constraintsSet` on `MetafieldDefinitionUpdateInput`, so those internal legacy branches are covered by runtime tests rather than public Admin API parity targets; this capture also records a non-parity `constraintsSetProbe` GraphQL schema rejection confirming `constraintsSet` is not publicly accepted in 2026-04."
 }

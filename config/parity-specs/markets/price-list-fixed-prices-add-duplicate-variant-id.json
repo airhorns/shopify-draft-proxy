@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-fixed-prices-add-duplicate-variant-id",
+  "operationNames": ["priceListFixedPricesAdd"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-add-validation.graphql",
+    "variablesCapturePath": "$.cases.addDuplicateVariantId.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "add-duplicate-variant-id",
+        "capturePath": "$.cases.addDuplicateVariantId.response.payload.data.priceListFixedPricesAdd",
+        "proxyPath": "$.data.priceListFixedPricesAdd"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesAdd duplicate variantId behavior. Shopify accepts the duplicate input, applies the last price for the variant, and returns no userErrors."
+}

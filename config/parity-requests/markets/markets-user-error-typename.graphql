@@ -1,0 +1,84 @@
+mutation MarketsUserErrorTypename(
+  $priceListCreateInput: PriceListCreateInput!
+  $priceListUpdateId: ID!
+  $priceListUpdateInput: PriceListUpdateInput!
+  $priceListDeleteId: ID!
+  $quantityRulesDeletePriceListId: ID!
+  $quantityRulesDeleteVariantIds: [ID!]!
+  $webPresenceCreateInput: WebPresenceCreateInput!
+  $webPresenceUpdateId: ID!
+  $webPresenceUpdateInput: WebPresenceUpdateInput!
+  $webPresenceDeleteId: ID!
+) {
+  priceListCreate(input: $priceListCreateInput) {
+    priceList {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  priceListUpdate(id: $priceListUpdateId, input: $priceListUpdateInput) {
+    priceList {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  priceListDelete(id: $priceListDeleteId) {
+    deletedId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  quantityRulesDelete(priceListId: $quantityRulesDeletePriceListId, variantIds: $quantityRulesDeleteVariantIds) {
+    deletedQuantityRulesVariantIds
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  webPresenceCreate(input: $webPresenceCreateInput) {
+    webPresence {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  webPresenceUpdate(id: $webPresenceUpdateId, input: $webPresenceUpdateInput) {
+    webPresence {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  webPresenceDelete(id: $webPresenceDeleteId) {
+    deletedId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}

@@ -1,17 +1,17 @@
 {
-  "capturedAt": "2026-05-05T15:42:22.316Z",
+  "capturedAt": "2026-05-09T18:39:23.621Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "suffix": "har697_mossr6ry",
+  "suffix": "metafield_precondition_moyou918",
   "deleteWithoutFlag": {
-    "namespace": "har697_mossr6ry_delete_without_flag",
+    "namespace": "metafield_precondition_moyou918_delete_without_flag",
     "key": "tier",
     "product": {
       "request": {
-        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR-697 delete_without_flag har697_mossr6ry"
+            "title": "Metafield definition precondition delete_without_flag metafield_precondition_moyou918"
           }
         }
       },
@@ -20,8 +20,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177412825394",
-              "title": "HAR-697 delete_without_flag har697_mossr6ry"
+              "id": "gid://shopify/Product/10181429494066",
+              "title": "Metafield definition precondition delete_without_flag metafield_precondition_moyou918"
             },
             "userErrors": []
           }
@@ -44,8 +44,8 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 delete_without_flag",
-            "namespace": "har697_mossr6ry_delete_without_flag",
+            "name": "Metafield definition precondition delete_without_flag",
+            "namespace": "metafield_precondition_moyou918_delete_without_flag",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -57,9 +57,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664270130",
-              "name": "HAR-697 delete_without_flag",
-              "namespace": "har697_mossr6ry_delete_without_flag",
+              "id": "gid://shopify/MetafieldDefinition/207851553074",
+              "name": "Metafield definition precondition delete_without_flag",
+              "namespace": "metafield_precondition_moyou918_delete_without_flag",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -88,8 +88,8 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177412825394",
-              "namespace": "har697_mossr6ry_delete_without_flag",
+              "ownerId": "gid://shopify/Product/10181429494066",
+              "namespace": "metafield_precondition_moyou918_delete_without_flag",
               "key": "tier",
               "type": "single_line_text_field",
               "value": "gold"
@@ -103,8 +103,8 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/43103971934514",
-                "namespace": "har697_mossr6ry_delete_without_flag",
+                "id": "gid://shopify/Metafield/43160346329394",
+                "namespace": "metafield_precondition_moyou918_delete_without_flag",
                 "key": "tier",
                 "type": "single_line_text_field",
                 "value": "gold"
@@ -130,17 +130,17 @@
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-no-flag.graphql",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664270130"
+          "id": "gid://shopify/MetafieldDefinition/207851553074"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664270130",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851553074",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "har697_mossr6ry_delete_without_flag",
+              "namespace": "metafield_precondition_moyou918_delete_without_flag",
               "key": "tier"
             },
             "userErrors": []
@@ -161,14 +161,14 @@
     }
   },
   "deleteFalseFlag": {
-    "namespace": "har697_mossr6ry_delete_false_flag",
+    "namespace": "metafield_precondition_moyou918_delete_false_flag",
     "key": "tier",
     "product": {
       "request": {
-        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR-697 delete_false_flag har697_mossr6ry"
+            "title": "Metafield definition precondition delete_false_flag metafield_precondition_moyou918"
           }
         }
       },
@@ -177,8 +177,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177412858162",
-              "title": "HAR-697 delete_false_flag har697_mossr6ry"
+              "id": "gid://shopify/Product/10181429559602",
+              "title": "Metafield definition precondition delete_false_flag metafield_precondition_moyou918"
             },
             "userErrors": []
           }
@@ -201,8 +201,8 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 delete_false_flag",
-            "namespace": "har697_mossr6ry_delete_false_flag",
+            "name": "Metafield definition precondition delete_false_flag",
+            "namespace": "metafield_precondition_moyou918_delete_false_flag",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -214,9 +214,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664302898",
-              "name": "HAR-697 delete_false_flag",
-              "namespace": "har697_mossr6ry_delete_false_flag",
+              "id": "gid://shopify/MetafieldDefinition/207851585842",
+              "name": "Metafield definition precondition delete_false_flag",
+              "namespace": "metafield_precondition_moyou918_delete_false_flag",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -245,8 +245,8 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177412858162",
-              "namespace": "har697_mossr6ry_delete_false_flag",
+              "ownerId": "gid://shopify/Product/10181429559602",
+              "namespace": "metafield_precondition_moyou918_delete_false_flag",
               "key": "tier",
               "type": "single_line_text_field",
               "value": "gold"
@@ -260,8 +260,8 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/43103972000050",
-                "namespace": "har697_mossr6ry_delete_false_flag",
+                "id": "gid://shopify/Metafield/43160346460466",
+                "namespace": "metafield_precondition_moyou918_delete_false_flag",
                 "key": "tier",
                 "type": "single_line_text_field",
                 "value": "gold"
@@ -287,7 +287,7 @@
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-with-flag.graphql",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664302898",
+          "id": "gid://shopify/MetafieldDefinition/207851585842",
           "deleteAllAssociatedMetafields": false
         }
       },
@@ -295,10 +295,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664302898",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851585842",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "har697_mossr6ry_delete_false_flag",
+              "namespace": "metafield_precondition_moyou918_delete_false_flag",
               "key": "tier"
             },
             "userErrors": []
@@ -319,14 +319,14 @@
     }
   },
   "deleteWithFlag": {
-    "namespace": "har697_mossr6ry_delete_with_flag",
+    "namespace": "metafield_precondition_moyou918_delete_with_flag",
     "key": "tier",
     "product": {
       "request": {
-        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR-697 delete_with_flag har697_mossr6ry"
+            "title": "Metafield definition precondition delete_with_flag metafield_precondition_moyou918"
           }
         }
       },
@@ -335,8 +335,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177412956466",
-              "title": "HAR-697 delete_with_flag har697_mossr6ry"
+              "id": "gid://shopify/Product/10181429625138",
+              "title": "Metafield definition precondition delete_with_flag metafield_precondition_moyou918"
             },
             "userErrors": []
           }
@@ -359,8 +359,8 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 delete_with_flag",
-            "namespace": "har697_mossr6ry_delete_with_flag",
+            "name": "Metafield definition precondition delete_with_flag",
+            "namespace": "metafield_precondition_moyou918_delete_with_flag",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -372,9 +372,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664335666",
-              "name": "HAR-697 delete_with_flag",
-              "namespace": "har697_mossr6ry_delete_with_flag",
+              "id": "gid://shopify/MetafieldDefinition/207851618610",
+              "name": "Metafield definition precondition delete_with_flag",
+              "namespace": "metafield_precondition_moyou918_delete_with_flag",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -403,8 +403,8 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177412956466",
-              "namespace": "har697_mossr6ry_delete_with_flag",
+              "ownerId": "gid://shopify/Product/10181429625138",
+              "namespace": "metafield_precondition_moyou918_delete_with_flag",
               "key": "tier",
               "type": "single_line_text_field",
               "value": "gold"
@@ -418,8 +418,8 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/43103972262194",
-                "namespace": "har697_mossr6ry_delete_with_flag",
+                "id": "gid://shopify/Metafield/43160346493234",
+                "namespace": "metafield_precondition_moyou918_delete_with_flag",
                 "key": "tier",
                 "type": "single_line_text_field",
                 "value": "gold"
@@ -445,7 +445,7 @@
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-with-flag.graphql",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664335666",
+          "id": "gid://shopify/MetafieldDefinition/207851618610",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -453,10 +453,10 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664335666",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851618610",
             "deletedDefinition": {
               "ownerType": "PRODUCT",
-              "namespace": "har697_mossr6ry_delete_with_flag",
+              "namespace": "metafield_precondition_moyou918_delete_with_flag",
               "key": "tier"
             },
             "userErrors": []
@@ -477,15 +477,15 @@
     }
   },
   "updateNamespace": {
-    "namespace": "har697_mossr6ry_update_namespace",
+    "namespace": "metafield_precondition_moyou918_update_namespace",
     "key": "tier",
     "create": {
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 update_namespace",
-            "namespace": "har697_mossr6ry_update_namespace",
+            "name": "Metafield definition precondition update_namespace",
+            "namespace": "metafield_precondition_moyou918_update_namespace",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -497,9 +497,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664368434",
-              "name": "HAR-697 update_namespace",
-              "namespace": "har697_mossr6ry_update_namespace",
+              "id": "gid://shopify/MetafieldDefinition/207851651378",
+              "name": "Metafield definition precondition update_namespace",
+              "namespace": "metafield_precondition_moyou918_update_namespace",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -527,10 +527,10 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
         "variables": {
           "definition": {
-            "namespace": "har697_mossr6ry_update_namespace_changed",
+            "namespace": "metafield_precondition_moyou918_update_namespace_changed",
             "key": "tier",
             "ownerType": "PRODUCT",
-            "name": "HAR-697 namespace changed"
+            "name": "Metafield definition namespace changed"
           }
         }
       },
@@ -564,15 +564,15 @@
     }
   },
   "updateKey": {
-    "namespace": "har697_mossr6ry_update_key",
+    "namespace": "metafield_precondition_moyou918_update_key",
     "key": "tier",
     "create": {
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 update_key",
-            "namespace": "har697_mossr6ry_update_key",
+            "name": "Metafield definition precondition update_key",
+            "namespace": "metafield_precondition_moyou918_update_key",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -584,9 +584,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664401202",
-              "name": "HAR-697 update_key",
-              "namespace": "har697_mossr6ry_update_key",
+              "id": "gid://shopify/MetafieldDefinition/207851684146",
+              "name": "Metafield definition precondition update_key",
+              "namespace": "metafield_precondition_moyou918_update_key",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -614,10 +614,10 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
         "variables": {
           "definition": {
-            "namespace": "har697_mossr6ry_update_key",
+            "namespace": "metafield_precondition_moyou918_update_key",
             "key": "tier_changed",
             "ownerType": "PRODUCT",
-            "name": "HAR-697 key changed"
+            "name": "Metafield definition key changed"
           }
         }
       },
@@ -651,15 +651,15 @@
     }
   },
   "updateOwnerType": {
-    "namespace": "har697_mossr6ry_update_owner_type",
+    "namespace": "metafield_precondition_moyou918_update_owner_type",
     "key": "tier",
     "create": {
       "request": {
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
         "variables": {
           "definition": {
-            "name": "HAR-697 update_owner_type",
-            "namespace": "har697_mossr6ry_update_owner_type",
+            "name": "Metafield definition precondition update_owner_type",
+            "namespace": "metafield_precondition_moyou918_update_owner_type",
             "key": "tier",
             "ownerType": "PRODUCT",
             "type": "single_line_text_field"
@@ -671,9 +671,9 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/206664433970",
-              "name": "HAR-697 update_owner_type",
-              "namespace": "har697_mossr6ry_update_owner_type",
+              "id": "gid://shopify/MetafieldDefinition/207851716914",
+              "name": "Metafield definition precondition update_owner_type",
+              "namespace": "metafield_precondition_moyou918_update_owner_type",
               "key": "tier",
               "ownerType": "PRODUCT",
               "type": {
@@ -701,10 +701,10 @@
         "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
         "variables": {
           "definition": {
-            "namespace": "har697_mossr6ry_update_owner_type",
+            "namespace": "metafield_precondition_moyou918_update_owner_type",
             "key": "tier",
             "ownerType": "CUSTOMER",
-            "name": "HAR-697 owner type changed"
+            "name": "Metafield definition owner type changed"
           }
         }
       },
@@ -737,13 +737,453 @@
       }
     }
   },
+  "deleteGuardCandidateDiscovery": {
+    "request": {
+      "query": "#graphql\n  query MetafieldDefinitionDeleteGuardCandidateDiscovery($first: Int!) {\n    metafieldDefinitionType: __type(name: \"MetafieldDefinition\") {\n      fields {\n        name\n      }\n    }\n    standardTemplateType: __type(name: \"StandardMetafieldDefinitionTemplate\") {\n      fields {\n        name\n      }\n    }\n    standardMetafieldDefinitionTemplates(first: $first) {\n      nodes {\n        id\n        namespace\n        key\n        ownerTypes\n      }\n    }\n    shopifyProductDefinitions: metafieldDefinitions(ownerType: PRODUCT, first: $first, namespace: \"shopify\") {\n      nodes {\n        id\n        namespace\n        key\n        ownerType\n        standardTemplate {\n          id\n          namespace\n          key\n          ownerTypes\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "first": 50
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionType": {
+          "fields": [
+            {
+              "name": "access"
+            },
+            {
+              "name": "capabilities"
+            },
+            {
+              "name": "constraints"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "key"
+            },
+            {
+              "name": "metafields"
+            },
+            {
+              "name": "metafieldsCount"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "namespace"
+            },
+            {
+              "name": "ownerType"
+            },
+            {
+              "name": "pinnedPosition"
+            },
+            {
+              "name": "standardTemplate"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "useAsCollectionCondition"
+            },
+            {
+              "name": "validationStatus"
+            },
+            {
+              "name": "validations"
+            }
+          ]
+        },
+        "standardTemplateType": {
+          "fields": [
+            {
+              "name": "description"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "key"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "namespace"
+            },
+            {
+              "name": "ownerTypes"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "validations"
+            },
+            {
+              "name": "visibleToStorefrontApi"
+            }
+          ]
+        },
+        "standardMetafieldDefinitionTemplates": {
+          "nodes": [
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+              "namespace": "descriptors",
+              "key": "subtitle",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+              "namespace": "descriptors",
+              "key": "care_guide",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/3",
+              "namespace": "facts",
+              "key": "isbn",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/4",
+              "namespace": "facts",
+              "key": "upc",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/5",
+              "namespace": "facts",
+              "key": "ean",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/14",
+              "namespace": "shopify--discovery--product_recommendation",
+              "key": "related_products",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/15",
+              "namespace": "shopify--discovery--product_recommendation",
+              "key": "related_products_display",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/16",
+              "namespace": "shopify--discovery--product_search_boost",
+              "key": "queries",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/17",
+              "namespace": "shopify--discovery--product_recommendation",
+              "key": "complementary_products",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/19",
+              "namespace": "facts",
+              "key": "birth_date",
+              "ownerTypes": ["CUSTOMER"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/20",
+              "namespace": "import_information",
+              "key": "trade_item_description",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/21",
+              "namespace": "import_information",
+              "key": "product_transport_declaration",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/22",
+              "namespace": "shopify--facts",
+              "key": "mpn",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/27",
+              "namespace": "shopify",
+              "key": "external_url",
+              "ownerTypes": ["PRODUCTVARIANT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
+              "namespace": "shopify",
+              "key": "color-pattern",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
+              "namespace": "shopify",
+              "key": "material",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10005",
+              "namespace": "shopify",
+              "key": "activity",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10015",
+              "namespace": "shopify",
+              "key": "sleeve-length-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10017",
+              "namespace": "shopify",
+              "key": "cup-size",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10030",
+              "namespace": "shopify",
+              "key": "age-group",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10032",
+              "namespace": "shopify",
+              "key": "neckline",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10035",
+              "namespace": "shopify",
+              "key": "fit",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10037",
+              "namespace": "shopify",
+              "key": "waist-rise",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10041",
+              "namespace": "shopify",
+              "key": "best-uses",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10050",
+              "namespace": "shopify",
+              "key": "accessory-size",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10060",
+              "namespace": "shopify",
+              "key": "jewelry-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10073",
+              "namespace": "shopify",
+              "key": "shape",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10077",
+              "namespace": "shopify",
+              "key": "lens-polarization",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10080",
+              "namespace": "shopify",
+              "key": "closure-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10087",
+              "namespace": "shopify",
+              "key": "shoe-size",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10098",
+              "namespace": "shopify",
+              "key": "chain-link-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10105",
+              "namespace": "shopify",
+              "key": "ring-size",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10108",
+              "namespace": "shopify",
+              "key": "clasp-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10114",
+              "namespace": "shopify",
+              "key": "band-color",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10115",
+              "namespace": "shopify",
+              "key": "band-material",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10116",
+              "namespace": "shopify",
+              "key": "case-color",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10118",
+              "namespace": "shopify",
+              "key": "dial-color",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10128",
+              "namespace": "shopify",
+              "key": "heel-height-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10131",
+              "namespace": "shopify",
+              "key": "temple-color",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10134",
+              "namespace": "shopify",
+              "key": "theme",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10837",
+              "namespace": "shopify",
+              "key": "target-gender",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10843",
+              "namespace": "shopify",
+              "key": "usage-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10844",
+              "namespace": "shopify",
+              "key": "attachment-options",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10845",
+              "namespace": "shopify",
+              "key": "device-interface",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10846",
+              "namespace": "shopify",
+              "key": "shoe-fit",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10847",
+              "namespace": "shopify",
+              "key": "toe-style",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10894",
+              "namespace": "shopify",
+              "key": "absorbency-level",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/11178",
+              "namespace": "shopify",
+              "key": "pants-length-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/11190",
+              "namespace": "shopify",
+              "key": "skirt-dress-length-type",
+              "ownerTypes": ["PRODUCT"]
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/11191",
+              "namespace": "shopify",
+              "key": "bra-strap-type",
+              "ownerTypes": ["PRODUCT"]
+            }
+          ]
+        },
+        "shopifyProductDefinitions": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetafieldDefinition/206789771570",
+              "namespace": "shopify",
+              "key": "color-pattern",
+              "ownerType": "PRODUCT",
+              "standardTemplate": {
+                "id": "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
+                "namespace": "shopify",
+                "key": "color-pattern",
+                "ownerTypes": ["PRODUCT"]
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 29,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unavailableDeleteGuardEvidence": [
+    {
+      "code": "APP_CONFIG_MANAGED",
+      "reason": "Public Admin GraphQL does not expose app_config_managed metadata on MetafieldDefinition, and the current conformance shop exposes no safe other-app app-managed definition candidate through this credential."
+    },
+    {
+      "code": "STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP",
+      "reason": "Public Admin GraphQL exposes standardTemplate but not the internal dependent_on_app metadata needed to identify a standard metafield definition whose owning app remains installed."
+    }
+  ],
   "cleanup": [
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177412825394"
+            "id": "gid://shopify/Product/10181429494066"
           }
         }
       },
@@ -751,7 +1191,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177412825394",
+            "deletedProductId": "gid://shopify/Product/10181429494066",
             "userErrors": []
           }
         },
@@ -770,10 +1210,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177412858162"
+            "id": "gid://shopify/Product/10181429559602"
           }
         }
       },
@@ -781,7 +1221,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177412858162",
+            "deletedProductId": "gid://shopify/Product/10181429559602",
             "userErrors": []
           }
         },
@@ -800,10 +1240,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177412956466"
+            "id": "gid://shopify/Product/10181429625138"
           }
         }
       },
@@ -811,7 +1251,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177412956466",
+            "deletedProductId": "gid://shopify/Product/10181429625138",
             "userErrors": []
           }
         },
@@ -830,16 +1270,16 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664368434"
+          "id": "gid://shopify/MetafieldDefinition/207851651378"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664368434",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851651378",
             "userErrors": []
           }
         },
@@ -858,16 +1298,16 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664401202"
+          "id": "gid://shopify/MetafieldDefinition/207851684146"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664401202",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851684146",
             "userErrors": []
           }
         },
@@ -886,16 +1326,16 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "query": "#graphql\n  mutation MetafieldDefinitionPreconditionCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/206664433970"
+          "id": "gid://shopify/MetafieldDefinition/207851716914"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664433970",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207851716914",
             "userErrors": []
           }
         },
@@ -905,7 +1345,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }

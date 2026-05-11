@@ -1,0 +1,23 @@
+mutation OrderEditShippingLineValidationRemove($id: ID!, $shippingLineId: ID!) {
+  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+    calculatedOrder {
+      id
+      shippingLines {
+        id
+        title
+        stagedStatus
+        price {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

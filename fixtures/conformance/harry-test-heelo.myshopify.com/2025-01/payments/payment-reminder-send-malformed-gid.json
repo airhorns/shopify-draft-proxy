@@ -1,0 +1,126 @@
+{
+  "capturedAt": "2026-05-09T23:46:31.384Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "payment-reminder-send-malformed-gid",
+  "notes": "Live capture for paymentReminderSend paymentScheduleId GID coercion. Empty and non-GID variables are rejected before resolver execution with INVALID_VARIABLE; wrong-resource Shopify GIDs return RESOURCE_NOT_FOUND with null paymentReminderSend data.",
+  "requestDocument": "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) { paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field code message } } }",
+  "cases": [
+    {
+      "name": "emptyScheduleId",
+      "request": {
+        "query": "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {\n    success\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}",
+        "variables": {
+          "paymentScheduleId": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $paymentScheduleId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 42
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "nonGidScheduleId",
+      "request": {
+        "query": "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {\n    success\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}",
+        "variables": {
+          "paymentScheduleId": "not-a-gid"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $paymentScheduleId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 42
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "not-a-gid",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id 'not-a-gid'",
+                    "message": "Invalid global id 'not-a-gid'"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "wrongTypeScheduleId",
+      "request": {
+        "query": "mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {\n    success\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}",
+        "variables": {
+          "paymentScheduleId": "gid://shopify/Order/1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["paymentReminderSend"]
+            }
+          ],
+          "data": {
+            "paymentReminderSend": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -1,0 +1,36 @@
+{
+  "scenarioId": "markets-user-error-typename",
+  "operationNames": [
+    "priceListCreate",
+    "priceListUpdate",
+    "priceListDelete",
+    "quantityRulesDelete",
+    "webPresenceCreate",
+    "webPresenceUpdate",
+    "webPresenceDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-user-error-typename.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/markets-user-error-typename.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "typed-user-error-typenames",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Safe live Shopify validation capture proving typed userErrors include concrete __typename discriminators for priceListCreate, priceListUpdate, priceListDelete, quantityRulesDelete, webPresenceCreate, webPresenceUpdate, and webPresenceDelete payloads. All branches use invalid input or unknown ids and do not create, update, or delete store state."
+}

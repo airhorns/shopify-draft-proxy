@@ -2462,6 +2462,291 @@ pub fn code_basic_rejects_cart_line_tag_overlap_as_bad_request_test() {
     == "{\"errors\":[{\"message\":\"The same tag is present in both `add` and `remove` fields of `productDiscountsWithTagsOnSameCartLine`.\",\"locations\":[{\"line\":1,\"column\":12}],\"extensions\":{\"code\":\"BAD_REQUEST\"},\"path\":[\"tagOverlap\"]}],\"data\":{\"tagOverlap\":null}}"
 }
 
+fn assert_discount_top_level_bad_request(
+  data: json.Json,
+  root: String,
+  message: String,
+) {
+  let body = json.to_string(data)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  assert string.contains(body, "\"extensions\":{\"code\":\"BAD_REQUEST\"}")
+  assert string.contains(body, "\"path\":[\"" <> root <> "\"]")
+  assert string.contains(body, "\"data\":{\"" <> root <> "\":null}")
+  assert !string.contains(body, "userErrors")
+}
+
+fn assert_rejected_discount_outcome(
+  outcome: mutation_helpers.MutationOutcome,
+  response_key: String,
+  message: String,
+) {
+  assert_discount_top_level_bad_request(outcome.data, response_key, message)
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn discount_customer_selection_add_remove_overlap_bad_request_on_creates_test() {
+  let cases = [
+    #(
+      "basicCustomersOverlap",
+      "mutation { basicCustomersOverlap: discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic overlap\", code: \"BASIC-CUST-OVER\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticBasicCustomersOverlap",
+      "mutation { automaticBasicCustomersOverlap: discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic basic overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "bxgyCustomersOverlap",
+      "mutation { bxgyCustomersOverlap: discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY overlap\", code: \"BXGY-CUST-OVER\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticBxgyCustomersOverlap",
+      "mutation { automaticBxgyCustomersOverlap: discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "freeShippingCustomersOverlap",
+      "mutation { freeShippingCustomersOverlap: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping overlap\", code: \"SHIP-CUST-OVER\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticFreeShippingCustomersOverlap",
+      "mutation { automaticFreeShippingCustomersOverlap: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(response_key, document) = test_case
+    run_mutation(document)
+    |> assert_rejected_discount_outcome(
+      response_key,
+      "A customer id is present in `add` and `remove` fields",
+    )
+  })
+}
+
+pub fn discount_customer_selection_add_remove_overlap_bad_request_on_updates_test() {
+  let cases = [
+    #(
+      "basicCustomersUpdateOverlap",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic valid\", code: \"BASIC-CUST-UP\", startsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { basicCustomersUpdateOverlap: discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic valid\", code: \"BASIC-CUST-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticBasicCustomersUpdateOverlap",
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic basic valid\", startsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticBasicCustomersUpdateOverlap: discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Automatic basic valid\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "bxgyCustomersUpdateOverlap",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY valid\", code: \"BXGY-CUST-UP\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { bxgyCustomersUpdateOverlap: discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY valid\", code: \"BXGY-CUST-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticBxgyCustomersUpdateOverlap",
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY valid\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticBxgyCustomersUpdateOverlap: discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"Automatic BXGY valid\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "freeShippingCustomersUpdateOverlap",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"SHIP-CUST-UP\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { freeShippingCustomersUpdateOverlap: discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"SHIP-CUST-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticFreeShippingCustomersUpdateOverlap",
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping valid\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticFreeShippingCustomersUpdateOverlap: discountAutomaticFreeShippingUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", freeShippingAutomaticDiscount: { title: \"Automatic shipping valid\", startsAt: \"2026-05-05T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"], remove: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(response_key, create_document, update_document) = test_case
+    let create = run_mutation(create_document)
+    run_mutation_from(create.store, create.identity, update_document)
+    |> assert_rejected_discount_outcome(
+      response_key,
+      "A customer id is present in `add` and `remove` fields",
+    )
+  })
+}
+
+pub fn discount_customer_gets_item_add_remove_overlap_bad_request_test() {
+  let create_cases = [
+    #(
+      "basicGetsProductsOverlap",
+      "mutation { basicGetsProductsOverlap: discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic gets products overlap\", code: \"BASIC-GETS-PROD\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"], productsToRemove: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBasicGetsVariantsOverlap",
+      "mutation { automaticBasicGetsVariantsOverlap: discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic gets variants overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "bxgyGetsCollectionsOverlap",
+      "mutation { bxgyGetsCollectionsOverlap: discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY gets collections overlap\", code: \"BXGY-GETS-COLL\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { collections: { add: [\"gid://shopify/Collection/1\"], remove: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Collection id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBxgyGetsProductsOverlap",
+      "mutation { automaticBxgyGetsProductsOverlap: discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY gets products overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"], productsToRemove: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "freeShippingGetsCollectionsOverlap",
+      "mutation { freeShippingGetsCollectionsOverlap: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping gets collections overlap\", code: \"SHIP-GETS-COLL\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true }, customerGets: { items: { collections: { add: [\"gid://shopify/Collection/1\"], remove: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Collection id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticFreeShippingGetsVariantsOverlap",
+      "mutation { automaticFreeShippingGetsVariantsOverlap: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping gets variants overlap\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true }, customerGets: { items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+  ]
+
+  list.each(create_cases, fn(test_case) {
+    let #(response_key, document, message) = test_case
+    run_mutation(document)
+    |> assert_rejected_discount_outcome(response_key, message)
+  })
+}
+
+pub fn discount_customer_gets_item_add_remove_overlap_bad_request_on_updates_test() {
+  let cases = [
+    #(
+      "basicGetsProductsUpdateOverlap",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic gets valid\", code: \"BASIC-GETS-UP\", startsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { basicGetsProductsUpdateOverlap: discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic gets valid\", code: \"BASIC-GETS-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"], productsToRemove: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBasicGetsVariantsUpdateOverlap",
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic gets valid\", startsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticBasicGetsVariantsUpdateOverlap: discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Automatic gets valid\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "bxgyGetsCollectionsUpdateOverlap",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY gets valid\", code: \"BXGY-GETS-UP\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { bxgyGetsCollectionsUpdateOverlap: discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY gets valid\", code: \"BXGY-GETS-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { collections: { add: [\"gid://shopify/Collection/1\"], remove: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Collection id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBxgyGetsProductsUpdateOverlap",
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY gets valid\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticBxgyGetsProductsUpdateOverlap: discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"Automatic BXGY gets valid\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"], productsToRemove: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "freeShippingGetsCollectionsUpdateOverlap",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping gets valid\", code: \"SHIP-GETS-UP\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { freeShippingGetsCollectionsUpdateOverlap: discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping gets valid\", code: \"SHIP-GETS-UP\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true }, customerGets: { items: { collections: { add: [\"gid://shopify/Collection/1\"], remove: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Collection id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticFreeShippingGetsVariantsUpdateOverlap",
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping gets valid\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticFreeShippingGetsVariantsUpdateOverlap: discountAutomaticFreeShippingUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", freeShippingAutomaticDiscount: { title: \"Automatic shipping gets valid\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true }, customerGets: { items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(response_key, create_document, update_document, message) = test_case
+    let create = run_mutation(create_document)
+    run_mutation_from(create.store, create.identity, update_document)
+    |> assert_rejected_discount_outcome(response_key, message)
+  })
+}
+
+pub fn discount_customer_buys_item_add_remove_overlap_bad_request_test() {
+  let cases = [
+    #(
+      "bxgyBuysProductsOverlap",
+      "mutation { bxgyBuysProductsOverlap: discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY buys overlap\", code: \"BXGY-BUYS-OVER\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"], productsToRemove: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBxgyBuysVariantsOverlap",
+      "mutation { automaticBxgyBuysVariantsOverlap: discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY buys overlap\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(response_key, document, message) = test_case
+    run_mutation(document)
+    |> assert_rejected_discount_outcome(response_key, message)
+  })
+}
+
+pub fn discount_customer_buys_item_add_remove_overlap_bad_request_on_updates_test() {
+  let cases = [
+    #(
+      "bxgyBuysProductsUpdateOverlap",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY buys valid\", code: \"BXGY-BUYS-UP\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { bxgyBuysProductsUpdateOverlap: discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY buys valid\", code: \"BXGY-BUYS-UP\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"], productsToRemove: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same Product id is present in both 'add' and 'remove' fields",
+    ),
+    #(
+      "automaticBxgyBuysVariantsUpdateOverlap",
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY buys valid\", startsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticBxgyBuysVariantsUpdateOverlap: discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"Automatic BXGY buys valid\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productVariantsToAdd: [\"gid://shopify/ProductVariant/1\"], productVariantsToRemove: [\"gid://shopify/ProductVariant/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "The same ProductVariant id is present in both 'add' and 'remove' fields",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(response_key, create_document, update_document, message) = test_case
+    let create = run_mutation(create_document)
+    run_mutation_from(create.store, create.identity, update_document)
+    |> assert_rejected_discount_outcome(response_key, message)
+  })
+}
+
+pub fn discount_countries_add_remove_overlap_bad_request_on_free_shipping_test() {
+  let create_cases = [
+    #(
+      "freeShippingCountriesOverlap",
+      "mutation { freeShippingCountriesOverlap: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping countries overlap\", code: \"SHIP-COUNTRY-OVER\", startsAt: \"2026-05-05T00:00:00Z\", destination: { countries: { add: [US], remove: [US] } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticFreeShippingCountriesOverlap",
+      "mutation { automaticFreeShippingCountriesOverlap: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping countries overlap\", startsAt: \"2026-05-05T00:00:00Z\", destination: { countries: { add: [US], remove: [US] } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(create_cases, fn(test_case) {
+    let #(response_key, document) = test_case
+    run_mutation(document)
+    |> assert_rejected_discount_outcome(
+      response_key,
+      "A country code is present in `add` and `remove` field",
+    )
+  })
+
+  let update_cases = [
+    #(
+      "freeShippingCountriesUpdateOverlap",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping countries valid\", code: \"SHIP-COUNTRY-UP\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { freeShippingCountriesUpdateOverlap: discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping countries valid\", code: \"SHIP-COUNTRY-UP\", startsAt: \"2026-05-05T00:00:00Z\", destination: { countries: { add: [US], remove: [US] } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "automaticFreeShippingCountriesUpdateOverlap",
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping countries valid\", startsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+      "mutation { automaticFreeShippingCountriesUpdateOverlap: discountAutomaticFreeShippingUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", freeShippingAutomaticDiscount: { title: \"Automatic shipping countries valid\", startsAt: \"2026-05-05T00:00:00Z\", destination: { countries: { add: [US], remove: [US] } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(update_cases, fn(test_case) {
+    let #(response_key, create_document, update_document) = test_case
+    let create = run_mutation(create_document)
+    run_mutation_from(create.store, create.identity, update_document)
+    |> assert_rejected_discount_outcome(
+      response_key,
+      "A country code is present in `add` and `remove` field",
+    )
+  })
+}
+
 fn assert_customer_gets_value_bad_request(data: json.Json, root: String) {
   let body = json.to_string(data)
   assert string.contains(
