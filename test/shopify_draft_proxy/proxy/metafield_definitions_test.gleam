@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
@@ -12,6 +13,7 @@ import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types.{MetafieldDefinitionRecord}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -1442,6 +1444,33 @@ fn create_app_definition_only(
   #(created.store, created.identity, json.to_string(created.data))
 }
 
+fn create_definition_with_flags(
+  app_config_managed: Bool,
+  standard_template_app_dependent: Bool,
+) -> #(store.Store, synthetic_identity.SyntheticIdentityRegistry) {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("guarded"),
+    )
+  let assert Some(definition) =
+    store.get_effective_metafield_definition_by_id(
+      created.store,
+      "gid://shopify/MetafieldDefinition/1",
+    )
+  let guarded =
+    MetafieldDefinitionRecord(
+      ..definition,
+      app_config_managed: app_config_managed,
+      standard_template_app_dependent: standard_template_app_dependent,
+    )
+  #(
+    store.upsert_staged_metafield_definitions(created.store, [guarded]),
+    created.identity,
+  )
+}
+
 fn create_proxy_definition(
   proxy: draft_proxy.DraftProxy,
   index: Int,
@@ -2148,6 +2177,100 @@ pub fn metafield_definition_unpin_compacts_pinned_positions_test() {
     )
   assert listing
     == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[{\"key\":\"pin_3\",\"pinnedPosition\":2},{\"key\":\"pin_1\",\"pinnedPosition\":1}]}}}"
+}
+
+pub fn metafield_definition_pin_rejects_already_pinned_definition_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("pin_once"),
+    )
+  let pinned =
+    run_mutation(
+      created.store,
+      created.identity,
+      pin_definition_query("pin_once"),
+    )
+  let repinned =
+    run_mutation(
+      pinned.store,
+      pinned.identity,
+      pin_definition_query("pin_once"),
+    )
+
+  assert repinned.staged_resource_ids == []
+  assert json.to_string(repinned.data)
+    == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition already pinned.\",\"code\":\"ALREADY_PINNED\"}]}}}"
+}
+
+pub fn metafield_definition_unpin_rejects_unpinned_definition_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("not_pinned"),
+    )
+  let unpinned =
+    run_mutation(
+      created.store,
+      created.identity,
+      unpin_definition_query("not_pinned"),
+    )
+
+  assert unpinned.staged_resource_ids == []
+  assert json.to_string(unpinned.data)
+    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition 1 isn't pinned.\",\"code\":\"NOT_PINNED\"}]}}}"
+}
+
+pub fn metafield_definition_pin_unpin_delete_reject_app_config_managed_definition_test() {
+  let #(guarded_store, guarded_identity) =
+    create_definition_with_flags(True, False)
+
+  let pin =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      pin_definition_query("guarded"),
+    )
+  assert pin.staged_resource_ids == []
+  assert json.to_string(pin.data)
+    == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
+
+  let unpin =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      unpin_definition_query("guarded"),
+    )
+  assert unpin.staged_resource_ids == []
+  assert json.to_string(unpin.data)
+    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
+
+  let delete =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) { deletedDefinitionId deletedDefinition { ownerType namespace key } userErrors { field message code } } }",
+    )
+  assert delete.staged_resource_ids == []
+  assert json.to_string(delete.data)
+    == "{\"data\":{\"metafieldDefinitionDelete\":{\"deletedDefinitionId\":null,\"deletedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App-managed metafield definitions cannot be modified by other apps.\",\"code\":\"APP_CONFIG_MANAGED\"}]}}}"
+}
+
+pub fn metafield_definition_delete_rejects_standard_template_app_dependent_definition_test() {
+  let #(guarded_store, guarded_identity) =
+    create_definition_with_flags(False, True)
+  let delete =
+    run_mutation(
+      guarded_store,
+      guarded_identity,
+      "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) { deletedDefinitionId deletedDefinition { ownerType namespace key } userErrors { field message code } } }",
+    )
+
+  assert delete.staged_resource_ids == []
+  assert json.to_string(delete.data)
+    == "{\"data\":{\"metafieldDefinitionDelete\":{\"deletedDefinitionId\":null,\"deletedDefinition\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Standard metafield definition is in use by an installed app.\",\"code\":\"STANDARD_METAFIELD_DEFINITION_DEPENDENT_ON_APP\"}]}}}"
 }
 
 pub fn metafield_definition_create_with_pin_rejects_owner_type_cap_test() {

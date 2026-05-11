@@ -976,6 +976,8 @@ pub fn build_enabled_standard_definition(
       constraints: Some(template.constraints),
       pinned_position: None,
       validation_status: "ALL_VALID",
+      app_config_managed: False,
+      standard_template_app_dependent: False,
     ),
     next_identity,
   )
@@ -2430,32 +2432,58 @@ pub fn serialize_definition_delete_root_with_requesting_api_client_id(
       [],
     )
     Some(record) -> {
-      let associated_product_owner_ids =
-        definition_types.product_metafield_owner_ids_for_definition(
+      case definition_types.validate_definition_delete_guards(record) {
+        [_, ..] as user_errors -> #(
+          serializers.serialize_definition_delete_payload(
+            None,
+            user_errors,
+            field,
+          ),
           store_in,
-          record,
+          identity,
+          [],
         )
-      let store_after_metafields = case
-        definition_types.read_optional_bool(
-          args,
-          "deleteAllAssociatedMetafields",
-        )
-      {
-        Some(True) ->
-          store.delete_product_metafields_for_definition(store_in, record)
-        _ -> store_in
+        [] ->
+          serialize_definition_delete_success(
+            store_in,
+            identity,
+            field,
+            args,
+            record,
+          )
       }
-      let next_store =
-        definition_types.stage_delete_definition(store_after_metafields, record)
-        |> definition_types.ensure_product_shells(associated_product_owner_ids)
-      #(
-        serializers.serialize_definition_delete_payload(Some(record), [], field),
-        next_store,
-        identity,
-        [record.id],
-      )
     }
   }
+}
+
+fn serialize_definition_delete_success(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  args: Dict(String, root_field.ResolvedValue),
+  record: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let associated_product_owner_ids =
+    definition_types.product_metafield_owner_ids_for_definition(
+      store_in,
+      record,
+    )
+  let store_after_metafields = case
+    definition_types.read_optional_bool(args, "deleteAllAssociatedMetafields")
+  {
+    Some(True) ->
+      store.delete_product_metafields_for_definition(store_in, record)
+    _ -> store_in
+  }
+  let next_store =
+    definition_types.stage_delete_definition(store_after_metafields, record)
+    |> definition_types.ensure_product_shells(associated_product_owner_ids)
+  #(
+    serializers.serialize_definition_delete_payload(Some(record), [], field),
+    next_store,
+    identity,
+    [record.id],
+  )
 }
 
 @internal
@@ -3037,7 +3065,7 @@ pub fn serialize_definition_pin_root_with_requesting_api_client_id(
       [],
     )
     Some(definition) ->
-      case definition_types.validate_definition_pin(store_in, definition) {
+      case definition_types.validate_definition_app_config_managed(definition) {
         [_, ..] as user_errors -> #(
           serializers.serialize_pinning_payload(
             store_in,
@@ -3051,25 +3079,62 @@ pub fn serialize_definition_pin_root_with_requesting_api_client_id(
           identity,
           [],
         )
-        [] -> {
-          let pinned = definition_types.pin_definition(store_in, definition)
-          let next_store =
-            store.upsert_staged_metafield_definitions(store_in, [pinned])
-          #(
-            serializers.serialize_pinning_payload(
-              store_in,
-              "pinnedDefinition",
-              Some(pinned),
-              [],
-              field,
-              variables,
-            ),
-            next_store,
+        [] ->
+          serialize_definition_pin_success(
+            store_in,
             identity,
-            [pinned.id],
+            field,
+            variables,
+            definition,
           )
-        }
       }
+  }
+}
+
+fn serialize_definition_pin_success(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let user_errors =
+    list.append(
+      definition_types.validate_definition_already_pinned(store_in, definition),
+      definition_types.validate_definition_pin(store_in, definition),
+    )
+  case user_errors {
+    [_, ..] -> #(
+      serializers.serialize_pinning_payload(
+        store_in,
+        "pinnedDefinition",
+        None,
+        user_errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] -> {
+      let pinned = definition_types.pin_definition(store_in, definition)
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, [pinned])
+      #(
+        serializers.serialize_pinning_payload(
+          store_in,
+          "pinnedDefinition",
+          Some(pinned),
+          [],
+          field,
+          variables,
+        ),
+        next_store,
+        identity,
+        [pinned.id],
+      )
+    }
   }
 }
 
@@ -3136,7 +3201,55 @@ pub fn serialize_definition_unpin_root_with_requesting_api_client_id(
       identity,
       [],
     )
-    Some(definition) -> {
+    Some(definition) ->
+      case definition_types.validate_definition_app_config_managed(definition) {
+        [_, ..] as user_errors -> #(
+          serializers.serialize_pinning_payload(
+            store_in,
+            "unpinnedDefinition",
+            None,
+            user_errors,
+            field,
+            variables,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        [] ->
+          serialize_definition_unpin_success(
+            store_in,
+            identity,
+            field,
+            variables,
+            definition,
+          )
+      }
+  }
+}
+
+fn serialize_definition_unpin_success(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  case definition_types.validate_definition_not_pinned(store_in, definition) {
+    [_, ..] as user_errors -> #(
+      serializers.serialize_pinning_payload(
+        store_in,
+        "unpinnedDefinition",
+        None,
+        user_errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] -> {
       let #(unpinned, compacted) =
         definition_types.unpin_definition(store_in, definition)
       let next_store =
@@ -3487,6 +3600,8 @@ pub fn build_definition_from_input(
       constraints: read_definition_constraints(input),
       pinned_position: None,
       validation_status: "ALL_VALID",
+      app_config_managed: False,
+      standard_template_app_dependent: False,
     ),
     next_identity,
   )
