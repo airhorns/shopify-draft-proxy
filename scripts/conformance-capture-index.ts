@@ -2001,7 +2001,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-filter-projection-conformance.ts',
     purpose:
-      'SavedSearch filters projection for range comparators, exists syntax, bounded ranges, and negated range terms.',
+      'SavedSearch filters projection and filters.__typename for range comparators, exists syntax, bounded ranges, and negated range terms.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-filter-projection.json`,
@@ -4851,6 +4851,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-whitespace-email.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-missing-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
     ],
     cleanupBehavior: 'Creates/deletes disposable customer records for opt-out probes.',
