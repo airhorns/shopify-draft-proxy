@@ -630,6 +630,7 @@ pub fn shipping_package_make_default_clears_previous_default_test() {
     )
   assert first.default == False
   assert second.default == True
+  assert second.updated_at == "2024-01-01T00:00:00.000Z"
 }
 
 pub fn shipping_package_make_default_unknown_id_returns_resource_not_found_test() {

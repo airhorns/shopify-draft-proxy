@@ -99,6 +99,12 @@
     "response": {
       "data": {
         "shippingPackageMakeDefault": {
+          "shippingPackage": {
+            "id": "gid://shopify/ShippingPackage/2",
+            "name": "Backup mailer",
+            "default": true,
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+          },
           "userErrors": []
         }
       }

@@ -1499,11 +1499,9 @@ pub fn handle_shipping_package_make_default(
   case read_string(args, "id") {
     Some(package_id) -> {
       case store.get_effective_shipping_package_by_id(draft_store, package_id) {
-        Some(base) -> {
+        Some(_) -> {
           let #(updated_at, next_identity) =
             synthetic_identity.make_synthetic_timestamp(identity)
-          let updated_default =
-            ShippingPackageRecord(..base, default: True, updated_at: updated_at)
           let packages = store.list_effective_shipping_packages(draft_store)
           let next_store =
             list.fold(
@@ -1521,13 +1519,15 @@ pub fn handle_shipping_package_make_default(
                 staged_store
               },
             )
+          let updated_default =
+            store.get_effective_shipping_package_by_id(next_store, package_id)
           #(
             shipping_types.MutationFieldResult(
               key: get_field_response_key(field),
               payload: shipping_package_make_default_payload_json(
                 field,
                 fragments,
-                Some(updated_default),
+                updated_default,
                 [],
               ),
               errors: [],
