@@ -1,0 +1,161 @@
+{
+  "scenarioId": "admin-platform-by-id-not-found-read",
+  "operationNames": [
+    "automaticDiscountNode",
+    "catalog",
+    "codeDiscountNode",
+    "customerPaymentMethod",
+    "customerSegmentMembersQuery",
+    "discountNode",
+    "discountRedeemCodeBulkCreation",
+    "fulfillmentService",
+    "giftCard",
+    "inventoryShipment",
+    "location",
+    "market",
+    "priceList",
+    "return",
+    "reverseDelivery",
+    "reverseFulfillmentOrder",
+    "scriptTag",
+    "shopifyFunction",
+    "storeCreditAccount",
+    "theme",
+    "urlRedirect",
+    "validation"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "not-found-null"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/by-id-not-found-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/by-id-not-found/discounts.graphql",
+    "variablesCapturePath": "$.cases.discounts.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-249 retry coverage for implemented by-id read roots added after the original product/draft-order pass. The live 2026-04 probe confirms these absent IDs produce null data; customerPaymentMethod, customerSegmentMembersQuery, scriptTag, and theme also record Shopify error envelopes from the current conformance credential, while the strict comparison pins the common absent-resource data contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-by-id-not-found-data",
+        "capturePath": "$.cases.discounts.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "market-by-id-not-found-data",
+        "capturePath": "$.cases.markets.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/markets.graphql",
+          "variablesCapturePath": "$.cases.markets.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "inventory-shipment-by-id-not-found-data",
+        "capturePath": "$.cases.products.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/products.graphql",
+          "variablesCapturePath": "$.cases.products.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shipping-by-id-not-found-data",
+        "capturePath": "$.cases.shippingFulfillments.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/shipping-fulfillments.graphql",
+          "variablesCapturePath": "$.cases.shippingFulfillments.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "store-properties-by-id-not-found-data",
+        "capturePath": "$.cases.storeProperties.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/store-properties.graphql",
+          "variablesCapturePath": "$.cases.storeProperties.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "order-reverse-by-id-not-found-data",
+        "capturePath": "$.cases.orders.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/orders.graphql",
+          "variablesCapturePath": "$.cases.orders.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "customer-payment-by-id-not-found-data",
+        "capturePath": "$.cases.customers.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/customers.graphql",
+          "variablesCapturePath": "$.cases.customers.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "gift-card-by-id-not-found-data",
+        "capturePath": "$.cases.giftCards.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/gift-cards.graphql",
+          "variablesCapturePath": "$.cases.giftCards.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "online-store-by-id-not-found-data",
+        "capturePath": "$.cases.onlineStore.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/online-store.graphql",
+          "variablesCapturePath": "$.cases.onlineStore.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "functions-by-id-not-found-data",
+        "capturePath": "$.cases.functions.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/functions.graphql",
+          "variablesCapturePath": "$.cases.functions.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "segment-by-id-not-found-data",
+        "capturePath": "$.cases.segments.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/by-id-not-found/segments.graphql",
+          "variablesCapturePath": "$.cases.segments.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

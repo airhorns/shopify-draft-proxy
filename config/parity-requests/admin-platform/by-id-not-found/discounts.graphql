@@ -1,0 +1,19 @@
+query DiscountByIdNotFound(
+  $automaticDiscountNodeId: ID!
+  $codeDiscountNodeId: ID!
+  $discountNodeId: ID!
+  $discountRedeemCodeBulkCreationId: ID!
+) {
+  missingAutomaticDiscountNode: automaticDiscountNode(id: $automaticDiscountNodeId) {
+    __typename
+  }
+  missingCodeDiscountNode: codeDiscountNode(id: $codeDiscountNodeId) {
+    __typename
+  }
+  missingDiscountNode: discountNode(id: $discountNodeId) {
+    __typename
+  }
+  missingDiscountRedeemCodeBulkCreation: discountRedeemCodeBulkCreation(id: $discountRedeemCodeBulkCreationId) {
+    __typename
+  }
+}
