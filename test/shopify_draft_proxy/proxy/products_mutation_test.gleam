@@ -5738,6 +5738,151 @@ pub fn location_delete_cascades_inventory_item_levels_test() {
     == "{\"data\":{\"inventoryItem\":{\"locationsCount\":{\"count\":1,\"precision\":\"EXACT\"},\"inventoryLevel\":null,\"inventoryLevels\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryLevel/retained?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Destination location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":9}]}]}}}}"
 }
 
+pub fn location_deactivate_with_destination_relocates_inventory_quantities_test() {
+  let source_location_id = "gid://shopify/Location/1"
+  let destination_location_id = "gid://shopify/Location/2"
+  let source_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/source?inventory_item_id=tracked",
+      source_location_id,
+      "Source location",
+      True,
+      [
+        inventory_quantity("available", 5),
+        inventory_quantity("on_hand", 5),
+      ],
+    )
+  let destination_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/destination?inventory_item_id=tracked",
+      destination_location_id,
+      "Destination location",
+      True,
+      [
+        inventory_quantity("available", 9),
+        inventory_quantity("on_hand", 9),
+      ],
+    )
+  let source_location =
+    make_store_property_location(source_location_id, "Source location", True)
+  let destination_location =
+    make_store_property_location(
+      destination_location_id,
+      "Destination location",
+      True,
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+          source_level,
+          destination_level,
+        ])
+        |> store.upsert_base_store_property_location(source_location)
+        |> store.upsert_base_store_property_location(destination_location),
+    )
+  let deactivate_query =
+    "mutation { locationDeactivate(locationId: \\\""
+    <> source_location_id
+    <> "\\\", destinationLocationId: \\\""
+    <> destination_location_id
+    <> "\\\") { location { isActive hasActiveInventory deletable } locationDeactivateUserErrors { field code message } } }"
+  let read_query =
+    "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { locationsCount { count precision } inventoryLevel(locationId: \\\""
+    <> source_location_id
+    <> "\\\") { id location { id name } quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } inventoryLevels(first: 10) { nodes { id location { id name } quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }"
+
+  let #(Response(status: deactivate_status, body: deactivate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(deactivate_query))
+  assert deactivate_status == 200
+  assert json.to_string(deactivate_body)
+    == "{\"data\":{\"locationDeactivate\":{\"location\":{\"isActive\":false,\"hasActiveInventory\":false,\"deletable\":true},\"locationDeactivateUserErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"locationsCount\":{\"count\":1,\"precision\":\"EXACT\"},\"inventoryLevel\":null,\"inventoryLevels\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryLevel/destination?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Destination location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":14},{\"name\":\"on_hand\",\"quantity\":14}]}]}}}}"
+}
+
+pub fn location_deactivate_user_error_does_not_relocate_inventory_test() {
+  let source_location_id = "gid://shopify/Location/1"
+  let destination_location_id = "gid://shopify/Location/2"
+  let source_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/source?inventory_item_id=tracked",
+      source_location_id,
+      "Source location",
+      True,
+      [
+        inventory_quantity("available", 5),
+        inventory_quantity("on_hand", 5),
+      ],
+    )
+  let destination_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/destination?inventory_item_id=tracked",
+      destination_location_id,
+      "Destination location",
+      True,
+      [
+        inventory_quantity("available", 9),
+        inventory_quantity("on_hand", 9),
+      ],
+    )
+  let base_source_location =
+    make_store_property_location(source_location_id, "Source location", True)
+  let source_location =
+    StorePropertyRecord(
+      ..base_source_location,
+      data: dict.insert(
+        base_source_location.data,
+        "fulfillsOnlineOrders",
+        StorePropertyBool(False),
+      ),
+    )
+  let inactive_destination =
+    make_store_property_location(
+      destination_location_id,
+      "Destination location",
+      False,
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+          source_level,
+          destination_level,
+        ])
+        |> store.upsert_base_store_property_location(source_location)
+        |> store.upsert_base_store_property_location(inactive_destination),
+    )
+  let deactivate_query =
+    "mutation { locationDeactivate(locationId: \\\""
+    <> source_location_id
+    <> "\\\", destinationLocationId: \\\""
+    <> destination_location_id
+    <> "\\\") { location { isActive hasActiveInventory deletable } locationDeactivateUserErrors { field code message } } }"
+  let read_query =
+    "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { locationsCount { count precision } inventoryLevel(locationId: \\\""
+    <> source_location_id
+    <> "\\\") { id location { id name } quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } inventoryLevels(first: 10) { nodes { id location { id name } quantities(names: [\\\"available\\\", \\\"on_hand\\\"]) { name quantity } } } } }"
+
+  let #(Response(status: deactivate_status, body: deactivate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(deactivate_query))
+  assert deactivate_status == 200
+  assert json.to_string(deactivate_body)
+    == "{\"data\":{\"locationDeactivate\":{\"location\":{\"isActive\":true,\"hasActiveInventory\":false,\"deletable\":false},\"locationDeactivateUserErrors\":[{\"field\":[\"destinationLocationId\"],\"code\":\"DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE\",\"message\":\"Location could not be deactivated because the destination location could be not found or is inactive.\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"locationsCount\":{\"count\":2,\"precision\":\"EXACT\"},\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/source?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Source location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":5},{\"name\":\"on_hand\",\"quantity\":5}]},\"inventoryLevels\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryLevel/source?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Source location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":5},{\"name\":\"on_hand\",\"quantity\":5}]},{\"id\":\"gid://shopify/InventoryLevel/destination?inventory_item_id=tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Destination location\"},\"quantities\":[{\"name\":\"available\",\"quantity\":9},{\"name\":\"on_hand\",\"quantity\":9}]}]}}}}"
+}
+
 pub fn inventory_activate_duplicate_staged_activation_returns_taken_test() {
   let proxy = draft_proxy.new()
   let proxy =
