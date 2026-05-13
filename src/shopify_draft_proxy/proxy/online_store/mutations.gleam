@@ -3515,7 +3515,7 @@ fn delete_storefront_token(
           SrcNull,
           [
             serializers.user_error(
-              ["id"],
+              ["input", "id"],
               "Storefront access token does not exist",
             ),
           ],
@@ -3524,7 +3524,12 @@ fn delete_storefront_token(
       }
     None -> #(
       SrcNull,
-      [serializers.user_error(["id"], "Storefront access token does not exist")],
+      [
+        serializers.user_error(
+          ["input", "id"],
+          "Storefront access token does not exist",
+        ),
+      ],
       outcome.store,
     )
   }
