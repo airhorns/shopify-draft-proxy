@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -13,10 +13,21 @@ type CaptureCase = {
   variables: Record<string, unknown>;
 };
 
+type GraphqlCapture = {
+  request: {
+    query: string;
+    variables: Record<string, unknown>;
+  };
+  status: number;
+  response: ConformanceGraphqlResult['payload'];
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metafields');
 const outputPath = path.join(outputDir, 'standard-metafield-definition-enable-validation.json');
+const regularUserErrorTypenamesDocumentPath =
+  'config/parity-requests/metafields/metafield-definition-user-error-typenames.graphql';
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -144,6 +155,72 @@ const validationMutation = `#graphql
         }
       }
       userErrors {
+        __typename
+        code
+        field
+        message
+      }
+    }
+  }
+`;
+
+const productCreateMutation = `#graphql
+  mutation RegularUserErrorTypenameProductCreate($product: ProductCreateInput!) {
+    productCreate(product: $product) {
+      product {
+        id
+        title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const productDeleteMutation = `#graphql
+  mutation RegularUserErrorTypenameProductDelete($input: ProductDeleteInput!) {
+    productDelete(input: $input) {
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const cleanupRegularUserErrorTypenameDefinitionsMutation = `#graphql
+  mutation CleanupRegularUserErrorTypenameDefinitions($namespace: String!) {
+    deleteReferenceTarget: metafieldDefinitionDelete(
+      identifier: { ownerType: PRODUCT, namespace: $namespace, key: "delete_error" }
+      deleteAllAssociatedMetafields: true
+    ) {
+      deletedDefinitionId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    deletePinTarget: metafieldDefinitionDelete(
+      identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_error" }
+      deleteAllAssociatedMetafields: true
+    ) {
+      deletedDefinitionId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    deleteUnpinTarget: metafieldDefinitionDelete(
+      identifier: { ownerType: PRODUCT, namespace: $namespace, key: "unpin_error" }
+      deleteAllAssociatedMetafields: true
+    ) {
+      deletedDefinitionId
+      userErrors {
         field
         message
         code
@@ -151,6 +228,8 @@ const validationMutation = `#graphql
     }
   }
 `;
+
+const regularUserErrorTypenamesMutation = await readFile(regularUserErrorTypenamesDocumentPath, 'utf8');
 
 const validationCases: CaptureCase[] = [
   {
@@ -193,6 +272,42 @@ function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
+function readPath(value: unknown, pathParts: string[]): unknown {
+  let current: unknown = value;
+  for (const part of pathParts) {
+    const object = readObject(current);
+    if (object === null) {
+      return undefined;
+    }
+    current = object[part];
+  }
+  return current;
+}
+
+function readRequiredStringPath(value: unknown, pathParts: string[], label: string): string {
+  const found = readPath(value, pathParts);
+  if (typeof found !== 'string' || found.length === 0) {
+    throw new Error(`${label} did not return a string at ${pathParts.join('.')}: ${JSON.stringify(value, null, 2)}`);
+  }
+
+  return found;
+}
+
+function captureFromResult(
+  query: string,
+  variables: Record<string, unknown>,
+  result: ConformanceGraphqlResult,
+): GraphqlCapture {
+  return {
+    request: {
+      query,
+      variables,
+    },
+    status: result.status,
+    response: result.payload,
+  };
+}
+
 async function captureSchema() {
   const result = await runGraphqlRaw(schemaQuery, {});
   assertGraphqlOk(result, 'standardMetafieldDefinitionEnable schema introspection');
@@ -225,17 +340,111 @@ async function captureSchema() {
   };
 }
 
-async function captureGraphql(label: string, query: string, variables: Record<string, unknown> = {}) {
+async function captureGraphqlRawRecord(
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<GraphqlCapture> {
+  const result = await runGraphqlRaw(query, variables);
+  return captureFromResult(query, variables, result);
+}
+
+async function captureGraphql(
+  label: string,
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<GraphqlCapture> {
   const result = await runGraphqlRaw(query, variables);
   assertGraphqlOk(result, label);
+  return captureFromResult(query, variables, result);
+}
+
+async function captureRegularUserErrorTypenames() {
+  const runId = Date.now().toString(36);
+  const namespace = `har1213_typename_${runId}`;
+  const setup: GraphqlCapture[] = [];
+  const cleanup: GraphqlCapture[] = [];
+  let ownerProductId: string | undefined;
+  let referenceProductId: string | undefined;
+  let regularUserErrorTypenames: GraphqlCapture | undefined;
+
+  try {
+    const ownerProduct = await captureGraphql('regular typename owner productCreate', productCreateMutation, {
+      product: { title: `HAR-1213 typename owner ${runId}` },
+    });
+    setup.push(ownerProduct);
+    ownerProductId = readRequiredStringPath(
+      ownerProduct.response,
+      ['data', 'productCreate', 'product', 'id'],
+      'regular typename owner productCreate',
+    );
+
+    const referenceProduct = await captureGraphql('regular typename reference productCreate', productCreateMutation, {
+      product: { title: `HAR-1213 typename reference ${runId}` },
+    });
+    setup.push(referenceProduct);
+    referenceProductId = readRequiredStringPath(
+      referenceProduct.response,
+      ['data', 'productCreate', 'product', 'id'],
+      'regular typename reference productCreate',
+    );
+
+    const variables = {
+      namespace,
+      ownerProductId,
+      referenceProductId,
+      categoryId: 'gid://shopify/TaxonomyCategory/ap-2',
+    };
+    const result = await runGraphqlRaw(regularUserErrorTypenamesMutation, variables);
+    regularUserErrorTypenames = captureFromResult(regularUserErrorTypenamesMutation, variables, result);
+    assertGraphqlOk(result, 'metafieldDefinition regular mutation userError typenames');
+  } finally {
+    cleanup.push(
+      await captureGraphqlRawRecord(cleanupRegularUserErrorTypenameDefinitionsMutation, { namespace }).catch(
+        (error: unknown) => ({
+          request: { query: cleanupRegularUserErrorTypenameDefinitionsMutation, variables: { namespace } },
+          status: 0,
+          response: { error: String(error) },
+        }),
+      ),
+    );
+    if (ownerProductId) {
+      cleanup.push(
+        await captureGraphqlRawRecord(productDeleteMutation, { input: { id: ownerProductId } }).catch(
+          (error: unknown) => ({
+            request: { query: productDeleteMutation, variables: { input: { id: ownerProductId } } },
+            status: 0,
+            response: { error: String(error) },
+          }),
+        ),
+      );
+    }
+    if (referenceProductId) {
+      cleanup.push(
+        await captureGraphqlRawRecord(productDeleteMutation, { input: { id: referenceProductId } }).catch(
+          (error: unknown) => ({
+            request: { query: productDeleteMutation, variables: { input: { id: referenceProductId } } },
+            status: 0,
+            response: { error: String(error) },
+          }),
+        ),
+      );
+    }
+  }
+
+  if (!regularUserErrorTypenames) {
+    throw new Error('metafieldDefinition regular mutation userError typenames did not complete');
+  }
 
   return {
-    request: {
-      query,
-      variables,
+    variables: {
+      namespace,
+      ownerProductId,
+      referenceProductId,
+      categoryId: 'gid://shopify/TaxonomyCategory/ap-2',
     },
-    status: result.status,
-    response: result.payload,
+    setup,
+    capture: regularUserErrorTypenames,
+    cleanup,
   };
 }
 
@@ -253,18 +462,24 @@ for (const validationCase of validationCases) {
     )),
   });
 }
+const regularUserErrorTypenamesFlow = await captureRegularUserErrorTypenames();
 
 const fixture = {
   capturedAt: new Date().toISOString(),
   storeDomain,
   apiVersion,
+  upstreamCalls: [],
   safety: {
     successfulEnablementNotCaptured:
-      'This fixture records validation branches only. Successful standardMetafieldDefinitionEnable calls create real metafield definitions and may be captured in a disposable test-shop setup with explicit cleanup evidence.',
+      'This fixture records standardMetafieldDefinitionEnable validation branches plus a disposable regular metafieldDefinition user-error typename setup with explicit cleanup evidence.',
   },
   schema,
   templateSample,
   validation,
+  regularUserErrorTypenamesSetup: regularUserErrorTypenamesFlow.setup,
+  regularUserErrorTypenamesVariables: regularUserErrorTypenamesFlow.variables,
+  regularUserErrorTypenames: regularUserErrorTypenamesFlow.capture,
+  regularUserErrorTypenamesCleanup: regularUserErrorTypenamesFlow.cleanup,
 };
 
 await mkdir(outputDir, { recursive: true });

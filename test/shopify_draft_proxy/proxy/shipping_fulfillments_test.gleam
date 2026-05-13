@@ -19,13 +19,14 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DeliveryProfileRecord,
-  type FulfillmentOrderRecord, type ShippingPackageRecord,
-  type StorePropertyRecord, CalculatedOrderRecord, CapturedArray, CapturedBool,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
-  FulfillmentRecord, FulfillmentServiceRecord, LocationRecord, ProductRecord,
-  ProductSeoRecord, ProductVariantRecord, ReverseFulfillmentOrderRecord,
-  ShippingOrderRecord, ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  type FulfillmentOrderRecord, type FulfillmentServiceRecord,
+  type ShippingPackageRecord, type StorePropertyRecord, CalculatedOrderRecord,
+  CapturedArray, CapturedBool, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CarrierServiceRecord, DeliveryProfileRecord,
+  FulfillmentOrderRecord, FulfillmentRecord, FulfillmentServiceRecord,
+  LocationRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ReverseFulfillmentOrderRecord, ShippingOrderRecord,
+  ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
 }
@@ -780,6 +781,166 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
   assert store.get_effective_carrier_service_by_id(
       delete_outcome.store,
       created_id,
+    )
+    == None
+}
+
+pub fn carrier_service_create_rejects_duplicate_active_name_without_staging_test() {
+  let create_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let first_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", create_input)]),
+      empty_upstream_context(),
+    )
+  let assert [first_id] = first_outcome.staged_resource_ids
+
+  let duplicate_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("  Hermes Carrier  ")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates-2"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let duplicate_outcome =
+    shipping_fulfillments.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DuplicateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(duplicate_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Hermes Carrier is already configured\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert duplicate_outcome.staged_resource_ids == []
+  assert list.length(store.list_effective_carrier_services(
+      duplicate_outcome.store,
+    ))
+    == 1
+  assert store.get_effective_carrier_service_by_id(
+      duplicate_outcome.store,
+      first_id,
+    )
+    != None
+}
+
+pub fn carrier_service_create_allows_duplicate_name_after_inactive_or_deleted_test() {
+  let inactive_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates"),
+        ),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let inactive_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", inactive_input)]),
+      empty_upstream_context(),
+    )
+
+  let active_duplicate_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Carrier")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://mock.shop/carrier-service-rates-2"),
+        ),
+        #("active", root_field.BoolVal(True)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let after_inactive_outcome =
+    shipping_fulfillments.process_mutation(
+      inactive_outcome.store,
+      inactive_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  let assert [after_inactive_id] = after_inactive_outcome.staged_resource_ids
+  assert json.to_string(after_inactive_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":{\"id\":\""
+    <> after_inactive_id
+    <> "\",\"name\":\"Hermes Carrier\",\"active\":true},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_carrier_services(
+      after_inactive_outcome.store,
+    ))
+    == 2
+
+  let active_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+  let assert [active_id] = active_outcome.staged_resource_ids
+  let delete_outcome =
+    shipping_fulfillments.process_mutation(
+      active_outcome.store,
+      active_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteCarrier($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(active_id))]),
+      empty_upstream_context(),
+    )
+  let after_delete_outcome =
+    shipping_fulfillments.process_mutation(
+      delete_outcome.store,
+      delete_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name active } userErrors { field message code } } }",
+      dict.from_list([#("input", active_duplicate_input)]),
+      empty_upstream_context(),
+    )
+
+  let assert [after_delete_id] = after_delete_outcome.staged_resource_ids
+  assert json.to_string(after_delete_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":{\"id\":\""
+    <> after_delete_id
+    <> "\",\"name\":\"Hermes Carrier\",\"active\":true},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_carrier_services(
+      after_delete_outcome.store,
+    ))
+    == 1
+  assert store.get_effective_carrier_service_by_id(
+      after_delete_outcome.store,
+      active_id,
     )
     == None
 }
@@ -3500,6 +3661,605 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
 }
 
+pub fn fulfillment_order_close_reschedule_stateful_handler_test() {
+  let close_id = "gid://shopify/FulfillmentOrder/close-stateful"
+  let open_api_close_id = "gid://shopify/FulfillmentOrder/open-api-close"
+  let api_service_location_id = "gid://shopify/Location/open-api-service"
+  let scheduled_id = "gid://shopify/FulfillmentOrder/reschedule-stateful"
+  let closed_id = "gid://shopify/FulfillmentOrder/closed-invalid-close"
+  let unscheduled_id = "gid://shopify/FulfillmentOrder/reschedule-open"
+  let past_id = "gid://shopify/FulfillmentOrder/reschedule-past"
+  let old_fulfill_at = "2026-06-01T00:00:00Z"
+  let next_fulfill_at = "2999-12-01T00:00:00Z"
+  let past_fulfill_at = "2000-01-01T00:00:00Z"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_services([
+      fulfillment_service_record(
+        "gid://shopify/FulfillmentService/open-api-service",
+        api_service_location_id,
+        "Open API Service",
+      ),
+    ])
+    |> store.upsert_base_fulfillment_orders([
+      fulfillment_order_record(close_id, "IN_PROGRESS", "ACCEPTED"),
+      fulfillment_order_record_at_location(
+        open_api_close_id,
+        "OPEN",
+        "UNSUBMITTED",
+        api_service_location_id,
+        "Open API Service",
+      ),
+      fulfillment_order_record_with_fulfill_at(
+        scheduled_id,
+        "SCHEDULED",
+        "UNSUBMITTED",
+        old_fulfill_at,
+      ),
+      fulfillment_order_record(closed_id, "CLOSED", "CLOSED"),
+      fulfillment_order_record(unscheduled_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record_with_fulfill_at(
+        past_id,
+        "SCHEDULED",
+        "UNSUBMITTED",
+        old_fulfill_at,
+      ),
+    ])
+
+  let close_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id, message: \"stateful close\") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(close_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(close_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/close-stateful\",\"status\":\"INCOMPLETE\",\"requestStatus\":\"CLOSED\"},\"userErrors\":[]}}}"
+  assert_fulfillment_order_state(
+    close_outcome.store,
+    close_id,
+    "INCOMPLETE",
+    "CLOSED",
+  )
+
+  let open_api_close_outcome =
+    shipping_fulfillments.process_mutation(
+      close_outcome.store,
+      close_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(open_api_close_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_api_close_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order is not in an in progress state.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    open_api_close_outcome.store,
+    open_api_close_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let reschedule_outcome =
+    shipping_fulfillments.process_mutation(
+      open_api_close_outcome.store,
+      open_api_close_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id status fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(scheduled_id)),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(reschedule_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-stateful\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2999-12-01T00:00:00Z\"},\"userErrors\":[]}}}"
+  assert_fulfillment_order_state(
+    reschedule_outcome.store,
+    scheduled_id,
+    "SCHEDULED",
+    "UNSUBMITTED",
+  )
+
+  let invalid_close =
+    shipping_fulfillments.process_mutation(
+      reschedule_outcome.store,
+      reschedule_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(closed_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_close.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    invalid_close.store,
+    closed_id,
+    "CLOSED",
+    "CLOSED",
+  )
+
+  let merchant_open_close =
+    shipping_fulfillments.process_mutation(
+      invalid_close.store,
+      invalid_close.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(unscheduled_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(merchant_open_close.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order's assigned fulfillment service must be of api type\",\"code\":\"FULFILLMENT_SERVICE_NOT_API_TYPE\"}]}}}"
+  assert_fulfillment_order_state(
+    merchant_open_close.store,
+    unscheduled_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let invalid_reschedule =
+    shipping_fulfillments.process_mutation(
+      merchant_open_close.store,
+      merchant_open_close.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id status fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(unscheduled_id)),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_reschedule.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    invalid_reschedule.store,
+    unscheduled_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let past_reschedule =
+    shipping_fulfillments.process_mutation(
+      invalid_reschedule.store,
+      invalid_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(past_id)),
+        #("fulfillAt", root_field.StringVal(past_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(past_reschedule.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillAt\"],\"message\":\"Fulfill at must be a future date.\",\"code\":\"INVALID_FULFILL_AT\"}]}}}"
+
+  let assert Ok(read_after_failures) =
+    shipping_fulfillments.process(
+      past_reschedule.store,
+      "query Read($rescheduledId: ID!, $pastId: ID!) { rescheduled: fulfillmentOrder(id: $rescheduledId) { id status fulfillAt } past: fulfillmentOrder(id: $pastId) { id status fulfillAt } }",
+      dict.from_list([
+        #("rescheduledId", root_field.StringVal(scheduled_id)),
+        #("pastId", root_field.StringVal(past_id)),
+      ]),
+    )
+  assert json.to_string(read_after_failures)
+    == "{\"data\":{\"rescheduled\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-stateful\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2999-12-01T00:00:00Z\"},\"past\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-past\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2026-06-01T00:00:00Z\"}}}"
+
+  let missing_reschedule =
+    shipping_fulfillments.process_mutation(
+      past_reschedule.store,
+      past_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Missing($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/FulfillmentOrder/missing")),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(missing_reschedule.data)
+
+  let missing_close =
+    shipping_fulfillments.process_mutation(
+      missing_reschedule.store,
+      missing_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Missing($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/FulfillmentOrder/missing")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(missing_close.data)
+}
+
+pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test() {
+  let open_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-open",
+      "OPEN",
+      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"],
+      "2026-04-01T00:00:00Z",
+      False,
+    )
+  let closed_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-closed",
+      "CLOSED",
+      [],
+      "2026-04-02T00:00:00Z",
+      False,
+    )
+  let held_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-held",
+      "ON_HOLD",
+      ["RELEASE_HOLD", "HOLD", "MOVE"],
+      "2026-04-03T00:00:00Z",
+      False,
+    )
+  let cancelled_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-cancelled",
+      "CANCELLED",
+      [],
+      "2026-04-03T12:00:00Z",
+      False,
+    )
+  let scheduled_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-scheduled",
+      "SCHEDULED",
+      ["MARK_AS_OPEN"],
+      "2026-04-04T00:00:00Z",
+      False,
+    )
+  let open_in_progress_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/open-precondition-in-progress",
+      "IN_PROGRESS",
+      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "HOLD", "MARK_AS_OPEN"],
+      "2026-04-04T12:00:00Z",
+      True,
+    )
+  let report_open_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-open",
+      "OPEN",
+      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"],
+      "2026-04-05T00:00:00Z",
+      False,
+    )
+  let report_scheduled_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-scheduled",
+      "SCHEDULED",
+      ["MARK_AS_OPEN"],
+      "2026-04-06T00:00:00Z",
+      False,
+    )
+  let report_closed_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-closed",
+      "CLOSED",
+      [],
+      "2026-04-07T00:00:00Z",
+      False,
+    )
+  let report_cancelled_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-cancelled",
+      "CANCELLED",
+      [],
+      "2026-04-07T12:00:00Z",
+      False,
+    )
+  let report_held_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-held",
+      "ON_HOLD",
+      ["RELEASE_HOLD", "HOLD", "MOVE"],
+      "2026-04-07T18:00:00Z",
+      False,
+    )
+  let report_in_progress_order =
+    fulfillment_order_record_with_lifecycle_fields(
+      "gid://shopify/FulfillmentOrder/progress-precondition-in-progress",
+      "IN_PROGRESS",
+      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "HOLD", "MARK_AS_OPEN"],
+      "2026-04-08T00:00:00Z",
+      False,
+    )
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      open_order,
+      closed_order,
+      held_order,
+      cancelled_order,
+      scheduled_order,
+      open_in_progress_order,
+      report_open_order,
+      report_scheduled_order,
+      report_closed_order,
+      report_cancelled_order,
+      report_held_order,
+      report_in_progress_order,
+    ])
+
+  let open_mutation =
+    "
+    mutation Open($id: ID!) {
+      fulfillmentOrderOpen(id: $id) {
+        fulfillmentOrder {
+          id
+          status
+          updatedAt
+          supportedActions {
+            action
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let open_on_open =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(open_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_open.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(open_on_open.store, open_order)
+
+  let open_on_closed =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(closed_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_closed.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(open_on_closed.store, closed_order)
+
+  let open_on_hold =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(held_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_hold.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(open_on_hold.store, held_order)
+
+  let open_on_cancelled =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(cancelled_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(open_on_cancelled.store, cancelled_order)
+
+  let open_on_scheduled =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(scheduled_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_scheduled.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/open-precondition-scheduled\",\"status\":\"OPEN\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
+
+  let open_on_in_progress =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(open_in_progress_order.id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_on_in_progress.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/open-precondition-in-progress\",\"status\":\"OPEN\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
+
+  let progress_mutation =
+    "
+    mutation Progress($id: ID!) {
+      fulfillmentOrderReportProgress(id: $id, progressReport: { reasonNotes: \"manual progress\" }) {
+        fulfillmentOrder {
+          id
+          status
+          updatedAt
+          supportedActions {
+            action
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let progress_on_open =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([#("id", root_field.StringVal(report_open_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_open.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/progress-precondition-open\",\"status\":\"IN_PROGRESS\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
+
+  let progress_on_scheduled =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([#("id", root_field.StringVal(report_scheduled_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_scheduled.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(
+    progress_on_scheduled.store,
+    report_scheduled_order,
+  )
+
+  let progress_on_closed =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([#("id", root_field.StringVal(report_closed_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_closed.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(
+    progress_on_closed.store,
+    report_closed_order,
+  )
+
+  let progress_on_cancelled =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(report_cancelled_order.id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(
+    progress_on_cancelled.store,
+    report_cancelled_order,
+  )
+
+  let progress_on_hold =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([#("id", root_field.StringVal(report_held_order.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_hold.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_unchanged(progress_on_hold.store, report_held_order)
+
+  let progress_on_in_progress =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(report_in_progress_order.id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_on_in_progress.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/progress-precondition-in-progress\",\"status\":\"IN_PROGRESS\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
+}
+
 pub fn fulfillment_order_move_validation_direct_handler_test() {
   let active_location_id = "gid://shopify/Location/move-active"
   let inactive_location_id = "gid://shopify/Location/move-inactive"
@@ -4120,6 +4880,126 @@ fn fulfillment_order_record(
       #("fulfillmentHolds", CapturedArray([])),
     ]),
   )
+}
+
+fn fulfillment_order_record_with_fulfill_at(
+  id: String,
+  status: String,
+  request_status: String,
+  fulfill_at: String,
+) -> FulfillmentOrderRecord {
+  let record = fulfillment_order_record(id, status, request_status)
+  FulfillmentOrderRecord(
+    ..record,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #("fulfillAt", CapturedString(fulfill_at)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn fulfillment_order_record_at_location(
+  id: String,
+  status: String,
+  request_status: String,
+  location_id: String,
+  location_name: String,
+) -> FulfillmentOrderRecord {
+  let record = fulfillment_order_record(id, status, request_status)
+  FulfillmentOrderRecord(
+    ..record,
+    assigned_location_id: Some(location_id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #(
+        "assignedLocation",
+        CapturedObject([
+          #("name", CapturedString(location_name)),
+          #(
+            "location",
+            CapturedObject([
+              #("id", CapturedString(location_id)),
+              #("name", CapturedString(location_name)),
+            ]),
+          ),
+        ]),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn fulfillment_service_record(
+  id: String,
+  location_id: String,
+  service_name: String,
+) -> FulfillmentServiceRecord {
+  FulfillmentServiceRecord(
+    id: id,
+    handle: "stateful-service",
+    service_name: service_name,
+    callback_url: None,
+    inventory_management: False,
+    location_id: Some(location_id),
+    requires_shipping_method: True,
+    tracking_support: False,
+    type_: "THIRD_PARTY",
+  )
+}
+
+fn fulfillment_order_record_with_lifecycle_fields(
+  id: String,
+  status: String,
+  supported_actions: List(String),
+  updated_at: String,
+  manually_reported_progress: Bool,
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: id,
+    order_id: None,
+    status: status,
+    request_status: "UNSUBMITTED",
+    assigned_location_id: None,
+    assignment_status: None,
+    manually_held: status == "ON_HOLD",
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString("UNSUBMITTED")),
+      #("updatedAt", CapturedString(updated_at)),
+      #("supportedActions", test_captured_action_list(supported_actions)),
+      #(
+        "__draftProxyManuallyReportedProgress",
+        CapturedBool(manually_reported_progress),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn test_captured_action_list(actions: List(String)) -> CapturedJsonValue {
+  CapturedArray(
+    list.map(actions, fn(action) {
+      CapturedObject([#("action", CapturedString(action))])
+    }),
+  )
+}
+
+fn assert_fulfillment_order_unchanged(
+  draft_store: store.Store,
+  expected: FulfillmentOrderRecord,
+) {
+  let assert Some(actual) =
+    store.get_effective_fulfillment_order_by_id(draft_store, expected.id)
+  assert actual == expected
 }
 
 fn fulfillment_order_record_with_assignment_status(

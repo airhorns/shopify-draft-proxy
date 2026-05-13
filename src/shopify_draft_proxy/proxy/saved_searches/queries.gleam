@@ -416,7 +416,7 @@ fn saved_search_to_source(
       SrcList(
         list.map(record.filters, fn(f) {
           src_object([
-            #("__typename", SrcString("SavedSearchFilter")),
+            #("__typename", SrcString("SearchFilter")),
             #("key", SrcString(f.key)),
             #("value", SrcString(f.value)),
           ])

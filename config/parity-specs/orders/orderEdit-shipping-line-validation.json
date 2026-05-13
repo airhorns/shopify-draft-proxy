@@ -1,0 +1,118 @@
+{
+  "scenarioId": "orderEdit-shipping-line-validation",
+  "operationNames": [
+    "orderEditBegin",
+    "orderEditAddShippingLine",
+    "orderEditUpdateShippingLine",
+    "orderEditRemoveShippingLine",
+    "orderEditAddLineItemDiscount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEdit-shipping-line-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-begin.graphql",
+    "variablesCapturePath": "$.begin.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 order-edit shipping-line validation against a disposable CAD order-edit session. The scenario proves missing add-shipping price, shipping-line currency mismatch, update/remove unknown shippingLineId, and missing fixedValue.currencyCode for line-item discounts without staging local effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-session-baseline",
+        "capturePath": "$.begin.response.payload.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.lineItems.nodes[*].id", "$.orderEditSession.id"]
+      },
+      {
+        "name": "add-shipping-missing-price-top-level-error",
+        "capturePath": "$.cases.addMissingPrice.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-add-missing-price.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$"
+      },
+      {
+        "name": "add-shipping-currency-mismatch-user-error",
+        "capturePath": "$.cases.addCurrencyMismatch.response.payload.data.orderEditAddShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-add.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLine": {
+              "title": "Currency mismatch shipping",
+              "price": {
+                "amount": "5.00",
+                "currencyCode": "USD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddShippingLine"
+      },
+      {
+        "name": "update-shipping-unknown-id-user-error",
+        "capturePath": "$.cases.updateUnknown.response.payload.data.orderEditUpdateShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999",
+            "shippingLine": {
+              "title": "Unknown update",
+              "price": {
+                "amount": "6.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditUpdateShippingLine"
+      },
+      {
+        "name": "remove-shipping-unknown-id-user-error",
+        "capturePath": "$.cases.removeUnknown.response.payload.data.orderEditRemoveShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-remove.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLineId": "gid://shopify/CalculatedShippingLine/999999999999"
+          }
+        },
+        "proxyPath": "$.data.orderEditRemoveShippingLine"
+      },
+      {
+        "name": "discount-missing-fixed-value-currency-top-level-error",
+        "capturePath": "$.cases.discountMissingCurrency.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-discount-missing-currency.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            }
+          }
+        },
+        "proxyPath": "$"
+      }
+    ]
+  }
+}

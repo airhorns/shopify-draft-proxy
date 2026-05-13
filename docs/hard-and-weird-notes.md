@@ -64,6 +64,24 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Variant fixed-price duplicate inputs are last-write-wins
+
+Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`
+do not reject duplicate `variantId` entries with a user error. For the
+variant-level fixed-price mutations, Shopify accepts duplicate input rows and
+uses the last price for the variant. This differs from
+`priceListFixedPricesByProductUpdate`, whose
+`PriceListFixedPricesByProductBulkUpdateUserError` enum does include duplicate
+input codes.
+
+The same capture showed that schema-current `priceListFixedPricesUpdate` uses
+the `pricesToAdd` argument name and creates a fixed row when the variant does
+not already have one. `priceListFixedPricesDelete` is the branch that rejects a
+known variant without a fixed row, with `PRICE_NOT_FIXED` at `variantIds[i]`.
+The checked-in anchor is the
+`price-list-fixed-prices-*-*.json` Markets parity set backed by
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json`.
+
 ## Current: delegateAccessTokenCreate EXPIRES_AFTER_PARENT returns a null field
 
 A 2026-04 `delegateAccessTokenCreate` capture against
@@ -2480,6 +2498,7 @@ Live evidence refreshed on this host:
 - deleting an active unstocked location returns only `LOCATION_IS_ACTIVE`; deleting an active stocked location returns `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` without mutating the location
 - deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
 - deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
+- activating a fulfillment-service-managed location through `locationActivate` is also scoped out and returns `LOCATION_NOT_FOUND`; public Admin GraphQL creates fulfillment-service locations active on this store, and a recorded `locationDeactivate` attempt returns `PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR`, so the inactive fulfillment-service-managed activation branch is covered by local runtime state rather than a live-inactive fixture
 - the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:
@@ -3193,20 +3212,23 @@ Captured facts:
 - partial `fulfillmentOrderHold` changes the selected work to `ON_HOLD`, creates a new `FulfillmentHold`, reduces the held fulfillment-order line item quantities, and returns a separate `remainingFulfillmentOrder` for the unheld quantity
 - `fulfillmentOrderReleaseHold` restores the held fulfillment order to `OPEN`, clears `fulfillmentHolds`, and re-expands the line item back to the full remaining quantity in the captured branch
 - partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
-- `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
+- The lifecycle capture records `fulfillmentOrderReportProgress` changing an open merchant-managed fulfillment order to `IN_PROGRESS` and adding `MARK_AS_OPEN`, followed by `fulfillmentOrderOpen` changing it back to `OPEN`; local support preserves that executable parity branch while rejecting non-actionable statuses such as closed, cancelled, and held fulfillment orders before staging.
 - `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
 - HAR-573 re-recording showed `fulfillmentOrderCancel` immediately after `fulfillmentOrderReportProgress` returns `userErrors[{ field: ["id"], message: "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." }]`, while a second cancel against the already-cancelled fulfillment order returns `field: null` with `"Fulfillment order is not in cancelable request state and can't be canceled."`
 - the same HAR-573 capture showed `fulfillmentOrderCancel` after a `fulfillmentOrderOpen` / `fulfillmentOrderClose` sequence can still succeed and create a replacement fulfillment order; do not treat every `CLOSED` status as the same lifecycle state without checking how it became closed
 - nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
-- the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+- the captured merchant-managed setup returns guardrails for close/reschedule failure branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
 - HAR-552 live capture showed the multiple-holds API currently allows 10 active holds by the same requesting app on one fulfillment order; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`. Older notes or tickets that describe a cap of 2 should be treated as stale unless a newer capture proves a version-specific change.
 - `fulfillmentOrderHold` validation failures for duplicate handle, not-splittable partial hold, hold limit, zero quantity, and duplicate line-item IDs returned `fulfillmentHold: null`, `fulfillmentOrder: null`, and `remainingFulfillmentOrder: null` in the captured 2026-04 payload.
 - After a partial hold, Shopify reports the held fulfillment-order line-item `totalQuantity` / `remainingQuantity` as the held quantity while the nested order line item's `fulfillableQuantity` reflects the remaining fulfillable order-line quantity. The split-off remaining fulfillment order reports the same nested `fulfillableQuantity`.
+- `fulfillmentOrderClose` API-service success is captured after submit/accept: Shopify returns `userErrors: []`, changes the fulfillment order to `status: INCOMPLETE` with `requestStatus: CLOSED`, and preserves supported actions in the selected payload instead of returning `status: CLOSED` with an empty action list. The proxy mirrors that captured state for local close staging.
+- Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
+- `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
 
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
-- keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
+- keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderClose` has captured API-service success parity, and `fulfillmentOrderReschedule` has local scheduled staging but still needs a live scheduled success cassette before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 

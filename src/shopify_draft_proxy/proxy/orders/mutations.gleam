@@ -19,6 +19,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{get_document_fragments}
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome,
 }
+import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/orders/abandonments.{
   handle_abandonment_delivery_status, handle_access_denied_guardrail,
 }
@@ -1269,23 +1270,44 @@ pub fn process_mutation(
               || name.value == "orderEditUpdateShippingLine"
               || name.value == "orderEditRemoveShippingLine"
             -> {
-              let #(key, payload, next_store, next_identity) =
-                handle_order_edit_residual_mutation(
+              let validation_errors =
+                mutation_helpers.validate_mutation_field_against_schema(
+                  field,
+                  variables,
+                  name.value,
+                  operation_path,
+                  document,
+                  mutation_schema_lookup.default_schema(),
+                )
+              case validation_errors {
+                [] -> {
+                  let #(key, payload, next_store, next_identity) =
+                    handle_order_edit_residual_mutation(
+                      current_store,
+                      current_identity,
+                      name.value,
+                      field,
+                      fragments,
+                      variables,
+                    )
+                  #(
+                    list.append(entries, [#(key, payload)]),
+                    errors,
+                    next_store,
+                    next_identity,
+                    ids,
+                    drafts,
+                  )
+                }
+                _ -> #(
+                  entries,
+                  list.append(errors, validation_errors),
                   current_store,
                   current_identity,
-                  name.value,
-                  field,
-                  fragments,
-                  variables,
+                  ids,
+                  drafts,
                 )
-              #(
-                list.append(entries, [#(key, payload)]),
-                errors,
-                next_store,
-                next_identity,
-                ids,
-                drafts,
-              )
+              }
             }
             Field(name: name, ..)
               if name.value == "returnCreate"

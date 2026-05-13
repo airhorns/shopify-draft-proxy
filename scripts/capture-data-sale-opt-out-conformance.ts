@@ -69,6 +69,19 @@ const dataSaleOptOutMutation = `#graphql
   }
 `;
 
+const dataSaleOptOutMissingEmailMutation = `#graphql
+  mutation DataSaleOptOutMissingEmail {
+    dataSaleOptOut {
+      customerId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const downstreamReadQuery = `#graphql
   query DataSaleOptOutDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
     customer(id: $id) {
@@ -164,6 +177,44 @@ const deleteMutation = `#graphql
 
 async function main() {
   await mkdir(outputDir, { recursive: true });
+
+  const missingEmailResult = await runGraphql(dataSaleOptOutMissingEmailMutation);
+  if (
+    missingEmailResult.status < 200 ||
+    missingEmailResult.status >= 300 ||
+    !Array.isArray(missingEmailResult.payload?.errors)
+  ) {
+    throw new Error(
+      `dataSaleOptOut missing email did not return top-level errors: ${JSON.stringify(missingEmailResult, null, 2)}`,
+    );
+  }
+  const missingEmailCapture = {
+    mutation: {
+      query: dataSaleOptOutMissingEmailMutation,
+      variables: {},
+      response: missingEmailResult.payload,
+    },
+    upstreamCalls: [],
+  };
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-missing-email.json'),
+    `${JSON.stringify(missingEmailCapture, null, 2)}\n`,
+    'utf8',
+  );
+  if (process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_MISSING_EMAIL_ONLY === 'true') {
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-missing-email.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   const stamp = Date.now();
   const emailAddress = `hermes-data-sale-${stamp}@example.com`;

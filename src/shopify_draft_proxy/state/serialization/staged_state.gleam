@@ -258,6 +258,10 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
       dict_to_json(state.product_metafields, product_metafield_json),
     ),
     #(
+      "deletedProductMetafieldIds",
+      bool_dict_to_json(state.deleted_product_metafield_ids),
+    ),
+    #(
       "metafieldDefinitions",
       dict_to_json(state.metafield_definitions, metafield_definition_json),
     ),
@@ -897,6 +901,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     "productMetafields",
     product_metafield_decoder(),
   )
+  use deleted_product_metafield_ids <- bool_dict_field(
+    "deletedProductMetafieldIds",
+  )
   use metafield_definitions <- dict_field(
     "metafieldDefinitions",
     metafield_definition_decoder(),
@@ -1165,6 +1172,7 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     publishable_order: publishable_order,
     store_property_mutation_payloads: store_property_mutation_payloads,
     product_metafields: product_metafields,
+    deleted_product_metafield_ids: deleted_product_metafield_ids,
     metafield_definitions: metafield_definitions,
     deleted_metafield_definition_ids: deleted_metafield_definition_ids,
     saved_searches: saved_searches,

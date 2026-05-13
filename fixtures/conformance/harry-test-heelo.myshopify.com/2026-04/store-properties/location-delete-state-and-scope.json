@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T05:25:20.061Z",
+  "capturedAt": "2026-05-11T01:50:44.058Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
@@ -23,7 +23,7 @@
                   "isActive": true,
                   "isFulfillmentService": false,
                   "hasActiveInventory": false,
-                  "hasUnfulfilledOrders": false,
+                  "hasUnfulfilledOrders": true,
                   "isPrimary": false
                 },
                 {
@@ -41,7 +41,7 @@
                   "isActive": true,
                   "isFulfillmentService": false,
                   "hasActiveInventory": false,
-                  "hasUnfulfilledOrders": false,
+                  "hasUnfulfilledOrders": true,
                   "isPrimary": false
                 },
                 {
@@ -56,6 +56,114 @@
                 {
                   "id": "gid://shopify/Location/112831103282",
                   "name": "HAR-658 lifecycle 20260505013332",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864788786",
+                  "name": "Inventory transfer conformance destination 1778105212772",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864919858",
+                  "name": "Inventory transfer conformance destination 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864985394",
+                  "name": "Inventory transfer conformance destination 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865149234",
+                  "name": "Inventory transfer conformance destination 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864756018",
+                  "name": "Inventory transfer conformance origin 1778105212772",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864887090",
+                  "name": "Inventory transfer conformance origin 1778105301908",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112864952626",
+                  "name": "Inventory transfer conformance origin 1778105349016",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112865116466",
+                  "name": "Inventory transfer conformance origin 1778105966307",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112885236018",
+                  "name": "location-delete-inventory-level-cascade destination 20260508023013",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112885137714",
+                  "name": "location-delete-inventory-level-cascade target 20260508022925",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112850207026",
+                  "name": "location-lifecycle-deprecated-user-errors candidate 20260506025819",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112850174258",
+                  "name": "location-lifecycle-deprecated-user-errors duplicate 20260506025819",
                   "isActive": true,
                   "isFulfillmentService": false,
                   "hasActiveInventory": false,
@@ -86,10 +194,10 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 12,
-              "actualQueryCost": 6,
+              "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -98,11 +206,11 @@
       }
     },
     "inactiveNoInventoryCreate": {
-      "name": "HAR-663 delete success 20260505052520LocationAdd",
+      "name": "HAR-663 delete success 20260511015044LocationAdd",
       "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "name": "HAR-663 delete success 20260505052520",
+          "name": "HAR-663 delete success 20260511015044",
           "fulfillsOnlineOrders": false,
           "address": {
             "address1": "663 State St",
@@ -119,8 +227,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112833986866",
-                "name": "HAR-663 delete success 20260505052520",
+                "id": "gid://shopify/Location/112942547250",
+                "name": "HAR-663 delete success 20260511015044",
                 "isActive": true,
                 "hasActiveInventory": false,
                 "isFulfillmentService": false
@@ -134,7 +242,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -144,9 +252,9 @@
     },
     "inactiveNoInventoryDeactivate": {
       "name": "inactiveNoInventoryDeactivate",
-      "query": "mutation LocationDeleteFixtureDeactivate($locationId: ID!) {\n    locationDeactivate(locationId: $locationId)\n      @idempotent(key: \"location-delete-state-and-scope-inactive-no-inventory-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "query": "mutation LocationDeleteFixtureDeactivate($locationId: ID!) {\n    locationDeactivate(locationId: $locationId)\n      @idempotent(key: \"location-delete-state-and-scope-inactive-no-inventory-20260511015044\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112833986866"
+        "locationId": "gid://shopify/Location/112942547250"
       },
       "response": {
         "status": 200,
@@ -154,7 +262,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112833986866",
+                "id": "gid://shopify/Location/112942547250",
                 "isActive": false,
                 "hasActiveInventory": false
               },
@@ -176,11 +284,11 @@
       }
     },
     "activeNoInventoryCreate": {
-      "name": "HAR-663 active no inventory 20260505052520LocationAdd",
+      "name": "HAR-663 active no inventory 20260511015044LocationAdd",
       "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "name": "HAR-663 active no inventory 20260505052520",
+          "name": "HAR-663 active no inventory 20260511015044",
           "fulfillsOnlineOrders": false,
           "address": {
             "address1": "663 State St",
@@ -197,8 +305,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112834019634",
-                "name": "HAR-663 active no inventory 20260505052520",
+                "id": "gid://shopify/Location/112942580018",
+                "name": "HAR-663 active no inventory 20260511015044",
                 "isActive": true,
                 "hasActiveInventory": false,
                 "isFulfillmentService": false
@@ -221,11 +329,11 @@
       }
     },
     "activeInventoryCreate": {
-      "name": "HAR-663 active inventory 20260505052520LocationAdd",
+      "name": "HAR-663 active inventory 20260511015044LocationAdd",
       "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "name": "HAR-663 active inventory 20260505052520",
+          "name": "HAR-663 active inventory 20260511015044",
           "fulfillsOnlineOrders": false,
           "address": {
             "address1": "663 State St",
@@ -242,8 +350,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112834052402",
-                "name": "HAR-663 active inventory 20260505052520",
+                "id": "gid://shopify/Location/112942612786",
+                "name": "HAR-663 active inventory 20260511015044",
                 "isActive": true,
                 "hasActiveInventory": false,
                 "isFulfillmentService": false
@@ -270,7 +378,7 @@
       "query": "mutation LocationDeleteInventoryProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "product": {
-          "title": "activeInventory product 20260505052520"
+          "title": "activeInventory product 20260511015044"
         }
       },
       "response": {
@@ -279,14 +387,14 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10177066664242",
-                "title": "activeInventory product 20260505052520",
+                "id": "gid://shopify/Product/10181953454386",
+                "title": "activeInventory product 20260511015044",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51126404448562",
+                      "id": "gid://shopify/ProductVariant/51145029255474",
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53229509476658",
+                        "id": "gid://shopify/InventoryItem/53248356614450",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -315,10 +423,10 @@
       "name": "activeInventoryProductTrackInventory",
       "query": "mutation LocationDeleteInventoryProductTrack($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      product {\n        id\n        tracksInventory\n        totalInventory\n      }\n      productVariants {\n        id\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "productId": "gid://shopify/Product/10177066664242",
+        "productId": "gid://shopify/Product/10181953454386",
         "variants": [
           {
-            "id": "gid://shopify/ProductVariant/51126404448562",
+            "id": "gid://shopify/ProductVariant/51145029255474",
             "inventoryItem": {
               "tracked": true
             }
@@ -331,15 +439,15 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10177066664242",
+                "id": "gid://shopify/Product/10181953454386",
                 "tracksInventory": true,
                 "totalInventory": 0
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51126404448562",
+                  "id": "gid://shopify/ProductVariant/51145029255474",
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53229509476658",
+                    "id": "gid://shopify/InventoryItem/53248356614450",
                     "tracked": true,
                     "requiresShipping": true
                   }
@@ -366,10 +474,10 @@
       "name": "activeInventoryInventoryActivate",
       "query": "mutation LocationDeleteInventoryActivate(\n    $inventoryItemId: ID!\n    $locationId: ID!\n    $available: Int\n    $idempotencyKey: String!\n  ) {\n    inventoryActivate(\n      inventoryItemId: $inventoryItemId\n      locationId: $locationId\n      available: $available\n    ) @idempotent(key: $idempotencyKey) {\n      inventoryLevel {\n        id\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"committed\", \"on_hand\"]) {\n          name\n          quantity\n          updatedAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "inventoryItemId": "gid://shopify/InventoryItem/53229509476658",
-        "locationId": "gid://shopify/Location/112834052402",
+        "inventoryItemId": "gid://shopify/InventoryItem/53248356614450",
+        "locationId": "gid://shopify/Location/112942612786",
         "available": 7,
-        "idempotencyKey": "location-delete-state-and-scope-activeInventory-20260505052520"
+        "idempotencyKey": "location-delete-state-and-scope-activeInventory-20260511015044"
       },
       "response": {
         "status": 200,
@@ -377,16 +485,16 @@
           "data": {
             "inventoryActivate": {
               "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/150029304114?inventory_item_id=53229509476658",
+                "id": "gid://shopify/InventoryLevel/150322774322?inventory_item_id=53248356614450",
                 "location": {
-                  "id": "gid://shopify/Location/112834052402",
-                  "name": "HAR-663 active inventory 20260505052520"
+                  "id": "gid://shopify/Location/112942612786",
+                  "name": "HAR-663 active inventory 20260511015044"
                 },
                 "quantities": [
                   {
                     "name": "available",
                     "quantity": 7,
-                    "updatedAt": "2026-05-05T05:25:23Z"
+                    "updatedAt": "2026-05-11T01:50:47Z"
                   },
                   {
                     "name": "committed",
@@ -421,7 +529,7 @@
       "name": "fulfillmentServiceCreate",
       "query": "mutation LocationDeleteFulfillmentServiceCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        handle\n        serviceName\n        location {\n          id\n          name\n          isFulfillmentService\n          isActive\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "name": "HAR-663 FS 20260505052520"
+        "name": "HAR-663 FS 20260511015044"
       },
       "response": {
         "status": 200,
@@ -429,12 +537,12 @@
           "data": {
             "fulfillmentServiceCreate": {
               "fulfillmentService": {
-                "id": "gid://shopify/FulfillmentService/71918944562?id=true",
-                "handle": "har-663-fs-20260505052520",
-                "serviceName": "HAR-663 FS 20260505052520",
+                "id": "gid://shopify/FulfillmentService/71935557938?id=true",
+                "handle": "har-663-fs-20260511015044",
+                "serviceName": "HAR-663 FS 20260511015044",
                 "location": {
-                  "id": "gid://shopify/Location/112834085170",
-                  "name": "HAR-663 FS 20260505052520",
+                  "id": "gid://shopify/Location/112942645554",
+                  "name": "HAR-663 FS 20260511015044",
                   "isFulfillmentService": true,
                   "isActive": true
                 }
@@ -448,7 +556,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -462,14 +570,14 @@
       "name": "inactiveNoInventoryDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112833986866"
+        "locationId": "gid://shopify/Location/112942547250"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112833986866",
+              "deletedLocationId": "gid://shopify/Location/112942547250",
               "locationDeleteUserErrors": []
             }
           },
@@ -526,6 +634,66 @@
                 },
                 {
                   "node": {
+                    "id": "gid://shopify/Location/112864788786"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864919858"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864985394"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112865149234"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864756018"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864887090"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864952626"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112865116466"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112885236018"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112885137714"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112850207026"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112850174258"
+                  }
+                },
+                {
+                  "node": {
                     "id": "gid://shopify/Location/106318463282"
                   }
                 },
@@ -546,10 +714,10 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 9,
-              "actualQueryCost": 3,
+              "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -561,7 +729,7 @@
       "name": "activeNoInventoryDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834019634"
+        "locationId": "gid://shopify/Location/112942580018"
       },
       "response": {
         "status": 200,
@@ -596,7 +764,7 @@
       "name": "activeInventoryDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834052402"
+        "locationId": "gid://shopify/Location/112942612786"
       },
       "response": {
         "status": 200,
@@ -669,7 +837,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -681,7 +849,7 @@
       "name": "fulfillmentServiceLocationDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834085170"
+        "locationId": "gid://shopify/Location/112942645554"
       },
       "response": {
         "status": 200,
@@ -719,7 +887,7 @@
       "query": "mutation LocationDeleteInventoryProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10177066664242"
+          "id": "gid://shopify/Product/10181953454386"
         }
       },
       "response": {
@@ -727,7 +895,7 @@
         "payload": {
           "data": {
             "productDelete": {
-              "deletedProductId": "gid://shopify/Product/10177066664242",
+              "deletedProductId": "gid://shopify/Product/10181953454386",
               "userErrors": []
             }
           },
@@ -737,7 +905,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -747,9 +915,9 @@
     },
     {
       "name": "activeInventoryLocationCleanupDeactivate",
-      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeInventoryLocation-cleanup-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeInventoryLocation-cleanup-20260511015044\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834052402",
+        "locationId": "gid://shopify/Location/112942612786",
         "destinationLocationId": "gid://shopify/Location/106318430514"
       },
       "response": {
@@ -758,7 +926,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112834052402",
+                "id": "gid://shopify/Location/112942612786",
                 "isActive": false,
                 "hasActiveInventory": false
               },
@@ -783,14 +951,14 @@
       "name": "activeInventoryLocationCleanupDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834052402"
+        "locationId": "gid://shopify/Location/112942612786"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112834052402",
+              "deletedLocationId": "gid://shopify/Location/112942612786",
               "locationDeleteUserErrors": []
             }
           },
@@ -810,9 +978,9 @@
     },
     {
       "name": "activeNoInventoryLocationCleanupDeactivate",
-      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeNoInventoryLocation-cleanup-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeNoInventoryLocation-cleanup-20260511015044\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834019634",
+        "locationId": "gid://shopify/Location/112942580018",
         "destinationLocationId": "gid://shopify/Location/106318430514"
       },
       "response": {
@@ -821,7 +989,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112834019634",
+                "id": "gid://shopify/Location/112942580018",
                 "isActive": false,
                 "hasActiveInventory": false
               },
@@ -846,14 +1014,14 @@
       "name": "activeNoInventoryLocationCleanupDelete",
       "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
-        "locationId": "gid://shopify/Location/112834019634"
+        "locationId": "gid://shopify/Location/112942580018"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112834019634",
+              "deletedLocationId": "gid://shopify/Location/112942580018",
               "locationDeleteUserErrors": []
             }
           },
@@ -875,14 +1043,14 @@
       "name": "fulfillmentServiceCleanup",
       "query": "mutation LocationDeleteFulfillmentServiceCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/FulfillmentService/71918944562?id=true"
+        "id": "gid://shopify/FulfillmentService/71935557938?id=true"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "fulfillmentServiceDelete": {
-              "deletedId": "gid://shopify/FulfillmentService/71918944562",
+              "deletedId": "gid://shopify/FulfillmentService/71935557938",
               "userErrors": []
             }
           },
@@ -907,7 +1075,7 @@
       "variables": {
         "first": 50
       },
-      "query": "sha256:8f6697a2776c1712648a0742d97f074168f8afbf8ce84b65d86f1626e0f7ad1d",
+      "query": "sha256:1fbdc0fd8fbd2d57e9091a2d91eb0b6ffd4fb1d4c04e6b2d9bf3d4551a34500a",
       "response": {
         "status": 200,
         "body": {
@@ -941,6 +1109,66 @@
                 },
                 {
                   "node": {
+                    "id": "gid://shopify/Location/112864788786"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864919858"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864985394"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112865149234"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864756018"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864887090"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112864952626"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112865116466"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112885236018"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112885137714"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112850207026"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112850174258"
+                  }
+                },
+                {
+                  "node": {
                     "id": "gid://shopify/Location/106318463282"
                   }
                 },
@@ -961,10 +1189,10 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 9,
-              "actualQueryCost": 3,
+              "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -975,7 +1203,7 @@
     {
       "operationName": "StorePropertiesLocationHydrate",
       "variables": {
-        "id": "gid://shopify/Location/112833986866"
+        "id": "gid://shopify/Location/112942547250"
       },
       "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
       "response": {
@@ -983,14 +1211,14 @@
         "body": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112833986866",
-              "legacyResourceId": "112833986866",
-              "name": "HAR-663 delete success 20260505052520",
+              "id": "gid://shopify/Location/112942547250",
+              "legacyResourceId": "112942547250",
+              "name": "HAR-663 delete success 20260511015044",
               "activatable": true,
               "addressVerified": false,
-              "createdAt": "2026-05-05T05:25:20Z",
+              "createdAt": "2026-05-11T01:50:44Z",
               "deactivatable": true,
-              "deactivatedAt": "2026-05-05T05:25:20Z",
+              "deactivatedAt": "2026-05-11T01:50:44Z",
               "deletable": true,
               "fulfillsOnlineOrders": false,
               "hasActiveInventory": false,
@@ -999,7 +1227,7 @@
               "isFulfillmentService": false,
               "isPrimary": false,
               "shipsInventory": false,
-              "updatedAt": "2026-05-05T05:25:20Z",
+              "updatedAt": "2026-05-11T01:50:44Z",
               "fulfillmentService": null,
               "address": {
                 "address1": "663 State St",
@@ -1060,7 +1288,7 @@
     {
       "operationName": "StorePropertiesLocationHydrate",
       "variables": {
-        "id": "gid://shopify/Location/112834019634"
+        "id": "gid://shopify/Location/112942580018"
       },
       "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
       "response": {
@@ -1068,12 +1296,12 @@
         "body": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112834019634",
-              "legacyResourceId": "112834019634",
-              "name": "HAR-663 active no inventory 20260505052520",
+              "id": "gid://shopify/Location/112942580018",
+              "legacyResourceId": "112942580018",
+              "name": "HAR-663 active no inventory 20260511015044",
               "activatable": true,
               "addressVerified": false,
-              "createdAt": "2026-05-05T05:25:21Z",
+              "createdAt": "2026-05-11T01:50:45Z",
               "deactivatable": true,
               "deactivatedAt": null,
               "deletable": false,
@@ -1084,7 +1312,7 @@
               "isFulfillmentService": false,
               "isPrimary": false,
               "shipsInventory": false,
-              "updatedAt": "2026-05-05T05:25:21Z",
+              "updatedAt": "2026-05-11T01:50:45Z",
               "fulfillmentService": null,
               "address": {
                 "address1": "663 State St",
@@ -1145,7 +1373,7 @@
     {
       "operationName": "StorePropertiesLocationHydrate",
       "variables": {
-        "id": "gid://shopify/Location/112834052402"
+        "id": "gid://shopify/Location/112942612786"
       },
       "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
       "response": {
@@ -1153,12 +1381,12 @@
         "body": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112834052402",
-              "legacyResourceId": "112834052402",
-              "name": "HAR-663 active inventory 20260505052520",
+              "id": "gid://shopify/Location/112942612786",
+              "legacyResourceId": "112942612786",
+              "name": "HAR-663 active inventory 20260511015044",
               "activatable": true,
               "addressVerified": false,
-              "createdAt": "2026-05-05T05:25:22Z",
+              "createdAt": "2026-05-11T01:50:46Z",
               "deactivatable": true,
               "deactivatedAt": null,
               "deletable": false,
@@ -1169,7 +1397,7 @@
               "isFulfillmentService": false,
               "isPrimary": false,
               "shipsInventory": false,
-              "updatedAt": "2026-05-05T05:25:22Z",
+              "updatedAt": "2026-05-11T01:50:46Z",
               "fulfillmentService": null,
               "address": {
                 "address1": "663 State St",
@@ -1205,19 +1433,19 @@
               "inventoryLevels": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryLevel/150029304114?inventory_item_id=53229509476658",
+                    "id": "gid://shopify/InventoryLevel/150322774322?inventory_item_id=53248356614450",
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53229509476658"
+                      "id": "gid://shopify/InventoryItem/53248356614450"
                     },
                     "location": {
-                      "id": "gid://shopify/Location/112834052402",
-                      "name": "HAR-663 active inventory 20260505052520"
+                      "id": "gid://shopify/Location/112942612786",
+                      "name": "HAR-663 active inventory 20260511015044"
                     },
                     "quantities": [
                       {
                         "name": "available",
                         "quantity": 7,
-                        "updatedAt": "2026-05-05T05:25:23Z"
+                        "updatedAt": "2026-05-11T01:50:47Z"
                       },
                       {
                         "name": "committed",
@@ -1235,8 +1463,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1NjM4Mjc2NTY2MjUxNCwibGFzdF92YWx1ZSI6IjU2MzgyNzY1NjYyNTE0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjo1NjM4Mjc2NTY2MjUxNCwibGFzdF92YWx1ZSI6IjU2MzgyNzY1NjYyNTE0In0="
+                  "startCursor": "eyJsYXN0X2lkIjo1NjQwMjY2NzIwOTAxMCwibGFzdF92YWx1ZSI6IjU2NDAyNjY3MjA5MDEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1NjQwMjY2NzIwOTAxMCwibGFzdF92YWx1ZSI6IjU2NDAyNjY3MjA5MDEwIn0="
                 }
               }
             }
@@ -1329,13 +1557,13 @@
                     "quantities": [
                       {
                         "name": "available",
-                        "quantity": -15,
-                        "updatedAt": "2026-04-26T02:28:41Z"
+                        "quantity": -39,
+                        "updatedAt": "2026-05-06T06:05:26Z"
                       },
                       {
                         "name": "committed",
-                        "quantity": 5,
-                        "updatedAt": "2026-04-26T00:06:26Z"
+                        "quantity": 12,
+                        "updatedAt": "2026-05-06T06:05:26Z"
                       },
                       {
                         "name": "on_hand",
@@ -1425,7 +1653,7 @@
     {
       "operationName": "StorePropertiesLocationHydrate",
       "variables": {
-        "id": "gid://shopify/Location/112834085170"
+        "id": "gid://shopify/Location/112942645554"
       },
       "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
       "response": {
@@ -1433,12 +1661,12 @@
         "body": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112834085170",
-              "legacyResourceId": "112834085170",
-              "name": "HAR-663 FS 20260505052520",
+              "id": "gid://shopify/Location/112942645554",
+              "legacyResourceId": "112942645554",
+              "name": "HAR-663 FS 20260511015044",
               "activatable": true,
               "addressVerified": true,
-              "createdAt": "2026-05-05T05:25:24Z",
+              "createdAt": "2026-05-11T01:50:48Z",
               "deactivatable": false,
               "deactivatedAt": null,
               "deletable": true,
@@ -1449,11 +1677,11 @@
               "isFulfillmentService": true,
               "isPrimary": false,
               "shipsInventory": false,
-              "updatedAt": "2026-05-05T05:25:24Z",
+              "updatedAt": "2026-05-11T01:50:48Z",
               "fulfillmentService": {
-                "id": "gid://shopify/FulfillmentService/71918944562?id=true",
-                "handle": "har-663-fs-20260505052520",
-                "serviceName": "HAR-663 FS 20260505052520"
+                "id": "gid://shopify/FulfillmentService/71935557938?id=true",
+                "handle": "har-663-fs-20260511015044",
+                "serviceName": "HAR-663 FS 20260511015044"
               },
               "address": {
                 "address1": null,

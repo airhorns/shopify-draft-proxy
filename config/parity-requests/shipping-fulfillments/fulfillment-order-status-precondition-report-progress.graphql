@@ -1,0 +1,20 @@
+mutation FulfillmentOrderStatusPreconditionReportProgress(
+  $id: ID!
+  $progressReport: FulfillmentOrderReportProgressInput
+) {
+  fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+    fulfillmentOrder {
+      id
+      status
+      updatedAt
+      supportedActions {
+        action
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

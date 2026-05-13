@@ -1,0 +1,1048 @@
+{
+  "capturedAt": "2026-05-09T17:58:46.896Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "document": "mutation MediaFileCreateBatchSizeLimit($files: [FileCreateInput!]!) {\n  fileCreate(files: $files) {\n    files {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+  "variables": {
+    "files": [
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-1.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-2.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-3.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-4.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-5.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-6.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-7.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-8.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-9.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-10.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-11.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-12.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-13.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-14.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-15.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-16.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-17.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-18.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-19.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-20.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-21.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-22.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-23.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-24.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-25.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-26.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-27.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-28.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-29.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-30.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-31.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-32.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-33.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-34.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-35.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-36.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-37.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-38.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-39.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-40.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-41.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-42.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-43.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-44.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-45.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-46.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-47.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-48.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-49.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-50.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-51.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-52.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-53.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-54.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-55.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-56.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-57.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-58.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-59.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-60.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-61.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-62.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-63.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-64.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-65.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-66.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-67.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-68.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-69.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-70.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-71.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-72.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-73.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-74.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-75.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-76.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-77.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-78.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-79.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-80.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-81.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-82.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-83.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-84.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-85.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-86.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-87.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-88.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-89.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-90.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-91.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-92.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-93.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-94.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-95.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-96.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-97.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-98.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-99.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-100.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-101.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-102.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-103.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-104.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-105.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-106.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-107.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-108.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-109.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-110.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-111.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-112.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-113.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-114.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-115.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-116.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-117.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-118.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-119.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-120.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-121.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-122.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-123.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-124.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-125.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-126.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-127.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-128.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-129.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-130.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-131.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-132.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-133.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-134.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-135.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-136.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-137.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-138.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-139.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-140.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-141.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-142.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-143.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-144.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-145.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-146.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-147.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-148.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-149.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-150.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-151.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-152.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-153.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-154.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-155.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-156.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-157.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-158.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-159.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-160.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-161.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-162.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-163.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-164.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-165.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-166.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-167.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-168.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-169.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-170.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-171.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-172.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-173.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-174.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-175.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-176.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-177.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-178.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-179.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-180.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-181.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-182.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-183.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-184.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-185.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-186.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-187.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-188.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-189.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-190.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-191.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-192.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-193.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-194.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-195.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-196.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-197.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-198.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-199.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-200.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-201.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-202.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-203.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-204.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-205.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-206.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-207.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-208.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-209.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-210.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-211.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-212.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-213.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-214.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-215.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-216.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-217.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-218.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-219.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-220.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-221.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-222.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-223.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-224.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-225.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-226.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-227.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-228.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-229.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-230.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-231.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-232.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-233.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-234.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-235.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-236.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-237.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-238.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-239.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-240.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-241.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-242.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-243.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-244.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-245.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-246.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-247.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-248.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-249.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-250.png",
+        "contentType": "IMAGE"
+      },
+      {
+        "originalSource": "https://placehold.co/600x400/media-file-create-batch-size-limit-251.png",
+        "contentType": "IMAGE"
+      }
+    ]
+  },
+  "mutation": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["fileCreate", "files"],
+            "extensions": {
+              "code": "MAX_INPUT_SIZE_EXCEEDED"
+            }
+          }
+        ],
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": null,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

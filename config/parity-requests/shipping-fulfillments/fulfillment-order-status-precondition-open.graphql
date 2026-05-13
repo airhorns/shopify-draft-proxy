@@ -1,0 +1,17 @@
+mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
+  fulfillmentOrderOpen(id: $id) {
+    fulfillmentOrder {
+      id
+      status
+      updatedAt
+      supportedActions {
+        action
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
