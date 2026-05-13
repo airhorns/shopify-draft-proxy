@@ -356,6 +356,7 @@ pub fn empty_staged_state() -> StagedState {
     publishable_order: [],
     store_property_mutation_payloads: dict.new(),
     product_metafields: dict.new(),
+    deleted_product_metafield_ids: dict.new(),
     metafield_definitions: dict.new(),
     deleted_metafield_definition_ids: dict.new(),
     saved_searches: dict.new(),

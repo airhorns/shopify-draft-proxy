@@ -48,6 +48,7 @@ pub fn replace_staged_metafields_for_owner(
   metafields: List(ProductMetafieldRecord),
 ) -> Store {
   let staged = store.staged_state
+  let metafield_ids = list.map(metafields, fn(metafield) { metafield.id })
   let retained =
     staged.product_metafields
     |> dict.to_list
@@ -60,9 +61,34 @@ pub fn replace_staged_metafields_for_owner(
     list.fold(metafields, retained, fn(acc, metafield) {
       dict.insert(acc, metafield.id, metafield)
     })
+  let retained_deleted =
+    staged.deleted_product_metafield_ids
+    |> dict.to_list
+    |> list.filter(fn(pair) {
+      let #(metafield_id, _) = pair
+      case dict.get(store.base_state.product_metafields, metafield_id) {
+        Ok(metafield) -> metafield.owner_id != owner_id
+        Error(_) -> True
+      }
+    })
+    |> dict.from_list
+  let next_deleted =
+    store.base_state.product_metafields
+    |> dict.values
+    |> list.filter(fn(metafield) {
+      metafield.owner_id == owner_id
+      && !list.contains(metafield_ids, metafield.id)
+    })
+    |> list.fold(retained_deleted, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, True)
+    })
   Store(
     ..store,
-    staged_state: StagedState(..staged, product_metafields: next_bucket),
+    staged_state: StagedState(
+      ..staged,
+      product_metafields: next_bucket,
+      deleted_product_metafield_ids: next_deleted,
+    ),
   )
 }
 
@@ -192,10 +218,17 @@ pub fn get_effective_metafields_by_owner_id(
   let staged =
     dict.values(store.staged_state.product_metafields)
     |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+  let base =
+    dict.values(store.base_state.product_metafields)
+    |> list.filter(fn(metafield) {
+      metafield.owner_id == owner_id
+      && !dict_has(
+        store.staged_state.deleted_product_metafield_ids,
+        metafield.id,
+      )
+    })
   let source = case staged {
-    [] ->
-      dict.values(store.base_state.product_metafields)
-      |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+    [] -> base
     _ -> staged
   }
   source
@@ -252,9 +285,15 @@ pub fn find_effective_metafield_by_id(
   case dict.get(store.staged_state.product_metafields, metafield_id) {
     Ok(metafield) -> Some(metafield)
     Error(_) ->
-      case dict.get(store.base_state.product_metafields, metafield_id) {
-        Ok(metafield) -> Some(metafield)
-        Error(_) -> None
+      case
+        dict_has(store.staged_state.deleted_product_metafield_ids, metafield_id)
+      {
+        True -> None
+        False ->
+          case dict.get(store.base_state.product_metafields, metafield_id) {
+            Ok(metafield) -> Some(metafield)
+            Error(_) -> None
+          }
       }
   }
 }

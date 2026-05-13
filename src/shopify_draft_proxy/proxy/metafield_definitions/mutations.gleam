@@ -160,8 +160,10 @@ pub fn handle_mutation_fields(
             )
           let next_entries =
             list.append(entries, [#(get_field_response_key(field), payload)])
-          let next_drafts = case field_errors {
-            [] -> {
+          let next_drafts = case
+            should_record_log_draft(name.value, staged_ids, field_errors)
+          {
+            True -> {
               let draft =
                 single_root_log_draft(
                   name.value,
@@ -173,7 +175,7 @@ pub fn handle_mutation_fields(
                 )
               list.append(drafts, [draft])
             }
-            [_, ..] -> drafts
+            False -> drafts
           }
           let next_staged_all = case field_errors {
             [] -> list.append(staged_all, staged_ids)
@@ -219,6 +221,21 @@ pub fn handle_mutation_fields(
       [_, ..] -> []
     },
   )
+}
+
+fn should_record_log_draft(
+  root_name: String,
+  staged_ids: List(String),
+  field_errors: List(Json),
+) -> Bool {
+  case field_errors {
+    [_, ..] -> False
+    [] ->
+      case root_name, staged_ids {
+        "metafieldDelete", [] -> False
+        _, _ -> True
+      }
+  }
 }
 
 @internal
@@ -3848,13 +3865,18 @@ pub fn serialize_metafield_delete_root(
       case store.find_effective_metafield_by_id(store_in, metafield_id) {
         None -> #(
           serializers.serialize_metafield_delete_payload(
-            Some(metafield_id),
-            [],
+            None,
+            [
+              definition_types.SimpleUserError(
+                ["id"],
+                "Metafield does not exist.",
+              ),
+            ],
             field,
           ),
           store_in,
           identity,
-          [metafield_id],
+          [],
         )
         Some(record) -> {
           let result =

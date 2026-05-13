@@ -132,8 +132,8 @@ Validation entry points:
 - `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
 - `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
+- `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
-- `config/parity-specs/products/metafieldDelete-parity-plan.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
 - `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
 - `corepack pnpm conformance:capture -- --run metafield-definition-create-with-pin-guards`
