@@ -1,0 +1,86 @@
+{
+  "scenarioId": "draft-order-invoice-send-invoice-errors",
+  "operationNames": ["draftOrderCreate", "draftOrderInvoiceSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-send-invoice-errors.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-create.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-open-draft-without-recipient",
+        "capturePath": "$.createOpen.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate"
+      },
+      {
+        "name": "open-no-recipient-invoice-errors",
+        "capturePath": "$.noRecipient.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "email": null,
+            "currency": null,
+            "template": null
+          }
+        }
+      },
+      {
+        "name": "valid-recipient-invoice-errors",
+        "capturePath": "$.validSend.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "email": {
+              "to": "buyer@example.com",
+              "subject": "Draft invoice",
+              "customMessage": "Thanks for the order",
+              "from": "sales@example.com",
+              "bcc": ["ops@example.com", "archive@example.com"]
+            },
+            "currency": "USD",
+            "template": "DRAFT_ORDER_INVOICE"
+          }
+        }
+      },
+      {
+        "name": "valid-recipient-staged-invoice-metadata",
+        "capturePath": "$.validSend.state",
+        "proxyStatePath": "$",
+        "selectedPaths": ["$.stagedState.draftOrders[\"gid://shopify/DraftOrder/1\"].data.__draftProxyInvoiceSend"]
+      },
+      {
+        "name": "invoice-send-staged-mutation-log",
+        "capturePath": "$.validSend.log",
+        "proxyLogPath": "$",
+        "selectedPaths": [
+          "$.entries[0].operationName",
+          "$.entries[0].status",
+          "$.entries[1].operationName",
+          "$.entries[1].status",
+          "$.entries[2].operationName",
+          "$.entries[2].status"
+        ]
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for the private draftOrderInvoiceSend invoiceErrors/templateName/presentmentCurrencyCode contract. Fresh live probes with valid conformance credentials on public Admin GraphQL 2025-01, 2026-04, and unstable expose only id/email args and draftOrder/userErrors payload fields, with no DraftOrderInvoiceError or DraftOrderEmailTemplate type, so this scenario does not claim public-Shopify capture evidence. The request starts cold, creates an open local draft through draftOrderCreate, proves no-recipient sends return CUSTOMER_NO_EMAIL invoiceErrors instead of null, then proves a valid recipient send returns invoiceErrors: [] and stages presentment/template/email metadata without upstream writes."
+}

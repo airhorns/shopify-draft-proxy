@@ -13928,6 +13928,10 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
           field
           message
         }
+        invoiceErrors {
+          code
+          message
+        }
       }
     }
   "
@@ -13943,7 +13947,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(unknown_outcome.data)
-    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Draft order not found\"}]}}}"
+    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Draft order not found\"}],\"invoiceErrors\":[]}}}"
 
   let create_mutation =
     "
@@ -13978,7 +13982,116 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(open_outcome.data)
-    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}]}}}"
+    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}],\"invoiceErrors\":[{\"code\":\"CUSTOMER_NO_EMAIL\",\"message\":\"Customer email can't be blank\"}]}}}"
+}
+
+pub fn orders_draft_order_invoice_send_records_presentment_metadata_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        lineItems: [{ title: \"Invoice metadata item\", quantity: 1, originalUnitPrice: \"1.00\" }]
+      }) {
+        draftOrder {
+          id
+        }
+      }
+    }
+  "
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  let send_mutation =
+    "
+    mutation DraftOrderInvoiceSend($id: ID!, $email: EmailInput, $currency: CurrencyCode, $template: DraftOrderEmailTemplate) {
+      draftOrderInvoiceSend(
+        id: $id,
+        email: $email,
+        presentmentCurrencyCode: $currency,
+        templateName: $template
+      ) {
+        draftOrder {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+        invoiceErrors {
+          code
+          message
+        }
+      }
+    }
+  "
+  let send_outcome =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      send_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #(
+          "email",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("to", root_field.StringVal("buyer@example.com")),
+              #("subject", root_field.StringVal("Draft invoice")),
+              #("customMessage", root_field.StringVal("Thanks for the order")),
+              #("from", root_field.StringVal("sales@example.com")),
+              #(
+                "bcc",
+                root_field.ListVal([
+                  root_field.StringVal("ops@example.com"),
+                  root_field.StringVal("archive@example.com"),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+        #("currency", root_field.StringVal("USD")),
+        #("template", root_field.StringVal("DRAFT_ORDER_INVOICE")),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(send_outcome.data)
+    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\"},\"userErrors\":[],\"invoiceErrors\":[]}}}"
+  assert send_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
+  let assert Some(record) =
+    store.get_draft_order_by_id(
+      send_outcome.store,
+      "gid://shopify/DraftOrder/1",
+    )
+  let assert Some(metadata) =
+    orders_common.captured_object_field(record.data, "__draftProxyInvoiceSend")
+  assert orders_common.captured_string_field(
+      metadata,
+      "presentmentCurrencyCode",
+    )
+    == Some("USD")
+  assert orders_common.captured_string_field(metadata, "templateName")
+    == Some("DRAFT_ORDER_INVOICE")
+  let assert Some(email_metadata) =
+    orders_common.captured_object_field(metadata, "email")
+  assert orders_common.captured_string_field(email_metadata, "to")
+    == Some("buyer@example.com")
+  assert orders_common.captured_string_field(email_metadata, "subject")
+    == Some("Draft invoice")
+  assert orders_common.captured_string_field(email_metadata, "customMessage")
+    == Some("Thanks for the order")
+  assert orders_common.captured_string_field(email_metadata, "from")
+    == Some("sales@example.com")
+  assert orders_common.captured_string_list_field(email_metadata, "bcc")
+    == ["ops@example.com", "archive@example.com"]
 }
 
 pub fn orders_draft_order_residual_helper_roots_test() {
