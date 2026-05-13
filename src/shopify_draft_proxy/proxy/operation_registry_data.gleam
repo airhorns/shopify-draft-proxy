@@ -5362,7 +5362,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
       ],
       support_notes: Some(
-        "Local staging rejects merchant-managed fulfillment orders with the captured API-service guardrail, stages API-service assigned fulfillment orders to CLOSED with empty supportedActions, and exposes the staged record through downstream fulfillment-order reads without invoking service callbacks.",
+        "Locally stages fulfillment-order close for IN_PROGRESS orders, transitions the record to INCOMPLETE/requestStatus CLOSED, preserves Shopify's captured merchant-managed API-type and open API-service status guardrails, and leaves state unchanged for invalid status or missing-id failures. Parity covers the API-service success branch and downstream read-after-write state.",
       ),
     ),
     RegistryEntry(
@@ -5506,7 +5506,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam",
       ],
       support_notes: Some(
-        "Local staging rejects non-scheduled fulfillment orders with the captured scheduled-status guardrail, updates fulfillAt/updatedAt for scheduled fulfillment orders, and exposes the staged value through downstream fulfillment-order reads.",
+        "Locally stages reschedule for SCHEDULED fulfillment orders, updates fulfillAt/updatedAt, preserves the captured non-scheduled guardrail, validates past or malformed fulfillAt separately, and leaves state unchanged for invalid status, invalid date, or missing-id failures. Existing HAR-234 parity covers the non-scheduled guardrail branch; success-path coverage is local runtime evidence until a scheduled success capture is added.",
       ),
     ),
     RegistryEntry(

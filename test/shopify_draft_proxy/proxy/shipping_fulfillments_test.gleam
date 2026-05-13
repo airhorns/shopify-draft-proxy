@@ -10,9 +10,6 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
-import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
-  captured_field, captured_upsert_fields,
-}
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, UpstreamContext, empty_upstream_context,
@@ -22,13 +19,14 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DeliveryProfileRecord,
-  type FulfillmentOrderRecord, type ShippingPackageRecord,
-  type StorePropertyRecord, CalculatedOrderRecord, CapturedArray, CapturedBool,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
-  FulfillmentRecord, FulfillmentServiceRecord, LocationRecord, ProductRecord,
-  ProductSeoRecord, ProductVariantRecord, ReverseFulfillmentOrderRecord,
-  ShippingOrderRecord, ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  type FulfillmentOrderRecord, type FulfillmentServiceRecord,
+  type ShippingPackageRecord, type StorePropertyRecord, CalculatedOrderRecord,
+  CapturedArray, CapturedBool, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CarrierServiceRecord, DeliveryProfileRecord,
+  FulfillmentOrderRecord, FulfillmentRecord, FulfillmentServiceRecord,
+  LocationRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ReverseFulfillmentOrderRecord, ShippingOrderRecord,
+  ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
 }
@@ -3663,6 +3661,283 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
 }
 
+pub fn fulfillment_order_close_reschedule_stateful_handler_test() {
+  let close_id = "gid://shopify/FulfillmentOrder/close-stateful"
+  let open_api_close_id = "gid://shopify/FulfillmentOrder/open-api-close"
+  let api_service_location_id = "gid://shopify/Location/open-api-service"
+  let scheduled_id = "gid://shopify/FulfillmentOrder/reschedule-stateful"
+  let closed_id = "gid://shopify/FulfillmentOrder/closed-invalid-close"
+  let unscheduled_id = "gid://shopify/FulfillmentOrder/reschedule-open"
+  let past_id = "gid://shopify/FulfillmentOrder/reschedule-past"
+  let old_fulfill_at = "2026-06-01T00:00:00Z"
+  let next_fulfill_at = "2999-12-01T00:00:00Z"
+  let past_fulfill_at = "2000-01-01T00:00:00Z"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_services([
+      fulfillment_service_record(
+        "gid://shopify/FulfillmentService/open-api-service",
+        api_service_location_id,
+        "Open API Service",
+      ),
+    ])
+    |> store.upsert_base_fulfillment_orders([
+      fulfillment_order_record(close_id, "IN_PROGRESS", "ACCEPTED"),
+      fulfillment_order_record_at_location(
+        open_api_close_id,
+        "OPEN",
+        "UNSUBMITTED",
+        api_service_location_id,
+        "Open API Service",
+      ),
+      fulfillment_order_record_with_fulfill_at(
+        scheduled_id,
+        "SCHEDULED",
+        "UNSUBMITTED",
+        old_fulfill_at,
+      ),
+      fulfillment_order_record(closed_id, "CLOSED", "CLOSED"),
+      fulfillment_order_record(unscheduled_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record_with_fulfill_at(
+        past_id,
+        "SCHEDULED",
+        "UNSUBMITTED",
+        old_fulfill_at,
+      ),
+    ])
+
+  let close_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id, message: \"stateful close\") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(close_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(close_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/close-stateful\",\"status\":\"INCOMPLETE\",\"requestStatus\":\"CLOSED\"},\"userErrors\":[]}}}"
+  assert_fulfillment_order_state(
+    close_outcome.store,
+    close_id,
+    "INCOMPLETE",
+    "CLOSED",
+  )
+
+  let open_api_close_outcome =
+    shipping_fulfillments.process_mutation(
+      close_outcome.store,
+      close_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(open_api_close_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(open_api_close_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order is not in an in progress state.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    open_api_close_outcome.store,
+    open_api_close_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let reschedule_outcome =
+    shipping_fulfillments.process_mutation(
+      open_api_close_outcome.store,
+      open_api_close_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id status fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(scheduled_id)),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(reschedule_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-stateful\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2999-12-01T00:00:00Z\"},\"userErrors\":[]}}}"
+  assert_fulfillment_order_state(
+    reschedule_outcome.store,
+    scheduled_id,
+    "SCHEDULED",
+    "UNSUBMITTED",
+  )
+
+  let invalid_close =
+    shipping_fulfillments.process_mutation(
+      reschedule_outcome.store,
+      reschedule_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(closed_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_close.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be in progress.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    invalid_close.store,
+    closed_id,
+    "CLOSED",
+    "CLOSED",
+  )
+
+  let merchant_open_close =
+    shipping_fulfillments.process_mutation(
+      invalid_close.store,
+      invalid_close.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Close($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([#("id", root_field.StringVal(unscheduled_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(merchant_open_close.data)
+    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order's assigned fulfillment service must be of api type\",\"code\":\"FULFILLMENT_SERVICE_NOT_API_TYPE\"}]}}}"
+  assert_fulfillment_order_state(
+    merchant_open_close.store,
+    unscheduled_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let invalid_reschedule =
+    shipping_fulfillments.process_mutation(
+      merchant_open_close.store,
+      merchant_open_close.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id status fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(unscheduled_id)),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_reschedule.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be scheduled.\",\"code\":\"INVALID_FULFILLMENT_ORDER_STATUS\"}]}}}"
+  assert_fulfillment_order_state(
+    invalid_reschedule.store,
+    unscheduled_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let past_reschedule =
+    shipping_fulfillments.process_mutation(
+      invalid_reschedule.store,
+      invalid_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id fulfillAt }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal(past_id)),
+        #("fulfillAt", root_field.StringVal(past_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(past_reschedule.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillAt\"],\"message\":\"Fulfill at must be a future date.\",\"code\":\"INVALID_FULFILL_AT\"}]}}}"
+
+  let assert Ok(read_after_failures) =
+    shipping_fulfillments.process(
+      past_reschedule.store,
+      "query Read($rescheduledId: ID!, $pastId: ID!) { rescheduled: fulfillmentOrder(id: $rescheduledId) { id status fulfillAt } past: fulfillmentOrder(id: $pastId) { id status fulfillAt } }",
+      dict.from_list([
+        #("rescheduledId", root_field.StringVal(scheduled_id)),
+        #("pastId", root_field.StringVal(past_id)),
+      ]),
+    )
+  assert json.to_string(read_after_failures)
+    == "{\"data\":{\"rescheduled\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-stateful\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2999-12-01T00:00:00Z\"},\"past\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-past\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2026-06-01T00:00:00Z\"}}}"
+
+  let missing_reschedule =
+    shipping_fulfillments.process_mutation(
+      past_reschedule.store,
+      past_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Missing($id: ID!, $fulfillAt: DateTime!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/FulfillmentOrder/missing")),
+        #("fulfillAt", root_field.StringVal(next_fulfill_at)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(missing_reschedule.data)
+
+  let missing_close =
+    shipping_fulfillments.process_mutation(
+      missing_reschedule.store,
+      missing_reschedule.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+        mutation Missing($id: ID!) {
+          fulfillmentOrderClose(id: $id) {
+            fulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+      ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/FulfillmentOrder/missing")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(missing_close.data)
+}
+
 pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test() {
   let open_order =
     fulfillment_order_record_with_lifecycle_fields(
@@ -3983,157 +4258,6 @@ pub fn fulfillment_order_open_report_progress_preconditions_direct_handler_test(
     )
   assert json.to_string(progress_on_in_progress.data)
     == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/progress-precondition-in-progress\",\"status\":\"IN_PROGRESS\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
-}
-
-pub fn fulfillment_order_close_reschedule_stateful_handlers_test() {
-  let scheduled_order =
-    fulfillment_order_record_with_lifecycle_fields(
-      "gid://shopify/FulfillmentOrder/reschedule-precondition-scheduled",
-      "SCHEDULED",
-      ["MARK_AS_OPEN"],
-      "2026-04-09T00:00:00Z",
-      False,
-    )
-    |> fulfillment_order_with_fulfill_at("2026-04-10T00:00:00Z")
-  let open_order =
-    fulfillment_order_record_with_lifecycle_fields(
-      "gid://shopify/FulfillmentOrder/reschedule-precondition-open",
-      "OPEN",
-      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"],
-      "2026-04-09T12:00:00Z",
-      False,
-    )
-  let service_order =
-    fulfillment_order_record_with_service_location(
-      "gid://shopify/FulfillmentOrder/close-api-service",
-      "OPEN",
-      True,
-    )
-  let merchant_order =
-    fulfillment_order_record_with_service_location(
-      "gid://shopify/FulfillmentOrder/close-merchant-service",
-      "OPEN",
-      False,
-    )
-  let base_store =
-    store.new()
-    |> store.upsert_base_fulfillment_orders([
-      scheduled_order,
-      open_order,
-      service_order,
-      merchant_order,
-    ])
-
-  let reschedule_mutation =
-    "
-    mutation Reschedule($id: ID!, $fulfillAt: DateTime!) {
-      fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
-        fulfillmentOrder {
-          id
-          status
-          fulfillAt
-          updatedAt
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }
-  "
-  let rescheduled =
-    shipping_fulfillments.process_mutation(
-      base_store,
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      reschedule_mutation,
-      dict.from_list([
-        #("id", root_field.StringVal(scheduled_order.id)),
-        #("fulfillAt", root_field.StringVal("2026-04-11T00:00:00Z")),
-      ]),
-      empty_upstream_context(),
-    )
-  assert json.to_string(rescheduled.data)
-    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reschedule-precondition-scheduled\",\"status\":\"SCHEDULED\",\"fulfillAt\":\"2026-04-11T00:00:00Z\",\"updatedAt\":\"2026-04-28T02:25:00Z\"},\"userErrors\":[]}}}"
-  let assert Some(staged_rescheduled) =
-    store.get_effective_fulfillment_order_by_id(
-      rescheduled.store,
-      scheduled_order.id,
-    )
-  assert staged_rescheduled.status == "SCHEDULED"
-  assert captured_field(staged_rescheduled.data, "fulfillAt")
-    == Some(CapturedString("2026-04-11T00:00:00Z"))
-
-  let reschedule_open =
-    shipping_fulfillments.process_mutation(
-      base_store,
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      reschedule_mutation,
-      dict.from_list([
-        #("id", root_field.StringVal(open_order.id)),
-        #("fulfillAt", root_field.StringVal("2026-04-11T00:00:00Z")),
-      ]),
-      empty_upstream_context(),
-    )
-  assert json.to_string(reschedule_open.data)
-    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be scheduled.\"}]}}}"
-  assert_fulfillment_order_unchanged(reschedule_open.store, open_order)
-
-  let close_mutation =
-    "
-    mutation Close($id: ID!, $message: String) {
-      fulfillmentOrderClose(id: $id, message: $message) {
-        fulfillmentOrder {
-          id
-          status
-          updatedAt
-          supportedActions {
-            action
-          }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }
-  "
-  let closed =
-    shipping_fulfillments.process_mutation(
-      base_store,
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      close_mutation,
-      dict.from_list([
-        #("id", root_field.StringVal(service_order.id)),
-        #("message", root_field.StringVal("close service order")),
-      ]),
-      empty_upstream_context(),
-    )
-  assert json.to_string(closed.data)
-    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/close-api-service\",\"status\":\"CLOSED\",\"updatedAt\":\"2026-04-28T02:25:00Z\",\"supportedActions\":[]},\"userErrors\":[]}}}"
-  let assert Some(staged_closed) =
-    store.get_effective_fulfillment_order_by_id(closed.store, service_order.id)
-  assert staged_closed.status == "CLOSED"
-  assert captured_field(staged_closed.data, "supportedActions")
-    == Some(CapturedArray([]))
-
-  let close_merchant =
-    shipping_fulfillments.process_mutation(
-      base_store,
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      close_mutation,
-      dict.from_list([
-        #("id", root_field.StringVal(merchant_order.id)),
-        #("message", root_field.StringVal("close merchant order")),
-      ]),
-      empty_upstream_context(),
-    )
-  assert json.to_string(close_merchant.data)
-    == "{\"data\":{\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order's assigned fulfillment service must be of api type\"}]}}}"
-  assert_fulfillment_order_unchanged(close_merchant.store, merchant_order)
 }
 
 pub fn fulfillment_order_move_validation_direct_handler_test() {
@@ -4758,6 +4882,78 @@ fn fulfillment_order_record(
   )
 }
 
+fn fulfillment_order_record_with_fulfill_at(
+  id: String,
+  status: String,
+  request_status: String,
+  fulfill_at: String,
+) -> FulfillmentOrderRecord {
+  let record = fulfillment_order_record(id, status, request_status)
+  FulfillmentOrderRecord(
+    ..record,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #("fulfillAt", CapturedString(fulfill_at)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn fulfillment_order_record_at_location(
+  id: String,
+  status: String,
+  request_status: String,
+  location_id: String,
+  location_name: String,
+) -> FulfillmentOrderRecord {
+  let record = fulfillment_order_record(id, status, request_status)
+  FulfillmentOrderRecord(
+    ..record,
+    assigned_location_id: Some(location_id),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #(
+        "assignedLocation",
+        CapturedObject([
+          #("name", CapturedString(location_name)),
+          #(
+            "location",
+            CapturedObject([
+              #("id", CapturedString(location_id)),
+              #("name", CapturedString(location_name)),
+            ]),
+          ),
+        ]),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn fulfillment_service_record(
+  id: String,
+  location_id: String,
+  service_name: String,
+) -> FulfillmentServiceRecord {
+  FulfillmentServiceRecord(
+    id: id,
+    handle: "stateful-service",
+    service_name: service_name,
+    callback_url: None,
+    inventory_management: False,
+    location_id: Some(location_id),
+    requires_shipping_method: True,
+    tracking_support: False,
+    type_: "THIRD_PARTY",
+  )
+}
+
 fn fulfillment_order_record_with_lifecycle_fields(
   id: String,
   status: String,
@@ -4785,61 +4981,6 @@ fn fulfillment_order_record_with_lifecycle_fields(
       ),
       #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
       #("fulfillmentHolds", CapturedArray([])),
-    ]),
-  )
-}
-
-fn fulfillment_order_with_fulfill_at(
-  order: FulfillmentOrderRecord,
-  fulfill_at: String,
-) -> FulfillmentOrderRecord {
-  FulfillmentOrderRecord(
-    ..order,
-    data: captured_upsert_fields(order.data, [
-      #("fulfillAt", CapturedString(fulfill_at)),
-    ]),
-  )
-}
-
-fn fulfillment_order_record_with_service_location(
-  id: String,
-  status: String,
-  is_fulfillment_service: Bool,
-) -> FulfillmentOrderRecord {
-  let location_id = case is_fulfillment_service {
-    True -> "gid://shopify/Location/api-service-location"
-    False -> "gid://shopify/Location/merchant-location"
-  }
-  let location_name = case is_fulfillment_service {
-    True -> "API service location"
-    False -> "Merchant location"
-  }
-  let base =
-    fulfillment_order_record_with_lifecycle_fields(
-      id,
-      status,
-      ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"],
-      "2026-04-10T00:00:00Z",
-      False,
-    )
-  FulfillmentOrderRecord(
-    ..base,
-    assigned_location_id: Some(location_id),
-    data: captured_upsert_fields(base.data, [
-      #(
-        "assignedLocation",
-        CapturedObject([
-          #("name", CapturedString(location_name)),
-          #(
-            "location",
-            CapturedObject([
-              #("id", CapturedString(location_id)),
-              #("name", CapturedString(location_name)),
-              #("isFulfillmentService", CapturedBool(is_fulfillment_service)),
-            ]),
-          ),
-        ]),
-      ),
     ]),
   )
 }
