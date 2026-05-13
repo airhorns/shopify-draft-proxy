@@ -1,0 +1,81 @@
+{
+  "scenarioId": "fulfillment-order-close-state",
+  "operationNames": [
+    "fulfillmentOrderSubmitFulfillmentRequest",
+    "fulfillmentOrderAcceptFulfillmentRequest",
+    "fulfillmentOrderClose"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-close-state.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-submit-request-lifecycle.graphql",
+    "variablesCapturePath": "$.submit.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fulfillmentOrder.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream read target compares the selected fulfillment order directly, so the same staged synthetic timestamp differs from Shopify's live update timestamp at the resource root."
+      }
+    ],
+    "targets": [
+      {
+        "name": "submit-request-setup",
+        "capturePath": "$.submit.response.data.fulfillmentOrderSubmitFulfillmentRequest",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest"
+      },
+      {
+        "name": "accept-request-setup",
+        "capturePath": "$.accept.response.data.fulfillmentOrderAcceptFulfillmentRequest",
+        "proxyPath": "$.data.fulfillmentOrderAcceptFulfillmentRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-accept-request-lifecycle.graphql",
+          "variables": {
+            "fromCapturePath": "$.accept.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "close-success",
+        "capturePath": "$.close.response.data.fulfillmentOrderClose",
+        "proxyPath": "$.data.fulfillmentOrderClose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-close.graphql",
+          "variables": {
+            "fromCapturePath": "$.close.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "after-close-direct-read",
+        "capturePath": "$.afterClose.response.data.fulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-close-state-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "close-success",
+              "path": "$.data.fulfillmentOrderClose.fulfillmentOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 fulfillmentOrderClose success after a disposable fulfillment order is moved to an API fulfillment service, submitted, and accepted. Shopify returns status INCOMPLETE with requestStatus CLOSED, and downstream fulfillmentOrder reads preserve that state. Scheduled fulfillment-order reschedule success still needs a dedicated setup path; the existing lifecycle scenario covers the non-scheduled guardrail."
+}
