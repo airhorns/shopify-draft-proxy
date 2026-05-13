@@ -1,6 +1,14 @@
 {
   "scenarioId": "standard-metafield-definition-enable-validation",
-  "operationNames": ["standardMetafieldDefinitionEnable"],
+  "operationNames": [
+    "standardMetafieldDefinitionEnable",
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinitionPin",
+    "metafieldDefinitionUnpin",
+    "metafieldsSet"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
@@ -20,6 +28,22 @@
         "name": "unknown-template-selector-user-error",
         "capturePath": "$.validation[2].response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable"
+      },
+      {
+        "name": "regular-metafield-definition-user-error-typenames",
+        "capturePath": "$.regularUserErrorTypenames.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-user-error-typenames.graphql",
+          "variablesCapturePath": "$.regularUserErrorTypenames.request.variables"
+        },
+        "selectedPaths": [
+          "$.createError.userErrors[0].__typename",
+          "$.updateError.userErrors[0].__typename",
+          "$.deleteError.userErrors[0].__typename",
+          "$.pinError.userErrors[0].__typename",
+          "$.unpinError.userErrors[0].__typename"
+        ]
       }
     ]
   }

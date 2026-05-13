@@ -984,6 +984,7 @@ pub fn serialize_standard_user_error(
 @internal
 pub fn serialize_definition_mutation_payload(
   store_in: Store,
+  mutation_root_name: String,
   definition_field_name: String,
   definition: Option(MetafieldDefinitionRecord),
   user_errors: List(definition_types.UserError),
@@ -992,6 +993,7 @@ pub fn serialize_definition_mutation_payload(
 ) -> Json {
   serialize_definition_mutation_payload_with_validation_job(
     store_in,
+    mutation_root_name,
     definition_field_name,
     definition,
     user_errors,
@@ -1004,6 +1006,7 @@ pub fn serialize_definition_mutation_payload(
 @internal
 pub fn serialize_definition_mutation_payload_with_validation_job(
   store_in: Store,
+  mutation_root_name: String,
   definition_field_name: String,
   definition: Option(MetafieldDefinitionRecord),
   user_errors: List(definition_types.UserError),
@@ -1032,7 +1035,11 @@ pub fn serialize_definition_mutation_payload_with_validation_job(
                 }
               False, "userErrors" ->
                 json.array(user_errors, fn(error) {
-                  serialize_definition_user_error(error, selection)
+                  serialize_definition_user_error(
+                    error,
+                    selection,
+                    mutation_root_name,
+                  )
                 })
               False, "validationJob" ->
                 case validation_job_id {
@@ -1074,6 +1081,7 @@ fn serialize_validation_job(field: Selection, id: String, done: Bool) -> Json {
 
 @internal
 pub fn serialize_definition_delete_payload(
+  mutation_root_name: String,
   deleted_definition: Option(MetafieldDefinitionRecord),
   user_errors: List(definition_types.UserError),
   field: Selection,
@@ -1099,7 +1107,11 @@ pub fn serialize_definition_delete_payload(
                 }
               "userErrors" ->
                 json.array(user_errors, fn(error) {
-                  serialize_definition_user_error(error, selection)
+                  serialize_definition_user_error(
+                    error,
+                    selection,
+                    mutation_root_name,
+                  )
                 })
               _ -> json.null()
             }
@@ -1140,6 +1152,7 @@ pub fn serialize_deleted_definition_identifier(
 @internal
 pub fn serialize_pinning_payload(
   store_in: Store,
+  mutation_root_name: String,
   payload_field_name: String,
   definition: Option(MetafieldDefinitionRecord),
   user_errors: List(definition_types.UserError),
@@ -1167,7 +1180,11 @@ pub fn serialize_pinning_payload(
                 }
               False, "userErrors" ->
                 json.array(user_errors, fn(error) {
-                  serialize_definition_user_error(error, selection)
+                  serialize_definition_user_error(
+                    error,
+                    selection,
+                    mutation_root_name,
+                  )
                 })
               False, _ -> json.null()
             }
@@ -1183,6 +1200,7 @@ pub fn serialize_pinning_payload(
 pub fn serialize_definition_user_error(
   error: definition_types.UserError,
   field: Selection,
+  mutation_root_name: String,
 ) -> Json {
   json.object(
     list.map(
@@ -1192,6 +1210,8 @@ pub fn serialize_definition_user_error(
         let value = case selection {
           Field(name: name, ..) ->
             case name.value {
+              "__typename" ->
+                json.string(definition_user_error_typename(mutation_root_name))
               "field" -> optional_string_list(error.field)
               "message" -> json.string(error.message)
               "code" -> json.string(error.code)
@@ -1203,6 +1223,17 @@ pub fn serialize_definition_user_error(
       },
     ),
   )
+}
+
+fn definition_user_error_typename(mutation_root_name: String) -> String {
+  case mutation_root_name {
+    "metafieldDefinitionCreate" -> "MetafieldDefinitionCreateUserError"
+    "metafieldDefinitionUpdate" -> "MetafieldDefinitionUpdateUserError"
+    "metafieldDefinitionDelete" -> "MetafieldDefinitionDeleteUserError"
+    "metafieldDefinitionPin" -> "MetafieldDefinitionPinUserError"
+    "metafieldDefinitionUnpin" -> "MetafieldDefinitionUnpinUserError"
+    _ -> "MetafieldDefinitionUserError"
+  }
 }
 
 @internal

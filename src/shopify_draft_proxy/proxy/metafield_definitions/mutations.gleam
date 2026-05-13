@@ -1351,6 +1351,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
         store_in,
+        "metafieldDefinitionCreate",
         "createdDefinition",
         None,
         errors,
@@ -1375,6 +1376,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
         Some(_) -> #(
           serializers.serialize_definition_mutation_payload(
             store_in,
+            "metafieldDefinitionCreate",
             "createdDefinition",
             None,
             [
@@ -1398,6 +1400,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
             [_, ..] as user_errors -> #(
               serializers.serialize_definition_mutation_payload(
                 store_in,
+                "metafieldDefinitionCreate",
                 "createdDefinition",
                 None,
                 user_errors,
@@ -1419,6 +1422,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
                 Error(user_errors) -> #(
                   serializers.serialize_definition_mutation_payload(
                     store_in,
+                    "metafieldDefinitionCreate",
                     "createdDefinition",
                     None,
                     definition_input_user_errors(user_errors),
@@ -1437,6 +1441,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
                   #(
                     serializers.serialize_definition_mutation_payload(
                       store_in,
+                      "metafieldDefinitionCreate",
                       "createdDefinition",
                       Some(definition),
                       [],
@@ -1574,6 +1579,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
         store_in,
+        "metafieldDefinitionUpdate",
         "updatedDefinition",
         None,
         errors,
@@ -1599,6 +1605,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
         None -> #(
           serializers.serialize_definition_mutation_payload(
             store_in,
+            "metafieldDefinitionUpdate",
             "updatedDefinition",
             None,
             [
@@ -1624,6 +1631,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
                 True -> #(
                   serializers.serialize_definition_mutation_payload(
                     store_in,
+                    "metafieldDefinitionUpdate",
                     "updatedDefinition",
                     None,
                     [
@@ -1690,6 +1698,7 @@ fn update_definition_success_after_validation(
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
         store_in,
+        "metafieldDefinitionUpdate",
         "updatedDefinition",
         None,
         validation_errors,
@@ -1738,6 +1747,7 @@ fn update_definition_success_after_capability_validation(
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
         store_in,
+        "metafieldDefinitionUpdate",
         "updatedDefinition",
         None,
         capability_errors,
@@ -2417,6 +2427,7 @@ pub fn serialize_definition_delete_root_with_requesting_api_client_id(
   case definition {
     None -> #(
       serializers.serialize_definition_delete_payload(
+        "metafieldDefinitionDelete",
         None,
         [
           definition_types.UserError(
@@ -2435,6 +2446,7 @@ pub fn serialize_definition_delete_root_with_requesting_api_client_id(
       case definition_types.validate_definition_delete_guards(record) {
         [_, ..] as user_errors -> #(
           serializers.serialize_definition_delete_payload(
+            "metafieldDefinitionDelete",
             None,
             user_errors,
             field,
@@ -2456,6 +2468,48 @@ pub fn serialize_definition_delete_root_with_requesting_api_client_id(
   }
 }
 
+fn definition_delete_cleanup_required_error(
+  definition: MetafieldDefinitionRecord,
+  associated_owner_ids: List(String),
+  delete_all_associated_metafields: Option(Bool),
+) -> Option(definition_types.UserError) {
+  case associated_owner_ids, delete_all_associated_metafields {
+    [], _ -> None
+    _, Some(True) -> None
+    _, _ ->
+      case definition_delete_cleanup_requirement(definition) {
+        Some(#(code, message)) ->
+          Some(definition_types.UserError(
+            field: None,
+            message: message,
+            code: code,
+          ))
+        None -> None
+      }
+  }
+}
+
+fn definition_delete_cleanup_requirement(
+  definition: MetafieldDefinitionRecord,
+) -> Option(#(String, String)) {
+  case definition.type_.name {
+    "id" ->
+      Some(#(
+        "ID_TYPE_DELETION_ERROR",
+        "Deleting an id type metafield definition requires deletion of its associated metafields.",
+      ))
+    type_name ->
+      case string.ends_with(type_name, "_reference") {
+        True ->
+          Some(#(
+            "REFERENCE_TYPE_DELETION_ERROR",
+            "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+          ))
+        False -> None
+      }
+  }
+}
+
 fn serialize_definition_delete_success(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
@@ -2468,22 +2522,48 @@ fn serialize_definition_delete_success(
       store_in,
       record,
     )
-  let store_after_metafields = case
+  let delete_all_associated_metafields =
     definition_types.read_optional_bool(args, "deleteAllAssociatedMetafields")
+  case
+    definition_delete_cleanup_required_error(
+      record,
+      associated_product_owner_ids,
+      delete_all_associated_metafields,
+    )
   {
-    Some(True) ->
-      store.delete_product_metafields_for_definition(store_in, record)
-    _ -> store_in
+    Some(error) -> #(
+      serializers.serialize_definition_delete_payload(
+        "metafieldDefinitionDelete",
+        None,
+        [error],
+        field,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    None -> {
+      let store_after_metafields = case delete_all_associated_metafields {
+        Some(True) ->
+          store.delete_product_metafields_for_definition(store_in, record)
+        _ -> store_in
+      }
+      let next_store =
+        definition_types.stage_delete_definition(store_after_metafields, record)
+        |> definition_types.ensure_product_shells(associated_product_owner_ids)
+      #(
+        serializers.serialize_definition_delete_payload(
+          "metafieldDefinitionDelete",
+          Some(record),
+          [],
+          field,
+        ),
+        next_store,
+        identity,
+        [record.id],
+      )
+    }
   }
-  let next_store =
-    definition_types.stage_delete_definition(store_after_metafields, record)
-    |> definition_types.ensure_product_shells(associated_product_owner_ids)
-  #(
-    serializers.serialize_definition_delete_payload(Some(record), [], field),
-    next_store,
-    identity,
-    [record.id],
-  )
 }
 
 @internal
@@ -2541,6 +2621,7 @@ pub fn update_definition_success(
         [_, ..] as user_errors -> #(
           serializers.serialize_definition_mutation_payload(
             store_in,
+            "metafieldDefinitionUpdate",
             "updatedDefinition",
             None,
             definition_input_user_errors(user_errors),
@@ -2614,6 +2695,7 @@ fn definition_update_success_payload(
   #(
     serializers.serialize_definition_mutation_payload_with_validation_job(
       store_in,
+      "metafieldDefinitionUpdate",
       "updatedDefinition",
       Some(updated),
       [],
@@ -3048,6 +3130,7 @@ pub fn serialize_definition_pin_root_with_requesting_api_client_id(
     None -> #(
       serializers.serialize_pinning_payload(
         store_in,
+        "metafieldDefinitionPin",
         "pinnedDefinition",
         None,
         [
@@ -3069,6 +3152,7 @@ pub fn serialize_definition_pin_root_with_requesting_api_client_id(
         [_, ..] as user_errors -> #(
           serializers.serialize_pinning_payload(
             store_in,
+            "metafieldDefinitionPin",
             "pinnedDefinition",
             None,
             user_errors,
@@ -3107,6 +3191,7 @@ fn serialize_definition_pin_success(
     [_, ..] -> #(
       serializers.serialize_pinning_payload(
         store_in,
+        "metafieldDefinitionPin",
         "pinnedDefinition",
         None,
         user_errors,
@@ -3124,6 +3209,7 @@ fn serialize_definition_pin_success(
       #(
         serializers.serialize_pinning_payload(
           store_in,
+          "metafieldDefinitionPin",
           "pinnedDefinition",
           Some(pinned),
           [],
@@ -3185,6 +3271,7 @@ pub fn serialize_definition_unpin_root_with_requesting_api_client_id(
     None -> #(
       serializers.serialize_pinning_payload(
         store_in,
+        "metafieldDefinitionUnpin",
         "unpinnedDefinition",
         None,
         [
@@ -3206,6 +3293,7 @@ pub fn serialize_definition_unpin_root_with_requesting_api_client_id(
         [_, ..] as user_errors -> #(
           serializers.serialize_pinning_payload(
             store_in,
+            "metafieldDefinitionUnpin",
             "unpinnedDefinition",
             None,
             user_errors,
@@ -3239,6 +3327,7 @@ fn serialize_definition_unpin_success(
     [_, ..] as user_errors -> #(
       serializers.serialize_pinning_payload(
         store_in,
+        "metafieldDefinitionUnpin",
         "unpinnedDefinition",
         None,
         user_errors,
@@ -3257,6 +3346,7 @@ fn serialize_definition_unpin_success(
       #(
         serializers.serialize_pinning_payload(
           store_in,
+          "metafieldDefinitionUnpin",
           "unpinnedDefinition",
           Some(unpinned),
           [],
