@@ -29,11 +29,12 @@ import shopify_draft_proxy/state/types.{
   type FulfillmentOrderRecord, type FulfillmentRecord,
   type FulfillmentServiceRecord, type ReverseDeliveryRecord,
   type ReverseFulfillmentOrderRecord, type ShippingOrderRecord,
-  type ShippingPackageRecord, type StorePropertyRecord, type StorePropertyValue,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, StorePropertyBool, StorePropertyFloat,
-  StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  type ShippingPackageDimensionsRecord, type ShippingPackageRecord,
+  type ShippingPackageWeightRecord, type StorePropertyRecord,
+  type StorePropertyValue, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyRecord, StorePropertyString,
 }
 
 @internal
@@ -593,6 +594,57 @@ pub fn shipping_package_update_user_error_source(
     #("message", SrcString(error.message)),
     #("code", SrcString(error.code)),
   ])
+}
+
+@internal
+pub fn shipping_package_source(record: ShippingPackageRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ShippingPackage")),
+    #("id", SrcString(record.id)),
+    #("name", option_to_source(record.name)),
+    #("type", option_to_source(record.type_)),
+    #("boxType", option_to_source(record.box_type)),
+    #("default", SrcBool(record.default)),
+    #("weight", shipping_package_weight_source(record.weight)),
+    #("dimensions", shipping_package_dimensions_source(record.dimensions)),
+    #("createdAt", SrcString(record.created_at)),
+    #("updatedAt", SrcString(record.updated_at)),
+  ])
+}
+
+fn shipping_package_weight_source(
+  value: Option(ShippingPackageWeightRecord),
+) -> SourceValue {
+  case value {
+    Some(weight) ->
+      src_object([
+        #("value", option_float_source(weight.value)),
+        #("unit", option_to_source(weight.unit)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn shipping_package_dimensions_source(
+  value: Option(ShippingPackageDimensionsRecord),
+) -> SourceValue {
+  case value {
+    Some(dimensions) ->
+      src_object([
+        #("length", option_float_source(dimensions.length)),
+        #("width", option_float_source(dimensions.width)),
+        #("height", option_float_source(dimensions.height)),
+        #("unit", option_to_source(dimensions.unit)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn option_float_source(value: Option(Float)) -> SourceValue {
+  case value {
+    Some(float) -> SrcFloat(float)
+    None -> SrcNull
+  }
 }
 
 @internal
