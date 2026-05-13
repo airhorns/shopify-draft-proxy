@@ -1734,6 +1734,12 @@ fn stage_location_deactivate(
                       store,
                       next_record,
                     )
+                  let next_store =
+                    relocate_inventory_levels_for_deactivation(
+                      next_store,
+                      location_id,
+                      destination_location_id,
+                    )
                   location_lifecycle_result(
                     next_store,
                     next_identity,
@@ -1779,6 +1785,22 @@ fn stage_location_deactivate(
         "locationDeactivateUserErrors",
         "locationId",
       )
+  }
+}
+
+fn relocate_inventory_levels_for_deactivation(
+  store: Store,
+  source_location_id: String,
+  destination_location_id: Option(String),
+) -> Store {
+  case destination_location_id {
+    Some(destination_id) ->
+      store.relocate_inventory_levels_for_location(
+        store,
+        source_location_id,
+        destination_id,
+      )
+    None -> store
   }
 }
 

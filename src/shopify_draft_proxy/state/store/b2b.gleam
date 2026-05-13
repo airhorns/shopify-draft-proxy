@@ -15,8 +15,11 @@ import shopify_draft_proxy/state/store/types.{
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord,
+  type InventoryLevelRecord, type InventoryQuantityRecord,
   type ProductVariantRecord, type StorePropertyMutationPayloadRecord,
-  type StorePropertyRecord, InventoryItemRecord, ProductVariantRecord,
+  type StorePropertyRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryQuantityRecord, ProductVariantRecord,
+  StorePropertyString,
 } as _
 
 // ---------------------------------------------------------------------------
@@ -542,6 +545,37 @@ pub fn delete_staged_store_property_location(
   |> remove_inventory_levels_for_location(id)
 }
 
+pub fn relocate_inventory_levels_for_location(
+  store: Store,
+  source_location_id: String,
+  destination_location_id: String,
+) -> Store {
+  let affected_product_ids =
+    products.list_effective_product_variants(store)
+    |> list.filter(fn(variant) {
+      variant_has_inventory_level_for_location(variant, source_location_id)
+    })
+    |> list.fold([], fn(ids, variant) {
+      append_unique_id(ids, variant.product_id)
+    })
+
+  list.fold(affected_product_ids, store, fn(current, product_id) {
+    let destination_name =
+      destination_location_name(current, destination_location_id)
+    let variants =
+      products.get_effective_variants_by_product_id(current, product_id)
+      |> list.map(fn(variant) {
+        relocate_variant_inventory_levels(
+          variant,
+          source_location_id,
+          destination_location_id,
+          destination_name,
+        )
+      })
+    products.replace_staged_variants_for_product(current, product_id, variants)
+  })
+}
+
 fn remove_inventory_levels_for_location(
   store: Store,
   location_id: String,
@@ -575,6 +609,151 @@ fn variant_has_inventory_level_for_location(
         level.location.id == location_id
       })
     None -> False
+  }
+}
+
+fn relocate_variant_inventory_levels(
+  variant: ProductVariantRecord,
+  source_location_id: String,
+  destination_location_id: String,
+  destination_name: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    ..variant,
+    inventory_item: option.map(variant.inventory_item, fn(item) {
+      InventoryItemRecord(
+        ..item,
+        inventory_levels: relocate_inventory_levels(
+          item.id,
+          item.inventory_levels,
+          source_location_id,
+          destination_location_id,
+          destination_name,
+        ),
+      )
+    }),
+  )
+}
+
+fn relocate_inventory_levels(
+  inventory_item_id: String,
+  levels: List(InventoryLevelRecord),
+  source_location_id: String,
+  destination_location_id: String,
+  destination_name: String,
+) -> List(InventoryLevelRecord) {
+  case
+    find_inventory_level_for_location(levels, source_location_id),
+    find_inventory_level_for_location(levels, destination_location_id)
+  {
+    Some(source), Some(destination) ->
+      levels
+      |> list.filter(fn(level) { level.location.id != source_location_id })
+      |> list.map(fn(level) {
+        case level.location.id == destination_location_id {
+          True ->
+            InventoryLevelRecord(
+              ..destination,
+              is_active: Some(True),
+              quantities: merge_inventory_quantities(
+                destination.quantities,
+                source.quantities,
+              ),
+            )
+          False -> level
+        }
+      })
+    Some(source), None ->
+      levels
+      |> list.filter(fn(level) { level.location.id != source_location_id })
+      |> list.append([
+        InventoryLevelRecord(
+          ..source,
+          id: relocated_inventory_level_id(
+            inventory_item_id,
+            destination_location_id,
+          ),
+          is_active: Some(True),
+          location: InventoryLocationRecord(
+            id: destination_location_id,
+            name: destination_name,
+          ),
+        ),
+      ])
+    None, _ -> levels
+  }
+}
+
+fn find_inventory_level_for_location(
+  levels: List(InventoryLevelRecord),
+  location_id: String,
+) -> Option(InventoryLevelRecord) {
+  levels
+  |> list.find(fn(level) { level.location.id == location_id })
+  |> option.from_result
+}
+
+fn merge_inventory_quantities(
+  destination_quantities: List(InventoryQuantityRecord),
+  source_quantities: List(InventoryQuantityRecord),
+) -> List(InventoryQuantityRecord) {
+  list.fold(source_quantities, destination_quantities, fn(quantities, source) {
+    add_inventory_quantity(quantities, source)
+  })
+}
+
+fn add_inventory_quantity(
+  quantities: List(InventoryQuantityRecord),
+  source: InventoryQuantityRecord,
+) -> List(InventoryQuantityRecord) {
+  case list.any(quantities, fn(quantity) { quantity.name == source.name }) {
+    True ->
+      list.map(quantities, fn(quantity) {
+        case quantity.name == source.name {
+          True ->
+            InventoryQuantityRecord(
+              ..quantity,
+              quantity: quantity.quantity + source.quantity,
+            )
+          False -> quantity
+        }
+      })
+    False -> list.append(quantities, [source])
+  }
+}
+
+fn relocated_inventory_level_id(
+  inventory_item_id: String,
+  destination_location_id: String,
+) -> String {
+  "gid://shopify/InventoryLevel/"
+  <> resource_id_tail(inventory_item_id)
+  <> "-"
+  <> resource_id_tail(destination_location_id)
+  <> "?inventory_item_id="
+  <> inventory_item_id
+}
+
+fn resource_id_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) -> tail
+    Error(_) -> id
+  }
+}
+
+fn destination_location_name(
+  store: Store,
+  destination_location_id: String,
+) -> String {
+  case
+    get_effective_store_property_location_by_id(store, destination_location_id)
+  {
+    Some(location) ->
+      case dict.get(location.data, "name") {
+        Ok(StorePropertyString(name)) -> name
+        _ -> destination_location_id
+      }
+    None -> destination_location_id
   }
 }
 

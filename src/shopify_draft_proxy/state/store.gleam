@@ -528,6 +528,8 @@ pub const upsert_staged_store_property_location = b2b.upsert_staged_store_proper
 
 pub const delete_staged_store_property_location = b2b.delete_staged_store_property_location
 
+pub const relocate_inventory_levels_for_location = b2b.relocate_inventory_levels_for_location
+
 pub const get_effective_store_property_location_by_id = b2b.get_effective_store_property_location_by_id
 
 pub const list_effective_store_property_locations = b2b.list_effective_store_property_locations
