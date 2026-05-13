@@ -1,0 +1,426 @@
+{
+  "capturedAt": "2026-05-13T23:12:54.809Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "discounts": {
+      "variables": {
+        "automaticDiscountNodeId": "gid://shopify/DiscountAutomaticNode/0",
+        "codeDiscountNodeId": "gid://shopify/DiscountCodeNode/0",
+        "discountNodeId": "gid://shopify/DiscountCodeNode/0",
+        "discountRedeemCodeBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingAutomaticDiscountNode": null,
+            "missingCodeDiscountNode": null,
+            "missingDiscountNode": null,
+            "missingDiscountRedeemCodeBulkCreation": null
+          }
+        }
+      }
+    },
+    "markets": {
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/999999999999",
+        "marketId": "gid://shopify/Market/999999999999",
+        "priceListId": "gid://shopify/PriceList/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingCatalog": null,
+            "missingMarket": null,
+            "missingPriceList": null
+          }
+        }
+      }
+    },
+    "products": {
+      "variables": {
+        "inventoryShipmentId": "gid://shopify/InventoryShipment/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingInventoryShipment": null
+          }
+        }
+      }
+    },
+    "shippingFulfillments": {
+      "variables": {
+        "fulfillmentServiceId": "gid://shopify/FulfillmentService/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingFulfillmentService": null
+          }
+        }
+      }
+    },
+    "storeProperties": {
+      "variables": {
+        "locationId": "gid://shopify/Location/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingLocation": null
+          }
+        }
+      }
+    },
+    "orders": {
+      "variables": {
+        "returnId": "gid://shopify/Return/999999999999",
+        "reverseDeliveryId": "gid://shopify/ReverseDelivery/999999999999",
+        "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingReturn": null,
+            "missingReverseDelivery": null,
+            "missingReverseFulfillmentOrder": null
+          }
+        }
+      }
+    },
+    "customers": {
+      "variables": {
+        "customerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/999999999999",
+        "storeCreditAccountId": "gid://shopify/StoreCreditAccount/999999999999"
+      },
+      "response": {
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for customerPaymentMethod field. Required access: `read_customers` access scope. Also: Requires `read_customer_payment_methods` scope.",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_customers` access scope. Also: Requires `read_customer_payment_methods` scope."
+              },
+              "path": ["missingCustomerPaymentMethod"]
+            }
+          ],
+          "data": {
+            "missingCustomerPaymentMethod": null,
+            "missingStoreCreditAccount": null
+          }
+        }
+      }
+    },
+    "giftCards": {
+      "variables": {
+        "giftCardId": "gid://shopify/GiftCard/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingGiftCard": null
+          }
+        }
+      }
+    },
+    "onlineStore": {
+      "variables": {
+        "scriptTagId": "gid://shopify/ScriptTag/999999999999",
+        "themeId": "gid://shopify/OnlineStoreTheme/999999999999",
+        "urlRedirectId": "gid://shopify/UrlRedirect/999999999999"
+      },
+      "response": {
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for scriptTag field. Required access: `read_script_tags` access scope. Also: Requires access to script tags.",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_script_tags` access scope. Also: Requires access to script tags."
+              },
+              "path": ["missingScriptTag"]
+            },
+            {
+              "message": "Theme does not exist",
+              "locations": [{ "line": 3, "column": 3 }],
+              "extensions": { "code": "NOT_FOUND" },
+              "path": ["missingTheme"]
+            }
+          ],
+          "data": {
+            "missingScriptTag": null,
+            "missingTheme": null,
+            "missingUrlRedirect": null
+          }
+        }
+      }
+    },
+    "functions": {
+      "variables": {
+        "shopifyFunctionId": "gid://shopify/ShopifyFunction/999999999999",
+        "validationId": "gid://shopify/Validation/999999999999"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "missingShopifyFunction": null,
+            "missingValidation": null
+          }
+        }
+      }
+    },
+    "segments": {
+      "variables": {
+        "customerSegmentMembersQueryId": "gid://shopify/CustomerSegmentMembersQuery/999999999999"
+      },
+      "response": {
+        "body": {
+          "errors": [
+            {
+              "message": "Something went wrong",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": { "code": "INTERNAL_SERVER_ERROR" },
+              "path": ["missingCustomerSegmentMembersQuery"]
+            }
+          ],
+          "data": {
+            "missingCustomerSegmentMembersQuery": null
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountByIdNotFound",
+      "variables": {
+        "automaticDiscountNodeId": "gid://shopify/DiscountAutomaticNode/0",
+        "codeDiscountNodeId": "gid://shopify/DiscountCodeNode/0",
+        "discountNodeId": "gid://shopify/DiscountCodeNode/0",
+        "discountRedeemCodeBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/999999999999"
+      },
+      "query": "query DiscountByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingAutomaticDiscountNode": null,
+            "missingCodeDiscountNode": null,
+            "missingDiscountNode": null,
+            "missingDiscountRedeemCodeBulkCreation": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketByIdNotFound",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/999999999999",
+        "marketId": "gid://shopify/Market/999999999999",
+        "priceListId": "gid://shopify/PriceList/999999999999"
+      },
+      "query": "query MarketByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingCatalog": null,
+            "missingMarket": null,
+            "missingPriceList": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductInventoryShipmentByIdNotFound",
+      "variables": {
+        "inventoryShipmentId": "gid://shopify/InventoryShipment/999999999999"
+      },
+      "query": "query ProductInventoryShipmentByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingInventoryShipment": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingByIdNotFound",
+      "variables": {
+        "fulfillmentServiceId": "gid://shopify/FulfillmentService/999999999999"
+      },
+      "query": "query ShippingByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingFulfillmentService": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesByIdNotFound",
+      "variables": {
+        "locationId": "gid://shopify/Location/999999999999"
+      },
+      "query": "query StorePropertiesByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingLocation": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderReverseByIdNotFound",
+      "variables": {
+        "returnId": "gid://shopify/Return/999999999999",
+        "reverseDeliveryId": "gid://shopify/ReverseDelivery/999999999999",
+        "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/999999999999"
+      },
+      "query": "query OrderReverseByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingReturn": null,
+            "missingReverseDelivery": null,
+            "missingReverseFulfillmentOrder": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerPaymentByIdNotFound",
+      "variables": {
+        "customerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/999999999999",
+        "storeCreditAccountId": "gid://shopify/StoreCreditAccount/999999999999"
+      },
+      "query": "query CustomerPaymentByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for customerPaymentMethod field. Required access: `read_customers` access scope. Also: Requires `read_customer_payment_methods` scope.",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_customers` access scope. Also: Requires `read_customer_payment_methods` scope."
+              },
+              "path": ["missingCustomerPaymentMethod"]
+            }
+          ],
+          "data": {
+            "missingCustomerPaymentMethod": null,
+            "missingStoreCreditAccount": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardByIdNotFound",
+      "variables": {
+        "giftCardId": "gid://shopify/GiftCard/999999999999"
+      },
+      "query": "query GiftCardByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingGiftCard": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreByIdNotFound",
+      "variables": {
+        "scriptTagId": "gid://shopify/ScriptTag/999999999999",
+        "themeId": "gid://shopify/OnlineStoreTheme/999999999999",
+        "urlRedirectId": "gid://shopify/UrlRedirect/999999999999"
+      },
+      "query": "query OnlineStoreByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for scriptTag field. Required access: `read_script_tags` access scope. Also: Requires access to script tags.",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_script_tags` access scope. Also: Requires access to script tags."
+              },
+              "path": ["missingScriptTag"]
+            },
+            {
+              "message": "Theme does not exist",
+              "locations": [{ "line": 3, "column": 3 }],
+              "extensions": { "code": "NOT_FOUND" },
+              "path": ["missingTheme"]
+            }
+          ],
+          "data": {
+            "missingScriptTag": null,
+            "missingTheme": null,
+            "missingUrlRedirect": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionByIdNotFound",
+      "variables": {
+        "shopifyFunctionId": "gid://shopify/ShopifyFunction/999999999999",
+        "validationId": "gid://shopify/Validation/999999999999"
+      },
+      "query": "query FunctionByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingShopifyFunction": null,
+            "missingValidation": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SegmentByIdNotFound",
+      "variables": {
+        "customerSegmentMembersQueryId": "gid://shopify/CustomerSegmentMembersQuery/999999999999"
+      },
+      "query": "query SegmentByIdNotFound",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Something went wrong",
+              "locations": [{ "line": 2, "column": 3 }],
+              "extensions": { "code": "INTERNAL_SERVER_ERROR" },
+              "path": ["missingCustomerSegmentMembersQuery"]
+            }
+          ],
+          "data": {
+            "missingCustomerSegmentMembersQuery": null
+          }
+        }
+      }
+    }
+  ]
+}

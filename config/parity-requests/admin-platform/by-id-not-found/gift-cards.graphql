@@ -1,0 +1,5 @@
+query GiftCardByIdNotFound($giftCardId: ID!) {
+  missingGiftCard: giftCard(id: $giftCardId) {
+    __typename
+  }
+}

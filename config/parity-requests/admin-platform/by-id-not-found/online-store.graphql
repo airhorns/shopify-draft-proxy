@@ -1,0 +1,11 @@
+query OnlineStoreByIdNotFound($scriptTagId: ID!, $themeId: ID!, $urlRedirectId: ID!) {
+  missingScriptTag: scriptTag(id: $scriptTagId) {
+    __typename
+  }
+  missingTheme: theme(id: $themeId) {
+    __typename
+  }
+  missingUrlRedirect: urlRedirect(id: $urlRedirectId) {
+    __typename
+  }
+}
