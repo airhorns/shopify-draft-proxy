@@ -2234,11 +2234,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
-    purpose: 'Metafield definition mutation validation branches.',
+    purpose:
+      'standardMetafieldDefinitionEnable validation branches plus regular metafieldDefinition create/update/delete/pin/unpin userError typename evidence.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}standard-metafield-definition-enable-validation.json`],
-    cleanupBehavior: 'Validation-oriented capture; success paths require explicit disposable setup/cleanup.',
-    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-validation.json`,
+      'config/parity-specs/metafields/standard-metafield-definition-enable-validation.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-validation.graphql',
+      'config/parity-requests/metafields/metafield-definition-user-error-typenames.graphql',
+    ],
+    cleanupBehavior:
+      'Records standard enable validation branches, then creates disposable product/reference setup for regular metafieldDefinition userError typename probes and deletes created definitions/products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'metafields',

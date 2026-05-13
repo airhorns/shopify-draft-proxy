@@ -2215,12 +2215,21 @@ pub fn metafield_definition_unpin_rejects_unpinned_definition_test() {
     run_mutation(
       created.store,
       created.identity,
-      unpin_definition_query("not_pinned"),
+      "mutation {
+        metafieldDefinitionUnpin(identifier: {
+          ownerType: PRODUCT,
+          namespace: \"har699\",
+          key: \"not_pinned\"
+        }) {
+          unpinnedDefinition { id key pinnedPosition }
+          userErrors { __typename field message code }
+        }
+      }",
     )
 
   assert unpinned.staged_resource_ids == []
   assert json.to_string(unpinned.data)
-    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition 1 isn't pinned.\",\"code\":\"NOT_PINNED\"}]}}}"
+    == "{\"data\":{\"metafieldDefinitionUnpin\":{\"unpinnedDefinition\":null,\"userErrors\":[{\"__typename\":\"MetafieldDefinitionUnpinUserError\",\"field\":null,\"message\":\"Definition 1 isn't pinned.\",\"code\":\"NOT_PINNED\"}]}}}"
 }
 
 pub fn metafield_definition_pin_unpin_delete_reject_app_config_managed_definition_test() {
@@ -2723,6 +2732,166 @@ pub fn metafield_definition_resource_type_limit_integration_test() {
     "\"namespace\":\"app--999002--resource_limit\"",
   )
   assert string.contains(other_json, "\"userErrors\":[]")
+}
+
+pub fn metafield_definition_user_errors_include_per_mutation_typename_test() {
+  let create_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metafieldDefinitionCreate(definition: { name: \"X\", namespace: \"ab\", key: \"x\", ownerType: PRODUCT, type: \"single_line_text_field\" }) { createdDefinition { id } userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(create_result.data),
+    "\"__typename\":\"MetafieldDefinitionCreateUserError\"",
+  )
+
+  let update_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metafieldDefinitionUpdate(definition: { name: \"X\", namespace: \"missing\", key: \"missing\", ownerType: PRODUCT }) { updatedDefinition { id } userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(update_result.data),
+    "\"__typename\":\"MetafieldDefinitionUpdateUserError\"",
+  )
+
+  let delete_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/missing\", deleteAllAssociatedMetafields: true) { deletedDefinitionId userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(delete_result.data),
+    "\"__typename\":\"MetafieldDefinitionDeleteUserError\"",
+  )
+
+  let pin_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: \"missing\", key: \"missing\" }) { pinnedDefinition { id } userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(pin_result.data),
+    "\"__typename\":\"MetafieldDefinitionPinUserError\"",
+  )
+
+  let unpin_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metafieldDefinitionUnpin(identifier: { ownerType: PRODUCT, namespace: \"missing\", key: \"missing\" }) { unpinnedDefinition { id } userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(unpin_result.data),
+    "\"__typename\":\"MetafieldDefinitionUnpinUserError\"",
+  )
+}
+
+pub fn standard_metafield_definition_enable_user_error_typename_stays_specific_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: \"gid://shopify/StandardMetafieldDefinitionTemplate/999999999\") { createdDefinition { id } userErrors { __typename field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(result.data),
+    "\"__typename\":\"StandardMetafieldDefinitionEnableUserError\"",
+  )
+}
+
+pub fn metafield_definition_delete_reference_type_requires_cleanup_flag_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Reference\",
+        namespace: \"reference_delete\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        type: \"product_reference\"
+      }) {
+        createdDefinition { id type { name } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let set =
+    "mutation {
+      metafieldsSet(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"reference_delete\",
+        key: \"target\",
+        type: \"product_reference\",
+        value: \"gid://shopify/Product/2\"
+      }]) {
+        metafields { id namespace key type value }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(proxy, set)
+  assert set_status == 200
+  assert string.contains(json.to_string(set_body), "\"userErrors\":[]")
+
+  let delete_without_flag =
+    "mutation {
+      metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\") {
+        deletedDefinitionId
+        deletedDefinition { id }
+        userErrors { __typename field code message }
+      }
+    }"
+  let #(
+    Response(
+      status: delete_without_flag_status,
+      body: delete_without_flag_body,
+      ..,
+    ),
+    proxy,
+  ) = graphql(proxy, delete_without_flag)
+  assert delete_without_flag_status == 200
+  let delete_without_flag_json = json.to_string(delete_without_flag_body)
+  assert string.contains(
+    delete_without_flag_json,
+    "\"deletedDefinitionId\":null",
+  )
+  assert string.contains(delete_without_flag_json, "\"deletedDefinition\":null")
+  assert string.contains(
+    delete_without_flag_json,
+    "\"__typename\":\"MetafieldDefinitionDeleteUserError\"",
+  )
+  assert string.contains(
+    delete_without_flag_json,
+    "\"code\":\"REFERENCE_TYPE_DELETION_ERROR\"",
+  )
+
+  let delete_with_flag =
+    "mutation {
+      metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) {
+        deletedDefinitionId
+        userErrors { field code message }
+      }
+    }"
+  let #(
+    Response(status: delete_with_flag_status, body: delete_with_flag_body, ..),
+    _,
+  ) = graphql(proxy, delete_with_flag)
+  assert delete_with_flag_status == 200
+  let delete_with_flag_json = json.to_string(delete_with_flag_body)
+  assert string.contains(
+    delete_with_flag_json,
+    "\"deletedDefinitionId\":\"gid://shopify/MetafieldDefinition/1\"",
+  )
+  assert string.contains(delete_with_flag_json, "\"userErrors\":[]")
 }
 
 pub fn non_product_owner_definition_lifecycle_test() {

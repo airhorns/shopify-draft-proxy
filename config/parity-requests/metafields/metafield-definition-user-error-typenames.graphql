@@ -1,0 +1,152 @@
+mutation MetafieldDefinitionUserErrorTypenames(
+  $namespace: String!
+  $ownerProductId: ID!
+  $referenceProductId: String!
+  $categoryId: String!
+) {
+  createError: metafieldDefinitionCreate(
+    definition: {
+      name: "Typename probe"
+      namespace: "ab"
+      key: "x"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  updateError: metafieldDefinitionUpdate(
+    definition: { name: "Typename probe", namespace: $namespace, key: "missing", ownerType: PRODUCT }
+  ) {
+    updatedDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  createReferenceDeleteTarget: metafieldDefinitionCreate(
+    definition: {
+      name: "Delete typename target"
+      namespace: $namespace
+      key: "delete_error"
+      ownerType: PRODUCT
+      type: "product_reference"
+    }
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  setDeleteTargetMetafield: metafieldsSet(
+    metafields: [
+      {
+        ownerId: $ownerProductId
+        namespace: $namespace
+        key: "delete_error"
+        type: "product_reference"
+        value: $referenceProductId
+      }
+    ]
+  ) {
+    metafields {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  deleteError: metafieldDefinitionDelete(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "delete_error" }
+    deleteAllAssociatedMetafields: false
+  ) {
+    deletedDefinitionId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  createPinTarget: metafieldDefinitionCreate(
+    definition: {
+      name: "Pin typename target"
+      namespace: $namespace
+      key: "pin_error"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      constraints: { key: "category", values: [$categoryId] }
+    }
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  pinError: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_error" }) {
+    pinnedDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  createUnpinTarget: metafieldDefinitionCreate(
+    definition: {
+      name: "Unpin typename target"
+      namespace: $namespace
+      key: "unpin_error"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  unpinError: metafieldDefinitionUnpin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "unpin_error" }) {
+    unpinnedDefinition {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}
