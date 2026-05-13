@@ -24,9 +24,6 @@ import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source
-import shopify_draft_proxy/proxy/admin_platform
-import shopify_draft_proxy/proxy/apps
-import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/bulk_operations/serializers.{
   created_bulk_operation_response, project_bulk_operation,
 }
@@ -36,35 +33,16 @@ import shopify_draft_proxy/proxy/bulk_query_schema.{
 }
 import shopify_draft_proxy/proxy/bulk_query_schema_lookup
 import shopify_draft_proxy/proxy/commit
-import shopify_draft_proxy/proxy/customers
-import shopify_draft_proxy/proxy/discounts
-import shopify_draft_proxy/proxy/functions
-import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
   default_selected_field_options, get_document_fragments, get_field_response_key,
   get_selected_child_fields, project_graphql_value, src_object,
 }
-import shopify_draft_proxy/proxy/localization
-import shopify_draft_proxy/proxy/marketing
-import shopify_draft_proxy/proxy/markets
-import shopify_draft_proxy/proxy/media
-import shopify_draft_proxy/proxy/metafield_definitions
-import shopify_draft_proxy/proxy/metaobject_definitions
+import shopify_draft_proxy/proxy/mutation_dispatch
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, LogDraft, MutationOutcome,
 }
-import shopify_draft_proxy/proxy/online_store
-import shopify_draft_proxy/proxy/orders
-import shopify_draft_proxy/proxy/payments
-import shopify_draft_proxy/proxy/privacy
-import shopify_draft_proxy/proxy/products
-import shopify_draft_proxy/proxy/saved_searches
-import shopify_draft_proxy/proxy/segments
-import shopify_draft_proxy/proxy/shipping_fulfillments
-import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
-import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -88,16 +66,6 @@ pub fn is_bulk_operations_mutation_root(name: String) -> Bool {
 pub type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))
 }
-
-type BulkMutationHandler =
-  fn(
-    Store,
-    SyntheticIdentityRegistry,
-    String,
-    String,
-    Dict(String, root_field.ResolvedValue),
-    UpstreamContext,
-  ) -> MutationOutcome
 
 type InnerMutationValidationError {
   InnerMutationParseError(String)
@@ -1940,6 +1908,10 @@ type BulkImportResult {
   )
 }
 
+type BulkImportLineResult {
+  BulkImportLineResult(outcome: MutationOutcome, failed: Bool)
+}
+
 fn process_import_lines(
   lines: List(String),
   line_number: Int,
@@ -2007,7 +1979,7 @@ fn process_import_lines(
                 True,
               )
             Ok(line_variables) -> {
-              let outcome =
+              let line_result =
                 run_bulk_import_line(
                   store,
                   identity,
@@ -2017,6 +1989,7 @@ fn process_import_lines(
                   mutation,
                   line_variables,
                 )
+              let outcome = line_result.outcome
               let staged_this_line = outcome.staged_resource_ids
               let next_log_drafts = list.append(outcome.log_drafts, log_drafts)
               let next_object_count = case staged_this_line {
@@ -2042,7 +2015,7 @@ fn process_import_lines(
                 list.append(outcome.staged_resource_ids, staged_ids),
                 next_log_drafts,
                 next_object_count,
-                failed,
+                failed || line_result.failed,
               )
             }
           }
@@ -2059,8 +2032,8 @@ fn run_bulk_import_line(
   inner_root: String,
   mutation: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  case bulk_mutation_handler(inner_root) {
+) -> BulkImportLineResult {
+  case mutation_dispatch.handler_for(inner_root, mutation) {
     Some(handler) -> {
       let outcome =
         handler(store, identity, request_path, mutation, variables, upstream)
@@ -2074,206 +2047,50 @@ fn run_bulk_import_line(
           ),
         ]
       }
-      MutationOutcome(..outcome, log_drafts: log_drafts)
+      BulkImportLineResult(
+        outcome: MutationOutcome(..outcome, log_drafts: log_drafts),
+        failed: False,
+      )
     }
     None ->
-      run_upstream_bulk_import_line(
-        store,
-        identity,
-        upstream,
-        request_path,
-        inner_root,
-        mutation,
-        variables,
+      BulkImportLineResult(
+        outcome: unsupported_bulk_import_line(store, identity, inner_root),
+        failed: True,
       )
   }
 }
 
-fn bulk_mutation_handler(name: String) -> Option(BulkMutationHandler) {
-  first_matching_bulk_mutation_handler([
-    #(payments.is_payments_mutation_root(name), payments.process_mutation),
-    #(products.is_products_mutation_root(name), products.process_mutation),
-    #(
-      store_properties.is_store_properties_mutation_root(name),
-      store_properties.process_mutation,
-    ),
-    #(
-      saved_searches.is_saved_search_mutation_root(name),
-      saved_searches.process_mutation,
-    ),
-    #(
-      webhooks.is_webhook_subscription_mutation_root(name),
-      webhooks.process_mutation,
-    ),
-    #(apps.is_app_mutation_root(name), apps.process_mutation),
-    #(functions.is_function_mutation_root(name), functions.process_mutation),
-    #(gift_cards.is_gift_card_mutation_root(name), gift_cards.process_mutation),
-    #(discounts.is_discount_mutation_root(name), discounts.process_mutation),
-    #(b2b.is_b2b_mutation_root(name), b2b.process_mutation),
-    #(segments.is_segment_mutation_root(name), segments.process_mutation),
-    #(
-      metafield_definitions.is_metafield_definitions_mutation_root(name),
-      metafield_definitions.process_mutation,
-    ),
-    #(
-      localization.is_localization_mutation_root(name),
-      localization.process_mutation,
-    ),
-    #(
-      metaobject_definitions.is_metaobject_definitions_mutation_root(name),
-      metaobject_definitions.process_mutation,
-    ),
-    #(marketing.is_marketing_mutation_root(name), marketing.process_mutation),
-    #(media.is_media_mutation_root(name), media.process_mutation),
-    #(markets.is_markets_mutation_root(name), markets.process_mutation),
-    #(
-      admin_platform.is_admin_platform_mutation_root(name),
-      admin_platform.process_mutation,
-    ),
-    #(
-      online_store.is_online_store_mutation_root(name),
-      online_store.process_mutation,
-    ),
-    #(privacy.is_privacy_mutation_root(name), privacy.process_mutation),
-    #(
-      shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
-      shipping_fulfillments.process_mutation,
-    ),
-    #(orders.is_orders_mutation_root(name), orders.process_mutation),
-    #(customers.is_customer_mutation_root(name), customers.process_mutation),
-  ])
-}
-
-fn first_matching_bulk_mutation_handler(
-  candidates: List(#(Bool, BulkMutationHandler)),
-) -> Option(BulkMutationHandler) {
-  case candidates {
-    [] -> None
-    [#(True, handler), ..] -> Some(handler)
-    [_, ..rest] -> first_matching_bulk_mutation_handler(rest)
-  }
-}
-
-fn run_upstream_bulk_import_line(
+fn unsupported_bulk_import_line(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  upstream: UpstreamContext,
-  request_path: String,
   inner_root: String,
-  mutation: String,
-  variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let variables_json = root_variables_to_json(variables)
-  let data = case
-    upstream_query.fetch_sync(
-      upstream.origin,
-      upstream.transport,
-      upstream.headers,
-      operation_name_for_upstream_bulk_line(mutation, inner_root),
-      mutation,
-      variables_json,
-    )
-  {
-    Ok(value) -> commit.json_value_to_json(value)
-    Error(err) ->
-      json.object([
-        #(
-          "errors",
-          json.array(
-            [
-              json.object([
-                #("message", json.string(upstream_fetch_error_message(err))),
-              ]),
-            ],
-            fn(row) { row },
-          ),
-        ),
-      ])
-  }
   MutationOutcome(
-    data: data,
+    data: json.object([
+      #(
+        "errors",
+        json.array(
+          [
+            json.object([
+              #(
+                "message",
+                json.string(
+                  "bulkOperationRunMutation import line for root `"
+                  <> inner_root
+                  <> "` is accepted by Shopify's bulk validator but is not supported by the local bulk import executor.",
+                ),
+              ),
+            ]),
+          ],
+          fn(row) { row },
+        ),
+      ),
+    ]),
     store: store,
     identity: identity,
     staged_resource_ids: [],
-    log_drafts: [
-      bulk_import_upstream_log_draft(
-        mutation,
-        variables,
-        inner_root,
-        request_path,
-      ),
-    ],
+    log_drafts: [],
   )
-}
-
-fn bulk_import_upstream_log_draft(
-  mutation: String,
-  variables: Dict(String, root_field.ResolvedValue),
-  inner_root: String,
-  request_path: String,
-) -> LogDraft {
-  let parsed = parse_operation.parse_operation(mutation)
-  let #(operation_name, root_fields, primary_root_field) = case parsed {
-    Ok(parse_operation.ParsedOperation(name: name, root_fields: roots, ..)) -> {
-      let primary = case list.first(roots) {
-        Ok(root) -> Some(root)
-        Error(_) -> None
-      }
-      #(name, roots, primary)
-    }
-    Error(_) -> #(None, [inner_root], Some(inner_root))
-  }
-  LogDraft(
-    operation_name: operation_name,
-    root_fields: root_fields,
-    primary_root_field: primary_root_field,
-    domain: "bulk-operations",
-    execution: "passthrough",
-    query: Some(mutation),
-    variables: Some(variables),
-    staged_resource_ids: [],
-    status: store_types.Proxied,
-    notes: Some(
-      "bulkOperationRunMutation import line for root `"
-      <> inner_root
-      <> "` was sent upstream as a direct Admin GraphQL mutation from "
-      <> request_path
-      <> " because no local bulk-import executor exists for that root.",
-    ),
-  )
-}
-
-fn root_variables_to_json(
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Json {
-  json.object(
-    dict.to_list(variables)
-    |> list.map(fn(pair) {
-      let #(key, value) = pair
-      #(key, root_field.resolved_value_to_json(value))
-    }),
-  )
-}
-
-fn operation_name_for_upstream_bulk_line(
-  mutation: String,
-  fallback: String,
-) -> String {
-  case parse_operation.parse_operation(mutation) {
-    Ok(parse_operation.ParsedOperation(name: Some(name), ..)) -> name
-    _ -> fallback
-  }
-}
-
-fn upstream_fetch_error_message(error: upstream_query.FetchError) -> String {
-  case error {
-    upstream_query.TransportFailed(message) -> message
-    upstream_query.HttpStatusError(status, body) ->
-      "upstream returned HTTP " <> int.to_string(status) <> ": " <> body
-    upstream_query.MalformedResponse(message) -> message
-    upstream_query.NoTransportInstalled ->
-      "upstream passthrough requires an installed upstream transport on this target"
-  }
 }
 
 fn bulk_import_log_draft(
@@ -2310,56 +2127,9 @@ fn bulk_import_log_draft(
 
 fn bulk_import_domain(primary_root_field: Option(String)) -> String {
   case primary_root_field {
-    Some(name) -> {
-      case bulk_mutation_handler(name) {
-        Some(_) -> bulk_import_local_domain(name)
-        None -> "bulk-operations"
-      }
-    }
+    Some(name) ->
+      option.unwrap(mutation_dispatch.domain_for(name, ""), "bulk-operations")
     None -> "bulk-operations"
-  }
-}
-
-fn bulk_import_local_domain(name: String) -> String {
-  case customers.is_customer_mutation_root(name) {
-    True -> "customers"
-    False ->
-      case orders.is_orders_mutation_root(name) {
-        True -> "orders"
-        False ->
-          case products.is_products_mutation_root(name) {
-            True -> "products"
-            False ->
-              case discounts.is_discount_mutation_root(name) {
-                True -> "discounts"
-                False ->
-                  case
-                    metaobject_definitions.is_metaobject_definitions_mutation_root(
-                      name,
-                    )
-                  {
-                    True -> "metaobjects"
-                    False ->
-                      case
-                        metafield_definitions.is_metafield_definitions_mutation_root(
-                          name,
-                        )
-                      {
-                        True -> "metafields"
-                        False ->
-                          case
-                            shipping_fulfillments.is_shipping_fulfillment_mutation_root(
-                              name,
-                            )
-                          {
-                            True -> "shipping-fulfillments"
-                            False -> "admin"
-                          }
-                      }
-                  }
-              }
-          }
-      }
   }
 }
 

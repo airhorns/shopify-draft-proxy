@@ -8,7 +8,12 @@ import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/mutation_dispatch
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/operation_registry.{
+  BulkOperations, Mutation, StageLocally,
+}
+import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, UpstreamContext, empty_upstream_context,
@@ -175,6 +180,22 @@ pub fn root_predicates_test() {
     "bulkOperationRunMutation",
   )
   assert !bulk_operations.is_bulk_operations_query_root("shop")
+}
+
+pub fn run_mutation_bulk_dispatch_support_matrix_matches_implemented_registry_test() {
+  let unsupported =
+    operation_registry_data.default_registry()
+    |> list.filter(fn(entry) {
+      entry.type_ == Mutation
+      && entry.execution == StageLocally
+      && entry.implemented
+      && entry.domain != BulkOperations
+      && !mutation_dispatch.has_handler(entry.name, "")
+    })
+    |> list.map(fn(entry) { entry.name })
+    |> list.sort(string.compare)
+
+  assert unsupported == []
 }
 
 pub fn empty_reads_keep_shopify_like_shapes_test() {
@@ -1313,9 +1334,7 @@ pub fn run_mutation_customer_create_import_stages_customer_and_reads_bulk_operat
   assert customer_id == customer.id
 }
 
-pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_result_test() {
-  let upstream_body =
-    "{\"data\":{\"urlRedirectCreate\":{\"urlRedirect\":{\"id\":\"gid://shopify/UrlRedirect/1\",\"path\":\"/old\",\"target\":\"/new\"},\"userErrors\":[]}}}"
+pub fn run_mutation_allowed_unknown_root_fails_locally_without_upstream_test() {
   let inner =
     "mutation UrlRedirectCreate($urlRedirect: UrlRedirectInput!) { urlRedirectCreate(urlRedirect: $urlRedirect) { urlRedirect { id path target } userErrors { field message } } }"
   let outcome =
@@ -1323,7 +1342,7 @@ pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_resu
       inner,
       "/bulk/url-redirects.jsonl",
       "{\"urlRedirect\":{\"path\":\"/old\",\"target\":\"/new\"}}\n",
-      upstream_context_with_body(upstream_body),
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(response, "\"status\":\"CREATED\"")
@@ -1332,8 +1351,11 @@ pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_resu
   let assert Some(jsonl) =
     store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
   assert string.contains(jsonl, "\"line\":1")
-  assert string.contains(jsonl, "\"urlRedirectCreate\"")
-  assert string.contains(jsonl, "\"gid://shopify/UrlRedirect/1\"")
+  assert string.contains(jsonl, "root `urlRedirectCreate`")
+  assert string.contains(
+    jsonl,
+    "is accepted by Shopify's bulk validator but is not supported by the local bulk import executor",
+  )
   assert store.list_effective_customers(outcome.store) == []
 
   let read_after =
@@ -1343,7 +1365,7 @@ pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_resu
         <> operation_id
         <> "\") { id status type objectCount rootObjectCount url } currentBulkOperation(type: MUTATION) { id } }",
     )
-  assert string.contains(read_after, "\"status\":\"COMPLETED\"")
+  assert string.contains(read_after, "\"status\":\"FAILED\"")
   assert string.contains(read_after, "\"objectCount\":\"0\"")
   assert string.contains(
     read_after,
@@ -1352,16 +1374,17 @@ pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_resu
 
   let assert [
     mutation_helpers.LogDraft(
-      operation_name: Some("UrlRedirectCreate"),
-      root_fields: ["urlRedirectCreate"],
-      primary_root_field: Some("urlRedirectCreate"),
+      operation_name: Some("bulkOperationRunMutation"),
+      root_fields: ["bulkOperationRunMutation"],
+      primary_root_field: Some("bulkOperationRunMutation"),
       domain: "bulk-operations",
-      execution: "passthrough",
-      staged_resource_ids: [],
-      status: store_types.Proxied,
+      execution: "stage-locally",
+      staged_resource_ids: [logged_operation_id],
+      status: store_types.Failed,
       ..,
     ),
   ] = outcome.log_drafts
+  assert logged_operation_id == operation_id
 }
 
 pub fn run_mutation_returns_operation_in_progress_for_non_terminal_mutation_test() {

@@ -54,6 +54,7 @@ import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
+import shopify_draft_proxy/proxy/mutation_dispatch
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/online_store
@@ -62,7 +63,6 @@ import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
-import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{
   DraftProxy, Live, LiveHybrid, PassthroughUnsupportedMutations,
@@ -2158,7 +2158,7 @@ fn config_aware_mutation_handler(
           upstream,
         )
       })
-    False -> local_mutation_handler(name, query)
+    False -> mutation_dispatch.handler_for(name, query)
   }
 }
 
@@ -2179,7 +2179,9 @@ pub fn registry_entry_has_local_dispatch(entry: RegistryEntry) -> Bool {
 fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
   case type_ {
     QueryOperation -> option.is_some(local_query_handler(name, ""))
-    MutationOperation -> option.is_some(local_mutation_handler(name, ""))
+    MutationOperation ->
+      bulk_operations.is_bulk_operations_mutation_root(name)
+      || mutation_dispatch.has_handler(name, "")
   }
 }
 
@@ -2190,7 +2192,8 @@ fn local_registry_dispatch_supported(
   case type_ {
     operation_registry.Query -> option.is_some(local_query_handler(name, ""))
     operation_registry.Mutation ->
-      option.is_some(local_mutation_handler(name, ""))
+      bulk_operations.is_bulk_operations_mutation_root(name)
+      || mutation_dispatch.has_handler(name, "")
   }
 }
 
@@ -2423,119 +2426,6 @@ fn shipping_fulfillment_order_lifecycle_query(query: String) -> Bool {
   string.contains(query, "fulfillmentHolds")
   || string.contains(query, "fulfillBy")
   || string.contains(query, "supportedActions")
-}
-
-fn local_mutation_handler(
-  name: String,
-  query: String,
-) -> Option(MutationHandler) {
-  case publishable_mutation_requests_store_properties(name, query) {
-    True -> Some(store_properties.process_mutation)
-    False -> local_non_store_publishable_mutation_handler(name)
-  }
-}
-
-fn local_non_store_publishable_mutation_handler(
-  name: String,
-) -> Option(MutationHandler) {
-  first_matching_handler([
-    #(payments.is_payments_mutation_root(name), payments.process_mutation),
-    #(products.is_products_mutation_root(name), products.process_mutation),
-    #(
-      store_properties.is_store_properties_mutation_root(name),
-      store_properties.process_mutation,
-    ),
-    #(
-      saved_searches.is_saved_search_mutation_root(name),
-      saved_searches.process_mutation,
-    ),
-    #(
-      webhooks.is_webhook_subscription_mutation_root(name),
-      webhooks.process_mutation,
-    ),
-    #(apps.is_app_mutation_root(name), apps.process_mutation),
-    #(functions.is_function_mutation_root(name), functions.process_mutation),
-    #(gift_cards.is_gift_card_mutation_root(name), gift_cards.process_mutation),
-    #(discounts.is_discount_mutation_root(name), discounts.process_mutation),
-    #(b2b.is_b2b_mutation_root(name), b2b.process_mutation),
-    #(segments.is_segment_mutation_root(name), segments.process_mutation),
-    #(
-      metafield_definitions.is_metafield_definitions_mutation_root(name),
-      metafield_definitions.process_mutation,
-    ),
-    #(
-      localization.is_localization_mutation_root(name),
-      localization.process_mutation,
-    ),
-    #(
-      metaobject_definitions.is_metaobject_definitions_mutation_root(name),
-      metaobject_definitions.process_mutation,
-    ),
-    #(marketing.is_marketing_mutation_root(name), marketing.process_mutation),
-    #(
-      bulk_operations.is_bulk_operations_mutation_root(name),
-      bulk_operations.process_mutation,
-    ),
-    #(media.is_media_mutation_root(name), media.process_mutation),
-    #(markets.is_markets_mutation_root(name), markets.process_mutation),
-    #(
-      admin_platform.is_admin_platform_mutation_root(name),
-      admin_platform.process_mutation,
-    ),
-    #(
-      online_store.is_online_store_mutation_root(name),
-      online_store.process_mutation,
-    ),
-    #(privacy.is_privacy_mutation_root(name), privacy.process_mutation),
-    #(
-      shipping_fulfillment_priority_mutation_root(name),
-      shipping_fulfillments.process_mutation,
-    ),
-    #(orders.is_orders_mutation_root(name), orders.process_mutation),
-    #(customers.is_customer_mutation_root(name), customers.process_mutation),
-    #(
-      shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
-      shipping_fulfillments.process_mutation,
-    ),
-  ])
-}
-
-fn publishable_mutation_requests_store_properties(
-  name: String,
-  query: String,
-) -> Bool {
-  case name {
-    "publishablePublish" | "publishableUnpublish" ->
-      string.contains(query, "publishedOnCurrentPublication")
-      || string.contains(query, "availablePublicationsCount")
-      || string.contains(query, " shop ")
-      || string.contains(query, "shop {")
-    _ -> False
-  }
-}
-
-fn shipping_fulfillment_priority_mutation_root(name: String) -> Bool {
-  case name {
-    "fulfillmentEventCreate"
-    | "fulfillmentOrderSubmitFulfillmentRequest"
-    | "fulfillmentOrderAcceptFulfillmentRequest"
-    | "fulfillmentOrderRejectFulfillmentRequest"
-    | "fulfillmentOrderSubmitCancellationRequest"
-    | "fulfillmentOrderAcceptCancellationRequest"
-    | "fulfillmentOrderRejectCancellationRequest"
-    | "fulfillmentOrderHold"
-    | "fulfillmentOrderReleaseHold"
-    | "fulfillmentOrderMove"
-    | "fulfillmentOrderReschedule"
-    | "fulfillmentOrderReportProgress"
-    | "fulfillmentOrderOpen"
-    | "fulfillmentOrderClose"
-    | "fulfillmentOrderCancel"
-    | "fulfillmentOrderSplit"
-    | "fulfillmentOrdersSetFulfillmentDeadline"
-    | "fulfillmentOrderMerge" -> True
-    _ -> False
-  }
 }
 
 type ParsedBody {
