@@ -1,12 +1,10 @@
 # Privacy Endpoint Group
 
-The privacy group started as registry-only groundwork in HAR-250. These roots describe shop-level privacy settings and consent policy configuration, not customer marketing consent and not legal shop policy content.
+The privacy group covers shop-level privacy settings, consent policy configuration, and the customer data-sale opt-out mutation. It does not cover customer marketing consent or legal shop policy body content.
 
 ## Current support and limitations
 
 ### Registry-only roots
-
-HAR-250 added the initial privacy endpoint grouping for five shop privacy and consent-policy roots:
 
 Planned overlay reads:
 
@@ -21,18 +19,20 @@ Planned local staged mutations:
 
 All five roots are `implemented: false` until captured fixtures, parity specs, and runtime behavior exist. Registry presence is a local-model commitment only; it does not make either privacy mutation a supported runtime operation.
 
-HAR-255 adds separate customer/privacy mutation coverage for:
+### Supported roots
+
+Local staged mutations:
 
 - `dataSaleOptOut`
 
-`dataSaleOptOut` is `implemented: true`. It is tracked separately because it is a customer email data-sale opt-out mutation, not a shop privacy settings read and not the consent-policy update flow covered by HAR-250.
+`dataSaleOptOut` is `implemented: true`. It is tracked separately because it is a customer email data-sale opt-out mutation, not a shop privacy settings read and not the unsupported consent-policy update flow.
 
-HAR-322 adds customer data-erasure request/cancel roots under the customers endpoint group:
+The customer data-erasure request/cancel roots are documented under the customers endpoint group:
 
 - `customerRequestDataErasure`
 - `customerCancelDataErasure`
 
-These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay. Granted-scope HAR-322 capture records real request/cancel success payloads, unchanged immediate downstream customer reads, unknown-customer `DOES_NOT_EXIST` userErrors, and repeat-cancel `NOT_BEING_ERASED` cleanup behavior.
+These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay. Granted-scope capture records real request/cancel success payloads, unchanged immediate downstream customer reads, unknown-customer `DOES_NOT_EXIST` userErrors, and repeat-cancel `NOT_BEING_ERASED` cleanup behavior.
 
 ### Coverage boundaries
 
@@ -45,18 +45,16 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - `dataSaleOptOut` is related to, but distinct from, shop privacy settings fields such as `privacySettings.dataSaleOptOutPage` and consent policy fields such as `dataSaleOptOutRequired`: those reads describe shop configuration and policy requirements, while the mutation records an opt-out action for a customer email.
 - Local staging keeps the operation under the privacy registry domain, but stores its read-after-write effect on the normalized customer record so `customer(id:)` and `customerByIdentifier(...)` can serialize `dataSaleOptOut`.
 - In cassette-backed `LiveHybrid` parity, existing-email `dataSaleOptOut` first reads `customerByIdentifier(identifier: { emailAddress })` from upstream to learn Shopify's authoritative customer ID, then stages the opt-out locally without sending the supported mutation upstream.
-- Customer email/SMS marketing consent is already tracked under the customers endpoint group and HAR-153 through `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate`.
-- HAR-435 reviewed the customer/privacy overlap and did not find a new `dataSaleOptOut` runtime gap: executable parity already covers existing-customer opt-out, repeat idempotency, invalid-email userErrors, downstream customer reads, and the unknown-valid-email creation branch is covered by runtime tests because the generic parity runner cannot yet chain that validation mutation output into later validation reads. Shop-level privacy settings roots remain the deliberate fidelity gap for this endpoint group and must stay unsupported until local shop privacy state, side-effect boundaries, and commit replay are modeled.
-- Legal policy body updates are already tracked under store properties and HAR-173 through `shopPolicyUpdate`.
+- Customer email/SMS marketing consent is tracked under the customers endpoint group through `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate`.
+- Executable parity already covers existing-customer opt-out, repeat idempotency, invalid-email userErrors, downstream customer reads, and the unknown-valid-email creation branch is covered by runtime tests because the generic parity runner cannot yet chain that validation mutation output into later validation reads. Shop-level privacy settings roots remain the deliberate fidelity gap for this endpoint group and must stay unsupported until local shop privacy state, side-effect boundaries, and commit replay are modeled.
+- Legal policy body updates are tracked under store properties through `shopPolicyUpdate`.
 - `dataSaleOptOut` is present as a mutation root in the checked-in 2025-01 root introspection fixture. Fixture-backed parity coverage lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-parity.json`.
 
-## Historical and developer notes
-
-### Capture guidance
+### Evidence and capture guidance
 
 The live capture entry point is `corepack pnpm conformance:capture-privacy`, backed by `scripts/capture-privacy-conformance.ts`.
 
-The script uses the canonical conformance auth helper and defaults to Admin GraphQL `2026-04` so fixture work can align with the privacy docs cited by HAR-250. By default it captures only safe reads. Mutation capture is guarded by `SHOPIFY_CONFORMANCE_CAPTURE_PRIVACY_MUTATIONS=true` and requires explicit JSON inputs:
+The script uses the canonical conformance auth helper and defaults to Admin GraphQL `2026-04`. By default it captures only safe reads. Mutation capture is guarded by `SHOPIFY_CONFORMANCE_CAPTURE_PRIVACY_MUTATIONS=true` and requires explicit JSON inputs:
 
 - `SHOPIFY_CONFORMANCE_PRIVACY_CONSENT_POLICIES_JSON` for `consentPolicyUpdate`
 - `SHOPIFY_CONFORMANCE_PRIVACY_FEATURES_TO_DISABLE_JSON` for `privacyFeaturesDisable`
