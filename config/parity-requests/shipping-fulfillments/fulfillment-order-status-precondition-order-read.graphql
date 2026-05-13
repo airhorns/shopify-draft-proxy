@@ -1,0 +1,15 @@
+query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+  order(id: $orderId) {
+    id
+    fulfillmentOrders(first: 10, includeClosed: true) {
+      nodes {
+        id
+        status
+        updatedAt
+        supportedActions {
+          action
+        }
+      }
+    }
+  }
+}
