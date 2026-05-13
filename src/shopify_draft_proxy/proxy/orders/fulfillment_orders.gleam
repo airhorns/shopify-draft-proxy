@@ -1701,52 +1701,36 @@ pub fn handle_fulfillment_order_lifecycle_mutation(
       case read_string_argument(field, "id", variables) {
         None -> #(key, json.null(), store, identity, [], [], [])
         Some(id) -> {
-          case root_name {
-            "fulfillmentOrderReschedule" -> {
-              let payload =
-                serialize_fulfillment_order_mutation_payload(
-                  field,
-                  [],
-                  [
-                    inferred_nullable_user_error(
-                      None,
-                      "Fulfillment order must be scheduled.",
-                    ),
-                  ],
-                  fragments,
+          case find_order_with_fulfillment_order(store, id) {
+            None -> #(
+              key,
+              json.null(),
+              store,
+              identity,
+              [],
+              [fulfillment_order_invalid_id_error(root_name, key, id)],
+              [],
+            )
+            Some(match) -> {
+              let #(order, fulfillment_order) = match
+              case
+                fulfillment_order_lifecycle_block_message(
+                  root_name,
+                  fulfillment_order,
                 )
-              let draft = fulfillment_order_log_draft(root_name, [id])
-              #(key, payload, store, identity, [], [], [draft])
-            }
-            "fulfillmentOrderClose" -> {
-              let payload =
-                serialize_fulfillment_order_mutation_payload(
-                  field,
-                  [],
-                  [
-                    inferred_nullable_user_error(
-                      None,
-                      "The fulfillment order's assigned fulfillment service must be of api type",
-                    ),
-                  ],
-                  fragments,
-                )
-              let draft = fulfillment_order_log_draft(root_name, [id])
-              #(key, payload, store, identity, [], [], [draft])
-            }
-            _ ->
-              case find_order_with_fulfillment_order(store, id) {
-                None -> #(
-                  key,
-                  json.null(),
-                  store,
-                  identity,
-                  [],
-                  [fulfillment_order_invalid_id_error(root_name, key, id)],
-                  [],
-                )
-                Some(match) -> {
-                  let #(order, fulfillment_order) = match
+              {
+                Some(message) -> {
+                  let payload =
+                    serialize_fulfillment_order_mutation_payload(
+                      field,
+                      [],
+                      [inferred_nullable_user_error(None, message)],
+                      fragments,
+                    )
+                  let draft = fulfillment_order_log_draft(root_name, [id])
+                  #(key, payload, store, identity, [], [], [draft])
+                }
+                None -> {
                   case
                     root_name == "fulfillmentOrderCancel",
                     fulfillment_order_cancel_block_message(fulfillment_order)
@@ -1827,10 +1811,56 @@ pub fn handle_fulfillment_order_lifecycle_mutation(
                   }
                 }
               }
+            }
           }
         }
       }
     }
+  }
+}
+
+fn fulfillment_order_lifecycle_block_message(
+  root_name: String,
+  fulfillment_order: CapturedJsonValue,
+) -> Option(String) {
+  case root_name {
+    "fulfillmentOrderReschedule" ->
+      case
+        captured_string_field(fulfillment_order, "status") == Some("SCHEDULED")
+      {
+        True -> None
+        False -> Some("Fulfillment order must be scheduled.")
+      }
+    "fulfillmentOrderClose" ->
+      case
+        fulfillment_order_assigned_to_fulfillment_service(fulfillment_order)
+      {
+        True -> None
+        False ->
+          Some(
+            "The fulfillment order's assigned fulfillment service must be of api type",
+          )
+      }
+    _ -> None
+  }
+}
+
+fn fulfillment_order_assigned_to_fulfillment_service(
+  fulfillment_order: CapturedJsonValue,
+) -> Bool {
+  case fulfillment_order {
+    CapturedObject(fields) ->
+      case list.key_find(fields, "assignedLocation") {
+        Ok(CapturedObject(assigned_fields)) ->
+          case list.key_find(assigned_fields, "location") {
+            Ok(CapturedObject(location_fields)) ->
+              list.key_find(location_fields, "isFulfillmentService")
+              == Ok(CapturedBool(True))
+            _ -> False
+          }
+        _ -> False
+      }
+    _ -> False
   }
 }
 
@@ -1922,6 +1952,22 @@ pub fn apply_fulfillment_order_lifecycle(
         identity,
         "OPEN",
       )
+    "fulfillmentOrderReschedule" ->
+      apply_fulfillment_order_reschedule(
+        order,
+        fulfillment_order,
+        identity,
+        field,
+        variables,
+      )
+    "fulfillmentOrderClose" ->
+      apply_fulfillment_order_status(
+        "fulfillmentOrder",
+        order,
+        fulfillment_order,
+        identity,
+        "CLOSED",
+      )
     "fulfillmentOrderCancel" ->
       apply_fulfillment_order_cancel(order, fulfillment_order, identity)
     _ -> {
@@ -1933,6 +1979,37 @@ pub fn apply_fulfillment_order_lifecycle(
       )
     }
   }
+}
+
+fn apply_fulfillment_order_reschedule(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let fulfill_at =
+    read_string_argument(field, "fulfillAt", variables)
+    |> option.or(captured_string_field(fulfillment_order, "fulfillAt"))
+    |> option.unwrap("")
+  let updated =
+    replace_captured_object_fields(fulfillment_order, [
+      #("fulfillAt", CapturedString(fulfill_at)),
+      #("updatedAt", CapturedString(updated_at)),
+    ])
+  let next_order =
+    replace_order_fulfillment_order(
+      order,
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      updated,
+    )
+  #([#("fulfillmentOrder", Some(updated))], next_order, next_identity)
 }
 
 @internal

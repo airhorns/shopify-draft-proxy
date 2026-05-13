@@ -3212,12 +3212,12 @@ Captured facts:
 - partial `fulfillmentOrderHold` changes the selected work to `ON_HOLD`, creates a new `FulfillmentHold`, reduces the held fulfillment-order line item quantities, and returns a separate `remainingFulfillmentOrder` for the unheld quantity
 - `fulfillmentOrderReleaseHold` restores the held fulfillment order to `OPEN`, clears `fulfillmentHolds`, and re-expands the line item back to the full remaining quantity in the captured branch
 - partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
-- `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
+- The lifecycle capture records `fulfillmentOrderReportProgress` changing an open merchant-managed fulfillment order to `IN_PROGRESS` and adding `MARK_AS_OPEN`, followed by `fulfillmentOrderOpen` changing it back to `OPEN`; local support preserves that executable parity branch while rejecting non-actionable statuses such as closed, cancelled, and held fulfillment orders before staging.
 - `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
 - HAR-573 re-recording showed `fulfillmentOrderCancel` immediately after `fulfillmentOrderReportProgress` returns `userErrors[{ field: ["id"], message: "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." }]`, while a second cancel against the already-cancelled fulfillment order returns `field: null` with `"Fulfillment order is not in cancelable request state and can't be canceled."`
 - the same HAR-573 capture showed `fulfillmentOrderCancel` after a `fulfillmentOrderOpen` / `fulfillmentOrderClose` sequence can still succeed and create a replacement fulfillment order; do not treat every `CLOSED` status as the same lifecycle state without checking how it became closed
 - nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
-- the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+- the captured merchant-managed setup returns guardrails for narrower branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
 - HAR-552 live capture showed the multiple-holds API currently allows 10 active holds by the same requesting app on one fulfillment order; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`. Older notes or tickets that describe a cap of 2 should be treated as stale unless a newer capture proves a version-specific change.
 - `fulfillmentOrderHold` validation failures for duplicate handle, not-splittable partial hold, hold limit, zero quantity, and duplicate line-item IDs returned `fulfillmentHold: null`, `fulfillmentOrder: null`, and `remainingFulfillmentOrder: null` in the captured 2026-04 payload.
 - After a partial hold, Shopify reports the held fulfillment-order line-item `totalQuantity` / `remainingQuantity` as the held quantity while the nested order line item's `fulfillableQuantity` reflects the remaining fulfillable order-line quantity. The split-off remaining fulfillment order reports the same nested `fulfillableQuantity`.
@@ -3225,7 +3225,7 @@ Captured facts:
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
-- keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
+- keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderReschedule` and `fulfillmentOrderClose` have narrow local staging for scheduled/API-service records but still need live success captures before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 
