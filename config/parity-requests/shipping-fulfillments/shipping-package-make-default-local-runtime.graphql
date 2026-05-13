@@ -1,11 +1,5 @@
 mutation ShippingPackageMakeDefaultLocalRuntime($id: ID!) {
   shippingPackageMakeDefault(id: $id) {
-    shippingPackage {
-      id
-      name
-      default
-      updatedAt
-    }
     userErrors {
       field
       message
