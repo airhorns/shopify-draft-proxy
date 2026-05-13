@@ -304,6 +304,8 @@ pub fn handle_mutation_fields(
                 variables,
                 "FulfillmentOrderReportProgressPayload",
                 "IN_PROGRESS",
+                ["OPEN", "IN_PROGRESS"],
+                "Fulfillment order must be in progress.",
               ))
             "fulfillmentOrderOpen" ->
               Some(handle_fulfillment_order_simple_status(
@@ -314,6 +316,8 @@ pub fn handle_mutation_fields(
                 variables,
                 "FulfillmentOrderOpenPayload",
                 "OPEN",
+                ["SCHEDULED", "IN_PROGRESS"],
+                "Fulfillment order must be scheduled.",
               ))
             "fulfillmentOrderClose" ->
               Some(handle_fulfillment_order_close(

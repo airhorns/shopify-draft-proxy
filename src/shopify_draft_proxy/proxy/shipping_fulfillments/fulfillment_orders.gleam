@@ -857,52 +857,72 @@ pub fn handle_fulfillment_order_simple_status(
   variables: Dict(String, root_field.ResolvedValue),
   payload_typename: String,
   status: String,
+  allowed_statuses: List(String),
+  invalid_status_message: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          let actions = case status {
-            "IN_PROGRESS" -> [
-              "CREATE_FULFILLMENT",
-              "REPORT_PROGRESS",
-              "HOLD",
-              "MARK_AS_OPEN",
-            ]
-            _ -> ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
+          case list.contains(allowed_statuses, order.status) {
+            True -> {
+              let actions = case status {
+                "IN_PROGRESS" -> [
+                  "CREATE_FULFILLMENT",
+                  "REPORT_PROGRESS",
+                  "HOLD",
+                  "MARK_AS_OPEN",
+                ]
+                _ -> ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
+              }
+              let status_updates = case status {
+                "IN_PROGRESS" -> [
+                  #("status", CapturedString(status)),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #("supportedActions", captured_action_list(actions)),
+                  #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
+                ]
+                "OPEN" -> [
+                  #("status", CapturedString(status)),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #("supportedActions", captured_action_list(actions)),
+                  #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
+                ]
+                _ -> [
+                  #("status", CapturedString(status)),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #("supportedActions", captured_action_list(actions)),
+                ]
+              }
+              let updated =
+                update_fulfillment_order_fields(order, status_updates)
+              let updated = FulfillmentOrderRecord(..updated, status: status)
+              let draft_store =
+                update_shipping_order_display_status(
+                  draft_store,
+                  updated,
+                  status,
+                )
+              fulfillment_order_single_payload_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                payload_typename,
+                updated,
+              )
+            }
+            False ->
+              fulfillment_order_simple_status_user_error_payload(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                payload_typename,
+                invalid_status_message,
+              )
           }
-          let status_updates = case status {
-            "IN_PROGRESS" -> [
-              #("status", CapturedString(status)),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #("supportedActions", captured_action_list(actions)),
-              #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
-            ]
-            "OPEN" -> [
-              #("status", CapturedString(status)),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #("supportedActions", captured_action_list(actions)),
-              #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
-            ]
-            _ -> [
-              #("status", CapturedString(status)),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #("supportedActions", captured_action_list(actions)),
-            ]
-          }
-          let updated = update_fulfillment_order_fields(order, status_updates)
-          let updated = FulfillmentOrderRecord(..updated, status: status)
-          let draft_store =
-            update_shipping_order_display_status(draft_store, updated, status)
-          fulfillment_order_single_payload_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            payload_typename,
-            updated,
-          )
         }
         None ->
           fulfillment_order_missing_mutation_result(
@@ -1231,6 +1251,37 @@ fn fulfillment_order_lifecycle_user_error(
     #("message", SrcString(message)),
     #("code", SrcString(code)),
   ])
+}
+
+fn fulfillment_order_simple_status_user_error_payload(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  payload_typename: String,
+  message: String,
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let user_error =
+    src_object([
+      #("field", SrcList([SrcString("id")])),
+      #("message", SrcString(message)),
+      #("code", SrcString("INVALID_FULFILLMENT_ORDER_STATUS")),
+    ])
+  #(
+    shipping_types.MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString(payload_typename)),
+        #("fulfillmentOrder", SrcNull),
+        #("userErrors", SrcList([user_error])),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
 }
 
 fn fulfillment_order_release_hold_user_error_result(

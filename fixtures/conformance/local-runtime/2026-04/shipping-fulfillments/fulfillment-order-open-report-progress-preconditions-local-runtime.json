@@ -1,0 +1,174 @@
+{
+  "capturedAt": "2026-05-11T11:00:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "storeDomain": "local-runtime.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime parity for fulfillmentOrderOpen and fulfillmentOrderReportProgress status preconditions. Fulfillment-order state is earned through ShippingFulfillmentOrderHydrate cassette reads; rejected mutations must not stage status, supportedActions, or updatedAt changes.",
+  "openClosed": {
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed"
+    },
+    "readVariables": {
+      "orderId": "gid://shopify/Order/status-precondition-open-closed"
+    }
+  },
+  "progressScheduled": {
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+      "progressReport": {
+        "reasonNotes": "local-runtime progress precondition"
+      }
+    },
+    "readVariables": {
+      "orderId": "gid://shopify/Order/status-precondition-progress-scheduled"
+    }
+  },
+  "expected": {
+    "openClosed": {
+      "data": {
+        "fulfillmentOrderOpen": {
+          "fulfillmentOrder": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Fulfillment order must be scheduled.",
+              "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }
+          ]
+        }
+      }
+    },
+    "afterOpenClosedRead": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/status-precondition-open-closed",
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+                "status": "CLOSED",
+                "updatedAt": "2026-05-11T10:00:00Z",
+                "supportedActions": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    "progressScheduled": {
+      "data": {
+        "fulfillmentOrderReportProgress": {
+          "fulfillmentOrder": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Fulfillment order must be in progress.",
+              "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }
+          ]
+        }
+      }
+    },
+    "afterProgressScheduledRead": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "status": "SCHEDULED",
+                "updatedAt": "2026-05-11T10:05:00Z",
+                "supportedActions": [
+                  {
+                    "action": "MARK_AS_OPEN"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "assignmentStatus": null,
+              "fulfillAt": null,
+              "fulfillBy": null,
+              "updatedAt": "2026-05-11T10:00:00Z",
+              "supportedActions": [],
+              "assignedLocation": null,
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": []
+              },
+              "order": {
+                "id": "gid://shopify/Order/status-precondition-open-closed",
+                "name": "#STATUS-OPEN-CLOSED",
+                "displayFulfillmentStatus": "FULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+              "status": "SCHEDULED",
+              "requestStatus": "UNSUBMITTED",
+              "assignmentStatus": null,
+              "fulfillAt": "2026-05-12T10:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-11T10:05:00Z",
+              "supportedActions": [
+                {
+                  "action": "MARK_AS_OPEN"
+                }
+              ],
+              "assignedLocation": null,
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": []
+              },
+              "order": {
+                "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+                "name": "#STATUS-PROGRESS-SCHEDULED",
+                "displayFulfillmentStatus": "SCHEDULED"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
