@@ -1,6 +1,6 @@
 # Saved Searches and URL Redirects
 
-HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin `SavedSearch` records for products, collections, orders, draft orders, files, and discount saved-search roots.
+The saved-searches group is scoped to Shopify Admin `SavedSearch` records for products, collections, orders, draft orders, files, and discount saved-search roots. URL redirect mutation/import roots are tracked here only as explicit unsupported coverage; the supported URL redirect read overlay is documented with online-store content.
 
 ## Current support and limitations
 
@@ -49,7 +49,7 @@ HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin
   a compatibility surface for hydrated or staged records, but version-specific GraphQL argument validation is not
   modeled in this endpoint.
 
-### URL redirect blockers
+### Registry-only URL redirect roots
 
 URL redirect mutation/import roots are intentionally registered as unimplemented coverage, not supported local behavior. The read roots `urlRedirect` and `urlRedirects` have a narrow local overlay for redirect rows staged by metaobject handle updates, documented in `docs/endpoints/online-store.md`; that does not imply support for URL redirect mutation lifecycle roots.
 
@@ -59,9 +59,7 @@ URL redirect mutation/import roots are intentionally registered as unimplemented
 
 Do not mark URL redirect create/update/delete/import/bulk-delete roots as implemented until success-path fixtures capture validation, path/target normalization, search/count/pageInfo behavior, job shapes, and downstream read-after-write effects.
 
-## Historical and developer notes
-
-### Captured evidence
+### Evidence
 
 The current conformance credential was valid for `harry-test-heelo.myshopify.com` / Admin GraphQL `2025-01`.
 
@@ -72,13 +70,18 @@ The current conformance credential was valid for `harry-test-heelo.myshopify.com
 - Updating a saved search with a name longer than 40 characters returned `userErrors[{ field: ["input", "name"], message: "Name is too long (maximum is 40 characters)" }]` while keeping the existing name in the payload.
 - `config/parity-specs/saved-searches/saved-search-local-staging.json` replays the create, downstream read, overlong-name update validation, and missing update/delete branches through the generic parity runner with strict JSON targets. Expected differences are limited to deterministic local IDs and opaque connection cursors.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-required-input-validation.json`, `config/parity-specs/saved-searches/saved-search-required-input-validation.json`, and `config/parity-specs/saved-searches/saved-search-required-input-variable-validation.json` cover required input coercion and explicit empty-query create behavior, including variable-supplied `SavedSearchCreateInput` missing `resourceType` / `name` branches.
-- The HAR-402 `2026-04` resource-root capture confirmed `PRODUCT`, `COLLECTION`, `ORDER`, `DRAFT_ORDER`, `FILE`, and `DISCOUNT_REDEEM_CODE` create/read/delete behavior, the customer-create deprecation userError, default order/draft-order saved-search records, and the fact that most saved-search connection roots reject `query:` arguments in that API version.
-- `config/parity-specs/saved-searches/saved-search-resource-roots.json` replays that HAR-402 capture through the generic parity runner with strict JSON targets for create payloads, downstream resource-root reads, cleanup deletes, and post-delete reads. Expected differences are limited to deterministic local IDs/legacy IDs.
-- HAR-458 added `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json` and `config/parity-specs/saved-searches/saved-search-query-grammar.json` for quoted/grouped saved-search grammar. The executable parity target proves Shopify's mutation-payload preservation, downstream stored-query normalization, `searchTerms` shape, and negated-filter extraction for a grouped `OR` expression.
+- The 2026-04 resource-root capture confirmed `PRODUCT`, `COLLECTION`, `ORDER`, `DRAFT_ORDER`, `FILE`, and `DISCOUNT_REDEEM_CODE` create/read/delete behavior, the customer-create deprecation userError, default order/draft-order saved-search records, and the fact that most saved-search connection roots reject `query:` arguments in that API version.
+- `config/parity-specs/saved-searches/saved-search-resource-roots.json` replays that resource-root capture through the generic parity runner with strict JSON targets for create payloads, downstream resource-root reads, cleanup deletes, and post-delete reads. Expected differences are limited to deterministic local IDs/legacy IDs.
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json` and `config/parity-specs/saved-searches/saved-search-query-grammar.json` cover quoted/grouped saved-search grammar. The executable parity target proves Shopify's mutation-payload preservation, downstream stored-query normalization, `searchTerms` shape, and negated-filter extraction for a grouped `OR` expression.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-filter-projection.json` and `config/parity-specs/saved-searches/saved-search-filter-projection.json` prove range upper-only, range lower-only, bounded two-token range, exists, and negated range filter projection for product saved searches, including downstream `productSavedSearches` read parity.
-- HAR-720 added `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-name-uniqueness.json` and `config/parity-specs/saved-searches/saved-search-name-uniqueness.json` for duplicate-name validation. The capture proves duplicate create returns `savedSearch: null`, while duplicate update returns the same `userErrors[{ field: ["input", "name"], message: "Name has already been taken" }]` and a non-null payload echo with the existing name plus submitted valid query; the proxy keeps that failed update out of effective staged state.
-- HAR-729 added `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar-validation.json` and `config/parity-specs/saved-searches/saved-search-query-grammar-validation.json` for query validation guardrails. The capture proves ORDER `reference_location_id` reserved-filter rejection, PRODUCT `collection_id` incompatibility with `tag`, `error_feedback`, and `published_status`, PRODUCT `collection_id` positive control behavior, and the non-staged update payload echo for PRODUCT `collection_id + tag`.
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-name-uniqueness.json` and `config/parity-specs/saved-searches/saved-search-name-uniqueness.json` cover duplicate-name validation. The capture proves duplicate create returns `savedSearch: null`, while duplicate update returns the same `userErrors[{ field: ["input", "name"], message: "Name has already been taken" }]` and a non-null payload echo with the existing name plus submitted valid query; the proxy keeps that failed update out of effective staged state.
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar-validation.json` and `config/parity-specs/saved-searches/saved-search-query-grammar-validation.json` cover query validation guardrails. The capture proves ORDER `reference_location_id` reserved-filter rejection, PRODUCT `collection_id` incompatibility with `tag`, `error_feedback`, and `published_status`, PRODUCT `collection_id` positive control behavior, and the non-staged update payload echo for PRODUCT `collection_id + tag`.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-incompatible-filter-aggregation.json` and `config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json` prove Shopify returns one PRODUCT create userError that aggregates `collection_id`, `tag`, and `published_status` into the message `Query has incompatible filters: collection_id, tag, published_status`.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-unknown-filter-field.json` and `config/parity-specs/saved-searches/saved-search-unknown-filter-field.json` prove PRODUCT `made_up_filter` rejection with `field: ["input", "query"]` on create and update, plus the known-filter positive control for `vendor:Acme`.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-app-namespace.json` and `config/parity-specs/saved-searches/saved-search-app-namespace.json` prove saved-search query-input `$app` metafield namespace preparation for create and update. The live conformance app resolved bare `$app` to `app--347082227713` in mutation payloads and filter keys. Downstream `SavedSearch.query` escaped hyphens as `app\\-\\-347082227713`, so the parity spec treats that string escaping as the only known downstream query difference while strictly comparing resolved `filters` and `searchTerms`.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-default-record-update-delete.json` and `config/parity-specs/saved-searches/saved-search-default-record-update-delete.json` prove persisted ORDER/DRAFT_ORDER default saved searches can be updated or deleted by ID, and that downstream `orderSavedSearches`/`draftOrderSavedSearches` reads reflect the staged update/delete.
+
+### Validation
+
+- `corepack pnpm conformance:parity`
+- `corepack pnpm conformance:check`

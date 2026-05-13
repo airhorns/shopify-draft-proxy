@@ -2,13 +2,11 @@
 
 The metaobjects group covers Shopify Admin GraphQL custom data roots. Runtime support now models definition reads/lifecycle mutations plus the core entry row lifecycle locally.
 
-HAR-131 is the source related issue for the metaobjects area.
-
 ## Current support and limitations
 
 ### Supported definition read roots
 
-HAR-241 promotes the first metaobject runtime slice from registry-only coverage to executable snapshot and live-hybrid reads for normalized definition state:
+Supported definition reads resolve normalized definition state in snapshot and live-hybrid modes:
 
 - `metaobjectDefinition(id:)`
 - `metaobjectDefinitionByType(type:)`
@@ -30,13 +28,13 @@ Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Sho
 
 ### Supported entry read roots
 
-HAR-243 promotes normalized metaobject entry reads for:
+Supported entry reads resolve normalized metaobject entry state:
 
 - `metaobject`
 - `metaobjectByHandle`
 - `metaobjects`
 
-The supported entry field slice is based on the HAR-240 Admin GraphQL 2026-04 capture:
+The supported entry field slice is based on the Admin GraphQL 2026-04 capture:
 
 - entry identity and display metadata: `id`, `handle`, `type`, `displayName`, `createdAt`, and `updatedAt`
 - entry `capabilities.publishable.status` and nullable `capabilities.onlineStore.templateSuffix`
@@ -54,7 +52,7 @@ Live-hybrid mode uses cassette-backed passthrough for cold entry reads. Once loc
 
 ### Reference relationship behavior
 
-HAR-384 promotes metaobject field relationships from documentation-only gap to modeled runtime behavior. The live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-reference-lifecycle.json`, recorded by `corepack pnpm conformance:capture-metaobject-references`, confirms these shapes:
+Metaobject field relationships are modeled for the fixture-backed local subset. The live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-reference-lifecycle.json`, recorded by `corepack pnpm conformance:capture-metaobject-references`, confirms these shapes:
 
 - `metaobject_reference` field definitions accept a `metaobject_definition_id` validation that points at the target definition.
 - A single-reference field serializes `value` and `jsonValue` as the referenced metaobject GID, returns a selected `reference` object, and returns `references: null`.
@@ -67,7 +65,7 @@ Reference connection cursors are intentionally stable synthetic cursor values in
 
 ### Supported definition mutation roots
 
-HAR-242 adds local staging for these Admin GraphQL 2026-04 definition mutation roots:
+These Admin GraphQL 2026-04 definition mutation roots stage locally:
 
 - `metaobjectDefinitionCreate(definition:)`
 - `metaobjectDefinitionUpdate(id:, definition:, resetFieldOrder:)`
@@ -118,7 +116,7 @@ For unprotected definitions, the local cascade records a tombstone for the defin
 
 ### Supported entry mutation roots
 
-HAR-244 adds local staging for the core Admin GraphQL 2026-04 metaobject row lifecycle roots:
+The core Admin GraphQL 2026-04 metaobject row lifecycle roots stage locally:
 
 - `metaobjectCreate`
 - `metaobjectUpdate`
@@ -150,25 +148,25 @@ Bulk delete support accepts the current 2026-04 `where.ids` and `where.type` bra
 
 ### Metaobject field value type matrix
 
-HAR-294 adds executable set/read parity for 99 metaobject field value types in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json`, replayed by `config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json`.
+Executable set/read parity covers 99 metaobject field value types in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json`, replayed by `config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json`.
 
 The recorder splits the field set across three disposable definitions because Shopify caps a metaobject definition at 40 fields. It uses `custom_id` as the field key for Shopify's `id` type because `id` itself is reserved as a metaobject field key. The matrix covers scalar custom-data values, measurement values, supported lists, product/variant/collection references, `metaobject_reference`, `list.metaobject_reference`, `mixed_reference`, and `list.mixed_reference`. Shopify rejected `list.boolean` and `list.multi_line_text_field` for this metaobject definition path, so those are not represented as working metaobject field fixtures.
 
 The local entry model shares the metafield custom-data normalization helper for field `value` / `jsonValue` projection. Metaobject `displayName` for measurement display keys follows the captured Shopify behavior by formatting the measurement `jsonValue` form rather than the stored canonical `value` string.
 
-HAR-685 adds strict create/update userError parity for invalid metaobject field values in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-field-validation-matrix.json`, replayed by `config/parity-specs/metaobjects/metaobject-field-validation-matrix.json`. The matrix covers scalar numbers, boolean create/update behavior, date/date-time, measurement, rating, color, URL, text max, product/variant/collection/customer/company/metaobject references, and list variants for those types. Captured 2026-04 behavior is asymmetric for scalar boolean input: `metaobjectCreate` coerces `"hello"` to `true`, while `metaobjectUpdate` rejects the same value with `INVALID_VALUE`.
+Strict create/update userError parity for invalid metaobject field values lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-field-validation-matrix.json`, replayed by `config/parity-specs/metaobjects/metaobject-field-validation-matrix.json`. The matrix covers scalar numbers, boolean create/update behavior, date/date-time, measurement, rating, color, URL, text max, product/variant/collection/customer/company/metaobject references, and list variants for those types. Captured 2026-04 behavior is asymmetric for scalar boolean input: `metaobjectCreate` coerces `"hello"` to `true`, while `metaobjectUpdate` rejects the same value with `INVALID_VALUE`.
 
 ### Coverage boundaries
 
 - Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.
-- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for definition mutation roots; HAR-243 satisfies that bar for entry reads; HAR-244 satisfies that bar for entry row mutation roots.
+- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. Definition reads, definition mutation roots, entry reads, and entry row mutation roots satisfy that bar for the supported slices documented above.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
-- HAR-450 review note: the current metaobject reference model covers only metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Do not infer support for metafield-backed references, `mixed_reference`, generic file/product/page references, or cross-owner relationship edges from this evidence.
+- The current metaobject reference model covers only metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Do not infer support for metafield-backed references, `mixed_reference`, generic file/product/page references, or cross-owner relationship edges from this evidence.
 
 ### Schema-change lifecycle behavior
 
-HAR-245's live 2026-04 schema-change fixture (`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-schema-change-lifecycle.json`) is replayed by `config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json`.
+The live 2026-04 schema-change fixture (`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-schema-change-lifecycle.json`) is replayed by `config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json`.
 
 The captured update sequence creates a definition and rows, deletes a row before the schema edit, then updates the definition with `resetFieldOrder: true` inside `MetaobjectDefinitionUpdateInput`, an added required field, a removed field, display-name key change, validation change, and publishable capability disable. Shopify 2026-04 rejects `resetFieldOrder` as a top-level `metaobjectDefinitionUpdate` argument, and `MetaobjectFieldDefinitionUpdateInput` does not expose a `type` field, so the local model treats type changes as outside the captured supported update surface.
 
@@ -176,10 +174,10 @@ Rows created before the schema edit continue to resolve by ID and handle after t
 
 Rows created after publishable capability is disabled serialize `capabilities.publishable: null`; singular ID/handle reads observe them immediately, while the captured immediate catalog read did not include the newly created post-disable row. The local catalog model preserves the captured distinction between rows that had an active publishable status before capability disable and rows created after publishable is disabled.
 
-### Planned local-staging posture
+### Unsupported and validation-only boundaries
 
 - Metaobject relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and `mixed_reference` need separate conformance evidence before support is widened.
-- Broader bulk delete selection semantics still need additional live conformance before widening beyond the local ids/type branches. HAR-450 captures the `where.type` branch and confirms Shopify returns an async job while immediate downstream reads already hide selected rows and report the definition's `metaobjectsCount` as zero. HAR-680 captures the edge cases for empty `where.ids`, unknown `where.type`, known-empty `where.type`, and invalid combined selectors.
+- Broader bulk delete selection semantics still need additional live conformance before widening beyond the local ids/type branches. Captured evidence covers the `where.type` branch and confirms Shopify returns an async job while immediate downstream reads already hide selected rows and report the definition's `metaobjectsCount` as zero. Edge-case evidence covers empty `where.ids`, unknown `where.type`, known-empty `where.type`, and invalid combined selectors.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 
 ### Empty and no-data expectations
@@ -187,7 +185,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 - Singular entry and definition lookup misses should match Shopify null behavior once captured, including ID, type, and handle lookup branches.
 - Connection roots should return Shopify-like empty `edges`, `nodes`, and `pageInfo` structures for known empty datasets instead of inventing records.
 - Type-scoped entry reads must not synthesize arbitrary metaobjects when the snapshot or staged state lacks that type.
-- Definition reads must not invent field definitions, capabilities, access settings, standard-template metadata, or associated entry counts without captured or staged state. HAR-241's serializer only projects normalized definition records and returns Shopify-like null/empty structures when no record exists.
+- Definition reads must not invent field definitions, capabilities, access settings, standard-template metadata, or associated entry counts without captured or staged state. The serializer only projects normalized definition records and returns Shopify-like null/empty structures when no record exists.
 
 ### Conformance evidence still needed before widening support
 
@@ -197,11 +195,11 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 - Capture generic metafield-backed references, `mixed_reference`, and non-metaobject owner relationship edges before claiming broader reference support.
 - Promote any new parity specs only after comparison targets can verify Shopify payload shape, userErrors, nullability, empty connections, cursor treatment, and downstream read-after-write or read-after-delete behavior.
 
-## Historical and developer notes
+### Evidence
 
-### Captured read fixture slice
+Captured read fixture slice:
 
-HAR-240 adds a live 2026-04 read fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json`, recorded by `corepack pnpm conformance:capture-metaobjects`.
+A live 2026-04 read fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json`, recorded by `corepack pnpm conformance:capture-metaobjects`, captures the read slice.
 
 The recorder captures no-data behavior before setup:
 
@@ -213,15 +211,15 @@ The recorder captures no-data behavior before setup:
 
 The seeded branch creates one disposable merchant-owned metaobject definition and one entry, reads them, then deletes both. Definition reads cover catalog/detail/type lookup with `access`, `capabilities`, `displayNameKey`, ordered `fieldDefinitions`, `metaobjectsCount`, and connection cursors. Entry reads cover type catalog, ID lookup, handle lookup, `handle`, `type`, `displayName`, `updatedAt`, entry `capabilities`, ordered `fields`, and `field(key: "title")`.
 
-HAR-351 promotes the HAR-241 definition-read subset into `config/parity-specs/metaobjects/metaobject-definitions-read.json` as a strict generic proxy-vs-recording parity scenario. Under the cassette runner, cold live-hybrid definition catalog, ID lookup, type lookup, and missing ID/type requests passthrough to the captured upstream responses verbatim. The Gleam parity runner continues to cover aliases/fragments, live-hybrid overlay, field order, and no-runtime-live-access behavior.
+`config/parity-specs/metaobjects/metaobject-definitions-read.json` covers the definition-read subset as a strict generic proxy-vs-recording parity scenario. Under the cassette runner, cold live-hybrid definition catalog, ID lookup, type lookup, and missing ID/type requests passthrough to the captured upstream responses verbatim. The Gleam parity runner continues to cover aliases/fragments, live-hybrid overlay, field order, and no-runtime-live-access behavior.
 
-HAR-243 adds `config/parity-specs/metaobjects/metaobjects-read.json` and `config/parity-requests/metaobjects/metaobjects-read.graphql` for the entry-read subset. Under the cassette runner, cold live-hybrid `metaobjects`, `metaobject`, and `metaobjectByHandle` reads passthrough to synthesized upstream cassettes assembled from the captured entry catalog/detail/handle responses, with strict comparison targets for seeded and no-data branches.
+`config/parity-specs/metaobjects/metaobjects-read.json` and `config/parity-requests/metaobjects/metaobjects-read.graphql` cover the entry-read subset. Under the cassette runner, cold live-hybrid `metaobjects`, `metaobject`, and `metaobjectByHandle` reads passthrough to synthesized upstream cassettes assembled from the captured entry catalog/detail/handle responses, with strict comparison targets for seeded and no-data branches.
 
-HAR-242 adds `config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobjects/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobjects/metaobject-definition-*.graphql`, and the Gleam parity runner. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
+`config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobjects/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobjects/metaobject-definition-*.graphql`, and the Gleam parity runner, covers local definition lifecycle staging. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
 
 `config/parity-specs/metaobjects/metaobject-mutation-arg-shape.json` records live Admin GraphQL 2026-04 public schema-validation evidence for mutation argument shape. The proxy rejects top-level `metaobjectDefinitionUpdate.resetFieldOrder` and public `standardMetaobjectDefinitionEnable.enabledByShopify` with top-level `argumentNotAccepted` errors before staging. Nested `definition.resetFieldOrder` remains the supported reset path. Internal-visibility `enabledByShopify` provenance is modeled locally and covered by focused runtime tests because the public conformance credential cannot reach Shopify's internal Admin visibility.
 
-HAR-673 adds `config/parity-specs/metaobjects/metaobject-definition-create-validation.json` and a live Admin GraphQL 2026-04 fixture for definition type validation. The scenario covers too-short and invalid-format create errors, `$app:` namespace resolution with app access, lowercase storage/readback for uppercase input, duplicate-case `TAKEN`, a valid update branch, and the duplicate branch's cassette-backed `MetaobjectDefinitionHydrateByType` lookup. Unit tests cover the local create/update field-key guardrail; the live fixture records that Shopify 2026-04 accepted an uppercase key introduced through `metaobjectDefinitionUpdate` field creation, so that branch is intentionally not claimed as live parity evidence.
+`config/parity-specs/metaobjects/metaobject-definition-create-validation.json` and its live Admin GraphQL 2026-04 fixture cover definition type validation. The scenario covers too-short and invalid-format create errors, `$app:` namespace resolution with app access, lowercase storage/readback for uppercase input, duplicate-case `TAKEN`, a valid update branch, and the duplicate branch's cassette-backed `MetaobjectDefinitionHydrateByType` lookup. Unit tests cover the local create/update field-key guardrail; the live fixture records that Shopify 2026-04 accepted an uppercase key introduced through `metaobjectDefinitionUpdate` field creation, so that branch is intentionally not claimed as live parity evidence.
 
 `config/parity-specs/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json` adds live Admin GraphQL 2026-04 evidence for renderable enable validation. The captured public shop returned `INVALID` for a missing renderable SEO field key and `FIELD_TYPE_INVALID` for a `number_integer` SEO field reference; those branches are strict parity targets. The same fixture records that the public shop accepted the disposable disable setup for `publishable`, `onlineStore`, `renderable`, and `translatable`, so the source-backed conservative local before-disable guardrails are covered by focused Gleam runtime tests rather than by strict public-payload parity.
 
@@ -229,19 +227,19 @@ HAR-673 adds `config/parity-specs/metaobjects/metaobject-definition-create-valid
 
 `config/parity-specs/metaobjects/definition_name_type_description_length.json` adds live Admin GraphQL 2026-04 evidence for blank definition names, 256-character names, 256-character descriptions, and 2-character create types. The same fixture covers create and update branches for name/description validation; focused Gleam tests cover the local update type guardrail because public 2026-04 rejects `type` as an unknown `MetaobjectDefinitionUpdateInput` field before resolver validation.
 
-HAR-244 adds `config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json` and the Gleam parity runner for local entry row lifecycle staging. The test covers create/update/upsert/delete/bulk delete, downstream ID/handle/catalog reads, definition count updates, meta API state/log visibility, ordered missing-row bulk errors, and no runtime Shopify writes. HAR-246 extends that runtime coverage for GraphQL variable validation versus resolver `userErrors`, missing definition type, invalid field key/value, duplicate create/update handle behavior, stale row update/delete, blank upsert handle generation, and `where.ids` bulk partial-result behavior. The captured create/delete branches in `metaobjects-read.json` now run through cassette-backed hydration for the upstream definition/entry preconditions; additional live captures are still needed before promoting broader update/upsert/bulk delete parity scenarios.
+`config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json` and the Gleam parity runner cover local entry row lifecycle staging. The test covers create/update/upsert/delete/bulk delete, downstream ID/handle/catalog reads, definition count updates, meta API state/log visibility, ordered missing-row bulk errors, and no runtime Shopify writes. Runtime coverage also covers GraphQL variable validation versus resolver `userErrors`, missing definition type, invalid field key/value, duplicate create/update handle behavior, stale row update/delete, blank upsert handle generation, and `where.ids` bulk partial-result behavior. The captured create/delete branches in `metaobjects-read.json` now run through cassette-backed hydration for the upstream definition/entry preconditions; additional live captures are still needed before promoting broader update/upsert/bulk delete parity scenarios.
 
-HAR-450 adds `config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-bulk-delete-type-*.graphql`, and a live 2026-04 fixture for `metaobjectBulkDelete(where: { type })`. The recorder creates a disposable definition with two rows, captures the seeded read, bulk deletes by type, records downstream ID/catalog/definition-count reads, and then cleans up the definition. The cassette runner hydrates the proxy from the captured seeded read through `MetaobjectBulkDeleteHydrateByType`, replays the type-scoped bulk delete locally, compares mutation `userErrors` and downstream reads strictly, and records Shopify's async job id/`done` timing as the only accepted payload volatility.
+`config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-bulk-delete-type-*.graphql`, and a live 2026-04 fixture cover `metaobjectBulkDelete(where: { type })`. The recorder creates a disposable definition with two rows, captures the seeded read, bulk deletes by type, records downstream ID/catalog/definition-count reads, and then cleans up the definition. The cassette runner hydrates the proxy from the captured seeded read through `MetaobjectBulkDeleteHydrateByType`, replays the type-scoped bulk delete locally, compares mutation `userErrors` and downstream reads strictly, and records Shopify's async job id/`done` timing as the only accepted payload volatility.
 
-HAR-680 adds `config/parity-specs/metaobjects/metaobject-bulk-delete-edge-cases.json`, `config/parity-requests/metaobjects/metaobject-bulk-delete-edge-*.graphql`, and a live 2026-04 fixture for `metaobjectBulkDelete` edge cases. The capture records empty `where.ids`, unknown `where.type`, a known definition whose rows have already been deleted, and the top-level validation error for supplying both `type` and `ids`. The cassette includes only the known-empty type hydration call; empty IDs, unknown type, and invalid combined selectors do not require upstream writes or hydration during replay.
+`config/parity-specs/metaobjects/metaobject-bulk-delete-edge-cases.json`, `config/parity-requests/metaobjects/metaobject-bulk-delete-edge-*.graphql`, and a live 2026-04 fixture cover `metaobjectBulkDelete` edge cases. The capture records empty `where.ids`, unknown `where.type`, a known definition whose rows have already been deleted, and the top-level validation error for supplying both `type` and `ids`. The cassette includes only the known-empty type hydration call; empty IDs, unknown type, and invalid combined selectors do not require upstream writes or hydration during replay.
 
 `config/parity-specs/metaobjects/metaobject_update_error_codes.json` records Admin GraphQL 2026-04 evidence for `metaobjectUpdate` bad-id `RECORD_NOT_FOUND`, duplicate field input validation, and non-display-field updates preserving `displayName`. The capture shows the duplicate required-field follow-up error repeats the second duplicate `fields` index path, and Shopify returns the bad-id message `Record not found`.
 
-HAR-245 adds the Gleam parity runner for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
+The Gleam parity runner covers the combined definition/row lifecycle matrix through `config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
-HAR-384 adds `config/parity-specs/metaobjects/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-reference-read.graphql`, and a live 2026-04 fixture for metaobject reference relationships. Cold live-hybrid reference reads now passthrough to the captured cassette response, while the Gleam parity runner covers staged create/update/delete reference effects and no runtime upstream writes.
+`config/parity-specs/metaobjects/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-reference-read.graphql`, and a live 2026-04 fixture cover metaobject reference relationships. Cold live-hybrid reference reads now passthrough to the captured cassette response, while the Gleam parity runner covers staged create/update/delete reference effects and no runtime upstream writes.
 
-### Validation anchors
+### Validation
 
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
