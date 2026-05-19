@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::graphql::{parse_operation, OperationType};
+
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,8 +165,11 @@ impl DraftProxy {
             return json_error(400, "Expected JSON body with a string `query`");
         };
 
-        let Some(operation) = parse_operation_root(&query) else {
+        let Some(operation) = parse_operation(&query) else {
             return json_error(400, "Could not parse GraphQL operation");
+        };
+        let Some(root_field) = operation.primary_root_field() else {
+            return json_error(400, "Operation has no root field");
         };
 
         match operation.operation_type {
@@ -172,14 +177,21 @@ impl DraftProxy {
                 400,
                 &format!(
                     "No domain dispatcher implemented for root field: {}",
-                    operation.root_field
+                    root_field
                 ),
             ),
             OperationType::Mutation => json_error(
                 400,
                 &format!(
                     "No mutation dispatcher implemented for root field: {}",
-                    operation.root_field
+                    root_field
+                ),
+            ),
+            OperationType::Subscription => json_error(
+                400,
+                &format!(
+                    "No domain dispatcher implemented for root field: {}",
+                    root_field
                 ),
             ),
         }
@@ -260,58 +272,4 @@ fn parse_graphql_request_body(body: &str) -> Option<String> {
         .get("query")?
         .as_str()
         .map(ToOwned::to_owned)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ParsedOperation {
-    operation_type: OperationType,
-    root_field: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OperationType {
-    Query,
-    Mutation,
-}
-
-fn parse_operation_root(query: &str) -> Option<ParsedOperation> {
-    let open_brace = query.find('{')?;
-    let prefix = &query[..open_brace];
-    let operation_type = if prefix.split_whitespace().any(|token| token == "mutation") {
-        OperationType::Mutation
-    } else {
-        OperationType::Query
-    };
-    let root_field = first_graphql_name(&query[open_brace + 1..])?;
-    Some(ParsedOperation {
-        operation_type,
-        root_field,
-    })
-}
-
-fn first_graphql_name(selection_set: &str) -> Option<String> {
-    let mut chars = selection_set.chars().peekable();
-    while let Some(ch) = chars.peek() {
-        if ch.is_whitespace() || *ch == ',' {
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    let mut name = String::new();
-    while let Some(ch) = chars.peek() {
-        if ch.is_ascii_alphanumeric() || *ch == '_' {
-            name.push(*ch);
-            chars.next();
-        } else {
-            break;
-        }
-    }
-
-    if name.is_empty() {
-        None
-    } else {
-        Some(name)
-    }
 }

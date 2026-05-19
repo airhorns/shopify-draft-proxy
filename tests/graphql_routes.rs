@@ -85,3 +85,28 @@ fn admin_graphql_reports_parse_and_dispatch_errors_with_existing_envelopes() {
         json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: definitelyUnknownMutation" }] })
     );
 }
+
+#[test]
+fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
+    let mut proxy = snapshot_proxy();
+
+    let aliased_query = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query Named { visibleAlias: definitelyUnknownRoot { id } }"}"#,
+    ));
+    assert_eq!(aliased_query.status, 400);
+    assert_eq!(
+        aliased_query.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+
+    let fragment_before_operation = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"fragment Fields on Product { id } query Named { definitelyUnknownRoot { ...Fields } }"}"#,
+    ));
+    assert_eq!(fragment_before_operation.status, 400);
+    assert_eq!(
+        fragment_before_operation.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+}
