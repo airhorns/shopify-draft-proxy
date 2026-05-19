@@ -105,6 +105,7 @@ impl DraftProxy {
                 self.log_entries.clear();
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
+            Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
         }
@@ -156,6 +157,33 @@ impl DraftProxy {
             "stagedState": {}
         })
     }
+
+    fn dispatch_graphql(&mut self, request: &Request) -> Response {
+        let Some(query) = parse_graphql_request_body(&request.body) else {
+            return json_error(400, "Expected JSON body with a string `query`");
+        };
+
+        let Some(operation) = parse_operation_root(&query) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+
+        match operation.operation_type {
+            OperationType::Query => json_error(
+                400,
+                &format!(
+                    "No domain dispatcher implemented for root field: {}",
+                    operation.root_field
+                ),
+            ),
+            OperationType::Mutation => json_error(
+                400,
+                &format!(
+                    "No mutation dispatcher implemented for root field: {}",
+                    operation.root_field
+                ),
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,6 +193,7 @@ enum Route {
     MetaLog,
     MetaState,
     MetaReset,
+    Graphql,
     NotFound,
     MethodNotAllowed,
 }
@@ -177,6 +206,9 @@ fn route(request: &Request) -> Route {
         "/__meta/log" => only_method("GET", &method, Route::MetaLog),
         "/__meta/state" => only_method("GET", &method, Route::MetaState),
         "/__meta/reset" => only_method("POST", &method, Route::MetaReset),
+        path if admin_graphql_version(path).is_some() => {
+            only_method("POST", &method, Route::Graphql)
+        }
         _ => Route::NotFound,
     }
 }
@@ -186,6 +218,23 @@ fn only_method(expected: &str, actual: &str, route: Route) -> Route {
         route
     } else {
         Route::MethodNotAllowed
+    }
+}
+
+fn admin_graphql_version(path: &str) -> Option<&str> {
+    let mut parts = path.split('/');
+    match (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) {
+        (Some(""), Some("admin"), Some("api"), Some(version), Some("graphql.json"), None) => {
+            Some(version)
+        }
+        _ => None,
     }
 }
 
@@ -202,5 +251,67 @@ fn json_error(status: u16, message: &str) -> Response {
         status,
         headers: BTreeMap::new(),
         body: json!({ "errors": [{ "message": message }] }),
+    }
+}
+
+fn parse_graphql_request_body(body: &str) -> Option<String> {
+    serde_json::from_str::<Value>(body)
+        .ok()?
+        .get("query")?
+        .as_str()
+        .map(ToOwned::to_owned)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedOperation {
+    operation_type: OperationType,
+    root_field: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperationType {
+    Query,
+    Mutation,
+}
+
+fn parse_operation_root(query: &str) -> Option<ParsedOperation> {
+    let open_brace = query.find('{')?;
+    let prefix = &query[..open_brace];
+    let operation_type = if prefix.split_whitespace().any(|token| token == "mutation") {
+        OperationType::Mutation
+    } else {
+        OperationType::Query
+    };
+    let root_field = first_graphql_name(&query[open_brace + 1..])?;
+    Some(ParsedOperation {
+        operation_type,
+        root_field,
+    })
+}
+
+fn first_graphql_name(selection_set: &str) -> Option<String> {
+    let mut chars = selection_set.chars().peekable();
+    while let Some(ch) = chars.peek() {
+        if ch.is_whitespace() || *ch == ',' {
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    let mut name = String::new();
+    while let Some(ch) = chars.peek() {
+        if ch.is_ascii_alphanumeric() || *ch == '_' {
+            name.push(*ch);
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
     }
 }
