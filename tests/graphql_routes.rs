@@ -142,11 +142,8 @@ fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
         r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id } }"}"#,
     ));
 
-    assert_eq!(product.status, 501);
-    assert_eq!(
-        product.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: product" }] })
-    );
+    assert_eq!(product.status, 200);
+    assert_eq!(product.body, json!({ "data": { "product": null } }));
 }
 
 #[test]

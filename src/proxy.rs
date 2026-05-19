@@ -186,6 +186,11 @@ impl DraftProxy {
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         match (capability.domain, capability.execution) {
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if root_field == "product" && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                ok_json(json!({ "data": { "product": null } }))
+            }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
                     OperationType::Query => json_error(
