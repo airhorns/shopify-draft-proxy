@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{parse_operation, OperationType};
+use crate::operation_registry::{
+    operation_capability, CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+};
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 
@@ -84,6 +87,7 @@ pub struct Response {
 pub struct DraftProxy {
     config: Config,
     log_entries: Vec<Value>,
+    registry: Vec<OperationRegistryEntry>,
 }
 
 impl DraftProxy {
@@ -91,7 +95,13 @@ impl DraftProxy {
         Self {
             config,
             log_entries: Vec::new(),
+            registry: Vec::new(),
         }
+    }
+
+    pub fn with_registry(mut self, registry: Vec<OperationRegistryEntry>) -> Self {
+        self.registry = registry;
+        self
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
@@ -172,25 +182,52 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
-        match operation.operation_type {
-            OperationType::Query => json_error(
-                400,
+        let capability =
+            operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        match (capability.domain, capability.execution) {
+            (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
+                match operation.operation_type {
+                    OperationType::Query => json_error(
+                        400,
+                        &format!(
+                            "No domain dispatcher implemented for root field: {}",
+                            root_field
+                        ),
+                    ),
+                    OperationType::Mutation => json_error(
+                        400,
+                        &format!(
+                            "No mutation dispatcher implemented for root field: {}",
+                            root_field
+                        ),
+                    ),
+                    OperationType::Subscription => json_error(
+                        400,
+                        &format!(
+                            "No domain dispatcher implemented for root field: {}",
+                            root_field
+                        ),
+                    ),
+                }
+            }
+            (_, CapabilityExecution::OverlayRead) => json_error(
+                501,
                 &format!(
-                    "No domain dispatcher implemented for root field: {}",
+                    "No Rust overlay-read dispatcher implemented for root field: {}",
                     root_field
                 ),
             ),
-            OperationType::Mutation => json_error(
-                400,
+            (_, CapabilityExecution::StageLocally) => json_error(
+                501,
                 &format!(
-                    "No mutation dispatcher implemented for root field: {}",
+                    "No Rust stage-locally dispatcher implemented for root field: {}",
                     root_field
                 ),
             ),
-            OperationType::Subscription => json_error(
-                400,
+            (_, CapabilityExecution::Passthrough) => json_error(
+                501,
                 &format!(
-                    "No domain dispatcher implemented for root field: {}",
+                    "No Rust passthrough dispatcher implemented for root field: {}",
                     root_field
                 ),
             ),

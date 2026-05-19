@@ -1,5 +1,9 @@
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use shopify_draft_proxy::graphql::OperationType;
+use shopify_draft_proxy::operation_registry::{
+    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+};
 use shopify_draft_proxy::proxy::{Config, DraftProxy, ReadMode, Request};
 
 fn snapshot_proxy() -> DraftProxy {
@@ -19,6 +23,24 @@ fn graphql_request(method: &str, body: &str) -> Request {
         path: "/admin/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: body.to_string(),
+    }
+}
+
+fn registry_entry(
+    name: &str,
+    operation_type: OperationType,
+    execution: CapabilityExecution,
+    implemented: bool,
+) -> OperationRegistryEntry {
+    OperationRegistryEntry {
+        name: name.to_string(),
+        operation_type,
+        domain: CapabilityDomain::Products,
+        execution,
+        implemented,
+        match_names: vec![name.to_string()],
+        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        support_notes: None,
     }
 }
 
@@ -108,5 +130,59 @@ fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
     assert_eq!(
         fragment_before_operation.body,
         json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+}
+
+#[test]
+fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
+    let mut proxy = snapshot_proxy().with_registry(vec![
+        registry_entry(
+            "knownProducts",
+            OperationType::Query,
+            CapabilityExecution::OverlayRead,
+            true,
+        ),
+        registry_entry(
+            "knownProductCreate",
+            OperationType::Mutation,
+            CapabilityExecution::StageLocally,
+            true,
+        ),
+        registry_entry(
+            "knownButUnimplemented",
+            OperationType::Query,
+            CapabilityExecution::OverlayRead,
+            false,
+        ),
+    ]);
+
+    let known_query = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
+    ));
+    assert_eq!(known_query.status, 501);
+    assert_eq!(
+        known_query.body,
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
+    );
+
+    let known_mutation = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
+    ));
+    assert_eq!(known_mutation.status, 501);
+    assert_eq!(
+        known_mutation.body,
+        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
+    );
+
+    let unimplemented = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { knownButUnimplemented { id } }"}"#,
+    ));
+    assert_eq!(unimplemented.status, 400);
+    assert_eq!(
+        unimplemented.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownButUnimplemented" }] })
     );
 }
