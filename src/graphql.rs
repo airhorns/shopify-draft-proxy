@@ -1,4 +1,19 @@
-use graphql_parser::query::{parse_query, Definition, OperationDefinition, Selection};
+use std::collections::BTreeMap;
+
+use graphql_parser::query::{
+    parse_query, Definition, Field, OperationDefinition, Selection, Value,
+};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResolvedValue {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    Null,
+    List(Vec<ResolvedValue>),
+    Object(BTreeMap<String, ResolvedValue>),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedOperation {
@@ -29,6 +44,29 @@ pub fn parse_operation(query: &str) -> Option<ParsedOperation> {
             Definition::Operation(operation) => parsed_operation_from_definition(operation),
             Definition::Fragment(_) => None,
         })
+}
+
+pub fn root_field_arguments(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    let document = parse_query::<&str>(query).ok()?;
+    let operation = document
+        .definitions
+        .into_iter()
+        .find_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
+            Definition::Fragment(_) => None,
+        })?;
+    let root_field = first_field_selection(operation)?;
+
+    Some(
+        root_field
+            .arguments
+            .into_iter()
+            .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+            .collect(),
+    )
 }
 
 fn parsed_operation_from_definition<'a>(
@@ -62,4 +100,49 @@ fn field_names<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<String> {
             Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
         })
         .collect()
+}
+
+fn first_field_selection<'a>(
+    operation: OperationDefinition<'a, &'a str>,
+) -> Option<Field<'a, &'a str>> {
+    let selections = match operation {
+        OperationDefinition::SelectionSet(selection_set) => selection_set.items,
+        OperationDefinition::Query(query) => query.selection_set.items,
+        OperationDefinition::Mutation(mutation) => mutation.selection_set.items,
+        OperationDefinition::Subscription(subscription) => subscription.selection_set.items,
+    };
+
+    selections
+        .into_iter()
+        .find_map(|selection| match selection {
+            Selection::Field(field) => Some(field),
+            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
+        })
+}
+
+fn resolve_value<'a>(
+    value: Value<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> ResolvedValue {
+    match value {
+        Value::Variable(name) => variables.get(name).cloned().unwrap_or(ResolvedValue::Null),
+        Value::Int(number) => ResolvedValue::Int(number.as_i64().unwrap_or_default()),
+        Value::Float(value) => ResolvedValue::Float(value),
+        Value::String(value) => ResolvedValue::String(value),
+        Value::Boolean(value) => ResolvedValue::Bool(value),
+        Value::Null => ResolvedValue::Null,
+        Value::Enum(value) => ResolvedValue::String(value.to_string()),
+        Value::List(values) => ResolvedValue::List(
+            values
+                .into_iter()
+                .map(|value| resolve_value(value, variables))
+                .collect(),
+        ),
+        Value::Object(fields) => ResolvedValue::Object(
+            fields
+                .into_iter()
+                .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+                .collect(),
+        ),
+    }
 }
