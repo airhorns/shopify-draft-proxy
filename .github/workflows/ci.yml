@@ -62,6 +62,18 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Check Rust port fixture invariants
+        run: corepack pnpm rust-port:fixture-invariants
+
+      - name: Report remaining Gleam runtime files
+        run: corepack pnpm rust-port:no-gleam-report
+
+      - name: Rust format check
+        run: corepack pnpm rust:fmt
+
+      - name: Rust tests
+        run: corepack pnpm rust:test
+
       - name: Lint TypeScript interop, tooling, and Gleam formatting
         run: corepack pnpm lint
 
