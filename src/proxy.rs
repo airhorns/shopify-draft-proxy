@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 
 use crate::graphql::{parse_operation, OperationType};
 use crate::operation_registry::{
-    operation_capability, CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -95,7 +96,7 @@ impl DraftProxy {
         Self {
             config,
             log_entries: Vec::new(),
-            registry: Vec::new(),
+            registry: default_registry(),
         }
     }
 

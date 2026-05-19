@@ -134,6 +134,22 @@ fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
 }
 
 #[test]
+fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
+    let mut proxy = snapshot_proxy();
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id } }"}"#,
+    ));
+
+    assert_eq!(product.status, 501);
+    assert_eq!(
+        product.body,
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: product" }] })
+    );
+}
+
+#[test]
 fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
