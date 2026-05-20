@@ -5,8 +5,8 @@ use serde_json::{json, Value};
 
 use crate::graphql::{
     nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    root_field_arguments, root_field_response_key, root_field_selection, OperationType,
-    ResolvedValue, SelectedField,
+    root_field_arguments, root_field_selection, root_fields, OperationType, ResolvedValue,
+    RootFieldSelection, SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -241,12 +241,8 @@ impl DraftProxy {
                 if root_field == "productByIdentifier"
                     && self.config.read_mode == ReadMode::Snapshot =>
             {
-                let response_key = root_field_response_key(&query)
-                    .unwrap_or_else(|| "productByIdentifier".to_string());
                 ok_json(json!({
-                    "data": {
-                        response_key: self.product_by_identifier(&query, &variables)
-                    }
+                    "data": self.product_by_identifier_fields(&query, &variables)
                 }))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -333,15 +329,36 @@ impl DraftProxy {
         }
     }
 
-    fn product_by_identifier(
+    fn product_by_identifier_fields(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let Some(ResolvedValue::Object(identifier)) = arguments.get("identifier") else {
+        let mut fields = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if field.name != "productByIdentifier" {
+                continue;
+            }
+            fields.insert(
+                field.response_key.clone(),
+                self.product_by_identifier_field(&field),
+            );
+        }
+        Value::Object(fields)
+    }
+
+    fn product_by_identifier_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
+        self.product_by_identifier_value(identifier, &field.selection)
+    }
+
+    fn product_by_identifier_value(
+        &self,
+        identifier: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
         let product = match identifier.get("id") {
             Some(ResolvedValue::String(id)) => self.product_record_by_id(id),
             _ => match identifier.get("handle") {
@@ -350,9 +367,7 @@ impl DraftProxy {
             },
         };
         match product {
-            Some(product) => {
-                product_json(product, &root_field_selection(query).unwrap_or_default())
-            }
+            Some(product) => product_json(product, selection),
             None => Value::Null,
         }
     }

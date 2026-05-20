@@ -27,6 +27,14 @@ pub struct SelectedField {
     pub response_key: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RootFieldSelection {
+    pub name: String,
+    pub response_key: String,
+    pub arguments: BTreeMap<String, ResolvedValue>,
+    pub selection: Vec<SelectedField>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationType {
     Query,
@@ -66,11 +74,31 @@ pub fn root_field_arguments(
         })?;
     let root_field = first_field_selection(operation)?;
 
+    Some(field_arguments(root_field, variables))
+}
+
+pub fn root_fields(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Vec<RootFieldSelection>> {
+    let document = parse_query::<&str>(query).ok()?;
+    let operation = document
+        .definitions
+        .into_iter()
+        .find_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
+            Definition::Fragment(_) => None,
+        })?;
+
     Some(
-        root_field
-            .arguments
+        operation_field_selections(operation)
             .into_iter()
-            .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+            .map(|field| RootFieldSelection {
+                name: field.name.to_string(),
+                response_key: field.alias.unwrap_or(field.name).to_string(),
+                arguments: field_arguments(field.clone(), variables),
+                selection: selected_fields(field.selection_set.items),
+            })
             .collect(),
     )
 }
@@ -147,6 +175,36 @@ fn selected_fields<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<SelectedF
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
             }),
+            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
+        })
+        .collect()
+}
+
+fn field_arguments<'a>(
+    field: Field<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> BTreeMap<String, ResolvedValue> {
+    field
+        .arguments
+        .into_iter()
+        .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+        .collect()
+}
+
+fn operation_field_selections<'a>(
+    operation: OperationDefinition<'a, &'a str>,
+) -> Vec<Field<'a, &'a str>> {
+    let selections = match operation {
+        OperationDefinition::SelectionSet(selection_set) => selection_set.items,
+        OperationDefinition::Query(query) => query.selection_set.items,
+        OperationDefinition::Mutation(mutation) => mutation.selection_set.items,
+        OperationDefinition::Subscription(subscription) => subscription.selection_set.items,
+    };
+
+    selections
+        .into_iter()
+        .filter_map(|selection| match selection {
+            Selection::Field(field) => Some(field),
             Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
         })
         .collect()

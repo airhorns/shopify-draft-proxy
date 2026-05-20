@@ -659,6 +659,49 @@ fn product_by_identifier_preserves_root_alias() {
 }
 
 #[test]
+fn product_by_identifier_supports_multiple_aliases_in_one_query() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let by_identifiers = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { byId: productByIdentifier(identifier: { id: \"gid://shopify/Product/base\" }) { id title } byHandle: productByIdentifier(identifier: { handle: \"created-product\" }) { id handle } missing: productByIdentifier(identifier: { handle: \"missing-product\" }) { id } }"}"#,
+    ));
+
+    assert_eq!(by_identifiers.status, 200);
+    assert_eq!(
+        by_identifiers.body,
+        json!({
+            "data": {
+                "byId": {
+                    "id": "gid://shopify/Product/base",
+                    "title": "Base product"
+                },
+                "byHandle": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "handle": "created-product"
+                },
+                "missing": null
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
