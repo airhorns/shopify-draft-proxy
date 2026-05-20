@@ -831,9 +831,9 @@ fn product_roots_support_multiple_aliases_in_one_query() {
 #[test]
 fn product_mutations_preserve_root_alias_response_keys() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/base".to_string(),
-        title: "Base product".to_string(),
-        handle: "base-product".to_string(),
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
         description_html: String::new(),
         vendor: String::new(),
@@ -843,17 +843,17 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { stagedCreate: productCreate(product: { title: \"Created product\" }) { product { id title } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { createResult: productCreate(product: { title: \"Alias product\" }) { product { id title } userErrors { field message code } } }"}"#,
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
         create.body,
         json!({
             "data": {
-                "stagedCreate": {
+                "createResult": {
                     "product": {
                         "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
-                        "title": "Created product"
+                        "title": "Alias product"
                     },
                     "userErrors": []
                 }
@@ -863,17 +863,17 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let update = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { stagedUpdate: productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { updateResult: productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated alias\" }) { product { id title } userErrors { field message code } } }"}"#,
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
         update.body,
         json!({
             "data": {
-                "stagedUpdate": {
+                "updateResult": {
                     "product": {
-                        "id": "gid://shopify/Product/base",
-                        "title": "Updated product"
+                        "id": "gid://shopify/Product/1",
+                        "title": "Updated alias"
                     },
                     "userErrors": []
                 }
@@ -883,16 +883,138 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { stagedDelete: productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { deleteResult: productDelete(product: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
         delete.body,
         json!({
             "data": {
-                "stagedDelete": {
-                    "deletedProductId": "gid://shopify/Product/base",
+                "deleteResult": {
+                    "deletedProductId": "gid://shopify/Product/1",
                     "userErrors": []
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { ord: orderSavedSearches(first: 2) { nodes { id name } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } draftOrderSavedSearches(first: 1) { nodes { name resourceType } } productSavedSearches(first: 2) { nodes { id } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } filtered: orderSavedSearches(query: \"financial_status\") { nodes { name query } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "ord": {
+                    "nodes": [
+                        { "id": "gid://shopify/SavedSearch/3634391515442", "name": "Unfulfilled" },
+                        { "id": "gid://shopify/SavedSearch/3634391548210", "name": "Unpaid" }
+                    ],
+                    "edges": [
+                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391515442", "node": { "id": "gid://shopify/SavedSearch/3634391515442" } },
+                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391548210", "node": { "id": "gid://shopify/SavedSearch/3634391548210" } }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor:gid://shopify/SavedSearch/3634391515442",
+                        "endCursor": "cursor:gid://shopify/SavedSearch/3634391548210"
+                    }
+                },
+                "draftOrderSavedSearches": {
+                    "nodes": [
+                        { "name": "Open and invoice sent", "resourceType": "DRAFT_ORDER" }
+                    ]
+                },
+                "productSavedSearches": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                },
+                "filtered": {
+                    "nodes": [
+                        { "name": "Unpaid", "query": "status:open financial_status:unpaid" }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_create_stages_and_reads_back_selection_aware_results() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation CreateSearch($input: SavedSearchCreateInput!) { made: savedSearchCreate(input: $input) { savedSearch { id legacyResourceId name query resourceType filters { key value } } userErrors { field message code } } }","variables":{"input":{"name":"Promo products","query":"tag:promo vendor:acme","resourceType":"PRODUCT"}}}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "made": {
+                    "savedSearch": {
+                        "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                        "legacyResourceId": "1",
+                        "name": "Promo products",
+                        "query": "tag:promo vendor:acme",
+                        "resourceType": "PRODUCT",
+                        "filters": [
+                            { "key": "tag", "value": "promo" },
+                            { "key": "vendor", "value": "acme" }
+                        ]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productSavedSearches(first: 5) { nodes { id name query resourceType filters { key value } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"}"#,
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body,
+        json!({
+            "data": {
+                "productSavedSearches": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                            "name": "Promo products",
+                            "query": "tag:promo vendor:acme",
+                            "resourceType": "PRODUCT",
+                            "filters": [
+                                { "key": "tag", "value": "promo" },
+                                { "key": "vendor", "value": "acme" }
+                            ]
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor:gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                        "endCursor": "cursor:gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+                    }
                 }
             }
         })

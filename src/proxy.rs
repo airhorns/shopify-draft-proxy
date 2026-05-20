@@ -103,6 +103,14 @@ pub struct ProductRecord {
     pub tags: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SavedSearchRecord {
+    id: String,
+    name: String,
+    query: String,
+    resource_type: String,
+}
+
 type CommitTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 
 fn default_commit_transport(_request: Request) -> Response {
@@ -117,6 +125,7 @@ pub struct DraftProxy {
     base_products: BTreeMap<String, ProductRecord>,
     staged_products: BTreeMap<String, ProductRecord>,
     staged_deleted_product_ids: BTreeSet<String>,
+    staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
 }
@@ -130,6 +139,7 @@ impl DraftProxy {
             base_products: BTreeMap::new(),
             staged_products: BTreeMap::new(),
             staged_deleted_product_ids: BTreeSet::new(),
+            staged_saved_searches: BTreeMap::new(),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
         }
@@ -169,6 +179,7 @@ impl DraftProxy {
                 self.log_entries.clear();
                 self.staged_products.clear();
                 self.staged_deleted_product_ids.clear();
+                self.staged_saved_searches.clear();
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
@@ -323,6 +334,18 @@ impl DraftProxy {
                 if root_field == "productDelete" =>
             {
                 self.product_delete(&query, &variables, request)
+            }
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
+                if self.config.read_mode == ReadMode::Snapshot =>
+            {
+                ok_json(json!({
+                    "data": self.saved_search_overlay_read_fields(&query, &variables)
+                }))
+            }
+            (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
+                if root_field == "savedSearchCreate" =>
+            {
+                self.saved_search_create(&query, &variables, request)
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
@@ -746,6 +769,129 @@ impl DraftProxy {
         }));
     }
 
+    fn saved_search_overlay_read_fields(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut fields = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if !is_saved_search_root(&field.name) {
+                continue;
+            }
+            fields.insert(
+                field.response_key.clone(),
+                self.saved_search_connection_field(&field),
+            );
+        }
+        Value::Object(fields)
+    }
+
+    fn saved_search_connection_field(&self, field: &RootFieldSelection) -> Value {
+        let resource_type = saved_search_resource_type(&field.name);
+        let mut records = self.saved_search_records_for_resource(resource_type);
+        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
+            let needle = query.to_lowercase();
+            records.retain(|record| {
+                record.name.to_lowercase().contains(&needle)
+                    || record.query.to_lowercase().contains(&needle)
+            });
+        }
+        if matches!(
+            field.arguments.get("reverse"),
+            Some(ResolvedValue::Bool(true))
+        ) {
+            records.reverse();
+        }
+        let mut has_previous_page = false;
+        if let Some(ResolvedValue::String(after)) = field.arguments.get("after") {
+            if let Some(index) = records
+                .iter()
+                .position(|record| saved_search_cursor(record) == *after)
+            {
+                records = records.into_iter().skip(index + 1).collect();
+                has_previous_page = true;
+            }
+        }
+        let total_after_cursor = records.len();
+        let limit = match field.arguments.get("first") {
+            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
+            _ => None,
+        };
+        let mut has_next_page = false;
+        if let Some(limit) = limit {
+            has_next_page = total_after_cursor > limit;
+            records.truncate(limit);
+        }
+        saved_search_connection_json(&records, &field.selection, has_next_page, has_previous_page)
+    }
+
+    fn saved_search_records_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
+        let mut records = default_saved_searches(resource_type);
+        records.extend(
+            self.staged_saved_searches
+                .values()
+                .filter(|record| record.resource_type == resource_type)
+                .cloned(),
+        );
+        records
+    }
+
+    fn saved_search_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "savedSearchCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let saved_search_selection =
+            nested_root_field_selection(query, "savedSearch").unwrap_or_default();
+        let Some(input) = saved_search_input(query, variables) else {
+            return ok_json(json!({
+                "data": {
+                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
+                        "field": ["input"],
+                        "message": "Saved search input is required",
+                        "code": "REQUIRED"
+                    })])
+                }
+            }));
+        };
+        let Some(name) =
+            resolved_string_field(&input, "name").filter(|value| !value.trim().is_empty())
+        else {
+            return ok_json(json!({
+                "data": {
+                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
+                        "field": ["input", "name"],
+                        "message": "Name can't be blank",
+                        "code": "BLANK"
+                    })])
+                }
+            }));
+        };
+        let search_query = resolved_string_field(&input, "query").unwrap_or_default();
+        let resource_type =
+            resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
+        let id = self.next_proxy_synthetic_gid("SavedSearch");
+        let record = SavedSearchRecord {
+            id: id.clone(),
+            name,
+            query: search_query,
+            resource_type,
+        };
+        self.staged_saved_searches
+            .insert(id.clone(), record.clone());
+        self.record_mutation_log_entry(request, query, variables, "savedSearchCreate", vec![id]);
+        ok_json(json!({
+            "data": {
+                response_key: saved_search_mutation_payload_json(Some(&record), &payload_selection, &saved_search_selection, Vec::new())
+            }
+        }))
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
@@ -851,6 +997,140 @@ fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
     Value::Object(fields)
 }
 
+fn saved_search_connection_json(
+    records: &[SavedSearchRecord],
+    root_selection: &[SelectedField],
+    has_next_page: bool,
+    has_previous_page: bool,
+) -> Value {
+    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
+    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
+    let mut connection = serde_json::Map::new();
+    for selection in root_selection {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| saved_search_json(record, &node_selection))
+                    .collect(),
+            )),
+            "edges" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| {
+                        json!({
+                            "cursor": saved_search_cursor(record),
+                            "node": saved_search_json(record, &edge_node_selection)
+                        })
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(saved_search_page_info_json(
+                records,
+                &page_info_selection,
+                has_next_page,
+                has_previous_page,
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            connection.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(connection)
+}
+
+fn saved_search_json(record: &SavedSearchRecord, selections: &[SelectedField]) -> Value {
+    let filters = saved_search_filters(&record.query);
+    let legacy_id = saved_search_legacy_resource_id(&record.id);
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "__typename" => Some(json!("SavedSearch")),
+            "id" => Some(json!(record.id)),
+            "legacyResourceId" => Some(json!(legacy_id)),
+            "name" => Some(json!(record.name)),
+            "query" => Some(json!(record.query)),
+            "resourceType" => Some(json!(record.resource_type)),
+            "searchTerms" => Some(json!("")),
+            "filters" => Some(Value::Array(
+                filters
+                    .iter()
+                    .map(|(key, value)| saved_search_filter_json(key, value, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn saved_search_filter_json(key: &str, value: &str, selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "key" => Some(json!(key)),
+            "value" => Some(json!(value)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn saved_search_page_info_json(
+    records: &[SavedSearchRecord],
+    selections: &[SelectedField],
+    has_next_page: bool,
+    has_previous_page: bool,
+) -> Value {
+    let start_cursor = records.first().map(saved_search_cursor);
+    let end_cursor = records.last().map(saved_search_cursor);
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "hasNextPage" => Some(json!(has_next_page)),
+            "hasPreviousPage" => Some(json!(has_previous_page)),
+            "startCursor" => Some(json!(start_cursor)),
+            "endCursor" => Some(json!(end_cursor)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn saved_search_mutation_payload_json(
+    record: Option<&SavedSearchRecord>,
+    payload_selections: &[SelectedField],
+    saved_search_selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selections {
+        let value = match selection.name.as_str() {
+            "savedSearch" => Some(match record {
+                Some(record) => saved_search_json(record, saved_search_selections),
+                None => Value::Null,
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn product_mutation_payload_json(
     product: &ProductRecord,
     payload_selections: &[SelectedField],
@@ -893,6 +1173,135 @@ fn product_create_input(
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
     product_input(query, variables)
+}
+
+fn saved_search_input(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    let mut arguments = root_field_arguments(query, variables)?;
+    match arguments.remove("input") {
+        Some(ResolvedValue::Object(input)) => Some(input),
+        _ => None,
+    }
+}
+
+fn is_saved_search_root(root: &str) -> bool {
+    matches!(
+        root,
+        "automaticDiscountSavedSearches"
+            | "codeDiscountSavedSearches"
+            | "collectionSavedSearches"
+            | "customerSavedSearches"
+            | "discountRedeemCodeSavedSearches"
+            | "draftOrderSavedSearches"
+            | "fileSavedSearches"
+            | "orderSavedSearches"
+            | "productSavedSearches"
+    )
+}
+
+fn saved_search_resource_type(root: &str) -> &'static str {
+    match root {
+        "automaticDiscountSavedSearches" => "DISCOUNT",
+        "codeDiscountSavedSearches" => "DISCOUNT",
+        "collectionSavedSearches" => "COLLECTION",
+        "customerSavedSearches" => "CUSTOMER",
+        "discountRedeemCodeSavedSearches" => "DISCOUNT_REDEEM_CODE",
+        "draftOrderSavedSearches" => "DRAFT_ORDER",
+        "fileSavedSearches" => "FILE",
+        "orderSavedSearches" => "ORDER",
+        "productSavedSearches" => "PRODUCT",
+        _ => "UNKNOWN",
+    }
+}
+
+fn default_saved_searches(resource_type: &str) -> Vec<SavedSearchRecord> {
+    match resource_type {
+        "ORDER" => vec![
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634391515442",
+                "Unfulfilled",
+                "status:open fulfillment_status:unshipped,partial",
+                "ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634391548210",
+                "Unpaid",
+                "status:open financial_status:unpaid",
+                "ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634391580978",
+                "Open",
+                "status:open",
+                "ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634391613746",
+                "Archived",
+                "status:closed",
+                "ORDER",
+            ),
+        ],
+        "DRAFT_ORDER" => vec![
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634390597938",
+                "Open and invoice sent",
+                "status:open invoice_sent:true",
+                "DRAFT_ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634390630706",
+                "Open",
+                "status:open",
+                "DRAFT_ORDER",
+            ),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn saved_search_record(
+    id: &str,
+    name: &str,
+    query: &str,
+    resource_type: &str,
+) -> SavedSearchRecord {
+    SavedSearchRecord {
+        id: id.to_string(),
+        name: name.to_string(),
+        query: query.to_string(),
+        resource_type: resource_type.to_string(),
+    }
+}
+
+fn saved_search_cursor(record: &SavedSearchRecord) -> String {
+    format!("cursor:{}", record.id)
+}
+
+fn saved_search_legacy_resource_id(id: &str) -> String {
+    id.rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .split('?')
+        .next()
+        .unwrap_or(id)
+        .to_string()
+}
+
+fn saved_search_filters(query: &str) -> Vec<(String, String)> {
+    query
+        .split_whitespace()
+        .filter_map(|term| {
+            let (key, value) = term.split_once(':')?;
+            if key.is_empty() || value.is_empty() {
+                None
+            } else {
+                Some((key.to_string(), value.to_string()))
+            }
+        })
+        .collect()
 }
 
 fn product_input(

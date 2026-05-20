@@ -118,6 +118,25 @@ fn default_registry_classifies_core_port_targets_without_runtime_io() {
     assert_eq!(product_create.domain, CapabilityDomain::Products);
     assert_eq!(product_create.execution, CapabilityExecution::StageLocally);
 
+    let order_saved_searches =
+        operation_capability(&registry, OperationType::Query, Some("orderSavedSearches"));
+    assert_eq!(order_saved_searches.domain, CapabilityDomain::SavedSearches);
+    assert_eq!(
+        order_saved_searches.execution,
+        CapabilityExecution::OverlayRead
+    );
+
+    let saved_search_create = operation_capability(
+        &registry,
+        OperationType::Mutation,
+        Some("savedSearchCreate"),
+    );
+    assert_eq!(saved_search_create.domain, CapabilityDomain::SavedSearches);
+    assert_eq!(
+        saved_search_create.execution,
+        CapabilityExecution::StageLocally
+    );
+
     let app = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(app.domain, CapabilityDomain::Unknown);
     assert_eq!(app.execution, CapabilityExecution::Passthrough);
