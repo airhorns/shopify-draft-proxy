@@ -349,6 +349,46 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
 }
 
 #[test]
+fn product_delete_stages_downstream_no_data_for_product_read() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Deletable product".to_string(),
+        handle: "deletable-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "productDelete": {
+                    "deletedProductId": "gid://shopify/Product/1",
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id title } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(read_back.body, json!({ "data": { "product": null } }));
+}
+
+#[test]
 fn product_create_stages_product_visible_to_product_read() {
     let mut proxy = snapshot_proxy();
 

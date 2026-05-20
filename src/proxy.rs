@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -106,6 +106,7 @@ pub struct DraftProxy {
     registry: Vec<OperationRegistryEntry>,
     base_products: BTreeMap<String, ProductRecord>,
     staged_products: BTreeMap<String, ProductRecord>,
+    staged_deleted_product_ids: BTreeSet<String>,
     next_synthetic_id: u64,
 }
 
@@ -117,6 +118,7 @@ impl DraftProxy {
             registry: default_registry(),
             base_products: BTreeMap::new(),
             staged_products: BTreeMap::new(),
+            staged_deleted_product_ids: BTreeSet::new(),
             next_synthetic_id: 1,
         }
     }
@@ -232,6 +234,11 @@ impl DraftProxy {
             {
                 self.product_update(&query, &variables)
             }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productDelete" =>
+            {
+                self.product_delete(&query, &variables)
+            }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
                     OperationType::Query => json_error(
@@ -286,6 +293,9 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return Value::Null;
         };
+        if self.staged_deleted_product_ids.contains(id) {
+            return Value::Null;
+        }
         match self
             .staged_products
             .get(id)
@@ -418,6 +428,32 @@ impl DraftProxy {
         }))
     }
 
+    fn product_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(input) = product_input(query, variables) else {
+            return product_delete_missing_product();
+        };
+        let Some(id) = resolved_string_field(&input, "id") else {
+            return product_delete_missing_product();
+        };
+        if !self.staged_products.contains_key(&id) && !self.base_products.contains_key(&id) {
+            return product_delete_missing_product();
+        }
+
+        self.staged_products.remove(&id);
+        self.staged_deleted_product_ids.insert(id.clone());
+
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        ok_json(json!({
+            "data": {
+                "productDelete": product_delete_payload_json(&id, &payload_selection)
+            }
+        }))
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
@@ -465,6 +501,24 @@ fn product_mutation_payload_json(
     Value::Object(fields)
 }
 
+fn product_delete_payload_json(
+    deleted_product_id: &str,
+    payload_selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selections {
+        let value = match selection.name.as_str() {
+            "deletedProductId" => Some(json!(deleted_product_id)),
+            "userErrors" => Some(json!([])),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn product_create_input(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -491,6 +545,21 @@ fn product_update_missing_product() -> Response {
         "data": {
             "productUpdate": {
                 "product": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Product does not exist",
+                    "code": "NOT_FOUND"
+                }]
+            }
+        }
+    }))
+}
+
+fn product_delete_missing_product() -> Response {
+    ok_json(json!({
+        "data": {
+            "productDelete": {
+                "deletedProductId": null,
                 "userErrors": [{
                     "field": ["id"],
                     "message": "Product does not exist",
