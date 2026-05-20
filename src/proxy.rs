@@ -227,7 +227,9 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if root_field == "products" && self.config.read_mode == ReadMode::Snapshot =>
             {
-                ok_json(json!({ "data": { "products": self.products_connection(&query) } }))
+                ok_json(
+                    json!({ "data": { "products": self.products_connection(&query, &variables) } }),
+                )
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
@@ -313,8 +315,18 @@ impl DraftProxy {
         }
     }
 
-    fn products_connection(&self, query: &str) -> Value {
+    fn products_connection(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let node_selection = nested_root_field_selection(query, "nodes").unwrap_or_default();
+        let limit = root_field_arguments(query, variables).and_then(|arguments| {
+            match arguments.get("first") {
+                Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
+                _ => None,
+            }
+        });
         let mut nodes = Vec::new();
 
         for (id, product) in &self.base_products {
@@ -329,6 +341,9 @@ impl DraftProxy {
                 continue;
             }
             nodes.push(product_json(product, &node_selection));
+        }
+        if let Some(limit) = limit {
+            nodes.truncate(limit);
         }
 
         json!({ "nodes": nodes })

@@ -424,6 +424,54 @@ fn products_connection_reflects_staged_creates_and_deletes() {
 }
 
 #[test]
+fn products_connection_applies_first_limit_after_overlaying_state() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+    ]);
+
+    let first_only = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 1) { nodes { id title } } }"}"#,
+    ));
+
+    assert_eq!(first_only.status, 200);
+    assert_eq!(
+        first_only.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1",
+                            "title": "First product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
