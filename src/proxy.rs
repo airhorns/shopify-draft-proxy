@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::graphql::{parse_operation, OperationType};
+use crate::graphql::{parse_operation, root_field_arguments, OperationType, ResolvedValue};
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
     OperationRegistryEntry,
@@ -84,11 +84,20 @@ pub struct Response {
     pub body: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductRecord {
+    pub id: String,
+    pub title: String,
+    pub handle: String,
+    pub status: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct DraftProxy {
     config: Config,
     log_entries: Vec<Value>,
     registry: Vec<OperationRegistryEntry>,
+    base_products: BTreeMap<String, ProductRecord>,
 }
 
 impl DraftProxy {
@@ -97,11 +106,20 @@ impl DraftProxy {
             config,
             log_entries: Vec::new(),
             registry: default_registry(),
+            base_products: BTreeMap::new(),
         }
     }
 
     pub fn with_registry(mut self, registry: Vec<OperationRegistryEntry>) -> Self {
         self.registry = registry;
+        self
+    }
+
+    pub fn with_base_products(mut self, products: Vec<ProductRecord>) -> Self {
+        self.base_products = products
+            .into_iter()
+            .map(|product| (product.id.clone(), product))
+            .collect();
         self
     }
 
@@ -189,7 +207,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if root_field == "product" && self.config.read_mode == ReadMode::Snapshot =>
             {
-                ok_json(json!({ "data": { "product": null } }))
+                ok_json(json!({ "data": { "product": self.product_by_id(&query) } }))
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
@@ -237,6 +255,22 @@ impl DraftProxy {
                     root_field
                 ),
             ),
+        }
+    }
+
+    fn product_by_id(&self, query: &str) -> Value {
+        let arguments = root_field_arguments(query, &BTreeMap::new()).unwrap_or_default();
+        let Some(ResolvedValue::String(id)) = arguments.get("id") else {
+            return Value::Null;
+        };
+        match self.base_products.get(id) {
+            Some(product) => json!({
+                "id": product.id,
+                "title": product.title,
+                "handle": product.handle,
+                "status": product.status
+            }),
+            None => Value::Null,
         }
     }
 }

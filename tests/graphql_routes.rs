@@ -4,7 +4,7 @@ use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
-use shopify_draft_proxy::proxy::{Config, DraftProxy, ReadMode, Request};
+use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
 
 fn snapshot_proxy() -> DraftProxy {
     DraftProxy::new(Config {
@@ -144,6 +144,36 @@ fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
 
     assert_eq!(product.status, 200);
     assert_eq!(product.body, json!({ "data": { "product": null } }));
+}
+
+#[test]
+fn product_read_serializes_seeded_base_product_by_id() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id title handle status } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/1",
+                    "title": "Seeded product",
+                    "handle": "seeded-product",
+                    "status": "ACTIVE"
+                }
+            }
+        })
+    );
 }
 
 #[test]
