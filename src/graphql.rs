@@ -81,19 +81,12 @@ pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
 }
 
 pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
+    nested_root_field_path_selection(query, &[child_name])
+}
+
+pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
     let root_field = first_root_field(query)?;
-    root_field
-        .selection_set
-        .items
-        .into_iter()
-        .find_map(|selection| match selection {
-            Selection::Field(field) if field.name == child_name => {
-                Some(selected_fields(field.selection_set.items))
-            }
-            Selection::Field(_) | Selection::FragmentSpread(_) | Selection::InlineFragment(_) => {
-                None
-            }
-        })
+    nested_selection(root_field.selection_set.items, path)
 }
 
 fn first_root_field<'a>(query: &'a str) -> Option<Field<'a, &'a str>> {
@@ -152,6 +145,26 @@ fn selected_fields<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<SelectedF
             Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
         })
         .collect()
+}
+
+fn nested_selection<'a>(
+    selections: Vec<Selection<'a, &'a str>>,
+    path: &[&str],
+) -> Option<Vec<SelectedField>> {
+    let (next, remaining) = path.split_first()?;
+    selections
+        .into_iter()
+        .find_map(|selection| match selection {
+            Selection::Field(field) if field.name == *next && remaining.is_empty() => {
+                Some(selected_fields(field.selection_set.items))
+            }
+            Selection::Field(field) if field.name == *next => {
+                nested_selection(field.selection_set.items, remaining)
+            }
+            Selection::Field(_) | Selection::FragmentSpread(_) | Selection::InlineFragment(_) => {
+                None
+            }
+        })
 }
 
 fn first_field_selection<'a>(

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    nested_root_field_selection, parse_operation, root_field_arguments, root_field_selection,
-    OperationType, ResolvedValue, SelectedField,
+    nested_root_field_path_selection, nested_root_field_selection, parse_operation,
+    root_field_arguments, root_field_selection, OperationType, ResolvedValue, SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -325,33 +325,66 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        let root_selection = root_field_selection(query).unwrap_or_default();
         let node_selection = nested_root_field_selection(query, "nodes").unwrap_or_default();
+        let edge_node_selection =
+            nested_root_field_path_selection(query, &["edges", "node"]).unwrap_or_default();
+        let page_info_selection =
+            nested_root_field_selection(query, "pageInfo").unwrap_or_default();
         let limit = root_field_arguments(query, variables).and_then(|arguments| {
             match arguments.get("first") {
                 Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
                 _ => None,
             }
         });
-        let mut nodes = Vec::new();
+        let mut products: Vec<ProductRecord> = Vec::new();
 
         for (id, product) in &self.base_products {
             if self.staged_deleted_product_ids.contains(id) || self.staged_products.contains_key(id)
             {
                 continue;
             }
-            nodes.push(product_json(product, &node_selection));
+            products.push(product.clone());
         }
         for (id, product) in &self.staged_products {
             if self.staged_deleted_product_ids.contains(id) {
                 continue;
             }
-            nodes.push(product_json(product, &node_selection));
+            products.push(product.clone());
         }
         if let Some(limit) = limit {
-            nodes.truncate(limit);
+            products.truncate(limit);
         }
 
-        json!({ "nodes": nodes })
+        let mut connection = serde_json::Map::new();
+        for selection in root_selection {
+            let value = match selection.name.as_str() {
+                "nodes" => Some(Value::Array(
+                    products
+                        .iter()
+                        .map(|product| product_json(product, &node_selection))
+                        .collect(),
+                )),
+                "edges" => Some(Value::Array(
+                    products
+                        .iter()
+                        .map(|product| {
+                            json!({
+                                "cursor": product_cursor(product),
+                                "node": product_json(product, &edge_node_selection)
+                            })
+                        })
+                        .collect(),
+                )),
+                "pageInfo" => Some(products_page_info_json(&products, &page_info_selection)),
+                _ => None,
+            };
+            if let Some(value) = value {
+                connection.insert(selection.response_key, value);
+            }
+        }
+
+        Value::Object(connection)
     }
 
     fn products_count(&self, query: &str) -> Value {
@@ -541,6 +574,29 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "vendor" => Some(json!(product.vendor)),
             "productType" => Some(json!(product.product_type)),
             "tags" => Some(json!(product.tags)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn product_cursor(product: &ProductRecord) -> &str {
+    &product.id
+}
+
+fn products_page_info_json(products: &[ProductRecord], selections: &[SelectedField]) -> Value {
+    let start_cursor = products.first().map(product_cursor);
+    let end_cursor = products.last().map(product_cursor);
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "hasNextPage" => Some(json!(false)),
+            "hasPreviousPage" => Some(json!(false)),
+            "startCursor" => Some(json!(start_cursor)),
+            "endCursor" => Some(json!(end_cursor)),
             _ => None,
         };
         if let Some(value) = value {
