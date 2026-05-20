@@ -21,6 +21,12 @@ pub struct ParsedOperation {
     pub root_fields: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedField {
+    pub name: String,
+    pub response_key: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationType {
     Query,
@@ -69,6 +75,39 @@ pub fn root_field_arguments(
     )
 }
 
+pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
+    let root_field = first_root_field(query)?;
+    Some(selected_fields(root_field.selection_set.items))
+}
+
+pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
+    let root_field = first_root_field(query)?;
+    root_field
+        .selection_set
+        .items
+        .into_iter()
+        .find_map(|selection| match selection {
+            Selection::Field(field) if field.name == child_name => {
+                Some(selected_fields(field.selection_set.items))
+            }
+            Selection::Field(_) | Selection::FragmentSpread(_) | Selection::InlineFragment(_) => {
+                None
+            }
+        })
+}
+
+fn first_root_field<'a>(query: &'a str) -> Option<Field<'a, &'a str>> {
+    let document = parse_query::<&str>(query).ok()?;
+    let operation = document
+        .definitions
+        .into_iter()
+        .find_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
+            Definition::Fragment(_) => None,
+        })?;
+    first_field_selection(operation)
+}
+
 fn parsed_operation_from_definition<'a>(
     operation: OperationDefinition<'a, &'a str>,
 ) -> Option<ParsedOperation> {
@@ -97,6 +136,19 @@ fn field_names<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<String> {
         .into_iter()
         .filter_map(|selection| match selection {
             Selection::Field(field) => Some(field.name.to_string()),
+            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
+        })
+        .collect()
+}
+
+fn selected_fields<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<SelectedField> {
+    selections
+        .into_iter()
+        .filter_map(|selection| match selection {
+            Selection::Field(field) => Some(SelectedField {
+                name: field.name.to_string(),
+                response_key: field.alias.unwrap_or(field.name).to_string(),
+            }),
             Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
         })
         .collect()

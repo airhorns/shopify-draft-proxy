@@ -177,6 +177,57 @@ fn product_read_serializes_seeded_base_product_by_id() {
 }
 
 #[test]
+fn product_read_serializes_only_requested_scalar_fields() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { handle } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "handle": "seeded-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_serializes_only_requested_payload_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Selection product\" }) { product { title } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "title": "Selection product"
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_create_stages_product_visible_to_product_read() {
     let mut proxy = snapshot_proxy();
 

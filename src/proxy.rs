@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::graphql::{parse_operation, root_field_arguments, OperationType, ResolvedValue};
+use crate::graphql::{
+    nested_root_field_selection, parse_operation, root_field_arguments, root_field_selection,
+    OperationType, ResolvedValue, SelectedField,
+};
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
     OperationRegistryEntry,
@@ -279,7 +282,9 @@ impl DraftProxy {
             .get(id)
             .or_else(|| self.base_products.get(id))
         {
-            Some(product) => product_json(product),
+            Some(product) => {
+                product_json(product, &root_field_selection(query).unwrap_or_default())
+            }
             None => Value::Null,
         }
     }
@@ -333,12 +338,11 @@ impl DraftProxy {
         };
         self.staged_products.insert(id, product.clone());
 
+        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        let payload_selection = root_field_selection(query).unwrap_or_default();
         ok_json(json!({
             "data": {
-                "productCreate": {
-                    "product": product_json(&product),
-                    "userErrors": []
-                }
+                "productCreate": product_create_payload_json(&product, &payload_selection, &product_selection)
             }
         }))
     }
@@ -350,13 +354,40 @@ impl DraftProxy {
     }
 }
 
-fn product_json(product: &ProductRecord) -> Value {
-    json!({
-        "id": product.id,
-        "title": product.title,
-        "handle": product.handle,
-        "status": product.status
-    })
+fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "id" => Some(json!(product.id)),
+            "title" => Some(json!(product.title)),
+            "handle" => Some(json!(product.handle)),
+            "status" => Some(json!(product.status)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn product_create_payload_json(
+    product: &ProductRecord,
+    payload_selections: &[SelectedField],
+    product_selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selections {
+        let value = match selection.name.as_str() {
+            "product" => Some(product_json(product, product_selections)),
+            "userErrors" => Some(json!([])),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
 }
 
 fn product_create_input(
