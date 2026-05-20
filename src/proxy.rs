@@ -93,6 +93,10 @@ pub struct ProductRecord {
     pub title: String,
     pub handle: String,
     pub status: String,
+    pub description_html: String,
+    pub vendor: String,
+    pub product_type: String,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -335,6 +339,10 @@ impl DraftProxy {
             title,
             handle,
             status,
+            description_html: resolved_string_field(&input, "descriptionHtml").unwrap_or_default(),
+            vendor: resolved_string_field(&input, "vendor").unwrap_or_default(),
+            product_type: resolved_string_field(&input, "productType").unwrap_or_default(),
+            tags: resolved_string_list_field(&input, "tags"),
         };
         self.staged_products.insert(id, product.clone());
 
@@ -362,6 +370,10 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "title" => Some(json!(product.title)),
             "handle" => Some(json!(product.handle)),
             "status" => Some(json!(product.status)),
+            "descriptionHtml" => Some(json!(product.description_html)),
+            "vendor" => Some(json!(product.vendor)),
+            "productType" => Some(json!(product.product_type)),
+            "tags" => Some(json!(product.tags)),
             _ => None,
         };
         if let Some(value) = value {
@@ -408,6 +420,19 @@ fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -
     match input.get(field) {
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
+    }
+}
+
+fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Vec<String> {
+    match input.get(field) {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 

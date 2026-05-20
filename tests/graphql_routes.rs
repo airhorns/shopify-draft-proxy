@@ -153,6 +153,10 @@ fn product_read_serializes_seeded_base_product_by_id() {
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -183,6 +187,10 @@ fn product_read_serializes_only_requested_scalar_fields() {
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -221,6 +229,55 @@ fn product_create_serializes_only_requested_payload_fields() {
                     "product": {
                         "title": "Selection product"
                     }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_stages_extended_product_scalars_visible_to_product_read() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Extended product\", descriptionHtml: \"<p>Rich</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { title descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "title": "Extended product",
+                        "descriptionHtml": "<p>Rich</p>",
+                        "vendor": "Hermes",
+                        "productType": "Accessory",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\") { descriptionHtml vendor productType tags } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "descriptionHtml": "<p>Rich</p>",
+                    "vendor": "Hermes",
+                    "productType": "Accessory",
+                    "tags": ["alpha", "beta"]
                 }
             }
         })
@@ -282,6 +339,10 @@ fn product_read_resolves_id_from_request_variables() {
         title: "Variable product".to_string(),
         handle: "variable-product".to_string(),
         status: "DRAFT".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
