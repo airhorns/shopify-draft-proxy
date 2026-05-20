@@ -225,6 +225,64 @@ fn product_create_stages_product_visible_to_product_read() {
 }
 
 #[test]
+fn product_read_resolves_id_from_request_variables() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/variable-id".to_string(),
+        title: "Variable product".to_string(),
+        handle: "variable-product".to_string(),
+        status: "DRAFT".to_string(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query ProductById($id: ID!) { product(id: $id) { id title handle status } }","variables":{"id":"gid://shopify/Product/variable-id"}}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/variable-id",
+                    "title": "Variable product",
+                    "handle": "variable-product",
+                    "status": "DRAFT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_resolves_input_from_request_variables() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message code } } }","variables":{"product":{"title":"Variable staged product","handle":"variable-staged-product","status":"ARCHIVED"}}}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Variable staged product",
+                        "handle": "variable-staged-product",
+                        "status": "ARCHIVED"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(

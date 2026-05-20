@@ -194,9 +194,11 @@ impl DraftProxy {
     }
 
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
-        let Some(query) = parse_graphql_request_body(&request.body) else {
+        let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
+        let query = graphql_request.query;
+        let variables = graphql_request.variables;
 
         let Some(operation) = parse_operation(&query) else {
             return json_error(400, "Could not parse GraphQL operation");
@@ -211,12 +213,12 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if root_field == "product" && self.config.read_mode == ReadMode::Snapshot =>
             {
-                ok_json(json!({ "data": { "product": self.product_by_id(&query) } }))
+                ok_json(json!({ "data": { "product": self.product_by_id(&query, &variables) } }))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
-                self.product_create(&query)
+                self.product_create(&query, &variables)
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
@@ -267,8 +269,8 @@ impl DraftProxy {
         }
     }
 
-    fn product_by_id(&self, query: &str) -> Value {
-        let arguments = root_field_arguments(query, &BTreeMap::new()).unwrap_or_default();
+    fn product_by_id(&self, query: &str, variables: &BTreeMap<String, ResolvedValue>) -> Value {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return Value::Null;
         };
@@ -282,8 +284,12 @@ impl DraftProxy {
         }
     }
 
-    fn product_create(&mut self, query: &str) -> Response {
-        let Some(input) = product_create_input(query) else {
+    fn product_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(input) = product_create_input(query, variables) else {
             return ok_json(json!({
                 "data": {
                     "productCreate": {
@@ -353,8 +359,11 @@ fn product_json(product: &ProductRecord) -> Value {
     })
 }
 
-fn product_create_input(query: &str) -> Option<BTreeMap<String, ResolvedValue>> {
-    let mut arguments = root_field_arguments(query, &BTreeMap::new())?;
+fn product_create_input(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    let mut arguments = root_field_arguments(query, variables)?;
     match arguments
         .remove("product")
         .or_else(|| arguments.remove("input"))
@@ -454,10 +463,44 @@ fn json_error(status: u16, message: &str) -> Response {
     }
 }
 
-fn parse_graphql_request_body(body: &str) -> Option<String> {
-    serde_json::from_str::<Value>(body)
-        .ok()?
-        .get("query")?
-        .as_str()
-        .map(ToOwned::to_owned)
+#[derive(Debug, Clone, PartialEq)]
+struct GraphqlRequestBody {
+    query: String,
+    variables: BTreeMap<String, ResolvedValue>,
+}
+
+fn parse_graphql_request_body(body: &str) -> Option<GraphqlRequestBody> {
+    let body = serde_json::from_str::<Value>(body).ok()?;
+    let query = body.get("query")?.as_str()?.to_owned();
+    let variables = match body.get("variables") {
+        Some(Value::Object(fields)) => fields
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect(),
+        _ => BTreeMap::new(),
+    };
+
+    Some(GraphqlRequestBody { query, variables })
+}
+
+fn resolved_value_from_json(value: &Value) -> ResolvedValue {
+    match value {
+        Value::Null => ResolvedValue::Null,
+        Value::Bool(value) => ResolvedValue::Bool(*value),
+        Value::Number(number) => number
+            .as_i64()
+            .map(ResolvedValue::Int)
+            .or_else(|| number.as_f64().map(ResolvedValue::Float))
+            .unwrap_or(ResolvedValue::Null),
+        Value::String(value) => ResolvedValue::String(value.clone()),
+        Value::Array(values) => {
+            ResolvedValue::List(values.iter().map(resolved_value_from_json).collect())
+        }
+        Value::Object(fields) => ResolvedValue::Object(
+            fields
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect(),
+        ),
+    }
 }
