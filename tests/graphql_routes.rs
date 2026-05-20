@@ -212,6 +212,38 @@ fn product_read_serializes_only_requested_scalar_fields() {
 }
 
 #[test]
+fn product_read_preserves_root_alias() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { selectedProduct: product(id: \"gid://shopify/Product/1\") { id title } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "selectedProduct": {
+                    "id": "gid://shopify/Product/1",
+                    "title": "Seeded product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_create_serializes_only_requested_payload_fields() {
     let mut proxy = snapshot_proxy();
 
