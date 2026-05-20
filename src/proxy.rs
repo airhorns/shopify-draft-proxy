@@ -231,6 +231,11 @@ impl DraftProxy {
                     json!({ "data": { "products": self.products_connection(&query, &variables) } }),
                 )
             }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if root_field == "productsCount" && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                ok_json(json!({ "data": { "productsCount": self.products_count(&query) } }))
+            }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
@@ -347,6 +352,28 @@ impl DraftProxy {
         }
 
         json!({ "nodes": nodes })
+    }
+
+    fn products_count(&self, query: &str) -> Value {
+        product_count_json(
+            self.effective_product_count(),
+            &root_field_selection(query).unwrap_or_default(),
+        )
+    }
+
+    fn effective_product_count(&self) -> usize {
+        self.base_products
+            .keys()
+            .filter(|id| {
+                !self.staged_deleted_product_ids.contains(*id)
+                    && !self.staged_products.contains_key(*id)
+            })
+            .count()
+            + self
+                .staged_products
+                .keys()
+                .filter(|id| !self.staged_deleted_product_ids.contains(*id))
+                .count()
     }
 
     fn product_create(
@@ -514,6 +541,21 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "vendor" => Some(json!(product.vendor)),
             "productType" => Some(json!(product.product_type)),
             "tags" => Some(json!(product.tags)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "count" => Some(json!(count)),
+            "precision" => Some(json!("EXACT")),
             _ => None,
         };
         if let Some(value) = value {

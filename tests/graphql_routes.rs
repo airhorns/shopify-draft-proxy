@@ -472,6 +472,66 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
 }
 
 #[test]
+fn products_count_reflects_staged_creates_and_deletes() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let count_after_create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productsCount { count precision } }"}"#,
+    ));
+    assert_eq!(count_after_create.status, 200);
+    assert_eq!(
+        count_after_create.body,
+        json!({
+            "data": {
+                "productsCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+
+    let count_after_delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productsCount { count precision } }"}"#,
+    ));
+    assert_eq!(count_after_delete.status, 200);
+    assert_eq!(
+        count_after_delete.body,
+        json!({
+            "data": {
+                "productsCount": {
+                    "count": 1,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
