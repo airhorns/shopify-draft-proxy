@@ -1,6 +1,8 @@
+use std::sync::{Arc, Mutex};
+
 use pretty_assertions::assert_eq;
-use serde_json::json;
-use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
+use serde_json::{json, Value};
+use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request, Response};
 
 fn snapshot_proxy() -> DraftProxy {
     DraftProxy::new(Config {
@@ -28,6 +30,22 @@ fn request_with_body(method: &str, path: &str, body: &str) -> Request {
 
 fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
+}
+
+fn ok_transport_response(body: Value) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body,
+    }
+}
+
+fn error_transport_response(status: u16, body: Value) -> Response {
+    Response {
+        status,
+        headers: Default::default(),
+        body,
+    }
 }
 
 #[test]
@@ -166,6 +184,126 @@ fn meta_reset_clears_log_and_staged_product_overlay() {
         read_back.body,
         json!({ "data": { "product": { "title": "Base product" } } })
     );
+}
+
+#[test]
+fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy()
+        .with_base_products(vec![ProductRecord {
+            id: "gid://shopify/Product/base".to_string(),
+            title: "Base product".to_string(),
+            handle: "base-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        }])
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request);
+            ok_transport_response(json!({ "data": { "ok": true } }))
+        });
+
+    let create_query =
+        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }";
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": create_query }).to_string()
+            ))
+            .status,
+        200
+    );
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": update_query, "variables": { "title": "Updated product" } })
+                    .to_string(),
+            ))
+            .status,
+        200
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(
+        commit.body,
+        json!({ "ok": true, "committed": 2, "failed": 0 })
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    assert_eq!(replayed[0].method, "POST");
+    assert_eq!(replayed[0].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(
+        serde_json::from_str::<Value>(&replayed[0].body).unwrap(),
+        json!({ "query": create_query, "variables": {} })
+    );
+    assert_eq!(replayed[1].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(
+        serde_json::from_str::<Value>(&replayed[1].body).unwrap(),
+        json!({ "query": update_query, "variables": { "title": "Updated product" } })
+    );
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(log.body["entries"][0]["status"], json!("committed"));
+    assert_eq!(log.body["entries"][1]["status"], json!("committed"));
+}
+
+#[test]
+fn commit_stops_on_first_upstream_failure_and_persists_failed_status() {
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |_request| {
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            error_transport_response(500, json!({ "errors": [{ "message": "upstream failed" }] }))
+        } else {
+            ok_transport_response(json!({ "data": { "ok": true } }))
+        }
+    });
+
+    let first_query =
+        "mutation { productCreate(product: { title: \"First product\" }) { product { id } } }";
+    let second_query =
+        "mutation { productCreate(product: { title: \"Second product\" }) { product { id } } }";
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": first_query }).to_string()
+            ))
+            .status,
+        200
+    );
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": second_query }).to_string()
+            ))
+            .status,
+        200
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 502);
+    assert_eq!(
+        commit.body,
+        json!({
+            "ok": false,
+            "committed": 0,
+            "failed": 1,
+            "error": "Upstream commit failed for log-1 with status 500"
+        })
+    );
+    assert_eq!(*attempts.lock().unwrap(), 1);
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(log.body["entries"][0]["status"], json!("failed"));
+    assert_eq!(log.body["entries"][1]["status"], json!("staged"));
 }
 
 #[test]

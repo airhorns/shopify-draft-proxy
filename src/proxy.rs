@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -100,7 +103,13 @@ pub struct ProductRecord {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+type CommitTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
+
+fn default_commit_transport(_request: Request) -> Response {
+    json_error(501, "No Rust commit transport configured")
+}
+
+#[derive(Clone)]
 pub struct DraftProxy {
     config: Config,
     log_entries: Vec<Value>,
@@ -109,6 +118,7 @@ pub struct DraftProxy {
     staged_products: BTreeMap<String, ProductRecord>,
     staged_deleted_product_ids: BTreeSet<String>,
     next_synthetic_id: u64,
+    commit_transport: CommitTransport,
 }
 
 impl DraftProxy {
@@ -121,6 +131,7 @@ impl DraftProxy {
             staged_products: BTreeMap::new(),
             staged_deleted_product_ids: BTreeSet::new(),
             next_synthetic_id: 1,
+            commit_transport: Arc::new(default_commit_transport),
         }
     }
 
@@ -134,6 +145,14 @@ impl DraftProxy {
             .into_iter()
             .map(|product| (product.id.clone(), product))
             .collect();
+        self
+    }
+
+    pub fn with_commit_transport(
+        mut self,
+        transport: impl Fn(Request) -> Response + Send + Sync + 'static,
+    ) -> Self {
+        self.commit_transport = Arc::new(transport);
         self
     }
 
@@ -153,6 +172,7 @@ impl DraftProxy {
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
+            Route::MetaCommit => self.commit_staged_mutations(),
             Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
@@ -204,6 +224,62 @@ impl DraftProxy {
             "baseState": {},
             "stagedState": {}
         })
+    }
+
+    fn commit_staged_mutations(&mut self) -> Response {
+        let transport = Arc::clone(&self.commit_transport);
+        let mut committed = 0usize;
+        let mut failed = 0usize;
+
+        for index in 0..self.log_entries.len() {
+            if self.log_entries[index].get("status") != Some(&json!("staged")) {
+                continue;
+            }
+            let log_id = self.log_entries[index]
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_string();
+            let path = self.log_entries[index]
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("/admin/api/2026-04/graphql.json")
+                .to_string();
+            let query = self.log_entries[index]
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let variables = self.log_entries[index]
+                .get("variables")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            let replay = Request {
+                method: "POST".to_string(),
+                path,
+                headers: BTreeMap::new(),
+                body: json!({ "query": query, "variables": variables }).to_string(),
+            };
+            let outcome = transport(replay);
+            if outcome.status >= 400 || outcome.body.get("errors").is_some() {
+                failed += 1;
+                set_log_status(&mut self.log_entries[index], "failed");
+                return Response {
+                    status: 502,
+                    headers: BTreeMap::new(),
+                    body: json!({
+                        "ok": false,
+                        "committed": committed,
+                        "failed": failed,
+                        "error": format!("Upstream commit failed for {log_id} with status {}", outcome.status)
+                    }),
+                };
+            }
+            committed += 1;
+            set_log_status(&mut self.log_entries[index], "committed");
+        }
+
+        ok_json(json!({ "ok": true, "committed": committed, "failed": failed }))
     }
 
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
@@ -902,6 +978,12 @@ fn slugify_handle(title: &str) -> String {
     handle.trim_end_matches('-').to_string()
 }
 
+fn set_log_status(entry: &mut Value, status: &str) {
+    if let Value::Object(fields) = entry {
+        fields.insert("status".to_string(), json!(status));
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
     Health,
@@ -909,6 +991,7 @@ enum Route {
     MetaLog,
     MetaState,
     MetaReset,
+    MetaCommit,
     Graphql,
     NotFound,
     MethodNotAllowed,
@@ -922,6 +1005,7 @@ fn route(request: &Request) -> Route {
         "/__meta/log" => only_method("GET", &method, Route::MetaLog),
         "/__meta/state" => only_method("GET", &method, Route::MetaState),
         "/__meta/reset" => only_method("POST", &method, Route::MetaReset),
+        "/__meta/commit" => only_method("POST", &method, Route::MetaCommit),
         path if admin_graphql_version(path).is_some() => {
             only_method("POST", &method, Route::Graphql)
         }
