@@ -900,6 +900,74 @@ fn product_mutations_preserve_root_alias_response_keys() {
 }
 
 #[test]
+fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedCreate: productCreate(product: { title: \" \" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "failedCreate": {
+                    "product": null,
+                    "userErrors": [{
+                        "field": ["product", "title"],
+                        "message": "Title can't be blank",
+                        "code": "BLANK"
+                    }]
+                }
+            }
+        })
+    );
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedUpdate: productUpdate(product: { id: \"gid://shopify/Product/missing\", title: \"Missing\" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "failedUpdate": {
+                    "product": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Product does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedDelete: productDelete(input: { id: \"gid://shopify/Product/missing\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "failedDelete": {
+                    "deletedProductId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Product does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),

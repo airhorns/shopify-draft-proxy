@@ -477,9 +477,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let Some(input) = product_create_input(query, variables) else {
+            let response_key =
+                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
             return ok_json(json!({
                 "data": {
-                    "productCreate": {
+                    response_key: {
                         "product": null,
                         "userErrors": [{
                             "field": ["product"],
@@ -493,9 +495,11 @@ impl DraftProxy {
         let Some(title) =
             resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
         else {
+            let response_key =
+                root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
             return ok_json(json!({
                 "data": {
-                    "productCreate": {
+                    response_key: {
                         "product": null,
                         "userErrors": [{
                             "field": ["product", "title"],
@@ -555,7 +559,7 @@ impl DraftProxy {
             }));
         };
         let Some(id) = resolved_string_field(&input, "id") else {
-            return product_update_missing_product();
+            return product_update_missing_product(query);
         };
         let Some(existing) = self
             .staged_products
@@ -563,7 +567,7 @@ impl DraftProxy {
             .or_else(|| self.base_products.get(&id))
             .cloned()
         else {
-            return product_update_missing_product();
+            return product_update_missing_product(query);
         };
 
         let product = ProductRecord {
@@ -601,13 +605,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let Some(input) = product_input(query, variables) else {
-            return product_delete_missing_product();
+            return product_delete_missing_product(query);
         };
         let Some(id) = resolved_string_field(&input, "id") else {
-            return product_delete_missing_product();
+            return product_delete_missing_product(query);
         };
         if !self.staged_products.contains_key(&id) && !self.base_products.contains_key(&id) {
-            return product_delete_missing_product();
+            return product_delete_missing_product(query);
         }
 
         self.staged_products.remove(&id);
@@ -758,10 +762,12 @@ fn product_input(
     }
 }
 
-fn product_update_missing_product() -> Response {
+fn product_update_missing_product(query: &str) -> Response {
+    let response_key =
+        root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
     ok_json(json!({
         "data": {
-            "productUpdate": {
+            response_key: {
                 "product": null,
                 "userErrors": [{
                     "field": ["id"],
@@ -773,10 +779,12 @@ fn product_update_missing_product() -> Response {
     }))
 }
 
-fn product_delete_missing_product() -> Response {
+fn product_delete_missing_product(query: &str) -> Response {
+    let response_key =
+        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
     ok_json(json!({
         "data": {
-            "productDelete": {
+            response_key: {
                 "deletedProductId": null,
                 "userErrors": [{
                     "field": ["id"],
