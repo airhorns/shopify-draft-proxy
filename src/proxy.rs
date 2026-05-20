@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 
 use crate::graphql::{
     nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    root_field_arguments, root_field_selection, OperationType, ResolvedValue, SelectedField,
+    root_field_arguments, root_field_response_key, root_field_selection, OperationType,
+    ResolvedValue, SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -240,9 +241,11 @@ impl DraftProxy {
                 if root_field == "productByIdentifier"
                     && self.config.read_mode == ReadMode::Snapshot =>
             {
+                let response_key = root_field_response_key(&query)
+                    .unwrap_or_else(|| "productByIdentifier".to_string());
                 ok_json(json!({
                     "data": {
-                        "productByIdentifier": self.product_by_identifier(&query, &variables)
+                        response_key: self.product_by_identifier(&query, &variables)
                     }
                 }))
             }

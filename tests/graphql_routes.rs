@@ -626,6 +626,39 @@ fn product_by_identifier_finds_staged_product_by_handle() {
 }
 
 #[test]
+fn product_by_identifier_preserves_root_alias() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let by_handle = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { byHandle: productByIdentifier(identifier: { handle: \"base-product\" }) { id title handle } }"}"#,
+    ));
+
+    assert_eq!(by_handle.status, 200);
+    assert_eq!(
+        by_handle.body,
+        json!({
+            "data": {
+                "byHandle": {
+                    "id": "gid://shopify/Product/base",
+                    "title": "Base product",
+                    "handle": "base-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),

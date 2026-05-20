@@ -80,6 +80,11 @@ pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
     Some(selected_fields(root_field.selection_set.items))
 }
 
+pub fn root_field_response_key(query: &str) -> Option<String> {
+    let root_field = first_root_field(query)?;
+    Some(root_field.alias.unwrap_or(root_field.name).to_string())
+}
+
 pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
     nested_root_field_path_selection(query, &[child_name])
 }
