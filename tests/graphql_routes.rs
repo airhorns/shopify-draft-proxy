@@ -177,6 +177,54 @@ fn product_read_serializes_seeded_base_product_by_id() {
 }
 
 #[test]
+fn product_create_stages_product_visible_to_product_read() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Rust staged product\", handle: \"rust-staged-product\", status: ACTIVE }) { product { id title handle status } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Rust staged product",
+                        "handle": "rust-staged-product",
+                        "status": "ACTIVE"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\") { id title handle status } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Rust staged product",
+                    "handle": "rust-staged-product",
+                    "status": "ACTIVE"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(

@@ -98,6 +98,8 @@ pub struct DraftProxy {
     log_entries: Vec<Value>,
     registry: Vec<OperationRegistryEntry>,
     base_products: BTreeMap<String, ProductRecord>,
+    staged_products: BTreeMap<String, ProductRecord>,
+    next_synthetic_id: u64,
 }
 
 impl DraftProxy {
@@ -107,6 +109,8 @@ impl DraftProxy {
             log_entries: Vec::new(),
             registry: default_registry(),
             base_products: BTreeMap::new(),
+            staged_products: BTreeMap::new(),
+            next_synthetic_id: 1,
         }
     }
 
@@ -209,6 +213,11 @@ impl DraftProxy {
             {
                 ok_json(json!({ "data": { "product": self.product_by_id(&query) } }))
             }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productCreate" =>
+            {
+                self.product_create(&query)
+            }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
                     OperationType::Query => json_error(
@@ -263,16 +272,118 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return Value::Null;
         };
-        match self.base_products.get(id) {
-            Some(product) => json!({
-                "id": product.id,
-                "title": product.title,
-                "handle": product.handle,
-                "status": product.status
-            }),
+        match self
+            .staged_products
+            .get(id)
+            .or_else(|| self.base_products.get(id))
+        {
+            Some(product) => product_json(product),
             None => Value::Null,
         }
     }
+
+    fn product_create(&mut self, query: &str) -> Response {
+        let Some(input) = product_create_input(query) else {
+            return ok_json(json!({
+                "data": {
+                    "productCreate": {
+                        "product": null,
+                        "userErrors": [{
+                            "field": ["product"],
+                            "message": "Product input is required",
+                            "code": "REQUIRED"
+                        }]
+                    }
+                }
+            }));
+        };
+        let Some(title) =
+            resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
+        else {
+            return ok_json(json!({
+                "data": {
+                    "productCreate": {
+                        "product": null,
+                        "userErrors": [{
+                            "field": ["product", "title"],
+                            "message": "Title can't be blank",
+                            "code": "BLANK"
+                        }]
+                    }
+                }
+            }));
+        };
+
+        let id = self.next_proxy_synthetic_gid("Product");
+        let handle =
+            resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
+        let status =
+            resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
+        let product = ProductRecord {
+            id: id.clone(),
+            title,
+            handle,
+            status,
+        };
+        self.staged_products.insert(id, product.clone());
+
+        ok_json(json!({
+            "data": {
+                "productCreate": {
+                    "product": product_json(&product),
+                    "userErrors": []
+                }
+            }
+        }))
+    }
+
+    fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
+        let id = self.next_synthetic_id;
+        self.next_synthetic_id += 1;
+        format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
+    }
+}
+
+fn product_json(product: &ProductRecord) -> Value {
+    json!({
+        "id": product.id,
+        "title": product.title,
+        "handle": product.handle,
+        "status": product.status
+    })
+}
+
+fn product_create_input(query: &str) -> Option<BTreeMap<String, ResolvedValue>> {
+    let mut arguments = root_field_arguments(query, &BTreeMap::new())?;
+    match arguments
+        .remove("product")
+        .or_else(|| arguments.remove("input"))
+    {
+        Some(ResolvedValue::Object(input)) => Some(input),
+        _ => None,
+    }
+}
+
+fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<String> {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn slugify_handle(title: &str) -> String {
+    let mut handle = String::new();
+    let mut previous_was_dash = false;
+    for character in title.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            handle.push(character);
+            previous_was_dash = false;
+        } else if !previous_was_dash && !handle.is_empty() {
+            handle.push('-');
+            previous_was_dash = true;
+        }
+    }
+    handle.trim_end_matches('-').to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
