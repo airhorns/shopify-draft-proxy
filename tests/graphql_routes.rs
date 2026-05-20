@@ -349,6 +349,81 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
 }
 
 #[test]
+fn products_connection_reflects_staged_creates_and_deletes() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let list_after_create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { id title handle } } }"}"#,
+    ));
+    assert_eq!(list_after_create.status, 200);
+    assert_eq!(
+        list_after_create.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/base",
+                            "title": "Base product",
+                            "handle": "base-product"
+                        },
+                        {
+                            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "title": "Created product",
+                            "handle": "created-product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+
+    let list_after_delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { id title handle } } }"}"#,
+    ));
+    assert_eq!(list_after_delete.status, 200);
+    assert_eq!(
+        list_after_delete.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "title": "Created product",
+                            "handle": "created-product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),

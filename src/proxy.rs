@@ -224,6 +224,11 @@ impl DraftProxy {
             {
                 ok_json(json!({ "data": { "product": self.product_by_id(&query, &variables) } }))
             }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if root_field == "products" && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                ok_json(json!({ "data": { "products": self.products_connection(&query) } }))
+            }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
@@ -306,6 +311,27 @@ impl DraftProxy {
             }
             None => Value::Null,
         }
+    }
+
+    fn products_connection(&self, query: &str) -> Value {
+        let node_selection = nested_root_field_selection(query, "nodes").unwrap_or_default();
+        let mut nodes = Vec::new();
+
+        for (id, product) in &self.base_products {
+            if self.staged_deleted_product_ids.contains(id) || self.staged_products.contains_key(id)
+            {
+                continue;
+            }
+            nodes.push(product_json(product, &node_selection));
+        }
+        for (id, product) in &self.staged_products {
+            if self.staged_deleted_product_ids.contains(id) {
+                continue;
+            }
+            nodes.push(product_json(product, &node_selection));
+        }
+
+        json!({ "nodes": nodes })
     }
 
     fn product_create(
