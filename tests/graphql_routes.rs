@@ -285,6 +285,70 @@ fn product_create_stages_extended_product_scalars_visible_to_product_read() {
 }
 
 #[test]
+fn product_update_stages_scalar_changes_visible_to_product_read() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Original product".to_string(),
+        handle: "original-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: "<p>Original</p>".to_string(),
+        vendor: "Original vendor".to_string(),
+        product_type: "Original type".to_string(),
+        tags: vec!["old".to_string()],
+    }]);
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated product\", handle: \"updated-product\", status: DRAFT, descriptionHtml: \"<p>Updated</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { id title handle status descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "productUpdate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1",
+                        "title": "Updated product",
+                        "handle": "updated-product",
+                        "status": "DRAFT",
+                        "descriptionHtml": "<p>Updated</p>",
+                        "vendor": "Hermes",
+                        "productType": "Accessory",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { title handle status descriptionHtml vendor productType tags } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "title": "Updated product",
+                    "handle": "updated-product",
+                    "status": "DRAFT",
+                    "descriptionHtml": "<p>Updated</p>",
+                    "vendor": "Hermes",
+                    "productType": "Accessory",
+                    "tags": ["alpha", "beta"]
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_create_stages_product_visible_to_product_read() {
     let mut proxy = snapshot_proxy();
 

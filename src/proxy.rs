@@ -227,6 +227,11 @@ impl DraftProxy {
             {
                 self.product_create(&query, &variables)
             }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productUpdate" =>
+            {
+                self.product_update(&query, &variables)
+            }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
                     OperationType::Query => json_error(
@@ -350,7 +355,65 @@ impl DraftProxy {
         let payload_selection = root_field_selection(query).unwrap_or_default();
         ok_json(json!({
             "data": {
-                "productCreate": product_create_payload_json(&product, &payload_selection, &product_selection)
+                "productCreate": product_mutation_payload_json(&product, &payload_selection, &product_selection)
+            }
+        }))
+    }
+
+    fn product_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(input) = product_input(query, variables) else {
+            return ok_json(json!({
+                "data": {
+                    "productUpdate": {
+                        "product": null,
+                        "userErrors": [{
+                            "field": ["product"],
+                            "message": "Product input is required",
+                            "code": "REQUIRED"
+                        }]
+                    }
+                }
+            }));
+        };
+        let Some(id) = resolved_string_field(&input, "id") else {
+            return product_update_missing_product();
+        };
+        let Some(existing) = self
+            .staged_products
+            .get(&id)
+            .or_else(|| self.base_products.get(&id))
+            .cloned()
+        else {
+            return product_update_missing_product();
+        };
+
+        let product = ProductRecord {
+            id: existing.id,
+            title: resolved_string_field(&input, "title").unwrap_or(existing.title),
+            handle: resolved_string_field(&input, "handle").unwrap_or(existing.handle),
+            status: resolved_string_field(&input, "status").unwrap_or(existing.status),
+            description_html: resolved_string_field(&input, "descriptionHtml")
+                .unwrap_or(existing.description_html),
+            vendor: resolved_string_field(&input, "vendor").unwrap_or(existing.vendor),
+            product_type: resolved_string_field(&input, "productType")
+                .unwrap_or(existing.product_type),
+            tags: if input.contains_key("tags") {
+                resolved_string_list_field(&input, "tags")
+            } else {
+                existing.tags
+            },
+        };
+        self.staged_products.insert(id, product.clone());
+
+        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        ok_json(json!({
+            "data": {
+                "productUpdate": product_mutation_payload_json(&product, &payload_selection, &product_selection)
             }
         }))
     }
@@ -383,7 +446,7 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
     Value::Object(fields)
 }
 
-fn product_create_payload_json(
+fn product_mutation_payload_json(
     product: &ProductRecord,
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
@@ -406,6 +469,13 @@ fn product_create_input(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
+    product_input(query, variables)
+}
+
+fn product_input(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
     let mut arguments = root_field_arguments(query, variables)?;
     match arguments
         .remove("product")
@@ -414,6 +484,21 @@ fn product_create_input(
         Some(ResolvedValue::Object(input)) => Some(input),
         _ => None,
     }
+}
+
+fn product_update_missing_product() -> Response {
+    ok_json(json!({
+        "data": {
+            "productUpdate": {
+                "product": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Product does not exist",
+                    "code": "NOT_FOUND"
+                }]
+            }
+        }
+    }))
 }
 
 fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<String> {

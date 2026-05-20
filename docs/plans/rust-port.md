@@ -175,6 +175,28 @@
 
 ---
 
+## Current incremental progress on `rust-port`
+
+Completed Rust slices on this branch:
+
+- Rust crate scaffold and meta route smoke tests.
+- Fixture/spec drift invariant check and non-blocking no-Gleam report.
+- Admin GraphQL route envelope handling for versioned Admin API POSTs.
+- AST-backed root-field parsing, argument resolution, variables, and selection projection.
+- Typed operation registry and registry-backed dispatcher boundary errors.
+- Snapshot `product(id:)` no-data behavior.
+- Instance-owned `ProductRecord` base state and staged `productCreate` overlay.
+- Selection-aware product serialization and extended scalar fields (`descriptionHtml`, `vendor`, `productType`, `tags`).
+
+Next domain slice in progress:
+
+1. Add a failing Rust route test for `productUpdate(product: ...)` over a seeded base product.
+2. Implement minimal local staging for scalar product updates, preserving unmentioned fields.
+3. Reuse existing product projection and payload-selection helpers so the slice does not add response-shape shims.
+4. Verify full Rust/pnpm gate set, commit, push, and watch CI.
+
+---
+
 ## Phase 4: Domain-by-domain runtime port
 
 Port in dependency order, using strict TDD and parity fixtures as the oracle:
