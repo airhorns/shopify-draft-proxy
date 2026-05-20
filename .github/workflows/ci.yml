@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -61,6 +63,18 @@ jobs:
 
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
+
+      - name: Check Rust port fixture invariants
+        run: corepack pnpm rust-port:fixture-invariants
+
+      - name: Report remaining Gleam runtime files
+        run: corepack pnpm rust-port:no-gleam-report
+
+      - name: Rust format check
+        run: corepack pnpm rust:fmt
+
+      - name: Rust tests
+        run: corepack pnpm rust:test
 
       - name: Lint TypeScript interop, tooling, and Gleam formatting
         run: corepack pnpm lint

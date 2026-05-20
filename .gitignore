@@ -4,6 +4,7 @@ node_modules/
 # Build output
 build/
 dist/
+target/
 gleam/build/
 *.tsbuildinfo
 elixir_smoke/_build/
