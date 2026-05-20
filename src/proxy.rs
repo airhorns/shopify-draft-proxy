@@ -148,6 +148,9 @@ impl DraftProxy {
             Route::MetaState => ok_json(self.state_snapshot()),
             Route::MetaReset => {
                 self.log_entries.clear();
+                self.staged_products.clear();
+                self.staged_deleted_product_ids.clear();
+                self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::Graphql => self.dispatch_graphql(&request),
@@ -233,17 +236,17 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
-                self.product_create(&query, &variables)
+                self.product_create(&query, &variables, request)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productUpdate" =>
             {
-                self.product_update(&query, &variables)
+                self.product_update(&query, &variables, request)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productDelete" =>
             {
-                self.product_delete(&query, &variables)
+                self.product_delete(&query, &variables, request)
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
                 match operation.operation_type {
@@ -475,6 +478,7 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
     ) -> Response {
         let Some(input) = product_create_input(query, variables) else {
             let response_key =
@@ -526,7 +530,8 @@ impl DraftProxy {
             product_type: resolved_string_field(&input, "productType").unwrap_or_default(),
             tags: resolved_string_list_field(&input, "tags"),
         };
-        self.staged_products.insert(id, product.clone());
+        self.staged_products.insert(id.clone(), product.clone());
+        self.record_mutation_log_entry(request, query, variables, "productCreate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -543,6 +548,7 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
     ) -> Response {
         let Some(input) = product_input(query, variables) else {
             return ok_json(json!({
@@ -586,7 +592,8 @@ impl DraftProxy {
                 existing.tags
             },
         };
-        self.staged_products.insert(id, product.clone());
+        self.staged_products.insert(id.clone(), product.clone());
+        self.record_mutation_log_entry(request, query, variables, "productUpdate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -603,6 +610,7 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
     ) -> Response {
         let Some(input) = product_input(query, variables) else {
             return product_delete_missing_product(query);
@@ -616,6 +624,13 @@ impl DraftProxy {
 
         self.staged_products.remove(&id);
         self.staged_deleted_product_ids.insert(id.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "productDelete",
+            vec![id.clone()],
+        );
 
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
@@ -627,11 +642,67 @@ impl DraftProxy {
         }))
     }
 
+    fn record_mutation_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+    ) {
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        let root_fields = parse_operation(query)
+            .map(|operation| operation.root_fields)
+            .unwrap_or_else(|| vec![root_field.to_string()]);
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": null,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": "staged",
+            "interpreted": {
+                "operationType": "mutation",
+                "rootFields": root_fields,
+                "primaryRootField": root_field
+            }
+        }));
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
     }
+}
+
+fn resolved_value_json(value: &ResolvedValue) -> Value {
+    match value {
+        ResolvedValue::String(value) => json!(value),
+        ResolvedValue::Int(value) => json!(value),
+        ResolvedValue::Float(value) => json!(value),
+        ResolvedValue::Bool(value) => json!(value),
+        ResolvedValue::Null => Value::Null,
+        ResolvedValue::List(values) => {
+            Value::Array(values.iter().map(resolved_value_json).collect())
+        }
+        ResolvedValue::Object(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    Value::Object(
+        variables
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+            .collect(),
+    )
 }
 
 fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<SelectedField> {

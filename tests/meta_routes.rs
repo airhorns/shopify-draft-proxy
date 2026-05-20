@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use shopify_draft_proxy::proxy::{Config, DraftProxy, ReadMode, Request};
+use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
 
 fn snapshot_proxy() -> DraftProxy {
     DraftProxy::new(Config {
@@ -14,12 +14,20 @@ fn snapshot_proxy() -> DraftProxy {
 }
 
 fn request(method: &str, path: &str) -> Request {
+    request_with_body(method, path, "")
+}
+
+fn request_with_body(method: &str, path: &str, body: &str) -> Request {
     Request {
         method: method.to_string(),
         path: path.to_string(),
         headers: Default::default(),
-        body: String::new(),
+        body: body.to_string(),
     }
+}
+
+fn graphql_request(body: &str) -> Request {
+    request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
 
 #[test]
@@ -60,6 +68,104 @@ fn serves_meta_route_response_shapes() {
     let reset = proxy.process_request(request("POST", "/__meta/reset"));
     assert_eq!(reset.status, 200);
     assert_eq!(reset.body, json!({ "ok": true, "message": "state reset" }));
+}
+
+#[test]
+fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let create_query =
+        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create = proxy.process_request(graphql_request(
+        &json!({ "query": create_query }).to_string(),
+    ));
+    assert_eq!(create.status, 200);
+
+    let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }";
+    let update = proxy.process_request(graphql_request(
+        &json!({ "query": update_query, "variables": { "unused": true } }).to_string(),
+    ));
+    assert_eq!(update.status, 200);
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(log.status, 200);
+    assert_eq!(
+        log.body,
+        json!({
+            "entries": [
+                {
+                    "id": "log-1",
+                    "operationName": null,
+                    "path": "/admin/api/2026-04/graphql.json",
+                    "query": create_query,
+                    "variables": {},
+                    "stagedResourceIds": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
+                    "status": "staged",
+                    "interpreted": {
+                        "operationType": "mutation",
+                        "rootFields": ["productCreate"],
+                        "primaryRootField": "productCreate"
+                    }
+                },
+                {
+                    "id": "log-2",
+                    "operationName": null,
+                    "path": "/admin/api/2026-04/graphql.json",
+                    "query": update_query,
+                    "variables": {"unused": true},
+                    "stagedResourceIds": ["gid://shopify/Product/base"],
+                    "status": "staged",
+                    "interpreted": {
+                        "operationType": "mutation",
+                        "rootFields": ["productUpdate"],
+                        "primaryRootField": "productUpdate"
+                    }
+                }
+            ]
+        })
+    );
+}
+
+#[test]
+fn meta_reset_clears_log_and_staged_product_overlay() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let update = proxy.process_request(graphql_request(
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+
+    let reset = proxy.process_request(request("POST", "/__meta/reset"));
+    assert_eq!(reset.status, 200);
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(log.body, json!({ "entries": [] }));
+
+    let read_back = proxy.process_request(graphql_request(
+        r#"{"query":"query { product(id: \"gid://shopify/Product/base\") { title } }"}"#,
+    ));
+    assert_eq!(
+        read_back.body,
+        json!({ "data": { "product": { "title": "Base product" } } })
+    );
 }
 
 #[test]
