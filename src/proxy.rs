@@ -236,6 +236,16 @@ impl DraftProxy {
             {
                 ok_json(json!({ "data": { "productsCount": self.products_count(&query) } }))
             }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if root_field == "productByIdentifier"
+                    && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                ok_json(json!({
+                    "data": {
+                        "productByIdentifier": self.product_by_identifier(&query, &variables)
+                    }
+                }))
+            }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
@@ -318,6 +328,58 @@ impl DraftProxy {
             }
             None => Value::Null,
         }
+    }
+
+    fn product_by_identifier(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let Some(ResolvedValue::Object(identifier)) = arguments.get("identifier") else {
+            return Value::Null;
+        };
+        let product = match identifier.get("id") {
+            Some(ResolvedValue::String(id)) => self.product_record_by_id(id),
+            _ => match identifier.get("handle") {
+                Some(ResolvedValue::String(handle)) => self.product_record_by_handle(handle),
+                _ => None,
+            },
+        };
+        match product {
+            Some(product) => {
+                product_json(product, &root_field_selection(query).unwrap_or_default())
+            }
+            None => Value::Null,
+        }
+    }
+
+    fn product_record_by_id(&self, id: &str) -> Option<&ProductRecord> {
+        if self.staged_deleted_product_ids.contains(id) {
+            return None;
+        }
+        self.staged_products
+            .get(id)
+            .or_else(|| self.base_products.get(id))
+    }
+
+    fn product_record_by_handle(&self, handle: &str) -> Option<&ProductRecord> {
+        self.staged_products
+            .iter()
+            .find(|(id, product)| {
+                !self.staged_deleted_product_ids.contains(*id) && product.handle == handle
+            })
+            .map(|(_, product)| product)
+            .or_else(|| {
+                self.base_products
+                    .iter()
+                    .find(|(id, product)| {
+                        !self.staged_deleted_product_ids.contains(*id)
+                            && !self.staged_products.contains_key(*id)
+                            && product.handle == handle
+                    })
+                    .map(|(_, product)| product)
+            })
     }
 
     fn products_connection(

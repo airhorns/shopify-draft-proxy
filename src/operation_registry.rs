@@ -89,6 +89,16 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             support_notes: None,
         },
         OperationRegistryEntry {
+            name: "productByIdentifier".to_string(),
+            operation_type: OperationType::Query,
+            domain: CapabilityDomain::Products,
+            execution: CapabilityExecution::OverlayRead,
+            implemented: true,
+            match_names: strings(&["productByIdentifier", "ProductByIdentifier"]),
+            runtime_tests: strings(&["test/parity_test.gleam"]),
+            support_notes: None,
+        },
+        OperationRegistryEntry {
             name: "productCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Products,

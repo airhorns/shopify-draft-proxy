@@ -596,6 +596,36 @@ fn products_count_reflects_staged_creates_and_deletes() {
 }
 
 #[test]
+fn product_by_identifier_finds_staged_product_by_handle() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Identifier product\", handle: \"identifier-product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let by_handle = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productByIdentifier(identifier: { handle: \"identifier-product\" }) { id title handle } }"}"#,
+    ));
+
+    assert_eq!(by_handle.status, 200);
+    assert_eq!(
+        by_handle.body,
+        json!({
+            "data": {
+                "productByIdentifier": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Identifier product",
+                    "handle": "identifier-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
