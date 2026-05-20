@@ -25,6 +25,7 @@ pub struct ParsedOperation {
 pub struct SelectedField {
     pub name: String,
     pub response_key: String,
+    pub selection: Vec<SelectedField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -174,6 +175,7 @@ fn selected_fields<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<SelectedF
             Selection::Field(field) => Some(SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
+                selection: selected_fields(field.selection_set.items),
             }),
             Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
         })

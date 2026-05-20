@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    root_field_arguments, root_field_response_key, root_field_selection, root_fields,
-    OperationType, ResolvedValue, RootFieldSelection, SelectedField,
+    nested_root_field_selection, parse_operation, root_field_arguments, root_field_response_key,
+    root_field_selection, root_fields, OperationType, ResolvedValue, RootFieldSelection,
+    SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -221,30 +221,13 @@ impl DraftProxy {
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if root_field == "product" && self.config.read_mode == ReadMode::Snapshot =>
-            {
-                let response_key =
-                    root_field_response_key(&query).unwrap_or_else(|| "product".to_string());
-                ok_json(json!({ "data": { response_key: self.product_by_id(&query, &variables) } }))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if root_field == "products" && self.config.read_mode == ReadMode::Snapshot =>
-            {
-                ok_json(
-                    json!({ "data": { "products": self.products_connection(&query, &variables) } }),
-                )
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if root_field == "productsCount" && self.config.read_mode == ReadMode::Snapshot =>
-            {
-                ok_json(json!({ "data": { "productsCount": self.products_count(&query) } }))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if root_field == "productByIdentifier"
-                    && self.config.read_mode == ReadMode::Snapshot =>
+                if matches!(
+                    root_field,
+                    "product" | "products" | "productsCount" | "productByIdentifier"
+                ) && self.config.read_mode == ReadMode::Snapshot =>
             {
                 ok_json(json!({
-                    "data": self.product_by_identifier_fields(&query, &variables)
+                    "data": self.product_overlay_read_fields(&query, &variables)
                 }))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -311,42 +294,43 @@ impl DraftProxy {
         }
     }
 
-    fn product_by_id(&self, query: &str, variables: &BTreeMap<String, ResolvedValue>) -> Value {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let Some(ResolvedValue::String(id)) = arguments.get("id") else {
-            return Value::Null;
-        };
-        if self.staged_deleted_product_ids.contains(id) {
-            return Value::Null;
-        }
-        match self
-            .staged_products
-            .get(id)
-            .or_else(|| self.base_products.get(id))
-        {
-            Some(product) => {
-                product_json(product, &root_field_selection(query).unwrap_or_default())
-            }
-            None => Value::Null,
-        }
-    }
-
-    fn product_by_identifier_fields(
+    fn product_overlay_read_fields(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let mut fields = serde_json::Map::new();
         for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "productByIdentifier" {
-                continue;
+            let value = match field.name.as_str() {
+                "product" => Some(self.product_by_id_field(&field)),
+                "products" => Some(self.products_connection_field(&field)),
+                "productsCount" => Some(self.products_count_field(&field)),
+                "productByIdentifier" => Some(self.product_by_identifier_field(&field)),
+                _ => None,
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key, value);
             }
-            fields.insert(
-                field.response_key.clone(),
-                self.product_by_identifier_field(&field),
-            );
         }
         Value::Object(fields)
+    }
+
+    fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
+        self.product_by_id_value(&field.arguments, &field.selection)
+    }
+
+    fn product_by_id_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let Some(ResolvedValue::String(id)) = arguments.get("id") else {
+            return Value::Null;
+        };
+        match self.product_record_by_id(id) {
+            Some(product) => product_json(product, selection),
+            None => Value::Null,
+        }
     }
 
     fn product_by_identifier_field(&self, field: &RootFieldSelection) -> Value {
@@ -402,23 +386,22 @@ impl DraftProxy {
             })
     }
 
-    fn products_connection(
+    fn products_connection_field(&self, field: &RootFieldSelection) -> Value {
+        self.products_connection_value(&field.arguments, &field.selection)
+    }
+
+    fn products_connection_value(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        root_selection: &[SelectedField],
     ) -> Value {
-        let root_selection = root_field_selection(query).unwrap_or_default();
-        let node_selection = nested_root_field_selection(query, "nodes").unwrap_or_default();
-        let edge_node_selection =
-            nested_root_field_path_selection(query, &["edges", "node"]).unwrap_or_default();
-        let page_info_selection =
-            nested_root_field_selection(query, "pageInfo").unwrap_or_default();
-        let limit = root_field_arguments(query, variables).and_then(|arguments| {
-            match arguments.get("first") {
-                Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
-                _ => None,
-            }
-        });
+        let node_selection = nested_selected_fields(root_selection, &["nodes"]);
+        let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
+        let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
+        let limit = match arguments.get("first") {
+            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
+            _ => None,
+        };
         let mut products: Vec<ProductRecord> = Vec::new();
 
         for (id, product) in &self.base_products {
@@ -462,18 +445,15 @@ impl DraftProxy {
                 _ => None,
             };
             if let Some(value) = value {
-                connection.insert(selection.response_key, value);
+                connection.insert(selection.response_key.clone(), value);
             }
         }
 
         Value::Object(connection)
     }
 
-    fn products_count(&self, query: &str) -> Value {
-        product_count_json(
-            self.effective_product_count(),
-            &root_field_selection(query).unwrap_or_default(),
-        )
+    fn products_count_field(&self, field: &RootFieldSelection) -> Value {
+        product_count_json(self.effective_product_count(), &field.selection)
     }
 
     fn effective_product_count(&self) -> usize {
@@ -546,9 +526,11 @@ impl DraftProxy {
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
         ok_json(json!({
             "data": {
-                "productCreate": product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
             }
         }))
     }
@@ -604,9 +586,11 @@ impl DraftProxy {
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
         ok_json(json!({
             "data": {
-                "productUpdate": product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
             }
         }))
     }
@@ -630,9 +614,11 @@ impl DraftProxy {
         self.staged_deleted_product_ids.insert(id.clone());
 
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
         ok_json(json!({
             "data": {
-                "productDelete": product_delete_payload_json(&id, &payload_selection)
+                response_key: product_delete_payload_json(&id, &payload_selection)
             }
         }))
     }
@@ -642,6 +628,17 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
     }
+}
+
+fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<SelectedField> {
+    let Some((next, remaining)) = path.split_first() else {
+        return selections.to_vec();
+    };
+    selections
+        .iter()
+        .find(|selection| selection.name == *next)
+        .map(|selection| nested_selected_fields(&selection.selection, remaining))
+        .unwrap_or_default()
 }
 
 fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {

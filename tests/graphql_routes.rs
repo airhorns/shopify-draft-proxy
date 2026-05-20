@@ -734,6 +734,172 @@ fn product_by_identifier_supports_multiple_aliases_in_one_query() {
 }
 
 #[test]
+fn products_and_products_count_preserve_root_aliases() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+    ]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { listedProducts: products(first: 1) { nodes { id title } } localProductCount: productsCount { count precision } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "listedProducts": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1",
+                            "title": "First product"
+                        }
+                    ]
+                },
+                "localProductCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_roots_support_multiple_aliases_in_one_query() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "DRAFT".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+        },
+    ]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { first: product(id: \"gid://shopify/Product/1\") { title } second: product(id: \"gid://shopify/Product/2\") { status } missing: product(id: \"gid://shopify/Product/missing\") { id } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "first": { "title": "First product" },
+                "second": { "status": "DRAFT" },
+                "missing": null
+            }
+        })
+    );
+}
+
+#[test]
+fn product_mutations_preserve_root_alias_response_keys() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { stagedCreate: productCreate(product: { title: \"Created product\" }) { product { id title } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "stagedCreate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Created product"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { stagedUpdate: productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "stagedUpdate": {
+                    "product": {
+                        "id": "gid://shopify/Product/base",
+                        "title": "Updated product"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { stagedDelete: productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "stagedDelete": {
+                    "deletedProductId": "gid://shopify/Product/base",
+                    "userErrors": []
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
