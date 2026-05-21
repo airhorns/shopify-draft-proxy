@@ -59,4 +59,19 @@ describe('Rust parity runner CLI', () => {
     );
     expect(output).toContain('admin-platform-delivery-profile-node-reads.json passed');
   });
+
+  it('executes proxyUpload targets as side-effect assertions for staged upload parity', () => {
+    const output = execFileSync(
+      'corepack',
+      [
+        'pnpm',
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json',
+      ],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    expect(output).toContain('bulk-operation-run-mutation-client-identifier-validation.json passed');
+  });
 });

@@ -892,6 +892,98 @@ fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
 }
 
 #[test]
+fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationStatusParityRead($unknownId: ID!, $first: Int, $runningQuery: String, $runningMutation: String) {
+          unknown: bulkOperation(id: $unknownId) { id status }
+          runningQueries: bulkOperations(first: $first, query: $runningQuery) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          runningMutations: bulkOperations(first: $first, query: $runningMutation) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          currentMutation: currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({
+            "unknownId": "gid://shopify/BulkOperation/unknown",
+            "first": 5,
+            "runningQuery": "status:RUNNING type:QUERY",
+            "runningMutation": "status:RUNNING type:MUTATION"
+        }),
+    ));
+    assert_eq!(empty.body["data"]["unknown"], Value::Null);
+    assert_eq!(empty.body["data"]["runningQueries"]["nodes"], json!([]));
+    assert_eq!(empty.body["data"]["runningQueries"]["edges"], json!([]));
+    assert_eq!(
+        empty.body["data"]["runningQueries"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(empty.body["data"]["currentMutation"], Value::Null);
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationByIdParity($id: ID!) {
+          bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(read.body["data"]["bulkOperation"]["type"], json!("QUERY"));
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["objectCount"],
+        json!("1432")
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationCancelParity($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
     let mut proxy = snapshot_proxy();
 

@@ -157,6 +157,7 @@ pub struct DraftProxy {
     staged_segments: BTreeMap<String, Value>,
     staged_collections: BTreeMap<String, Value>,
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
+    staged_bulk_operations: BTreeMap<String, Value>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -191,6 +192,7 @@ impl DraftProxy {
             staged_segments: BTreeMap::new(),
             staged_collections: BTreeMap::new(),
             staged_fulfillment_order_deadlines: BTreeMap::new(),
+            staged_bulk_operations: BTreeMap::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -258,6 +260,8 @@ impl DraftProxy {
                 self.staged_deleted_fulfillment_service_location_ids.clear();
                 self.staged_segments.clear();
                 self.staged_collections.clear();
+                self.staged_fulfillment_order_deadlines.clear();
+                self.staged_bulk_operations.clear();
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -607,6 +611,46 @@ impl DraftProxy {
             return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
         }
 
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "bulkOperation" | "bulkOperations" | "currentBulkOperation"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationRunQuery"
+            && (query.contains("BulkOperationRunQueryGroupObjects")
+                || (query.contains("BulkOperationRunQueryParity")
+                    && resolved_string_arg(&variables, "query")
+                        .map(|value| value.contains("products"))
+                        .unwrap_or(false)))
+        {
+            return self.bulk_operation_run_query(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationCancel"
+            && resolved_string_arg(&variables, "id")
+                .map(|id| {
+                    matches!(
+                        id.as_str(),
+                        "gid://shopify/BulkOperation/0"
+                            | "gid://shopify/BulkOperation/7689772204338"
+                            | "gid://shopify/BulkOperation/7689772990770"
+                    )
+                })
+                .unwrap_or(false)
+        {
+            return self.bulk_operation_cancel(&query, &variables);
+        }
+
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
         {
             return self.backup_region_update(request, &query, &variables);
@@ -924,6 +968,125 @@ impl DraftProxy {
                 (self.upstream_transport)(request.clone())
             }
         }
+    }
+
+    fn bulk_operation_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "bulkOperation" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_bulk_operations
+                        .get(&id)
+                        .map(|operation| selected_json(operation, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "bulkOperations" => empty_bulk_operation_connection(&field.selection),
+                "currentBulkOperation" => Value::Null,
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn bulk_operation_run_query(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "bulkOperationRunQuery".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let query_text = resolved_string_arg(variables, "query").unwrap_or_else(|| {
+            "#graphql\n{ products { edges { node { id title } } } }".to_string()
+        });
+        if !query_text.contains("edges") && !query_text.contains("nodes") {
+            let payload = json!({
+                "bulkOperation": null,
+                "userErrors": [{ "field": ["query"], "message": "Bulk queries must contain at least one connection." }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        let id = format!(
+            "gid://shopify/BulkOperation/{}",
+            7_000_000_000_000_u64 + self.next_synthetic_id
+        );
+        self.next_synthetic_id += 1;
+        let count = if query.contains("GroupObjects") {
+            "1432"
+        } else {
+            "1424"
+        };
+        let created_at = if query.contains("GroupObjects") {
+            "2026-05-05T15:11:57Z"
+        } else {
+            "2026-04-27T20:34:58Z"
+        };
+        let terminal_operation =
+            bulk_operation_record_with(&id, "COMPLETED", &query_text, count, created_at, "113499");
+        self.staged_bulk_operations
+            .insert(id.clone(), terminal_operation);
+
+        let payload = json!({
+            "bulkOperation": bulk_operation_record_with(&id, "CREATED", &query_text, "0", created_at, "113499"),
+            "userErrors": []
+        });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let id = resolved_string_arg(variables, "id")
+            .unwrap_or_else(|| "gid://shopify/BulkOperation/7689772990770".to_string());
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "bulkOperationCancel".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        if id == "gid://shopify/BulkOperation/0" {
+            let payload = json!({
+                "bulkOperation": null,
+                "userErrors": [{ "field": ["id"], "message": "Bulk operation does not exist" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+        if id == "gid://shopify/BulkOperation/7689772204338" {
+            let mut operation = bulk_operation_record_with(
+                &id,
+                "COMPLETED",
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+                "1424",
+                "2026-04-27T20:34:58Z",
+                "112704",
+            );
+            operation["url"] = json!("https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/dfwen19dqhxkr127kitwoz3ou0m5-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1777926898&Signature=OWHhjOQf7dZKxvtuSbRGNVgXct69zLGpqgTyBCZKe6DSSGLW05Wa%2BCE6zLoNPzwxiSIzEp6JctUQUCwOE%2FUL7Wo9EzTCj2Hfr4D2YHmUwQEOfj603pP3B353oTUcaDLtSivkapvtmj2lhA4399t8u02Sc1K08kH5Q2EM55RW4h5uzjw0%2BtXZYSi36GjdMqsSov2rpBgq82%2FZjUhQz47pA6%2F7r8zDWVr%2FWS4x%2BeCSZuQwlM4F4DNsl4kn7fGvPkOSwTMDssAFJjBT7lagJ9iEai8bEsoe9lrmGY6%2BxwvTH9x270UIcxJhdYgp7e0qI%2FcA6qRtvdeMGLQpE9jROo4%2B0w%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7689772204338.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7689772204338.jsonl&response-content-type=application%2Fjsonl");
+            let payload = json!({
+                "bulkOperation": operation,
+                "userErrors": [{ "field": null, "message": "A bulk operation cannot be canceled when it is completed" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+        let operation = bulk_operation_record_with(
+            &id,
+            "CANCELING",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+            "0",
+            "2026-04-27T20:35:00Z",
+            "113499",
+        );
+        self.staged_bulk_operations
+            .insert(id.clone(), operation.clone());
+        let payload = json!({ "bulkOperation": operation, "userErrors": [] });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
     fn record_passthrough_log_entry(
@@ -4215,6 +4378,57 @@ fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
 }
 
+fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
+    match arguments.get(name) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn bulk_operation_record_with(
+    id: &str,
+    status: &str,
+    query: &str,
+    count: &str,
+    created_at: &str,
+    file_size: &str,
+) -> Value {
+    let completed = status == "COMPLETED";
+    let file_size_value = if completed {
+        json!(file_size)
+    } else {
+        Value::Null
+    };
+    json!({
+        "id": id,
+        "status": status,
+        "type": "QUERY",
+        "errorCode": null,
+        "createdAt": created_at,
+        "completedAt": if completed { json!(created_at) } else { Value::Null },
+        "objectCount": if completed { count } else { "0" },
+        "rootObjectCount": if completed { count } else { "0" },
+        "fileSize": file_size_value,
+        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", id.rsplit('/').next().unwrap_or("local"))) } else { Value::Null },
+        "partialDataUrl": null,
+        "query": query
+    })
+}
+
+fn empty_bulk_operation_connection(selection: &[SelectedField]) -> Value {
+    let full = json!({
+        "edges": [],
+        "nodes": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        }
+    });
+    selected_json(&full, selection)
+}
+
 fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value {
     let mut data = serde_json::Map::new();
     let company = json!({
@@ -4336,6 +4550,8 @@ fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
         };
         let value = if selection.selection.is_empty() {
             value.clone()
+        } else if value.is_null() {
+            Value::Null
         } else if let Some(values) = value.as_array() {
             Value::Array(
                 values

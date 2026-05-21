@@ -23,6 +23,13 @@ type ProxyRequestSpec = {
   headers?: Record<string, string>;
 };
 
+type ProxyUploadSpec = {
+  method?: string;
+  path: unknown;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
 type ComparisonTarget = {
   name: string;
   capturePath: string;
@@ -30,6 +37,7 @@ type ComparisonTarget = {
   proxyStatePath?: string;
   proxyLogPath?: string;
   proxyRequest?: ProxyRequestSpec;
+  proxyUpload?: ProxyUploadSpec;
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
@@ -365,6 +373,35 @@ async function sendProxyRequest(
   });
 }
 
+function localUploadPath(uploadPath: unknown, targetName: string): string {
+  if (typeof uploadPath !== 'string') throw new Error(`${targetName}: proxyUpload path did not resolve to a string`);
+  if (!uploadPath.startsWith('http://') && !uploadPath.startsWith('https://')) return uploadPath;
+  const parsed = new URL(uploadPath);
+  if (parsed.pathname !== '/') return parsed.pathname;
+  return `/staged-uploads/${encodeURIComponent(targetName)}/upload.jsonl`;
+}
+
+async function sendProxyUpload(
+  proxy: DraftProxy,
+  targetName: string,
+  upload: ProxyUploadSpec,
+  capture: unknown,
+  primaryResponse: ProxyResponse | null,
+  namedResponses: Map<string, ProxyResponse>,
+): Promise<ProxyResponse> {
+  const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, namedResponses);
+  const resolvedBody = resolveSpecialVariables(upload.body ?? '', capture, primaryResponse, namedResponses);
+  const request: { method: string; path: string; headers?: Record<string, string>; body: unknown } = {
+    method: upload.method ?? 'POST',
+    path: localUploadPath(resolvedPath, targetName),
+    body: resolvedBody,
+  };
+  if (upload.headers !== undefined) request.headers = upload.headers;
+  const response = await proxy.processRequest(request);
+  if (response.status >= 400) throw new Error(`${targetName}: proxyUpload failed with status ${response.status}`);
+  return response;
+}
+
 function normalizeForTarget(value: unknown, target: ComparisonTarget): unknown {
   return applyExcludedPaths(selectPaths(value, target.selectedPaths), target.excludedPaths);
 }
@@ -466,7 +503,10 @@ async function runSpec(
 
     for (const target of spec.comparison?.targets ?? []) {
       let proxySource: unknown;
-      if (target.proxyRequest) {
+      if (target.proxyUpload) {
+        await sendProxyUpload(proxy, target.name, target.proxyUpload, capture, primaryResponse, namedResponses);
+        proxySource = getPath(capture, target.capturePath);
+      } else if (target.proxyRequest) {
         cassette.setFallbackResponse(captureResponseForTarget(capture, target));
         const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
