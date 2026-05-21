@@ -5931,6 +5931,165 @@ fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
 }
 
 #[test]
+fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_and_function_roots() {
+    let mut proxy = snapshot_proxy();
+    let stage = r#"mutation StageFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) { validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionHandle createdAt updatedAt shopifyFunction { id title handle apiType } } userErrors { field message code } } cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } } taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } } }"#;
+    let missing_validation_delete = r#"mutation DeleteFunctionValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let missing_validation_response = proxy.process_request(json_graphql_request(
+        missing_validation_delete,
+        json!({ "id": "gid://shopify/Validation/999999999999" }),
+    ));
+    assert_eq!(
+        missing_validation_response.body["data"]["validationDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{ "field": ["id"], "message": "Extension not found.", "code": "NOT_FOUND" }]
+        })
+    );
+
+    let missing_cart_delete = r#"mutation DeleteFunctionCartTransform($id: ID!) { cartTransformDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let missing_cart_response = proxy.process_request(json_graphql_request(
+        missing_cart_delete,
+        json!({ "id": "gid://shopify/CartTransform/999999999999" }),
+    ));
+    assert_eq!(
+        missing_cart_response.body["data"]["cartTransformDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{ "field": ["id"], "message": "Could not find cart transform with id: gid://shopify/CartTransform/999999999999", "code": "NOT_FOUND" }]
+        })
+    );
+
+    let stage_response = proxy.process_request(json_graphql_request(stage, json!({
+        "validation": { "functionHandle": "validation-local", "title": "Local validation", "enable": true, "blockOnFailure": true },
+        "cartFunctionHandle": "cart-transform-local",
+        "cartBlockOnFailure": true,
+        "ready": true
+    })));
+    let validation_id = stage_response.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cart_transform_id = stage_response.body["data"]["cartTransformCreate"]["cartTransform"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        stage_response.body["data"]["validationCreate"]["validation"]["shopifyFunction"],
+        json!({
+            "id": "gid://shopify/ShopifyFunction/validation-local",
+            "title": "Validation Local",
+            "handle": "validation-local",
+            "apiType": "VALIDATION"
+        })
+    );
+    assert_eq!(
+        stage_response.body["data"]["cartTransformCreate"]["cartTransform"],
+        json!({
+            "id": "gid://shopify/CartTransform/3",
+            "blockOnFailure": true,
+            "functionId": "gid://shopify/ShopifyFunction/cart-transform-local"
+        })
+    );
+
+    let update = r#"mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) { validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionHandle updatedAt } userErrors { field message code } } }"#;
+    let update_response = proxy.process_request(json_graphql_request(update, json!({
+        "id": validation_id,
+        "validation": { "title": "Updated validation", "enable": false, "blockOnFailure": false }
+    })));
+    assert_eq!(
+        update_response.body["data"]["validationUpdate"]["validation"],
+        json!({
+            "id": "gid://shopify/Validation/2",
+            "title": "Updated validation",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionHandle": "validation-local",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+        })
+    );
+
+    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enable blockOnFailure functionHandle shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enable blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
+    let read_response = proxy.process_request(json_graphql_request(
+        read,
+        json!({ "validationId": validation_id }),
+    ));
+    assert_eq!(
+        read_response.body["data"]["validation"]["title"],
+        json!("Updated validation")
+    );
+    assert_eq!(
+        read_response.body["data"]["validations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        read_response.body["data"]["cartTransforms"]["nodes"][0]["id"],
+        json!(cart_transform_id)
+    );
+    assert_eq!(
+        read_response.body["data"]["validationFunctions"]["nodes"][0]["handle"],
+        json!("validation-local")
+    );
+    assert_eq!(
+        read_response.body["data"]["cartFunctions"]["nodes"][0]["handle"],
+        json!("cart-transform-local")
+    );
+    assert_eq!(
+        read_response.body["data"]["cartFunction"]["apiType"],
+        json!("CART_TRANSFORM")
+    );
+
+    let node_read = r#"query CartTransformNodeRead($id: ID!) { node(id: $id) { ... on CartTransform { id blockOnFailure functionId } } }"#;
+    let node_response = proxy.process_request(json_graphql_request(
+        node_read,
+        json!({ "id": cart_transform_id }),
+    ));
+    assert_eq!(
+        node_response.body["data"]["node"],
+        read_response.body["data"]["cartTransforms"]["nodes"][0]
+    );
+
+    let delete_validation = r#"mutation DeleteFunctionValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let validation_delete_response = proxy.process_request(json_graphql_request(
+        delete_validation,
+        json!({ "id": validation_id }),
+    ));
+    assert_eq!(
+        validation_delete_response.body["data"]["validationDelete"],
+        json!({ "deletedId": "gid://shopify/Validation/2", "userErrors": [] })
+    );
+
+    let delete_cart_transform = r#"mutation DeleteFunctionCartTransform($id: ID!) { cartTransformDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let cart_delete_response = proxy.process_request(json_graphql_request(
+        delete_cart_transform,
+        json!({ "id": cart_transform_id }),
+    ));
+    assert_eq!(
+        cart_delete_response.body["data"]["cartTransformDelete"],
+        json!({ "deletedId": "gid://shopify/CartTransform/3", "userErrors": [] })
+    );
+
+    let empty_read = r#"query ReadDeletedFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id } validations(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#;
+    let empty_response = proxy.process_request(json_graphql_request(
+        empty_read,
+        json!({ "validationId": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(empty_response.body["data"]["validation"], Value::Null);
+    assert_eq!(
+        empty_response.body["data"]["validations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        empty_response.body["data"]["cartTransforms"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
 fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
 

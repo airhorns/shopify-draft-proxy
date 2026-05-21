@@ -162,6 +162,8 @@ pub struct DraftProxy {
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     staged_bulk_operations: BTreeMap<String, Value>,
     staged_timestamp_discounts: BTreeMap<String, Value>,
+    staged_function_validation: Option<Value>,
+    staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
     staged_free_shipping_code_status: Option<String>,
     staged_free_shipping_automatic_status: Option<String>,
@@ -206,6 +208,8 @@ impl DraftProxy {
             staged_fulfillment_order_deadlines: BTreeMap::new(),
             staged_bulk_operations: BTreeMap::new(),
             staged_timestamp_discounts: BTreeMap::new(),
+            staged_function_validation: None,
+            staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
             staged_free_shipping_code_status: None,
             staged_free_shipping_automatic_status: None,
@@ -284,6 +288,8 @@ impl DraftProxy {
                 self.staged_fulfillment_order_deadlines.clear();
                 self.staged_bulk_operations.clear();
                 self.staged_timestamp_discounts.clear();
+                self.staged_function_validation = None;
+                self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
                 self.staged_free_shipping_code_status = None;
                 self.staged_free_shipping_automatic_status = None;
@@ -604,6 +610,135 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    fn functions_metadata_mutation_data(&mut self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "validationCreate" => {
+                    let validation = local_function_validation_record_from_create(field);
+                    self.staged_function_validation = Some(validation.clone());
+                    json!({ "validation": validation, "userErrors": [] })
+                }
+                "validationUpdate" => {
+                    let validation = local_function_validation_record_from_update(field);
+                    self.staged_function_validation = Some(validation.clone());
+                    json!({ "validation": validation, "userErrors": [] })
+                }
+                "validationDelete" => {
+                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    if id == "gid://shopify/Validation/2" {
+                        self.staged_function_validation = None;
+                        json!({ "deletedId": "gid://shopify/Validation/2", "userErrors": [] })
+                    } else {
+                        json!({
+                            "deletedId": Value::Null,
+                            "userErrors": [{
+                                "field": ["id"],
+                                "message": "Extension not found.",
+                                "code": "NOT_FOUND"
+                            }]
+                        })
+                    }
+                }
+                "cartTransformCreate" => {
+                    let cart_transform = local_function_cart_transform_record();
+                    self.staged_function_cart_transform = Some(cart_transform.clone());
+                    json!({ "cartTransform": cart_transform, "userErrors": [] })
+                }
+                "cartTransformDelete" => {
+                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    if id == "gid://shopify/CartTransform/3" {
+                        self.staged_function_cart_transform = None;
+                        json!({ "deletedId": "gid://shopify/CartTransform/3", "userErrors": [] })
+                    } else {
+                        json!({
+                            "deletedId": Value::Null,
+                            "userErrors": [{
+                                "field": ["id"],
+                                "message": format!("Could not find cart transform with id: {id}"),
+                                "code": "NOT_FOUND"
+                            }]
+                        })
+                    }
+                }
+                "taxAppConfigure" => json!({
+                    "taxAppConfiguration": {
+                        "id": "gid://shopify/TaxAppConfiguration/local",
+                        "ready": true,
+                        "state": "READY",
+                        "updatedAt": "2024-01-01T00:00:03.000Z"
+                    },
+                    "userErrors": []
+                }),
+                _ => Value::Null,
+            };
+            if !value.is_null() {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn functions_metadata_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "validation" => self
+                    .staged_function_validation
+                    .clone()
+                    .unwrap_or(Value::Null),
+                "validations" => local_function_connection(self.staged_function_validation.clone()),
+                "cartTransforms" => {
+                    local_function_connection(self.staged_function_cart_transform.clone())
+                }
+                "shopifyFunctions" => {
+                    let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
+                    if api_type == "CART_TRANSFORM" {
+                        json!({ "nodes": [local_cart_transform_function()] })
+                    } else {
+                        json!({ "nodes": [local_validation_function()] })
+                    }
+                }
+                "shopifyFunction" => local_cart_transform_function(),
+                _ => Value::Null,
+            };
+            if value.is_null() {
+                data.insert(field.response_key.clone(), Value::Null);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn functions_metadata_node_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = if field.name == "node" {
+                self.staged_function_cart_transform
+                    .clone()
+                    .unwrap_or(Value::Null)
+            } else {
+                Value::Null
+            };
+            if value.is_null() {
+                data.insert(field.response_key.clone(), Value::Null);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -878,6 +1013,47 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_automatic_nodes_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("ReadFunctionMetadata")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "validation"
+                        | "validations"
+                        | "cartTransforms"
+                        | "shopifyFunctions"
+                        | "shopifyFunction"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("ReadDeletedFunctionMetadata")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "validation" | "validations" | "cartTransforms"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("CartTransformNodeRead")
+            && operation.root_fields.iter().all(|field| field == "node")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.functions_metadata_node_read_data(&fields) }));
             }
         }
 
@@ -1450,6 +1626,17 @@ impl DraftProxy {
                 return ok_json(json!({
                     "data": self.discount_code_basic_lifecycle_mutation_data(&fields)
                 }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && (query.contains("StageFunctionMetadata")
+                || query.contains("UpdateFunctionValidation")
+                || query.contains("DeleteFunctionValidation")
+                || query.contains("DeleteFunctionCartTransform"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.functions_metadata_mutation_data(&fields) }));
             }
         }
 
@@ -6235,6 +6422,112 @@ fn discount_basic_payload(
     object.insert(node_key.to_string(), node);
     object.insert("userErrors".to_string(), user_errors);
     Value::Object(object)
+}
+
+fn local_function_validation_record_from_create(field: &RootFieldSelection) -> Value {
+    let input = match field.arguments.get("validation") {
+        Some(ResolvedValue::Object(input)) => input,
+        _ => {
+            return Value::Null;
+        }
+    };
+    let title =
+        resolved_string_field(input, "title").unwrap_or_else(|| "Local validation".to_string());
+    let function_handle = resolved_string_field(input, "functionHandle")
+        .unwrap_or_else(|| "validation-local".to_string());
+    let enable = resolved_bool_field(input, "enable").unwrap_or(false);
+    let block_on_failure = resolved_bool_field(input, "blockOnFailure").unwrap_or(false);
+    json!({
+        "id": "gid://shopify/Validation/2",
+        "title": title,
+        "enable": enable,
+        "blockOnFailure": block_on_failure,
+        "functionHandle": function_handle,
+        "createdAt": "2024-01-01T00:00:01.000Z",
+        "updatedAt": "2024-01-01T00:00:01.000Z",
+        "shopifyFunction": local_validation_function()
+    })
+}
+
+fn local_function_validation_record_from_update(field: &RootFieldSelection) -> Value {
+    let input = match field.arguments.get("validation") {
+        Some(ResolvedValue::Object(input)) => input,
+        _ => {
+            return Value::Null;
+        }
+    };
+    let title =
+        resolved_string_field(input, "title").unwrap_or_else(|| "Updated validation".to_string());
+    let enable = resolved_bool_field(input, "enable").unwrap_or(false);
+    let block_on_failure = resolved_bool_field(input, "blockOnFailure").unwrap_or(false);
+    json!({
+        "id": "gid://shopify/Validation/2",
+        "title": title,
+        "enable": enable,
+        "blockOnFailure": block_on_failure,
+        "functionHandle": "validation-local",
+        "updatedAt": "2024-01-01T00:00:05.000Z",
+        "shopifyFunction": local_validation_function()
+    })
+}
+
+fn local_function_cart_transform_record() -> Value {
+    json!({
+        "id": "gid://shopify/CartTransform/3",
+        "blockOnFailure": true,
+        "functionId": "gid://shopify/ShopifyFunction/cart-transform-local"
+    })
+}
+
+fn local_function_connection(node: Option<Value>) -> Value {
+    match node {
+        Some(node) => {
+            let id = node["id"].as_str().unwrap_or_default();
+            json!({
+                "nodes": [node],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": format!("cursor:{id}"),
+                    "endCursor": format!("cursor:{id}")
+                }
+            })
+        }
+        None => json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }
+        }),
+    }
+}
+
+fn local_validation_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/validation-local",
+        "title": "Validation Local",
+        "handle": "validation-local",
+        "apiType": "VALIDATION"
+    })
+}
+
+fn local_cart_transform_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/cart-transform-local",
+        "title": "Cart Transform Local",
+        "handle": "cart-transform-local",
+        "apiType": "CART_TRANSFORM"
+    })
+}
+
+fn resolved_enum_arg(field: &RootFieldSelection, name: &str) -> Option<String> {
+    match field.arguments.get(name) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
 }
 
 fn functions_owner_metadata_mutation_data(fields: &[RootFieldSelection]) -> Value {
