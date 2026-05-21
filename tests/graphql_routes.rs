@@ -6171,6 +6171,38 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryShopTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          credit: giftCardCredit(id: $creditId, creditInput: $creditInput) { giftCardCreditTransaction { __typename } userErrors { field code message } }
+          debit: giftCardDebit(id: $debitId, debitInput: $debitInput) { giftCardDebitTransaction { __typename } userErrors { field code message } }
+          customerNotification: giftCardSendNotificationToCustomer(id: $customerNotificationId) { giftCard { id } userErrors { field code message } }
+          recipientNotification: giftCardSendNotificationToRecipient(id: $recipientNotificationId) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({
+            "creditId": "gid://shopify/GiftCard/timezone-credit",
+            "debitId": "gid://shopify/GiftCard/timezone-debit",
+            "customerNotificationId": "gid://shopify/GiftCard/timezone-customer-notification",
+            "recipientNotificationId": "gid://shopify/GiftCard/timezone-recipient-notification",
+            "creditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "debitInput": { "debitAmount": { "amount": "2.00", "currencyCode": "CAD" } }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "credit": { "giftCardCreditTransaction": { "__typename": "GiftCardCreditTransaction" }, "userErrors": [] },
+            "debit": { "giftCardDebitTransaction": { "__typename": "GiftCardDebitTransaction" }, "userErrors": [] },
+            "customerNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-customer-notification" }, "userErrors": [] },
+            "recipientNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-recipient-notification" }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
 fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
     let mut proxy = snapshot_proxy();
 

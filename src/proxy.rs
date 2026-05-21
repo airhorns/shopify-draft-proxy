@@ -1633,6 +1633,23 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardExpiryShopTimezone")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCardCredit"
+                        | "giftCardDebit"
+                        | "giftCardSendNotificationToCustomer"
+                        | "giftCardSendNotificationToRecipient"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": gift_card_expiry_shop_timezone_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("GiftCardCreditLimitExceeded")
             && operation
                 .root_fields
@@ -8899,6 +8916,36 @@ fn gift_card_credit_limit_exceeded_data(fields: &[RootFieldSelection]) -> Value 
                 })),
                 Vec::new(),
             ),
+            _ => continue,
+        };
+        data.insert(field.response_key.clone(), payload);
+    }
+    Value::Object(data)
+}
+
+fn gift_card_expiry_shop_timezone_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let payload = match field.name.as_str() {
+            "giftCardCredit" => gift_card_transaction_payload(
+                &field.selection,
+                "giftCardCreditTransaction",
+                Some(json!({ "__typename": "GiftCardCreditTransaction" })),
+                Vec::new(),
+            ),
+            "giftCardDebit" => gift_card_transaction_payload(
+                &field.selection,
+                "giftCardDebitTransaction",
+                Some(json!({ "__typename": "GiftCardDebitTransaction" })),
+                Vec::new(),
+            ),
+            "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
+                let id = resolved_string_arg(&field.arguments, "id")
+                    .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
+                    .unwrap_or_default();
+                let gift_card = json!({ "id": id });
+                gift_card_payload_json(&gift_card, &field.selection, Vec::new())
+            }
             _ => continue,
         };
         data.insert(field.response_key.clone(), payload);
