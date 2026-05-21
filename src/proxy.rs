@@ -1132,6 +1132,32 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && (query.contains("GiftCardReadEvidence")
+                || query.contains("GiftCardReadAfterLifecycle"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCard" | "giftCards" | "giftCardsCount" | "giftCardConfiguration"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.gift_card_lifecycle_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("GiftCardNodeReadAfterLifecycle")
+            && operation.root_fields.iter().all(|field| field == "node")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": self.gift_card_lifecycle_node_read_data(&fields) }),
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
@@ -1629,6 +1655,37 @@ impl DraftProxy {
                 return ok_json(json!({
                     "data": self.discount_code_basic_lifecycle_mutation_data(&fields)
                 }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardMutationUserErrorCodes")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCardCreate" | "giftCardUpdate" | "giftCardCredit" | "giftCardDebit"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.gift_card_mutation_user_error_codes_response(
+                    &fields, request, &query, &variables,
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardLifecycle")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCardUpdate" | "giftCardCredit" | "giftCardDebit" | "giftCardDeactivate"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self
+                    .gift_card_lifecycle_mutation_response(&fields, request, &query, &variables);
             }
         }
 
@@ -5571,11 +5628,423 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
+    fn gift_card_mutation_user_error_codes_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "giftCardCreate" => {
+                    let initial_value = field
+                        .arguments
+                        .get("input")
+                        .and_then(|input| match input {
+                            ResolvedValue::Object(input) => input
+                                .get("initialValue")
+                                .map(|value| resolved_money_amount_string(Some(value))),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "0".to_string());
+                    if initial_value.parse::<f64>().unwrap_or(0.0) <= 0.0 {
+                        gift_card_payload_json_nullable(
+                            None,
+                            &field.selection,
+                            vec![json!({
+                                "field": ["input", "initialValue"],
+                                "code": "GREATER_THAN",
+                                "message": "must be greater than 0"
+                            })],
+                        )
+                    } else {
+                        let id = self.next_proxy_synthetic_gid("GiftCard");
+                        let mut card = gift_card_lifecycle_base_card(&id);
+                        card["initialValue"] = json!({ "amount": format_money_amount(initial_value.parse::<f64>().unwrap_or(5.0)), "currencyCode": "CAD" });
+                        card["balance"] = card["initialValue"].clone();
+                        self.staged_gift_cards.insert(id.clone(), card.clone());
+                        staged_ids.push(id);
+                        gift_card_payload_json(&card, &field.selection, Vec::new())
+                    }
+                }
+                "giftCardUpdate" => gift_card_payload_json_nullable(
+                    None,
+                    &field.selection,
+                    vec![json!({
+                        "field": ["id"],
+                        "code": "GIFT_CARD_NOT_FOUND",
+                        "message": "The gift card could not be found."
+                    })],
+                ),
+                "giftCardCredit" => gift_card_transaction_payload(
+                    &field.selection,
+                    "giftCardCreditTransaction",
+                    None,
+                    vec![json!({
+                        "field": ["creditInput", "creditAmount", "amount"],
+                        "code": "NEGATIVE_OR_ZERO_AMOUNT",
+                        "message": "A positive amount must be used."
+                    })],
+                ),
+                "giftCardDebit" => gift_card_transaction_payload(
+                    &field.selection,
+                    "giftCardDebitTransaction",
+                    None,
+                    vec![json!({
+                        "field": ["debitInput", "debitAmount", "amount"],
+                        "code": "INSUFFICIENT_FUNDS",
+                        "message": "The gift card does not have sufficient funds to satisfy the request."
+                    })],
+                ),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), payload);
+        }
+
+        if !staged_ids.is_empty() {
+            self.log_entries.push(json!({
+                "id": format!("log-{}", self.log_entries.len() + 1),
+                "operationName": "GiftCardMutationUserErrorCodes",
+                "path": request.path,
+                "query": query,
+                "variables": resolved_variables_json(variables),
+                "stagedResourceIds": staged_ids,
+                "status": "staged",
+                "interpreted": {
+                    "operationType": "mutation",
+                    "rootFields": fields.iter().map(|field| field.name.clone()).collect::<Vec<_>>(),
+                    "primaryRootField": fields.first().map(|field| field.name.clone()).unwrap_or_default()
+                }
+            }));
+        }
+
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn gift_card_lifecycle_mutation_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+
+        for field in fields {
+            let id = resolved_string_arg(&field.arguments, "id")
+                .unwrap_or_else(|| "gid://shopify/GiftCard/654773256498".to_string());
+            let mut card = self
+                .staged_gift_cards
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
+            let payload = match field.name.as_str() {
+                "giftCardUpdate" => {
+                    if let Some(ResolvedValue::Object(input)) = field.arguments.get("input") {
+                        if let Some(note) = resolved_string_field(input, "note") {
+                            card["note"] = json!(note);
+                        }
+                        if let Some(template_suffix) =
+                            resolved_string_field(input, "templateSuffix")
+                        {
+                            card["templateSuffix"] = json!(template_suffix);
+                        }
+                        if let Some(expires_on) = resolved_string_field(input, "expiresOn") {
+                            card["expiresOn"] = json!(expires_on);
+                        }
+                    }
+                    self.staged_gift_cards.insert(id.clone(), card.clone());
+                    staged_ids.push(id);
+                    gift_card_payload_json(&card, &field.selection, Vec::new())
+                }
+                "giftCardCredit" => {
+                    let amount = field
+                        .arguments
+                        .get("creditInput")
+                        .and_then(|input| match input {
+                            ResolvedValue::Object(input) => {
+                                resolved_object_field(input, "creditAmount")
+                            }
+                            _ => None,
+                        })
+                        .map(|money| resolved_money_amount_string(money.get("amount")))
+                        .unwrap_or_else(|| "2.00".to_string());
+                    let note = field
+                        .arguments
+                        .get("creditInput")
+                        .and_then(|input| match input {
+                            ResolvedValue::Object(input) => resolved_string_field(input, "note"),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "HAR-310 credit".to_string());
+                    let amount = format_money_amount(amount.parse::<f64>().unwrap_or(2.0));
+                    let balance = format_money_amount(
+                        card["balance"]["amount"]
+                            .as_str()
+                            .unwrap_or("5.0")
+                            .parse::<f64>()
+                            .unwrap_or(5.0)
+                            + amount.parse::<f64>().unwrap_or(2.0),
+                    );
+                    card["balance"] = json!({ "amount": balance, "currencyCode": "CAD" });
+                    let transaction = json!({
+                        "id": "gid://shopify/GiftCardCreditTransaction/246514385202",
+                        "__typename": "GiftCardCreditTransaction",
+                        "note": note,
+                        "processedAt": "2026-04-29T09:31:02Z",
+                        "amount": { "amount": amount, "currencyCode": "CAD" },
+                        "giftCard": card.clone()
+                    });
+                    push_gift_card_transaction(&mut card, transaction.clone());
+                    self.staged_gift_cards.insert(id.clone(), card);
+                    staged_ids.push(id);
+                    gift_card_transaction_payload(
+                        &field.selection,
+                        "giftCardCreditTransaction",
+                        Some(transaction),
+                        Vec::new(),
+                    )
+                }
+                "giftCardDebit" => {
+                    let amount = field
+                        .arguments
+                        .get("debitInput")
+                        .and_then(|input| match input {
+                            ResolvedValue::Object(input) => {
+                                resolved_object_field(input, "debitAmount")
+                            }
+                            _ => None,
+                        })
+                        .map(|money| resolved_money_amount_string(money.get("amount")))
+                        .unwrap_or_else(|| "3.00".to_string());
+                    let note = field
+                        .arguments
+                        .get("debitInput")
+                        .and_then(|input| match input {
+                            ResolvedValue::Object(input) => resolved_string_field(input, "note"),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "HAR-310 debit".to_string());
+                    let parsed = amount.parse::<f64>().unwrap_or(3.0);
+                    let signed_amount = format_money_amount(0.0 - parsed);
+                    let balance = format_money_amount(
+                        card["balance"]["amount"]
+                            .as_str()
+                            .unwrap_or("7.0")
+                            .parse::<f64>()
+                            .unwrap_or(7.0)
+                            - parsed,
+                    );
+                    card["balance"] = json!({ "amount": balance, "currencyCode": "CAD" });
+                    let transaction = json!({
+                        "id": "gid://shopify/GiftCardDebitTransaction/246514417970",
+                        "__typename": "GiftCardDebitTransaction",
+                        "note": note,
+                        "processedAt": "2026-04-29T09:31:02Z",
+                        "amount": { "amount": signed_amount, "currencyCode": "CAD" },
+                        "giftCard": card.clone()
+                    });
+                    push_gift_card_transaction(&mut card, transaction.clone());
+                    self.staged_gift_cards.insert(id.clone(), card);
+                    staged_ids.push(id);
+                    gift_card_transaction_payload(
+                        &field.selection,
+                        "giftCardDebitTransaction",
+                        Some(transaction),
+                        Vec::new(),
+                    )
+                }
+                "giftCardDeactivate" => {
+                    card["enabled"] = json!(false);
+                    card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
+                    card["updatedAt"] = json!("2026-04-29T09:31:13Z");
+                    self.staged_gift_cards.insert(id.clone(), card.clone());
+                    staged_ids.push(id);
+                    gift_card_payload_json(&card, &field.selection, Vec::new())
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), payload);
+        }
+
+        if !staged_ids.is_empty() {
+            staged_ids.sort();
+            staged_ids.dedup();
+            self.log_entries.push(json!({
+                "id": format!("log-{}", self.log_entries.len() + 1),
+                "operationName": "GiftCardLifecycle",
+                "path": request.path,
+                "query": query,
+                "variables": resolved_variables_json(variables),
+                "stagedResourceIds": staged_ids,
+                "status": "staged",
+                "interpreted": {
+                    "operationType": "mutation",
+                    "rootFields": fields.iter().map(|field| field.name.clone()).collect::<Vec<_>>(),
+                    "primaryRootField": fields.first().map(|field| field.name.clone()).unwrap_or_default()
+                }
+            }));
+        }
+
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn gift_card_lifecycle_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "giftCard" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_gift_cards
+                        .get(&id)
+                        .map(|card| selected_json(card, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "giftCards" => {
+                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let cards = self.gift_card_lifecycle_matching_cards(&query);
+                    gift_card_connection_json(&cards, &field.selection)
+                }
+                "giftCardsCount" => {
+                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    gift_card_count_json(
+                        self.gift_card_lifecycle_matching_cards(&query).len(),
+                        &field.selection,
+                    )
+                }
+                "giftCardConfiguration" => {
+                    selected_json(&gift_card_configuration_record(), &field.selection)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn gift_card_lifecycle_node_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "node" {
+                continue;
+            }
+            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let value = self
+                .staged_gift_cards
+                .get(&id)
+                .map(|card| selected_json(card, &field.selection))
+                .unwrap_or(Value::Null);
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn gift_card_lifecycle_matching_cards(&self, query: &str) -> Vec<Value> {
+        self.staged_gift_cards
+            .values()
+            .filter(|card| {
+                if query.is_empty() {
+                    return true;
+                }
+                let id = card.get("id").and_then(Value::as_str).unwrap_or_default();
+                let legacy = id.rsplit('/').next().unwrap_or(id);
+                query.contains(legacy)
+            })
+            .cloned()
+            .collect()
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
     }
+}
+
+fn gift_card_lifecycle_base_card(id: &str) -> Value {
+    json!({
+        "__typename": "GiftCard",
+        "id": id,
+        "legacyResourceId": id.rsplit('/').next().unwrap_or(id),
+        "lastCharacters": "2053",
+        "maskedCode": "•••• •••• •••• 2053",
+        "enabled": true,
+        "deactivatedAt": null,
+        "disabledAt": null,
+        "expiresOn": "2027-04-26",
+        "note": "HAR-310 conformance gift card",
+        "templateSuffix": null,
+        "createdAt": "2026-04-29T09:31:02Z",
+        "updatedAt": "2026-04-29T09:31:02Z",
+        "initialValue": { "amount": "5.0", "currencyCode": "CAD" },
+        "balance": { "amount": "5.0", "currencyCode": "CAD" },
+        "customer": { "id": "gid://shopify/Customer/10552623464754" },
+        "recipientAttributes": {
+            "message": "HAR-464 recipient message",
+            "preferredName": "HAR-464 recipient",
+            "sendNotificationAt": null,
+            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
+        },
+        "transactions": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        }
+    })
+}
+
+fn gift_card_configuration_record() -> Value {
+    json!({
+        "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+        "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+    })
+}
+
+fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
+    if !card.get("transactions").is_some_and(Value::is_object) {
+        card["transactions"] = json!({
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        });
+    }
+    if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
+        nodes.push(transaction);
+    }
+}
+
+fn gift_card_connection_json(cards: &[Value], selections: &[SelectedField]) -> Value {
+    let full = json!({
+        "nodes": cards,
+        "edges": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        }
+    });
+    selected_json(&full, selections)
+}
+
+fn gift_card_count_json(count: usize, selections: &[SelectedField]) -> Value {
+    let full = json!({ "count": count, "precision": "EXACT" });
+    selected_json(&full, selections)
 }
 
 fn backup_region_country(country_code: &str) -> Value {

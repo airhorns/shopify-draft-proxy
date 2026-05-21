@@ -6171,6 +6171,161 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_paths() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardMutationUserErrorCodes {
+          setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "har686smallcard" }) { giftCard { id } userErrors { field code message } }
+          zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) { giftCard { id } userErrors { field code message } }
+          missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/9999999", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+          negativeCredit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "-1", currencyCode: "CAD" } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+          insufficientDebit: giftCardDebit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", debitInput: { debitAmount: { amount: "9999", currencyCode: "CAD" } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "setupSmallBalance": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }, "userErrors": [] },
+            "zeroInitialValue": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["input", "initialValue"], "code": "GREATER_THAN", "message": "must be greater than 0" }]
+            },
+            "missingUpdate": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+            },
+            "negativeCredit": {
+                "giftCardCreditTransaction": null,
+                "userErrors": [{ "field": ["creditInput", "creditAmount", "amount"], "code": "NEGATIVE_OR_ZERO_AMOUNT", "message": "A positive amount must be used." }]
+            },
+            "insufficientDebit": {
+                "giftCardDebitTransaction": null,
+                "userErrors": [{ "field": ["debitInput", "debitAmount", "amount"], "code": "INSUFFICIENT_FUNDS", "message": "The gift card does not have sufficient funds to satisfy the request." }]
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReadEvidence($unknownId: ID!, $query: String!) {
+          missingGiftCard: giftCard(id: $unknownId) { id }
+          filteredEmptyGiftCards: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id lastCharacters }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          filteredEmptyGiftCardsCount: giftCardsCount(query: $query) { count precision }
+          giftCardConfiguration { issueLimit { amount currencyCode } purchaseLimit { amount currencyCode } }
+        }"#,
+        json!({
+            "unknownId": "gid://shopify/GiftCard/999999999999",
+            "query": "id:999999999999"
+        }),
+    ));
+    assert_eq!(empty.body["data"]["missingGiftCard"], Value::Null);
+    assert_eq!(
+        empty.body["data"]["filteredEmptyGiftCards"],
+        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } })
+    );
+    assert_eq!(
+        empty.body["data"]["filteredEmptyGiftCardsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        empty.body["data"]["giftCardConfiguration"],
+        json!({
+            "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+            "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+        })
+    );
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardLifecycle($id: ID!, $updateInput: GiftCardUpdateInput!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          update: giftCardUpdate(id: $id, input: $updateInput) { giftCard { note templateSuffix expiresOn balance { amount currencyCode } } userErrors { field message } }
+          credit: giftCardCredit(id: $id, creditInput: $creditInput) { giftCardCreditTransaction { note amount { amount currencyCode } giftCard { balance { amount currencyCode } } } userErrors { field message } }
+          debit: giftCardDebit(id: $id, debitInput: $debitInput) { giftCardDebitTransaction { note amount { amount currencyCode } giftCard { balance { amount currencyCode } } } userErrors { field message } }
+          deactivate: giftCardDeactivate(id: $id) { giftCard { enabled balance { amount currencyCode } } userErrors { field message } }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/654773256498",
+            "updateInput": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26" },
+            "creditInput": { "creditAmount": { "amount": "2.00", "currencyCode": "CAD" }, "note": "HAR-310 credit" },
+            "debitInput": { "debitAmount": { "amount": "3.00", "currencyCode": "CAD" }, "note": "HAR-310 debit" }
+        }),
+    ));
+    assert_eq!(
+        lifecycle.body["data"],
+        json!({
+            "update": {
+                "giftCard": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26", "balance": { "amount": "5.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "credit": {
+                "giftCardCreditTransaction": { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "7.0", "currencyCode": "CAD" } } },
+                "userErrors": []
+            },
+            "debit": {
+                "giftCardDebitTransaction": { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "4.0", "currencyCode": "CAD" } } },
+                "userErrors": []
+            },
+            "deactivate": {
+                "giftCard": { "enabled": false, "balance": { "amount": "4.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            }
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {
+          giftCard(id: $id) { note templateSuffix expiresOn enabled balance { amount currencyCode } transactions(first: 5) { nodes { note amount { amount currencyCode } } pageInfo { hasNextPage hasPreviousPage } } }
+          giftCards(first: 2, query: $query, sortKey: ID) { nodes { id lastCharacters enabled } pageInfo { hasNextPage hasPreviousPage } }
+          giftCardsCount(query: $query) { count precision }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/654773256498",
+            "query": "id:654773256498"
+        }),
+    ));
+    let expected_card = json!({
+        "note": "HAR-310 conformance gift card updated",
+        "templateSuffix": "birthday",
+        "expiresOn": "2028-04-26",
+        "enabled": false,
+        "balance": { "amount": "4.0", "currencyCode": "CAD" },
+        "transactions": {
+            "nodes": [
+                { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+                { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" } }
+            ],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        }
+    });
+    assert_eq!(downstream.body["data"]["giftCard"], expected_card);
+    assert_eq!(
+        downstream.body["data"]["giftCards"],
+        json!({ "nodes": [{ "id": "gid://shopify/GiftCard/654773256498", "lastCharacters": "2053", "enabled": false }], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } })
+    );
+    assert_eq!(
+        downstream.body["data"]["giftCardsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"query GiftCardNodeReadAfterLifecycle($id: ID!) {
+          node(id: $id) { ... on GiftCard { note templateSuffix expiresOn enabled balance { amount currencyCode } transactions(first: 5) { nodes { note amount { amount currencyCode } } pageInfo { hasNextPage hasPreviousPage } } } }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/654773256498" }),
+    ));
+    assert_eq!(node.body["data"]["node"], expected_card);
+}
+
+#[test]
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
     let mut proxy = snapshot_proxy();
 
