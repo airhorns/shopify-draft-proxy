@@ -807,6 +807,121 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
 }
 
 #[test]
+fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              name
+              status
+              test
+              trialDays
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing {
+                      cappedAmount { amount currencyCode }
+                      balanceUsed { amount currencyCode }
+                      interval
+                      terms
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"],
+        json!({
+            "id": "gid://shopify/AppSubscription/expected",
+            "name": "Local plan",
+            "status": "ACTIVE",
+            "test": true,
+            "trialDays": 7,
+            "lineItems": [{
+                "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                "plan": { "pricingDetails": {
+                    "__typename": "AppUsagePricing",
+                    "cappedAmount": { "amount": "100", "currencyCode": "USD" },
+                    "balanceUsed": { "amount": "0.0", "currencyCode": "USD" },
+                    "interval": "EVERY_30_DAYS",
+                    "terms": "usage terms"
+                }}
+            }]
+        })
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": { "id": "gid://shopify/AppSubscription/expected", "status": "CANCELLED", "trialDays": 7 },
+            "userErrors": []
+        })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "Cannot transition status via :cancel from :cancelled" }]
+        })
+    );
+}
+
+#[test]
 fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
     let mut proxy = snapshot_proxy();
 

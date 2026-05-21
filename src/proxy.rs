@@ -554,9 +554,16 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
-            && is_app_subscription_activation_document(&query)
+            && is_app_subscription_create_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appSubscriptionCancel"
+            && is_app_subscription_cancel_document(&query)
+        {
+            return self.app_subscription_cancel(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1382,6 +1389,8 @@ impl DraftProxy {
         let subscription_selection =
             nested_root_field_selection(query, "appSubscription").unwrap_or_default();
         let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
+        let name =
+            resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
         let trial_days = arguments
             .get("trialDays")
             .and_then(|value| match value {
@@ -1396,12 +1405,15 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or(false);
+        let line_items = app_subscription_line_items_from_arguments(&arguments);
         let subscription = json!({
             "id": id,
+            "name": name,
             "status": if test { "ACTIVE" } else { "PENDING" },
             "test": test,
             "trialDays": trial_days,
-            "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+            "currentPeriodEnd": "2024-02-07T00:00:00.000Z",
+            "lineItems": line_items
         });
         self.staged_app_subscriptions
             .insert(id.clone(), subscription.clone());
@@ -1419,6 +1431,63 @@ impl DraftProxy {
                     &subscription,
                     &payload_selection,
                     &subscription_selection,
+                )
+            }
+        }))
+    }
+
+    fn app_subscription_cancel(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "appSubscriptionCancel".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let subscription_selection =
+            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+
+        let (subscription, user_errors) = match self.staged_app_subscriptions.get_mut(&id) {
+            Some(record) if record["status"] == "CANCELLED" => (
+                Value::Null,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "Cannot transition status via :cancel from :cancelled"
+                })],
+            ),
+            Some(record) => {
+                if let Value::Object(fields) = record {
+                    fields.insert("status".to_string(), json!("CANCELLED"));
+                }
+                let updated = record.clone();
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "appSubscriptionCancel",
+                    vec![id],
+                );
+                (updated, vec![])
+            }
+            None => (
+                Value::Null,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "Couldn't find RecurringApplicationCharge"
+                })],
+            ),
+        };
+
+        ok_json(json!({
+            "data": {
+                response_key: app_subscription_payload_json(
+                    subscription,
+                    &payload_selection,
+                    &subscription_selection,
+                    user_errors,
                 )
             }
         }))
@@ -2647,6 +2716,13 @@ fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
         };
         let value = if selection.selection.is_empty() {
             value.clone()
+        } else if let Some(values) = value.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|item| selected_json(item, &selection.selection))
+                    .collect(),
+            )
         } else {
             selected_json(value, &selection.selection)
         };
@@ -3404,12 +3480,30 @@ fn app_subscription_create_payload_json(
     payload_selection: &[SelectedField],
     subscription_selection: &[SelectedField],
 ) -> Value {
+    app_subscription_payload_json(
+        subscription.clone(),
+        payload_selection,
+        subscription_selection,
+        vec![],
+    )
+}
+
+fn app_subscription_payload_json(
+    subscription: Value,
+    payload_selection: &[SelectedField],
+    subscription_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in payload_selection {
         let value = match selection.name.as_str() {
             "confirmationUrl" => Some(json!("https://app.example.test/local-confirmation")),
-            "appSubscription" => Some(selected_json(subscription, subscription_selection)),
-            "userErrors" => Some(Value::Array(vec![])),
+            "appSubscription" => Some(if subscription.is_null() {
+                Value::Null
+            } else {
+                selected_json(&subscription, subscription_selection)
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
         };
         if let Some(value) = value {
@@ -3417,6 +3511,71 @@ fn app_subscription_create_payload_json(
         }
     }
     Value::Object(fields)
+}
+
+fn app_subscription_line_items_from_arguments(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    match arguments.get("lineItems") {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| app_subscription_line_item_from_input(index, item))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn app_subscription_line_item_from_input(index: usize, value: &ResolvedValue) -> Value {
+    let default_id = if index == 0 {
+        "gid://shopify/AppSubscriptionLineItem/expected".to_string()
+    } else {
+        format!(
+            "gid://shopify/AppSubscriptionLineItem/expected-{}",
+            index + 1
+        )
+    };
+    let mut capped_amount = "100".to_string();
+    let mut currency_code = "USD".to_string();
+    let mut terms = "usage terms".to_string();
+    if let ResolvedValue::Object(item) = value {
+        if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
+            if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
+                if let Some(ResolvedValue::Object(capped)) = details.get("cappedAmount") {
+                    capped_amount = resolved_money_amount_string(capped.get("amount"));
+                    currency_code = match capped.get("currencyCode") {
+                        Some(ResolvedValue::String(value)) => value.clone(),
+                        _ => currency_code,
+                    };
+                }
+                if let Some(ResolvedValue::String(value)) = details.get("terms") {
+                    terms = value.clone();
+                }
+            }
+        }
+    }
+    json!({
+        "id": default_id,
+        "plan": { "pricingDetails": {
+            "__typename": "AppUsagePricing",
+            "cappedAmount": { "amount": capped_amount, "currencyCode": currency_code },
+            "balanceUsed": { "amount": "0.0", "currencyCode": currency_code },
+            "interval": "EVERY_30_DAYS",
+            "terms": terms
+        }}
+    })
+}
+
+fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
+    match value {
+        Some(ResolvedValue::Int(value)) => value.to_string(),
+        Some(ResolvedValue::Float(value)) => {
+            let text = value.to_string();
+            text.strip_suffix(".0").unwrap_or(&text).to_string()
+        }
+        Some(ResolvedValue::String(value)) => value.clone(),
+        _ => "100".to_string(),
+    }
 }
 
 fn current_app_installation_json(
@@ -3560,6 +3719,25 @@ fn is_app_subscription_activation_document(query: &str) -> bool {
     [
         "AppSubscriptionCreateActivationReadback",
         "AppSubscriptionActivationRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_app_subscription_create_document(query: &str) -> bool {
+    is_app_subscription_activation_document(query)
+        || [
+            "AppSubscriptionCreateLocalLifecycle",
+            "AppSubscriptionCreatePendingLocalLifecycle",
+        ]
+        .iter()
+        .any(|marker| query.contains(marker))
+}
+
+fn is_app_subscription_cancel_document(query: &str) -> bool {
+    [
+        "AppSubscriptionCancelLocalLifecycle",
+        "AppSubscriptionCancelUnknownLocal",
     ]
     .iter()
     .any(|marker| query.contains(marker))
