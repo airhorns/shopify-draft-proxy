@@ -321,6 +321,124 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationBlankName {
+          create: appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["create"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank", "code": null }]
+        })
+    );
+
+    let zero_price = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationZeroPrice {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        zero_price.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["price"], "message": "Price must be at least 0.50 USD.", "code": "PRICE_TOO_LOW" }]
+        })
+    );
+
+    let currency_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationCurrencyMismatch {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        currency_mismatch.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["price"], "message": "Price currency must match shop billing currency USD.", "code": null }]
+        })
+    );
+
+    let missing_return_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl {
+          appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_return_url.body["errors"][0]["extensions"],
+        json!({
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "appPurchaseOneTimeCreate",
+            "arguments": "returnUrl"
+        })
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationSuccess {
+          appPurchaseOneTimeCreate(name: "HAR-646 valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "HAR-646 valid test",
+                "status": "ACTIVE",
+                "test": true,
+                "createdAt": "2024-01-01T00:00:00.000Z",
+                "price": { "amount": "5.00", "currencyCode": "USD" }
+            },
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
     let mut proxy = snapshot_proxy();
 

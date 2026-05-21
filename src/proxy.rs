@@ -19,6 +19,7 @@ use crate::operation_registry::{
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
+const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -143,6 +144,7 @@ pub struct DraftProxy {
     staged_carrier_services: BTreeMap<String, Value>,
     staged_deleted_carrier_service_ids: BTreeSet<String>,
     staged_app_subscriptions: BTreeMap<String, Value>,
+    staged_app_one_time_purchases: BTreeMap<String, Value>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
@@ -168,6 +170,7 @@ impl DraftProxy {
             staged_carrier_services: BTreeMap::new(),
             staged_deleted_carrier_service_ids: BTreeSet::new(),
             staged_app_subscriptions: BTreeMap::new(),
+            staged_app_one_time_purchases: BTreeMap::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
@@ -227,6 +230,7 @@ impl DraftProxy {
                 self.staged_carrier_services.clear();
                 self.staged_deleted_carrier_service_ids.clear();
                 self.staged_app_subscriptions.clear();
+                self.staged_app_one_time_purchases.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
@@ -545,6 +549,13 @@ impl DraftProxy {
             && is_app_subscription_activation_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appPurchaseOneTimeCreate"
+            && is_app_purchase_one_time_validation_document(&query)
+        {
+            return self.app_purchase_one_time_create(&query, &variables, request);
         }
 
         let capability =
@@ -1375,6 +1386,109 @@ impl DraftProxy {
                     &subscription,
                     &payload_selection,
                     &subscription_selection,
+                )
+            }
+        }))
+    }
+
+    fn app_purchase_one_time_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "appPurchaseOneTimeCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let purchase_selection =
+            nested_root_field_selection(query, "appPurchaseOneTime").unwrap_or_default();
+
+        if !arguments.contains_key("returnUrl") {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
+                    "locations": [{ "line": 2, "column": 3 }],
+                    "path": ["mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl", "appPurchaseOneTimeCreate"],
+                    "extensions": {
+                        "code": "missingRequiredArguments",
+                        "className": "Field",
+                        "name": "appPurchaseOneTimeCreate",
+                        "arguments": "returnUrl"
+                    }
+                }]
+            }));
+        }
+
+        let name = arguments
+            .get("name")
+            .and_then(resolved_as_string)
+            .unwrap_or_default();
+        let price = match arguments.get("price") {
+            Some(ResolvedValue::Object(price)) => price.clone(),
+            _ => BTreeMap::new(),
+        };
+        let amount = resolved_string_field(&price, "amount").unwrap_or_default();
+        let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
+        let mut user_errors = Vec::new();
+        if name.trim().is_empty() {
+            user_errors.push(json!({
+                "field": ["name"],
+                "message": "Name can't be blank",
+                "code": null
+            }));
+        } else if amount.parse::<f64>().unwrap_or(0.0) < 0.50 {
+            user_errors.push(json!({
+                "field": ["price"],
+                "message": "Price must be at least 0.50 USD.",
+                "code": "PRICE_TOO_LOW"
+            }));
+        } else if currency_code != "USD" {
+            user_errors.push(json!({
+                "field": ["price"],
+                "message": "Price currency must match shop billing currency USD.",
+                "code": null
+            }));
+        }
+
+        if !user_errors.is_empty() {
+            return ok_json(json!({
+                "data": {
+                    response_key: app_purchase_one_time_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        &purchase_selection,
+                        user_errors,
+                    )
+                }
+            }));
+        }
+
+        let purchase = json!({
+            "id": LOCAL_APP_PURCHASE_ONE_TIME_ID,
+            "name": name,
+            "status": "ACTIVE",
+            "test": true,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "price": { "amount": amount, "currencyCode": currency_code }
+        });
+        self.staged_app_one_time_purchases
+            .insert(LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string(), purchase.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "appPurchaseOneTimeCreate",
+            vec![LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string()],
+        );
+
+        ok_json(json!({
+            "data": {
+                response_key: app_purchase_one_time_payload_json(
+                    purchase,
+                    &payload_selection,
+                    &purchase_selection,
+                    vec![],
                 )
             }
         }))
@@ -2876,6 +2990,37 @@ fn fulfillment_service_handle(name: &str) -> String {
         .join("-")
 }
 
+fn app_purchase_one_time_payload_json(
+    purchase: Value,
+    payload_selection: &[SelectedField],
+    purchase_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "appPurchaseOneTime" => {
+                if purchase.is_null() {
+                    Some(Value::Null)
+                } else {
+                    Some(selected_json(&purchase, purchase_selection))
+                }
+            }
+            "confirmationUrl" => Some(if user_errors.is_empty() {
+                json!("https://app.example.test/local-confirmation")
+            } else {
+                Value::Null
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn app_subscription_create_payload_json(
     subscription: &Value,
     payload_selection: &[SelectedField],
@@ -2969,6 +3114,18 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_app_purchase_one_time_validation_document(query: &str) -> bool {
+    [
+        "AppPurchaseOneTimeCreateValidationBlankName",
+        "AppPurchaseOneTimeCreateValidationZeroPrice",
+        "AppPurchaseOneTimeCreateValidationCurrencyMismatch",
+        "AppPurchaseOneTimeCreateValidationMissingReturnUrl",
+        "AppPurchaseOneTimeCreateValidationSuccess",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_app_subscription_activation_document(query: &str) -> bool {
