@@ -6010,3 +6010,113 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
         json!("cart-app-key")
     );
 }
+
+#[test]
+fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
+    let mut proxy = snapshot_proxy();
+
+    let code_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Basic disallowed quantity code SETUP 1778038410003",
+            "code": "BASICQTYSETUP1778038410003",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerSelection": { "all": true },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        code_setup.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640501739826")
+    );
+    assert_eq!(
+        code_setup.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let automatic_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityAutomaticCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Basic disallowed quantity automatic SETUP 1778038410003",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        automatic_setup.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1640501772594")
+    );
+    assert_eq!(
+        automatic_setup.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_value = json!({
+        "title": "Basic disallowed quantity CREATE 1778038410003",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerGets": {
+            "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } },
+            "items": { "all": true }
+        }
+    });
+
+    let code_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": invalid_value.clone() }),
+    ));
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["field"],
+        json!([
+            "basicCodeDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity"
+        ])
+    );
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
+    let automatic_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityAutomaticUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640501772594", "input": invalid_value }),
+    ));
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"][0]["field"],
+        json!([
+            "automaticBasicDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity"
+        ])
+    );
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"][0]["message"],
+        json!("discountOnQuantity field is only permitted with bxgy discounts.")
+    );
+}

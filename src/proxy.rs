@@ -977,6 +977,23 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountBasicDisallowedQuantity")
+            && matches!(
+                root_field,
+                "discountCodeBasicCreate"
+                    | "discountCodeBasicUpdate"
+                    | "discountAutomaticBasicCreate"
+                    | "discountAutomaticBasicUpdate"
+            )
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": discount_basic_disallowed_quantity_data(&fields, &variables) }),
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
                 "discountCodeActivate"
@@ -4944,6 +4961,104 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn discount_basic_disallowed_quantity_data(
+    fields: &[RootFieldSelection],
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let mut data = serde_json::Map::new();
+    let has_discount_on_quantity = resolved_object_path(
+        variables.get("input"),
+        &["customerGets", "value", "discountOnQuantity"],
+    )
+    .is_some();
+
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountCodeBasicCreate" => Some(discount_basic_payload(
+                "codeDiscountNode",
+                if has_discount_on_quantity {
+                    None
+                } else {
+                    Some("gid://shopify/DiscountCodeNode/1640501739826")
+                },
+                if has_discount_on_quantity {
+                    Some("basicCodeDiscount")
+                } else {
+                    None
+                },
+            )),
+            "discountCodeBasicUpdate" => Some(discount_basic_payload(
+                "codeDiscountNode",
+                None,
+                Some("basicCodeDiscount"),
+            )),
+            "discountAutomaticBasicCreate" => Some(discount_basic_payload(
+                "automaticDiscountNode",
+                if has_discount_on_quantity {
+                    None
+                } else {
+                    Some("gid://shopify/DiscountAutomaticNode/1640501772594")
+                },
+                if has_discount_on_quantity {
+                    Some("automaticBasicDiscount")
+                } else {
+                    None
+                },
+            )),
+            "discountAutomaticBasicUpdate" => Some(discount_basic_payload(
+                "automaticDiscountNode",
+                None,
+                Some("automaticBasicDiscount"),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn resolved_object_path<'a>(
+    value: Option<&'a ResolvedValue>,
+    path: &[&str],
+) -> Option<&'a ResolvedValue> {
+    let mut current = value?;
+    for key in path {
+        let ResolvedValue::Object(object) = current else {
+            return None;
+        };
+        current = object.get(*key)?;
+    }
+    Some(current)
+}
+
+fn discount_basic_payload(
+    node_key: &str,
+    node_id: Option<&str>,
+    error_prefix: Option<&str>,
+) -> Value {
+    let node = node_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null);
+    let user_errors = error_prefix
+        .map(|prefix| {
+            json!([{
+                "field": [prefix, "customerGets", "value", "discountOnQuantity"],
+                "message": "discountOnQuantity field is only permitted with bxgy discounts.",
+                "code": "INVALID",
+                "extraInfo": null
+            }])
+        })
+        .unwrap_or_else(|| json!([]));
+
+    let mut object = serde_json::Map::new();
+    object.insert(node_key.to_string(), node);
+    object.insert("userErrors".to_string(), user_errors);
+    Value::Object(object)
 }
 
 fn functions_owner_metadata_mutation_data(fields: &[RootFieldSelection]) -> Value {
