@@ -567,6 +567,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && root_field == "appSubscriptionTrialExtend"
+            && is_app_subscription_trial_extend_document(&query)
+        {
+            return self.app_subscription_trial_extend(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
             && is_app_purchase_one_time_validation_document(&query)
         {
@@ -1479,6 +1486,87 @@ impl DraftProxy {
                     "message": "Couldn't find RecurringApplicationCharge"
                 })],
             ),
+        };
+
+        ok_json(json!({
+            "data": {
+                response_key: app_subscription_payload_json(
+                    subscription,
+                    &payload_selection,
+                    &subscription_selection,
+                    user_errors,
+                )
+            }
+        }))
+    }
+
+    fn app_subscription_trial_extend(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "appSubscriptionTrialExtend".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let subscription_selection =
+            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let days = resolved_int_field(&arguments, "days").unwrap_or(0);
+
+        let (subscription, user_errors) = if days <= 0 {
+            (
+                Value::Null,
+                vec![json!({
+                    "field": ["days"],
+                    "message": "Days must be greater than 0",
+                    "code": null
+                })],
+            )
+        } else if days > 1000 {
+            (
+                Value::Null,
+                vec![json!({
+                    "field": ["days"],
+                    "message": "Days must be less than or equal to 1000",
+                    "code": null
+                })],
+            )
+        } else {
+            match self.staged_app_subscriptions.get_mut(&id) {
+                None => (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "The app subscription wasn't found.",
+                        "code": "SUBSCRIPTION_NOT_FOUND"
+                    })],
+                ),
+                Some(record) if record["status"] != "ACTIVE" => (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "The trial can't be extended on inactive app subscriptions.",
+                        "code": "SUBSCRIPTION_NOT_ACTIVE"
+                    })],
+                ),
+                Some(record) => {
+                    let current = record["trialDays"].as_i64().unwrap_or(0);
+                    if let Value::Object(fields) = record {
+                        fields.insert("trialDays".to_string(), json!(current + days));
+                    }
+                    let updated = record.clone();
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        "appSubscriptionTrialExtend",
+                        vec![id],
+                    );
+                    (updated, vec![])
+                }
+            }
         };
 
         ok_json(json!({
@@ -3743,6 +3831,15 @@ fn is_app_subscription_cancel_document(query: &str) -> bool {
     .any(|marker| query.contains(marker))
 }
 
+fn is_app_subscription_trial_extend_document(query: &str) -> bool {
+    [
+        "AppSubscriptionTrialExtendValidation",
+        "AppSubscriptionTrialExtendLocalLifecycle",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
 fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
     [
         "CreateFs",
@@ -3915,6 +4012,13 @@ fn resolved_object_field(
 fn resolved_bool_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<bool> {
     match input.get(field) {
         Some(ResolvedValue::Bool(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+fn resolved_int_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<i64> {
+    match input.get(field) {
+        Some(ResolvedValue::Int(value)) => Some(*value),
         _ => None,
     }
 }

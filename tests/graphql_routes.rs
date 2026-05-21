@@ -922,6 +922,106 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
 }
 
 #[test]
+fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreatePendingLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: false
+            lineItems: $lineItems
+          ) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "PENDING",
+                "trialDays": 7
+            },
+            "userErrors": []
+        })
+    );
+
+    let trial_extend_query = r#"
+        mutation AppSubscriptionTrialExtendValidation($id: ID!, $days: Int!) {
+          appSubscriptionTrialExtend(id: $id, days: $days) {
+            appSubscription { id trialDays }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let days_zero = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 0 }),
+    ));
+    assert_eq!(
+        days_zero.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["days"], "message": "Days must be greater than 0", "code": null }]
+        })
+    );
+
+    let days_too_large = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 1001 }),
+    ));
+    assert_eq!(
+        days_too_large.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["days"], "message": "Days must be less than or equal to 1000", "code": null }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/unknown", "days": 5 }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The app subscription wasn't found.", "code": "SUBSCRIPTION_NOT_FOUND" }]
+        })
+    );
+
+    let pending = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 5 }),
+    ));
+    assert_eq!(
+        pending.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended on inactive app subscriptions.", "code": "SUBSCRIPTION_NOT_ACTIVE" }]
+        })
+    );
+}
+
+#[test]
 fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
     let mut proxy = snapshot_proxy();
 
