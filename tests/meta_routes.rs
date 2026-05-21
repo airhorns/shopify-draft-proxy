@@ -99,6 +99,9 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create_query =
@@ -164,6 +167,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         vendor: "Base vendor".to_string(),
         product_type: "Base type".to_string(),
         tags: vec!["base".to_string()],
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create_product = proxy.process_request(graphql_request(
@@ -196,7 +202,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "descriptionHtml": "<p>Base</p>",
                         "vendor": "Base vendor",
                         "productType": "Base type",
-                        "tags": ["base"]
+                        "tags": ["base"],
+                        "templateSuffix": "",
+                        "seo": { "title": "", "description": "" }
                     }
                 },
                 "savedSearches": {}
@@ -211,7 +219,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "descriptionHtml": "",
                         "vendor": "",
                         "productType": "",
-                        "tags": ["new"]
+                        "tags": ["new"],
+                        "templateSuffix": "",
+                        "seo": { "title": "", "description": "" }
                     }
                 },
                 "deletedProductIds": ["gid://shopify/Product/base"],
@@ -239,6 +249,9 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
     let create_product_query =
         "mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } } }";
@@ -345,6 +358,9 @@ fn meta_reset_clears_log_and_staged_product_overlay() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let update = proxy.process_request(graphql_request(
@@ -381,6 +397,9 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         }])
         .with_commit_transport(move |request| {
             replayed_for_transport.lock().unwrap().push(request);

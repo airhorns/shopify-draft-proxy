@@ -102,6 +102,9 @@ pub struct ProductRecord {
     pub vendor: String,
     pub product_type: String,
     pub tags: Vec<String>,
+    pub template_suffix: String,
+    pub seo_title: String,
+    pub seo_description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -392,7 +395,7 @@ impl DraftProxy {
                 if matches!(
                     root_field,
                     "product" | "products" | "productsCount" | "productByIdentifier"
-                ) && self.config.read_mode == ReadMode::Snapshot =>
+                ) =>
             {
                 ok_json(json!({
                     "data": self.product_overlay_read_fields(&query, &variables)
@@ -780,6 +783,10 @@ impl DraftProxy {
             vendor: resolved_string_field(&input, "vendor").unwrap_or_default(),
             product_type: resolved_string_field(&input, "productType").unwrap_or_default(),
             tags: resolved_string_list_field(&input, "tags"),
+            template_suffix: resolved_string_field(&input, "templateSuffix").unwrap_or_default(),
+            seo_title: resolved_object_string_field(&input, "seo", "title").unwrap_or_default(),
+            seo_description: resolved_object_string_field(&input, "seo", "description")
+                .unwrap_or_default(),
         };
         self.staged_products.insert(id.clone(), product.clone());
         self.record_mutation_log_entry(request, query, variables, "productCreate", vec![id]);
@@ -842,6 +849,12 @@ impl DraftProxy {
             } else {
                 existing.tags
             },
+            template_suffix: resolved_string_field(&input, "templateSuffix")
+                .unwrap_or(existing.template_suffix),
+            seo_title: resolved_object_string_field(&input, "seo", "title")
+                .unwrap_or(existing.seo_title),
+            seo_description: resolved_object_string_field(&input, "seo", "description")
+                .unwrap_or(existing.seo_description),
         };
         self.staged_products.insert(id.clone(), product.clone());
         self.record_mutation_log_entry(request, query, variables, "productUpdate", vec![id]);
@@ -1102,6 +1115,23 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "vendor" => Some(json!(product.vendor)),
             "productType" => Some(json!(product.product_type)),
             "tags" => Some(json!(product.tags)),
+            "templateSuffix" => Some(json!(product.template_suffix)),
+            "seo" => Some(product_seo_json(product, &selection.selection)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn product_seo_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "title" => Some(json!(product.seo_title)),
+            "description" => Some(json!(product.seo_description)),
             _ => None,
         };
         if let Some(value) = value {
@@ -1159,6 +1189,23 @@ fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
             .flatten()
             .filter_map(|tag| tag.as_str().map(str::to_string))
             .collect(),
+        template_suffix: value
+            .get("templateSuffix")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        seo_title: value
+            .get("seo")
+            .and_then(|seo| seo.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        seo_description: value
+            .get("seo")
+            .and_then(|seo| seo.get("description"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     })
 }
 
@@ -1171,7 +1218,12 @@ fn product_state_json(product: &ProductRecord) -> Value {
         "descriptionHtml": product.description_html,
         "vendor": product.vendor,
         "productType": product.product_type,
-        "tags": product.tags
+        "tags": product.tags,
+        "templateSuffix": product.template_suffix,
+        "seo": {
+            "title": product.seo_title,
+            "description": product.seo_description
+        }
     })
 }
 
@@ -1636,7 +1688,7 @@ fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -
 }
 
 fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Vec<String> {
-    match input.get(field) {
+    let mut values = match input.get(field) {
         Some(ResolvedValue::List(values)) => values
             .iter()
             .filter_map(|value| match value {
@@ -1645,6 +1697,22 @@ fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &s
             })
             .collect(),
         _ => Vec::new(),
+    };
+    values.sort();
+    values
+}
+
+fn resolved_object_string_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    object_field: &str,
+    nested_field: &str,
+) -> Option<String> {
+    match input.get(object_field) {
+        Some(ResolvedValue::Object(fields)) => match fields.get(nested_field) {
+            Some(ResolvedValue::String(value)) => Some(value.clone()),
+            _ => None,
+        },
+        _ => None,
     }
 }
 

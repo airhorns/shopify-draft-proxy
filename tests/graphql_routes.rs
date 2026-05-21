@@ -35,6 +35,13 @@ fn graphql_request(method: &str, body: &str) -> Request {
     }
 }
 
+fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+    graphql_request(
+        "POST",
+        &json!({ "query": query, "variables": variables }).to_string(),
+    )
+}
+
 fn registry_entry(
     name: &str,
     operation_type: OperationType,
@@ -51,6 +58,92 @@ fn registry_entry(
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         support_notes: None,
     }
+}
+
+#[test]
+fn product_create_preserves_parity_fields_and_downstream_read() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation ProductCreateParityPlan($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              handle
+              status
+              vendor
+              productType
+              tags
+              descriptionHtml
+              templateSuffix
+              seo { title description }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "product": {
+            "title": "Hermes Product Conformance 1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["conformance", "product-mutation", "1776299742511"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+                "title": "Hermes Product 1776299742511",
+                "description": "Hermes product mutation conformance 1776299742511"
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(create_query, variables));
+    let id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"],
+        json!({
+            "id": id,
+            "title": "Hermes Product Conformance 1776299742511",
+            "handle": "hermes-product-conformance-1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["1776299742511", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+                "title": "Hermes Product 1776299742511",
+                "description": "Hermes product mutation conformance 1776299742511"
+            }
+        })
+    );
+
+    let read_query = r#"
+        query ProductCreateDownstreamRead($id: ID!) {
+          product(id: $id) {
+            id
+            title
+            handle
+            status
+            vendor
+            productType
+            tags
+            descriptionHtml
+            templateSuffix
+            seo { title description }
+          }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    assert_eq!(
+        read.body["data"]["product"],
+        create.body["data"]["productCreate"]["product"]
+    );
 }
 
 #[test]
@@ -292,6 +385,9 @@ fn product_read_serializes_seeded_base_product_by_id() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -326,6 +422,9 @@ fn product_read_serializes_only_requested_scalar_fields() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -357,6 +456,9 @@ fn product_read_preserves_root_alias() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -462,6 +564,9 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
         vendor: "Original vendor".to_string(),
         product_type: "Original type".to_string(),
         tags: vec!["old".to_string()],
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let update = proxy.process_request(graphql_request(
@@ -526,6 +631,9 @@ fn products_connection_reflects_staged_creates_and_deletes() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -602,6 +710,9 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -612,6 +723,9 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
     ]);
 
@@ -650,6 +764,9 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -660,6 +777,9 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
     ]);
 
@@ -713,6 +833,9 @@ fn products_count_reflects_staged_creates_and_deletes() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -803,6 +926,9 @@ fn product_by_identifier_preserves_root_alias() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let by_handle = proxy.process_request(graphql_request(
@@ -836,6 +962,9 @@ fn product_by_identifier_supports_multiple_aliases_in_one_query() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -880,6 +1009,9 @@ fn products_and_products_count_preserve_root_aliases() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -890,6 +1022,9 @@ fn products_and_products_count_preserve_root_aliases() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
     ]);
 
@@ -932,6 +1067,9 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -942,6 +1080,9 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             vendor: String::new(),
             product_type: String::new(),
             tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
         },
     ]);
 
@@ -974,6 +1115,9 @@ fn product_mutations_preserve_root_alias_response_keys() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -1235,6 +1379,9 @@ fn product_delete_stages_downstream_no_data_for_product_read() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let delete = proxy.process_request(graphql_request(
@@ -1323,6 +1470,9 @@ fn product_read_resolves_id_from_request_variables() {
         vendor: String::new(),
         product_type: String::new(),
         tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
     }]);
 
     let product = proxy.process_request(graphql_request(
