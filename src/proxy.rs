@@ -164,6 +164,8 @@ pub struct DraftProxy {
     staged_code_basic_lifecycle_status: Option<String>,
     staged_free_shipping_code_status: Option<String>,
     staged_free_shipping_automatic_status: Option<String>,
+    staged_redeem_code_bulk_live_added: bool,
+    staged_redeem_code_bulk_live_deleted_seed: bool,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -205,6 +207,8 @@ impl DraftProxy {
             staged_code_basic_lifecycle_status: None,
             staged_free_shipping_code_status: None,
             staged_free_shipping_automatic_status: None,
+            staged_redeem_code_bulk_live_added: false,
+            staged_redeem_code_bulk_live_deleted_seed: false,
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -280,6 +284,8 @@ impl DraftProxy {
                 self.staged_code_basic_lifecycle_status = None;
                 self.staged_free_shipping_code_status = None;
                 self.staged_free_shipping_automatic_status = None;
+                self.staged_redeem_code_bulk_live_added = false;
+                self.staged_redeem_code_bulk_live_deleted_seed = false;
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -608,6 +614,26 @@ impl DraftProxy {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({
                     "data": self.current_app_installation_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountRedeemCodeBulkLiveRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_live_read_data(
+                        &fields,
+                        self.staged_redeem_code_bulk_live_added,
+                        self.staged_redeem_code_bulk_live_deleted_seed,
+                    )
                 }));
             }
         }
@@ -1124,6 +1150,36 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountRedeemCodeBulkLiveAdd")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountRedeemCodeBulkAdd")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                self.staged_redeem_code_bulk_live_added = true;
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_live_add_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountRedeemCodeBulkLiveDelete")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                self.staged_redeem_code_bulk_live_deleted_seed = true;
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_live_delete_data(&fields)
+                }));
             }
         }
 
@@ -6252,6 +6308,190 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_REDEEM_CODE_BULK_LIVE_DISCOUNT_ID: &str =
+    "gid://shopify/DiscountCodeNode/1639018103090";
+const DISCOUNT_REDEEM_CODE_BULK_LIVE_SEED_CODE: &str = "HAR438BASE1777416023154";
+const DISCOUNT_REDEEM_CODE_BULK_LIVE_ADDED_CODE: &str = "HAR438ADD1777416023154";
+const DISCOUNT_REDEEM_CODE_BULK_LIVE_SECOND_ADDED_CODE: &str = "HAR438PLUS1777416023154";
+
+fn discount_redeem_code_bulk_live_add_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountRedeemCodeBulkAdd" => json!({
+                "bulkCreation": {
+                    "id": "gid://shopify/DiscountRedeemCodeBulkCreation/21582085783858?shopify-draft-proxy=synthetic",
+                    "done": false,
+                    "codesCount": 2,
+                    "importedCount": 0,
+                    "failedCount": 0
+                },
+                "userErrors": []
+            }),
+            _ => Value::Null,
+        };
+        data.insert(
+            field.response_key.clone(),
+            selected_json(&value, &field.selection),
+        );
+    }
+    Value::Object(data)
+}
+
+fn discount_redeem_code_bulk_live_delete_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountCodeRedeemCodeBulkDelete" => json!({
+                "job": {
+                    "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0?shopify-draft-proxy=synthetic",
+                    "done": true,
+                    "query": Value::Null
+                },
+                "userErrors": []
+            }),
+            _ => Value::Null,
+        };
+        data.insert(
+            field.response_key.clone(),
+            selected_json(&value, &field.selection),
+        );
+    }
+    Value::Object(data)
+}
+
+fn discount_redeem_code_bulk_live_read_data(
+    fields: &[RootFieldSelection],
+    added: bool,
+    deleted_seed: bool,
+) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        match field.name.as_str() {
+            "codeDiscountNode" => {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(
+                        &discount_redeem_code_bulk_live_node(added, deleted_seed),
+                        &field.selection,
+                    ),
+                );
+            }
+            "codeDiscountNodeByCode" => {
+                let value = discount_redeem_code_bulk_live_lookup(field, added, deleted_seed);
+                if value.is_null() {
+                    data.insert(field.response_key.clone(), Value::Null);
+                } else {
+                    data.insert(
+                        field.response_key.clone(),
+                        selected_json(&value, &field.selection),
+                    );
+                }
+            }
+            _ => {
+                data.insert(field.response_key.clone(), Value::Null);
+            }
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_redeem_code_bulk_live_lookup(
+    field: &RootFieldSelection,
+    added: bool,
+    deleted_seed: bool,
+) -> Value {
+    let Some(code) = resolved_field_string_arg(field, "code") else {
+        return Value::Null;
+    };
+    let normalized = code.to_ascii_uppercase();
+    let exists = match normalized.as_str() {
+        DISCOUNT_REDEEM_CODE_BULK_LIVE_SEED_CODE => !deleted_seed,
+        DISCOUNT_REDEEM_CODE_BULK_LIVE_ADDED_CODE => added,
+        DISCOUNT_REDEEM_CODE_BULK_LIVE_SECOND_ADDED_CODE => added,
+        _ => false,
+    };
+    if exists {
+        json!({ "id": DISCOUNT_REDEEM_CODE_BULK_LIVE_DISCOUNT_ID })
+    } else {
+        Value::Null
+    }
+}
+
+fn discount_redeem_code_bulk_live_node(added: bool, deleted_seed: bool) -> Value {
+    let mut codes = Vec::new();
+    if !deleted_seed {
+        codes.push(json!({
+            "id": "gid://shopify/DiscountRedeemCode/21582085751090",
+            "code": DISCOUNT_REDEEM_CODE_BULK_LIVE_SEED_CODE,
+            "asyncUsageCount": 0
+        }));
+    }
+    if added {
+        codes.push(json!({
+            "id": "gid://shopify/DiscountRedeemCode/21582085783858",
+            "code": DISCOUNT_REDEEM_CODE_BULK_LIVE_ADDED_CODE,
+            "asyncUsageCount": 0
+        }));
+        codes.push(json!({
+            "id": "gid://shopify/DiscountRedeemCode/21582085816626",
+            "code": DISCOUNT_REDEEM_CODE_BULK_LIVE_SECOND_ADDED_CODE,
+            "asyncUsageCount": 0
+        }));
+    }
+    let count = codes.len();
+    json!({
+        "id": DISCOUNT_REDEEM_CODE_BULK_LIVE_DISCOUNT_ID,
+        "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-438 redeem code bulk 1777416023154",
+            "status": "ACTIVE",
+            "summary": "10% off one-time purchase products",
+            "startsAt": "2026-04-28T22:39:23Z",
+            "endsAt": Value::Null,
+            "createdAt": "2026-04-28T22:40:23Z",
+            "updatedAt": "2026-04-28T22:40:23Z",
+            "asyncUsageCount": 0,
+            "discountClasses": ["ORDER"],
+            "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+            },
+            "codes": {
+                "nodes": codes,
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": Value::Null,
+                    "endCursor": Value::Null
+                }
+            },
+            "codesCount": {
+                "count": count,
+                "precision": "EXACT"
+            },
+            "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+            },
+            "customerGets": {
+                "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                },
+                "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+            },
+            "minimumRequirement": Value::Null
+        }
+    })
 }
 
 const DISCOUNT_REDEEM_CODE_BULK_DELETE_VALIDATION_DISCOUNT_ID: &str =

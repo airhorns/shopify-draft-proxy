@@ -6012,6 +6012,88 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookups() {
+    let mut proxy = snapshot_proxy();
+    let add = r#"mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { done codesCount importedCount failedCount } userErrors { field message code extraInfo } } }"#;
+    let add_response = proxy.process_request(json_graphql_request(
+        add,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
+            "codes": [{ "code": "HAR438ADD1777416023154" }, { "code": "HAR438PLUS1777416023154" }]
+        }),
+    ));
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["failedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let read = r#"query DiscountRedeemCodeBulkLiveRead($id: ID!, $exactAddedCode: String!, $lowerAddedCode: String!, $removedCode: String!) { codeDiscountNode(id: $id) { id codeDiscount { ... on DiscountCodeBasic { codesCount { count precision } } } } exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) { id } lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) { id } removed: codeDiscountNodeByCode(code: $removedCode) { id } }"#;
+    let read_vars = json!({
+        "id": "gid://shopify/DiscountCodeNode/1639018103090",
+        "exactAddedCode": "HAR438ADD1777416023154",
+        "lowerAddedCode": "har438add1777416023154",
+        "removedCode": "HAR438BASE1777416023154"
+    });
+    let after_add = proxy.process_request(json_graphql_request(read, read_vars.clone()));
+    assert_eq!(
+        after_add.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_add.body["data"]["exactAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_add.body["data"]["lowerAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_add.body["data"]["removed"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+
+    let delete = r#"mutation DiscountRedeemCodeBulkLiveDelete($discountId: ID!, $ids: [ID!]!) { discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) { job { done } userErrors { field message code extraInfo } } }"#;
+    let delete_response = proxy.process_request(json_graphql_request(
+        delete,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
+            "ids": ["gid://shopify/DiscountRedeemCode/21582085751090"]
+        }),
+    ));
+    assert_eq!(
+        delete_response.body["data"]["discountCodeRedeemCodeBulkDelete"]["job"]["done"],
+        json!(true)
+    );
+    assert_eq!(
+        delete_response.body["data"]["discountCodeRedeemCodeBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(read, read_vars));
+    assert_eq!(
+        after_delete.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_delete.body["data"]["exactAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_delete.body["data"]["lowerAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(after_delete.body["data"]["removed"], Value::Null);
+}
+
+#[test]
 fn discount_redeem_code_bulk_delete_validation_matches_selector_errors_and_happy_job() {
     let mut proxy = snapshot_proxy();
     let validation = r#"mutation DiscountRedeemCodeBulkDeleteValidation($discountId: ID!, $unknownDiscountId: ID!, $ids: [ID!], $emptyIds: [ID!], $search: String, $blankSearch: String, $savedSearchId: ID!) { missing: discountCodeRedeemCodeBulkDelete(discountId: $discountId) { job { id done } userErrors { field message code extraInfo } } tooMany: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids, search: $search) { job { id done } userErrors { field message code extraInfo } } unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: $unknownDiscountId, ids: $ids) { job { id done } userErrors { field message code extraInfo } } emptyIds: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $emptyIds) { job { id done } userErrors { field message code extraInfo } } blankSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, search: $blankSearch) { job { id done } userErrors { field message code extraInfo } } invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, savedSearchId: $savedSearchId) { job { id done } userErrors { field message code extraInfo } } }"#;
