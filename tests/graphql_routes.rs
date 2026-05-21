@@ -801,6 +801,141 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCustomerSinceCompanyRead($companyId: ID!) {
+          company(id: $companyId) {
+            name
+            customerSince
+          }
+        }
+        "#,
+        json!({ "companyId": "gid://shopify/Company/7681462450" }),
+    ));
+    assert_eq!(
+        company.body["data"]["company"],
+        json!({
+            "name": "HAR-760 customerSince 1778017011251",
+            "customerSince": "2024-01-01T00:00:00Z"
+        })
+    );
+
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactLocationAssignmentsNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on CompanyAddress { id address1 city countryCode }
+            ... on CompanyContactRoleAssignment {
+              id
+              companyContact { id title }
+              role { id name }
+              companyLocation { id name }
+            }
+            ... on CompanyContact { id title }
+            ... on CompanyContactRole { id name }
+            ... on CompanyLocation { id name }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/CompanyAddress/9348383026",
+                "gid://shopify/CompanyContactRoleAssignment/44647547186",
+                "gid://shopify/CompanyContact/10149003570",
+                "gid://shopify/CompanyLocation/8247738674",
+                "gid://shopify/CompanyContactRole/10668638514"
+            ]
+        }),
+    ));
+
+    assert_eq!(
+        nodes.body["data"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/CompanyAddress/9348383026",
+                "address1": "446 Assignment Way",
+                "city": "Toronto",
+                "countryCode": "CA"
+            },
+            {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44647547186",
+                "companyContact": {
+                    "id": "gid://shopify/CompanyContact/10149003570",
+                    "title": "Lead buyer"
+                },
+                "role": {
+                    "id": "gid://shopify/CompanyContactRole/10668638514",
+                    "name": "Location admin"
+                },
+                "companyLocation": {
+                    "id": "gid://shopify/CompanyLocation/8247738674",
+                    "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+                }
+            },
+            {
+                "id": "gid://shopify/CompanyContact/10149003570",
+                "title": "Lead buyer"
+            },
+            {
+                "id": "gid://shopify/CompanyLocation/8247738674",
+                "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+            },
+            {
+                "id": "gid://shopify/CompanyContactRole/10668638514",
+                "name": "Location admin"
+            }
+        ])
+    );
+}
+
+#[test]
+fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/31575376178",
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "price": { "amount": "20.00", "currencyCode": "CAD" }
+                }],
+                "quantityRulesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "increment": 1
+                }],
+                "quantityPriceBreaksToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimumQuantity": 10,
+                    "price": { "amount": "18.00", "currencyCode": "CAD" }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": [{ "id": "gid://shopify/ProductVariant/49875425296690" }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     let mut proxy = snapshot_proxy();
 

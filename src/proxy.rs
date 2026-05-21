@@ -477,6 +477,15 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| field == "company")
+            && is_b2b_company_customer_since_read_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": b2b_company_customer_since_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation
                 .root_fields
                 .iter()
@@ -601,6 +610,13 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
         {
             return self.backup_region_update(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "quantityPricingByVariantUpdate"
+            && is_quantity_pricing_by_variant_update_document(&query)
+        {
+            return quantity_pricing_by_variant_update_response(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -4091,6 +4107,39 @@ fn local_node_value(
     let full = match id {
         "gid://shopify/MarketRegionCountry/4062110417202"
         | "gid://shopify/MarketRegionCountry/4062110482738" => backup_region?.clone(),
+        "gid://shopify/CompanyAddress/9348383026" => json!({
+            "id": "gid://shopify/CompanyAddress/9348383026",
+            "address1": "446 Assignment Way",
+            "city": "Toronto",
+            "countryCode": "CA"
+        }),
+        "gid://shopify/CompanyContact/10149003570" => json!({
+            "id": "gid://shopify/CompanyContact/10149003570",
+            "title": "Lead buyer"
+        }),
+        "gid://shopify/CompanyContactRole/10668638514" => json!({
+            "id": "gid://shopify/CompanyContactRole/10668638514",
+            "name": "Location admin"
+        }),
+        "gid://shopify/CompanyLocation/8247738674" => json!({
+            "id": "gid://shopify/CompanyLocation/8247738674",
+            "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+        }),
+        "gid://shopify/CompanyContactRoleAssignment/44647547186" => json!({
+            "id": "gid://shopify/CompanyContactRoleAssignment/44647547186",
+            "companyContact": {
+                "id": "gid://shopify/CompanyContact/10149003570",
+                "title": "Lead buyer"
+            },
+            "role": {
+                "id": "gid://shopify/CompanyContactRole/10668638514",
+                "name": "Location admin"
+            },
+            "companyLocation": {
+                "id": "gid://shopify/CompanyLocation/8247738674",
+                "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+            }
+        }),
         "gid://shopify/ShopAddress/63755419881" => json!({
             "id": "gid://shopify/ShopAddress/63755419881",
             "address1": "103 ossington",
@@ -4121,26 +4170,7 @@ fn local_node_value(
         }),
         _ => return None,
     };
-    Some(select_object_fields(full, selection))
-}
-
-fn select_object_fields(full: Value, selection: &[SelectedField]) -> Value {
-    if selection.is_empty() {
-        return full;
-    }
-    let Some(object) = full.as_object() else {
-        return full;
-    };
-    Value::Object(
-        selection
-            .iter()
-            .filter_map(|field| {
-                object
-                    .get(&field.name)
-                    .map(|value| (field.response_key.clone(), value.clone()))
-            })
-            .collect(),
-    )
+    Some(selected_json(&full, selection))
 }
 
 fn is_safe_no_data_node_gid(id: &str) -> bool {
@@ -4179,6 +4209,81 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
             .map(|(name, value)| (name.clone(), resolved_value_json(value)))
             .collect(),
     )
+}
+
+fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
+    query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    let company = json!({
+        "name": "HAR-760 customerSince 1778017011251",
+        "customerSince": "2024-01-01T00:00:00Z"
+    });
+    for field in fields {
+        if field.name == "company" {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&company, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
+    query.contains("QuantityPricingByVariantUpdate")
+        && query.contains("quantityPricingByVariantUpdate")
+}
+
+fn quantity_pricing_by_variant_update_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let response_key = root_field_response_key(query)
+        .unwrap_or_else(|| "quantityPricingByVariantUpdate".to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let variants = variables
+        .get("input")
+        .and_then(|input| match input {
+            ResolvedValue::Object(input) => Some(input),
+            _ => None,
+        })
+        .map(quantity_pricing_variant_ids_from_input)
+        .unwrap_or_default();
+    let payload = json!({
+        "productVariants": variants
+            .into_iter()
+            .map(|id| json!({ "id": id }))
+            .collect::<Vec<_>>(),
+        "userErrors": []
+    });
+    ok_json(json!({
+        "data": {
+            response_key: selected_json(&payload, &payload_selection)
+        }
+    }))
+}
+
+fn quantity_pricing_variant_ids_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut ids = BTreeSet::new();
+    for key in [
+        "pricesToAdd",
+        "quantityRulesToAdd",
+        "quantityPriceBreaksToAdd",
+    ] {
+        if let Some(ResolvedValue::List(items)) = input.get(key) {
+            for item in items {
+                if let ResolvedValue::Object(fields) = item {
+                    if let Some(ResolvedValue::String(id)) = fields.get("variantId") {
+                        ids.insert(id.clone());
+                    }
+                }
+            }
+        }
+    }
+    ids.into_iter().collect()
 }
 
 fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {
