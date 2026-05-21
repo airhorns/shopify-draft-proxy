@@ -125,7 +125,8 @@ async function resolveSpecPaths(args: CliArgs): Promise<string[]> {
   if (args.all) return await findAllSpecPaths();
   const specPaths: string[] = [];
   for (const scenarioId of args.scenarioIds) specPaths.push(await findSpecForScenario(scenarioId));
-  for (const specPath of args.specPaths) specPaths.push(path.isAbsolute(specPath) ? specPath : path.resolve(repoRoot, specPath));
+  for (const specPath of args.specPaths)
+    specPaths.push(path.isAbsolute(specPath) ? specPath : path.resolve(repoRoot, specPath));
   return specPaths;
 }
 
@@ -203,7 +204,9 @@ function resolveSpecialVariables(value: unknown, primaryResponse: ProxyResponse 
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
       return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
     }
-    return Object.fromEntries(Object.entries(object).map(([key, entry]) => [key, resolveSpecialVariables(entry, primaryResponse)]));
+    return Object.fromEntries(
+      Object.entries(object).map(([key, entry]) => [key, resolveSpecialVariables(entry, primaryResponse)]),
+    );
   }
   return value;
 }
@@ -217,7 +220,8 @@ async function loadRequest(
   let query: string;
   if (request.documentCapturePath) {
     const document = getPath(capture, request.documentCapturePath);
-    if (typeof document !== 'string') throw new Error(`Spec references missing captured document: ${request.documentCapturePath}`);
+    if (typeof document !== 'string')
+      throw new Error(`Spec references missing captured document: ${request.documentCapturePath}`);
     query = document;
   } else {
     const documentPath = path.resolve(repoRoot, request.documentPath ?? '');
@@ -226,7 +230,8 @@ async function loadRequest(
   }
 
   let variables: Record<string, unknown> = {};
-  if (request.variablesCapturePath) variables = (getPath(capture, request.variablesCapturePath) ?? {}) as Record<string, unknown>;
+  if (request.variablesCapturePath)
+    variables = (getPath(capture, request.variablesCapturePath) ?? {}) as Record<string, unknown>;
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
@@ -273,11 +278,17 @@ async function startCassetteServer(): Promise<CassetteServer> {
     },
     consumed: () => index,
     expected: () => calls.length,
-    close: async () => await new Promise<void>((resolveClose, reject) => server.close((error) => (error ? reject(error) : resolveClose()))),
+    close: async () =>
+      await new Promise<void>((resolveClose, reject) =>
+        server.close((error) => (error ? reject(error) : resolveClose())),
+      ),
   };
 }
 
-async function sendProxyRequest(proxy: DraftProxy, request: { query: string; variables: Record<string, unknown>; headers: Record<string, string> }): Promise<ProxyResponse> {
+async function sendProxyRequest(
+  proxy: DraftProxy,
+  request: { query: string; variables: Record<string, unknown>; headers: Record<string, string> },
+): Promise<ProxyResponse> {
   return await proxy.processRequest({
     method: 'POST',
     path: adminPath,
@@ -305,8 +316,10 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);
   if (gidMatch) return typeof value === 'string' && value.startsWith(`gid://shopify/${gidMatch[1]}/`);
   if (matcher.startsWith('exact-string:')) return value === matcher.slice('exact-string:'.length);
-  if (matcher.startsWith('regex:')) return typeof value === 'string' && new RegExp(matcher.slice('regex:'.length), 'u').test(value);
-  if (matcher.startsWith('shop-policy-url-base:')) return typeof value === 'string' && value.startsWith(matcher.slice('shop-policy-url-base:'.length));
+  if (matcher.startsWith('regex:'))
+    return typeof value === 'string' && new RegExp(matcher.slice('regex:'.length), 'u').test(value);
+  if (matcher.startsWith('shop-policy-url-base:'))
+    return typeof value === 'string' && value.startsWith(matcher.slice('shop-policy-url-base:'.length));
   return false;
 }
 
@@ -317,19 +330,26 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   if (Array.isArray(capture) && Array.isArray(proxy)) {
     const errors: string[] = [];
     const max = Math.max(capture.length, proxy.length);
-    for (let index = 0; index < max; index += 1) errors.push(...diffValues(capture[index], proxy[index], rules, `${basePath}[${index}]`));
+    for (let index = 0; index < max; index += 1)
+      errors.push(...diffValues(capture[index], proxy[index], rules, `${basePath}[${index}]`));
     return errors;
   }
   if (isPlainObject(capture) && isPlainObject(proxy)) {
     const errors: string[] = [];
     const keys = new Set([...Object.keys(capture), ...Object.keys(proxy)]);
-    for (const key of [...keys].sort()) errors.push(...diffValues(capture[key], proxy[key], rules, `${basePath}.${key}`));
+    for (const key of [...keys].sort())
+      errors.push(...diffValues(capture[key], proxy[key], rules, `${basePath}.${key}`));
     return errors;
   }
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
 }
 
-async function runSpec(specPath: string, debug: boolean, proxy: DraftProxy, cassette: CassetteServer): Promise<string[]> {
+async function runSpec(
+  specPath: string,
+  debug: boolean,
+  proxy: DraftProxy,
+  cassette: CassetteServer,
+): Promise<string[]> {
   const relativeSpecPath = path.relative(repoRoot, specPath);
   const spec = await readJsonFile<ParitySpec>(specPath);
   const capturePath = spec.liveCaptureFiles?.[0];
@@ -350,7 +370,10 @@ async function runSpec(specPath: string, debug: boolean, proxy: DraftProxy, cass
         const request = await loadRequest(target.proxyRequest, capture, primaryResponse);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         proxySource = (await sendProxyRequest(proxy, request)).body;
-        if (debug) log(`[parity-debug] ${relativeSpecPath} [${target.name}] proxy response ${JSON.stringify(proxySource).slice(0, 1000)}`);
+        if (debug)
+          log(
+            `[parity-debug] ${relativeSpecPath} [${target.name}] proxy response ${JSON.stringify(proxySource).slice(0, 1000)}`,
+          );
       } else if (target.proxyStatePath) {
         proxySource = await proxy.getState();
       } else if (target.proxyLogPath) {
@@ -368,7 +391,9 @@ async function runSpec(specPath: string, debug: boolean, proxy: DraftProxy, cass
       }
     }
     if (cassette.consumed() !== cassette.expected()) {
-      failures.push(`${relativeSpecPath}: consumed ${cassette.consumed()}/${cassette.expected()} upstream cassette calls`);
+      failures.push(
+        `${relativeSpecPath}: consumed ${cassette.consumed()}/${cassette.expected()} upstream cassette calls`,
+      );
     }
   } catch (error) {
     failures.push(`${relativeSpecPath}: ${(error as Error).stack ?? (error as Error).message}`);

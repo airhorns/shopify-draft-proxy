@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
