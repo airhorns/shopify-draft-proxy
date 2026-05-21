@@ -3423,6 +3423,91 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
 }
 
 #[test]
+fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Query grammar update setup segment-query-grammar-local",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    let created_segment = &created.body["data"]["segmentCreate"]["segment"];
+    let segment_id = created_segment["id"].as_str().unwrap().to_string();
+    assert!(segment_id.starts_with("gid://shopify/Segment/"));
+    assert_eq!(
+        created.body["data"]["segmentCreate"],
+        json!({
+            "segment": {
+                "id": segment_id,
+                "name": "Query grammar update setup segment-query-grammar-local",
+                "query": "number_of_orders >= 1",
+                "creationDate": created_segment["creationDate"],
+                "lastEditDate": created_segment["lastEditDate"],
+            },
+            "userErrors": []
+        })
+    );
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentUpdateQueryGrammar($id: ID!, $query: String) {
+          segmentUpdate(id: $id, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": segment_id, "query": "customer_countries CONTAINS 'CA'" }),
+    ));
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["query"],
+        json!("customer_countries CONTAINS 'CA'")
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentNodeRead($id: ID!) {
+          node(id: $id) { ... on Segment { id name query creationDate lastEditDate } }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"]["query"],
+        json!("customer_countries CONTAINS 'CA'")
+    );
+
+    let malformed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Query grammar malformed segment-query-grammar-local",
+            "query": "not a valid segment query ???"
+        }),
+    ));
+    assert_eq!(
+        malformed.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        malformed.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 6: 'valid' is unexpected." },
+            { "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }
+        ])
+    );
+}
+
+#[test]
 fn customer_segment_members_query_create_validates_stages_and_reads_node() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

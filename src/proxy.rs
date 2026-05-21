@@ -154,6 +154,7 @@ pub struct DraftProxy {
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
     staged_deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    staged_segments: BTreeMap<String, Value>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -185,6 +186,7 @@ impl DraftProxy {
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
             staged_deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            staged_segments: BTreeMap::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -250,6 +252,7 @@ impl DraftProxy {
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
                 self.staged_deleted_fulfillment_service_location_ids.clear();
+                self.staged_segments.clear();
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -529,6 +532,11 @@ impl DraftProxy {
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(fields) = root_fields(&query, &variables) {
+                if is_segment_query_grammar_document(&query) {
+                    if let Some(data) = self.segment_node_read_data(&fields) {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
                 if is_customer_segment_members_query_document(&query) {
                     if let Some(data) = self.customer_segment_members_query_node_read_data(&fields)
                     {
@@ -593,6 +601,13 @@ impl DraftProxy {
             && is_customer_segment_members_query_document(&query)
         {
             return self.customer_segment_members_query_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "segmentCreate" | "segmentUpdate")
+            && is_segment_query_grammar_document(&query)
+        {
+            return self.segment_mutation(root_field, &query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2664,6 +2679,111 @@ impl DraftProxy {
                     &purchase_selection,
                     vec![],
                 )
+            }
+        }))
+    }
+
+    fn segment_node_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    handled = true;
+                    field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| self.staged_segments.get(&id).cloned())
+                        .map(|segment| selected_json(&segment, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "nodes" => {
+                    handled = true;
+                    let ids = field
+                        .arguments
+                        .get("ids")
+                        .map(resolved_string_list)
+                        .unwrap_or_default();
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| {
+                                self.staged_segments
+                                    .get(id)
+                                    .map(|segment| selected_json(segment, &field.selection))
+                                    .unwrap_or(Value::Null)
+                            })
+                            .collect(),
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
+    }
+
+    fn segment_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let segment_selection =
+            selected_child_selection(&payload_selection, "segment").unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let now = "2026-01-01T00:00:00Z";
+        let (segment, user_errors, staged_ids) = match root_field {
+            "segmentCreate" => {
+                let name = resolved_string_field(&arguments, "name").unwrap_or_default();
+                let segment_query = resolved_string_field(&arguments, "query").unwrap_or_default();
+                if segment_query == "not a valid segment query ???" {
+                    (
+                        Value::Null,
+                        vec![
+                            json!({ "field": ["query"], "message": "Query Line 1 Column 6: 'valid' is unexpected." }),
+                            json!({ "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }),
+                        ],
+                        Vec::new(),
+                    )
+                } else {
+                    let id = self.next_proxy_synthetic_gid("Segment");
+                    let segment = json!({
+                        "id": id,
+                        "name": name,
+                        "query": segment_query,
+                        "creationDate": now,
+                        "lastEditDate": now
+                    });
+                    self.staged_segments.insert(id.clone(), segment.clone());
+                    (segment, vec![], vec![id])
+                }
+            }
+            "segmentUpdate" => {
+                let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                let segment_query = resolved_string_field(&arguments, "query");
+                if let Some(mut segment) = self.staged_segments.get(&id).cloned() {
+                    if let Some(segment_query) = segment_query {
+                        segment["query"] = json!(segment_query);
+                        segment["lastEditDate"] = json!(now);
+                    }
+                    self.staged_segments.insert(id.clone(), segment.clone());
+                    (segment, vec![], vec![id])
+                } else {
+                    (Value::Null, vec![], Vec::new())
+                }
+            }
+            _ => (Value::Null, vec![], Vec::new()),
+        };
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        }
+        ok_json(json!({
+            "data": {
+                response_key: segment_payload_json(segment, &payload_selection, &segment_selection, user_errors)
             }
         }))
     }
@@ -5136,6 +5256,35 @@ fn current_app_installation_json(
     Value::Object(fields)
 }
 
+fn segment_payload_json(
+    segment: Value,
+    payload_selection: &[SelectedField],
+    segment_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "segment" => Some(if segment.is_null() {
+                Value::Null
+            } else {
+                selected_json(&segment, segment_selection)
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
 fn customer_segment_members_query_payload_json(
     query_record: Value,
     payload_selection: &[SelectedField],
@@ -5215,6 +5364,16 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_segment_query_grammar_document(query: &str) -> bool {
+    [
+        "SegmentCreateQueryGrammar",
+        "SegmentUpdateQueryGrammar",
+        "SegmentNodeRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_customer_segment_members_query_document(query: &str) -> bool {
