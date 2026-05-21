@@ -1010,15 +1010,22 @@ impl DraftProxy {
         else {
             let response_key =
                 root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let error_selection =
+                selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+            let user_error = selected_json(
+                &json!({
+                    "field": ["title"],
+                    "message": "Title can't be blank",
+                    "code": "BLANK"
+                }),
+                &error_selection,
+            );
             return ok_json(json!({
                 "data": {
                     response_key: {
                         "product": null,
-                        "userErrors": [{
-                            "field": ["product", "title"],
-                            "message": "Title can't be blank",
-                            "code": "BLANK"
-                        }]
+                        "userErrors": [user_error]
                     }
                 }
             }));

@@ -2627,6 +2627,49 @@ fn product_read_preserves_root_alias() {
 }
 
 #[test]
+fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let public_shape = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUserErrorShapeProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "" } }),
+    ));
+    assert_eq!(
+        public_shape.body["data"]["productCreate"],
+        json!({
+            "product": null,
+            "userErrors": [{ "field": ["title"], "message": "Title can't be blank" }]
+        })
+    );
+
+    let local_code_projection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateBlankTitleWithCode($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "" } }),
+    ));
+    assert_eq!(
+        local_code_projection.body["data"]["productCreate"],
+        json!({
+            "product": null,
+            "userErrors": [{ "field": ["title"], "message": "Title can't be blank", "code": "BLANK" }]
+        })
+    );
+}
+
+#[test]
 fn product_create_serializes_only_requested_payload_fields() {
     let mut proxy = snapshot_proxy();
 
@@ -3872,7 +3915,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                 "failedCreate": {
                     "product": null,
                     "userErrors": [{
-                        "field": ["product", "title"],
+                        "field": ["title"],
                         "message": "Title can't be blank",
                         "code": "BLANK"
                     }]
