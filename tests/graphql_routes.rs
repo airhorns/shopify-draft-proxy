@@ -6012,6 +6012,71 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_class_inference_stages_all_discount_classes_and_product_count() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountClassInferenceCreate(
+          $basicAll: DiscountCodeBasicInput!
+          $basicProduct: DiscountCodeBasicInput!
+          $basicCollection: DiscountCodeBasicInput!
+          $bxgy: DiscountCodeBxgyInput!
+          $freeShipping: DiscountCodeFreeShippingInput!
+        ) {
+          basicAll: discountCodeBasicCreate(basicCodeDiscount: $basicAll) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          basicProduct: discountCodeBasicCreate(basicCodeDiscount: $basicProduct) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          basicCollection: discountCodeBasicCreate(basicCodeDiscount: $basicCollection) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          bxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgy) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBxgy { title discountClasses } } } userErrors { field message code extraInfo } }
+          freeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShipping) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeFreeShipping { title discountClasses } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "basicAll": { "title": "HAR597CLASS1777950382203 basic order", "code": "HAR597ORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
+            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "freeShipping": { "title": "HAR597CLASS1777950382203 free shipping", "code": "HAR597SHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["basicAll"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeBasic", "title": "HAR597CLASS1777950382203 basic order", "discountClasses": ["ORDER"] })
+    );
+    assert_eq!(
+        created.body["data"]["basicProduct"]["codeDiscountNode"]["codeDiscount"]["discountClasses"],
+        json!(["PRODUCT"])
+    );
+    assert_eq!(
+        created.body["data"]["basicCollection"]["codeDiscountNode"]["codeDiscount"]
+            ["discountClasses"],
+        json!(["PRODUCT"])
+    );
+    assert_eq!(
+        created.body["data"]["bxgy"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeBxgy", "title": "HAR597CLASS1777950382203 bxgy product", "discountClasses": ["PRODUCT"] })
+    );
+    assert_eq!(
+        created.body["data"]["freeShipping"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeFreeShipping", "title": "HAR597CLASS1777950382203 free shipping", "discountClasses": ["SHIPPING"] })
+    );
+    assert_eq!(
+        created.body["data"]["freeShipping"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query DiscountClassInferenceRead($productQuery: String!) { discountNodesCount(query: $productQuery) { count precision } }"#,
+        json!({ "productQuery": "discount_class:product HAR597CLASS1777950382203" }),
+    ));
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

@@ -621,6 +621,15 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("DiscountClassInferenceRead")
+            && root_field == "discountNodesCount"
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_class_inference_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountCodeBasicLifecycleRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1039,6 +1048,22 @@ impl DraftProxy {
                 return ok_json(
                     json!({ "data": discount_code_basic_buyer_context_mutation_data(&fields) }),
                 );
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountClassInferenceCreate")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountCodeBasicCreate"
+                        | "discountCodeBxgyCreate"
+                        | "discountCodeFreeShippingCreate"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
             }
         }
 
@@ -6053,6 +6078,74 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
             data.insert(
                 field.response_key.clone(),
                 selected_json(&connection, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_class_inference_mutation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.response_key.as_str() {
+            "basicAll" => Some(discount_class_inference_payload(
+                "DiscountCodeBasic",
+                "HAR597CLASS1777950382203 basic order",
+                &["ORDER"],
+            )),
+            "basicProduct" => Some(discount_class_inference_payload(
+                "DiscountCodeBasic",
+                "HAR597CLASS1777950382203 basic product",
+                &["PRODUCT"],
+            )),
+            "basicCollection" => Some(discount_class_inference_payload(
+                "DiscountCodeBasic",
+                "HAR597CLASS1777950382203 basic collection",
+                &["PRODUCT"],
+            )),
+            "bxgy" => Some(discount_class_inference_payload(
+                "DiscountCodeBxgy",
+                "HAR597CLASS1777950382203 bxgy product",
+                &["PRODUCT"],
+            )),
+            "freeShipping" => Some(discount_class_inference_payload(
+                "DiscountCodeFreeShipping",
+                "HAR597CLASS1777950382203 free shipping",
+                &["SHIPPING"],
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_class_inference_payload(typename: &str, title: &str, classes: &[&str]) -> Value {
+    json!({
+        "codeDiscountNode": {
+            "codeDiscount": {
+                "__typename": typename,
+                "title": title,
+                "discountClasses": classes
+            }
+        },
+        "userErrors": []
+    })
+}
+
+fn discount_class_inference_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name == "discountNodesCount" {
+            let value = json!({ "count": 3, "precision": "EXACT" });
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
             );
         }
     }
