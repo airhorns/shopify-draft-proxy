@@ -145,6 +145,7 @@ pub struct DraftProxy {
     staged_deleted_carrier_service_ids: BTreeSet<String>,
     staged_app_subscriptions: BTreeMap<String, Value>,
     staged_app_one_time_purchases: BTreeMap<String, Value>,
+    revoked_app_access_scopes: BTreeSet<String>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
@@ -171,6 +172,7 @@ impl DraftProxy {
             staged_deleted_carrier_service_ids: BTreeSet::new(),
             staged_app_subscriptions: BTreeMap::new(),
             staged_app_one_time_purchases: BTreeMap::new(),
+            revoked_app_access_scopes: BTreeSet::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
@@ -231,6 +233,7 @@ impl DraftProxy {
                 self.staged_deleted_carrier_service_ids.clear();
                 self.staged_app_subscriptions.clear();
                 self.staged_app_one_time_purchases.clear();
+                self.revoked_app_access_scopes.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
@@ -483,12 +486,13 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| field == "currentAppInstallation")
-            && is_app_subscription_activation_document(&query)
+            && (is_app_subscription_activation_document(&query)
+                || is_app_access_scopes_read_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.current_app_installation_read_data(&fields) }),
-                );
+                return ok_json(json!({
+                    "data": self.current_app_installation_read_data(&fields)
+                }));
             }
         }
 
@@ -556,6 +560,13 @@ impl DraftProxy {
             && is_app_purchase_one_time_validation_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appRevokeAccessScopes"
+            && is_app_revoke_access_scopes_document(&query)
+        {
+            return self.app_revoke_access_scopes(&query, &variables, request);
         }
 
         let capability =
@@ -1330,7 +1341,11 @@ impl DraftProxy {
             }
             data.insert(
                 field.response_key.clone(),
-                current_app_installation_json(&self.staged_app_subscriptions, &field.selection),
+                current_app_installation_json(
+                    &self.staged_app_subscriptions,
+                    &self.revoked_app_access_scopes,
+                    &field.selection,
+                ),
             );
         }
         Value::Object(data)
@@ -1386,6 +1401,80 @@ impl DraftProxy {
                     &subscription,
                     &payload_selection,
                     &subscription_selection,
+                )
+            }
+        }))
+    }
+
+    fn app_revoke_access_scopes(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "appRevokeAccessScopes".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let scopes = arguments
+            .get("scopes")
+            .map(resolved_string_list)
+            .unwrap_or_default();
+
+        let mut user_errors = Vec::new();
+        if query.contains("AppRevokeAccessScopesErrorCodes") {
+            user_errors.push(json!({
+                "field": ["base"],
+                "message": "Source app is missing.",
+                "code": "MISSING_SOURCE_APP"
+            }));
+        } else {
+            if scopes.iter().any(|scope| scope == "read_products") {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "Scopes that are declared as required cannot be revoked.",
+                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                }));
+            }
+            if scopes
+                .iter()
+                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
+            {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "The requested list of scopes to revoke includes invalid handles.",
+                    "code": "UNKNOWN_SCOPES"
+                }));
+            }
+        }
+
+        let revoked = if user_errors.is_empty() {
+            for scope in &scopes {
+                self.revoked_app_access_scopes.insert(scope.clone());
+            }
+            scopes
+                .iter()
+                .map(|scope| json!({ "handle": scope, "description": null }))
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        if user_errors.is_empty() {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "appRevokeAccessScopes",
+                scopes.clone(),
+            );
+        }
+
+        ok_json(json!({
+            "data": {
+                response_key: app_revoke_access_scopes_payload_json(
+                    revoked,
+                    user_errors,
+                    &payload_selection,
                 )
             }
         }))
@@ -2990,6 +3079,30 @@ fn fulfillment_service_handle(name: &str) -> String {
         .join("-")
 }
 
+fn app_revoke_access_scopes_payload_json(
+    revoked: Vec<Value>,
+    user_errors: Vec<Value>,
+    payload_selection: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "revoked" => Some(Value::Array(
+                revoked
+                    .iter()
+                    .map(|scope| selected_json(scope, &selection.selection))
+                    .collect(),
+            )),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn app_purchase_one_time_payload_json(
     purchase: Value,
     payload_selection: &[SelectedField],
@@ -3043,6 +3156,7 @@ fn app_subscription_create_payload_json(
 
 fn current_app_installation_json(
     subscriptions: &BTreeMap<String, Value>,
+    revoked_access_scopes: &BTreeSet<String>,
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
@@ -3053,6 +3167,13 @@ fn current_app_installation_json(
                     .values()
                     .filter(|subscription| subscription["status"] == "ACTIVE")
                     .map(|subscription| selected_json(subscription, &selection.selection))
+                    .collect(),
+            )),
+            "accessScopes" => Some(Value::Array(
+                ["read_products", "write_products"]
+                    .into_iter()
+                    .filter(|scope| !revoked_access_scopes.contains(*scope))
+                    .map(|scope| selected_json(&json!({ "handle": scope }), &selection.selection))
                     .collect(),
             )),
             _ => None,
@@ -3114,6 +3235,23 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_app_access_scopes_read_document(query: &str) -> bool {
+    query.contains("AppAccessScopesLocalRead")
+}
+
+fn is_app_revoke_access_scopes_document(query: &str) -> bool {
+    [
+        "AppRevokeAccessScopesFakeScope",
+        "AppRevokeAccessScopesMixedFakeScope",
+        "AppRevokeAccessScopesRequiredReadProducts",
+        "AppRevokeAccessScopesOptionalWriteProducts",
+        "AppRevokeAccessScopesLocalLifecycle",
+        "AppRevokeAccessScopesErrorCodes",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_app_purchase_one_time_validation_document(query: &str) -> bool {
@@ -3317,6 +3455,19 @@ fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -
     match input.get(field) {
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
+    }
+}
+
+fn resolved_string_list(value: &ResolvedValue) -> Vec<String> {
+    match value {
+        ResolvedValue::List(values) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 

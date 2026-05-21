@@ -321,6 +321,139 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn app_revoke_access_scopes_validates_atomically_and_updates_current_installation() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesFakeScope {
+          appRevokeAccessScopes(scopes: ["fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesMixedFakeScope {
+          appRevokeAccessScopes(scopes: ["read_products", "fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mixed.body["data"]["appRevokeAccessScopes"]["revoked"],
+        json!([])
+    );
+    assert_eq!(
+        mixed.body["data"]["appRevokeAccessScopes"]["userErrors"],
+        json!([
+            {
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            },
+            {
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }
+        ])
+    );
+
+    let required = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesRequiredReadProducts {
+          appRevokeAccessScopes(scopes: ["read_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        required.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            }]
+        })
+    );
+
+    let missing_source_app = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesErrorCodes {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_source_app.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+        })
+    );
+
+    let optional = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesOptionalWriteProducts {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        optional.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "write_products", "description": null }],
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppAccessScopesLocalRead {
+          currentAppInstallation { accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body,
+        json!({ "data": { "currentAppInstallation": { "accessScopes": [{ "handle": "read_products" }] } } })
+    );
+}
+
+#[test]
 fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
     let mut proxy = snapshot_proxy();
 
