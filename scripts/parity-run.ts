@@ -248,30 +248,63 @@ type CassetteServer = {
   close: () => Promise<void>;
 };
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
+  if (isPlainObject(value))
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+
+function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    return parsed['query'] === call.query && stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
+  } catch {
+    return false;
+  }
+}
+
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];
   let fallbackResponse: ProxyResponse | null = null;
   let index = 0;
   let fallbackCount = 0;
+  const consumedCalls = new Set<number>();
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
     let body = '';
     request.setEncoding('utf8');
     request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
-      const call = calls[index++];
-      if (!call) {
-        if (fallbackResponse !== null) {
-          fallbackCount += 1;
-          response.statusCode = fallbackResponse.status;
-          response.setHeader('content-type', 'application/json');
-          response.end(JSON.stringify(fallbackResponse.body));
-          return;
-        }
-        response.statusCode = 500;
+      const matchedIndex = calls.findIndex(
+        (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesBody(call, body),
+      );
+      if (matchedIndex >= 0) {
+        const call = calls[matchedIndex];
+        consumedCalls.add(matchedIndex);
+        response.statusCode = call?.response?.status ?? 200;
         response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify({ errors: [{ message: `Unexpected upstream call ${index}: ${body}` }] }));
+        response.end(JSON.stringify(call?.response?.body ?? {}));
         return;
       }
+      if (fallbackResponse !== null) {
+        fallbackCount += 1;
+        response.statusCode = fallbackResponse.status;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify(fallbackResponse.body));
+        return;
+      }
+      const call = calls[index];
+      if (!call) {
+        response.statusCode = 500;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ errors: [{ message: `Unexpected upstream call ${index + 1}: ${body}` }] }));
+        return;
+      }
+      consumedCalls.add(index);
+      index += 1;
       response.statusCode = call.response?.status ?? 200;
       response.setHeader('content-type', 'application/json');
       response.end(JSON.stringify(call.response?.body ?? {}));
@@ -287,6 +320,7 @@ async function startCassetteServer(): Promise<CassetteServer> {
       fallbackResponse = null;
       index = 0;
       fallbackCount = 0;
+      consumedCalls.clear();
     },
     setFallbackResponse: (response: ProxyResponse | null) => {
       fallbackResponse = response;
@@ -326,6 +360,15 @@ function captureResponseForTarget(capture: unknown, target: ComparisonTarget): P
     const statusPath = `${target.capturePath.slice(0, payloadIndex)}${payloadPrefix.replace('.payload', '.status')}`;
     const status = getPath(capture, statusPath);
     return { status: typeof status === 'number' ? status : 200, body: payload };
+  }
+  for (const responsePrefix of ['.result', '.response']) {
+    const responseIndex = target.capturePath.indexOf(responsePrefix);
+    if (responseIndex === -1) continue;
+    const responsePath = target.capturePath.slice(0, responseIndex + responsePrefix.length);
+    const response = getPath(capture, responsePath);
+    if (response === undefined) return null;
+    const status = getPath(capture, `${responsePath}.status`);
+    return { status: typeof status === 'number' ? status : 200, body: response };
   }
   return null;
 }

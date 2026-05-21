@@ -35,4 +35,13 @@ describe('Rust parity runner CLI', () => {
     );
     expect(output).toContain('product-empty-state-read.json passed');
   });
+
+  it('uses each comparison target capture as fallback even when unrelated upstream recordings remain', () => {
+    const output = execFileSync(
+      'corepack',
+      ['pnpm', 'parity', '--', '--spec', 'config/parity-specs/products/collectionCreate-and-add-products-parity.json'],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    expect(output).toContain('collectionCreate-and-add-products-parity.json passed');
+  });
 });
