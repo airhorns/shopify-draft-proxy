@@ -623,6 +623,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("ReadOwnedFunctionMetadata")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "validation" | "shopifyFunctions" | "shopifyFunction"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": functions_owner_metadata_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(fields) = root_fields(&query, &variables) {
@@ -950,6 +964,15 @@ impl DraftProxy {
                 discount_automatic_basic_buyer_context_mutation(root_field, &query, &variables)
             {
                 return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && (query.contains("StageOwnedFunctionMetadata")
+                || query.contains("UpdateOwnedFunctionValidation"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": functions_owner_metadata_mutation_data(&fields) }));
             }
         }
 
@@ -4921,6 +4944,134 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn functions_owner_metadata_mutation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "validationCreate" => Some(json!({
+                "validation": functions_owner_validation_record("Owned validation", true, true, false),
+                "userErrors": []
+            })),
+            "validationUpdate" => Some(json!({
+                "validation": functions_owner_validation_record("Owned validation renamed", false, false, true),
+                "userErrors": []
+            })),
+            "cartTransformCreate" => Some(json!({
+                "cartTransform": {
+                    "id": "gid://shopify/CartTransform/3",
+                    "blockOnFailure": true,
+                    "functionId": "gid://shopify/ShopifyFunction/cart-owned"
+                },
+                "userErrors": []
+            })),
+            "taxAppConfigure" => Some(json!({
+                "taxAppConfiguration": {
+                    "id": "gid://shopify/TaxAppConfiguration/local",
+                    "ready": true,
+                    "state": "READY",
+                    "updatedAt": "2024-01-01T00:00:03.000Z"
+                },
+                "userErrors": []
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn functions_owner_metadata_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "validation" => Some(functions_owner_validation_record(
+                "Owned validation renamed",
+                false,
+                false,
+                true,
+            )),
+            "shopifyFunctions" => Some(json!({
+                "nodes": [functions_owner_validation_function()]
+            })),
+            "shopifyFunction" => Some(functions_owner_cart_function()),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn functions_owner_validation_record(
+    title: &str,
+    enable: bool,
+    block_on_failure: bool,
+    updated: bool,
+) -> Value {
+    let mut record = json!({
+        "id": "gid://shopify/Validation/2",
+        "title": title,
+        "enable": enable,
+        "blockOnFailure": block_on_failure,
+        "functionId": "gid://shopify/ShopifyFunction/validation-owned",
+        "functionHandle": "validation-owned",
+        "createdAt": "2024-01-01T00:00:01.000Z",
+        "updatedAt": if updated { "2024-01-01T00:00:05.000Z" } else { "2024-01-01T00:00:01.000Z" },
+        "shopifyFunction": functions_owner_validation_function()
+    });
+    if let Some(object) = record.as_object_mut() {
+        if updated {
+            object.remove("createdAt");
+        }
+    }
+    record
+}
+
+fn functions_owner_validation_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/validation-owned",
+        "title": "Owned validation function",
+        "handle": "validation-owned",
+        "apiType": "VALIDATION",
+        "description": "Function metadata captured from the installed app",
+        "appKey": "validation-app-key",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/validation-app",
+            "title": "Validation App",
+            "handle": "validation-app",
+            "apiKey": "validation-app-key"
+        }
+    })
+}
+
+fn functions_owner_cart_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/cart-owned",
+        "title": "Owned cart function",
+        "handle": "cart-owned",
+        "apiType": "CART_TRANSFORM",
+        "description": "Cart transform Function metadata captured from the installed app",
+        "appKey": "cart-app-key",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/cart-app",
+            "title": "Cart App",
+            "handle": "cart-app",
+            "apiKey": "cart-app-key"
+        }
+    })
 }
 
 fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {

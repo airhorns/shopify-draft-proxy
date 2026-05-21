@@ -5929,3 +5929,84 @@ fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
         })
     );
 }
+
+#[test]
+fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let stage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOwnedFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) {
+          validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle createdAt updatedAt shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
+          cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } }
+          taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "validation": { "functionId": "gid://shopify/ShopifyFunction/validation-owned", "title": "Owned validation", "enable": true, "blockOnFailure": true },
+            "cartFunctionHandle": "cart-owned",
+            "cartBlockOnFailure": true,
+            "ready": true
+        }),
+    ));
+    assert_eq!(
+        stage.body["data"]["validationCreate"]["validation"]["id"],
+        json!("gid://shopify/Validation/2")
+    );
+    assert_eq!(
+        stage.body["data"]["validationCreate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+    assert_eq!(
+        stage.body["data"]["cartTransformCreate"]["cartTransform"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/cart-owned")
+    );
+    assert_eq!(
+        stage.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["state"],
+        json!("READY")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOwnedFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) {
+          validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle updatedAt shopifyFunction { id handle appKey app { title apiKey } } } userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Validation/2", "validation": { "title": "Owned validation renamed" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["title"],
+        json!("Owned validation renamed")
+    );
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["enable"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOwnedFunctionMetadata($validationId: ID!) {
+          validation(id: $validationId) { id title enable blockOnFailure functionId functionHandle shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } }
+          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType appKey app { title apiKey } } }
+          cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") { id title handle apiType appKey app { __typename title apiKey } }
+        }
+        "#,
+        json!({ "validationId": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(
+        read.body["data"]["validation"]["title"],
+        json!("Owned validation renamed")
+    );
+    assert_eq!(
+        read.body["data"]["validationFunctions"]["nodes"][0]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+    assert_eq!(
+        read.body["data"]["cartFunction"]["app"]["apiKey"],
+        json!("cart-app-key")
+    );
+}
