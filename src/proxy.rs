@@ -18,6 +18,7 @@ use crate::operation_registry::{
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
+const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -141,6 +142,7 @@ pub struct DraftProxy {
     staged_deleted_shipping_package_ids: BTreeSet<String>,
     staged_carrier_services: BTreeMap<String, Value>,
     staged_deleted_carrier_service_ids: BTreeSet<String>,
+    staged_app_subscriptions: BTreeMap<String, Value>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
@@ -165,6 +167,7 @@ impl DraftProxy {
             staged_deleted_shipping_package_ids: BTreeSet::new(),
             staged_carrier_services: BTreeMap::new(),
             staged_deleted_carrier_service_ids: BTreeSet::new(),
+            staged_app_subscriptions: BTreeMap::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
@@ -223,6 +226,7 @@ impl DraftProxy {
                 self.staged_deleted_shipping_package_ids.clear();
                 self.staged_carrier_services.clear();
                 self.staged_deleted_carrier_service_ids.clear();
+                self.staged_app_subscriptions.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
@@ -471,6 +475,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "currentAppInstallation")
+            && is_app_subscription_activation_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": self.current_app_installation_read_data(&fields) }),
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(data) =
@@ -520,6 +538,13 @@ impl DraftProxy {
             && is_fulfillment_service_lifecycle_document(&query)
         {
             return self.fulfillment_service_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appSubscriptionCreate"
+            && is_app_subscription_activation_document(&query)
+        {
+            return self.app_subscription_create(&query, &variables, request);
         }
 
         let capability =
@@ -1284,6 +1309,75 @@ impl DraftProxy {
                 }))
             }
         }
+    }
+
+    fn current_app_installation_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "currentAppInstallation" {
+                continue;
+            }
+            data.insert(
+                field.response_key.clone(),
+                current_app_installation_json(&self.staged_app_subscriptions, &field.selection),
+            );
+        }
+        Value::Object(data)
+    }
+
+    fn app_subscription_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "appSubscriptionCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let subscription_selection =
+            nested_root_field_selection(query, "appSubscription").unwrap_or_default();
+        let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
+        let trial_days = arguments
+            .get("trialDays")
+            .and_then(|value| match value {
+                ResolvedValue::Int(value) => Some(*value),
+                _ => None,
+            })
+            .unwrap_or(0);
+        let test = arguments
+            .get("test")
+            .and_then(|value| match value {
+                ResolvedValue::Bool(value) => Some(*value),
+                _ => None,
+            })
+            .unwrap_or(false);
+        let subscription = json!({
+            "id": id,
+            "status": if test { "ACTIVE" } else { "PENDING" },
+            "test": test,
+            "trialDays": trial_days,
+            "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+        });
+        self.staged_app_subscriptions
+            .insert(id.clone(), subscription.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "appSubscriptionCreate",
+            vec![id],
+        );
+
+        ok_json(json!({
+            "data": {
+                response_key: app_subscription_create_payload_json(
+                    &subscription,
+                    &payload_selection,
+                    &subscription_selection,
+                )
+            }
+        }))
     }
 
     fn fulfillment_service_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
@@ -2782,6 +2876,49 @@ fn fulfillment_service_handle(name: &str) -> String {
         .join("-")
 }
 
+fn app_subscription_create_payload_json(
+    subscription: &Value,
+    payload_selection: &[SelectedField],
+    subscription_selection: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "confirmationUrl" => Some(json!("https://app.example.test/local-confirmation")),
+            "appSubscription" => Some(selected_json(subscription, subscription_selection)),
+            "userErrors" => Some(Value::Array(vec![])),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn current_app_installation_json(
+    subscriptions: &BTreeMap<String, Value>,
+    selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "activeSubscriptions" => Some(Value::Array(
+                subscriptions
+                    .values()
+                    .filter(|subscription| subscription["status"] == "ACTIVE")
+                    .map(|subscription| selected_json(subscription, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn fulfillment_service_payload_json(
     service: Value,
     payload_selection: &[SelectedField],
@@ -2832,6 +2969,15 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_app_subscription_activation_document(query: &str) -> bool {
+    [
+        "AppSubscriptionCreateActivationReadback",
+        "AppSubscriptionActivationRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {

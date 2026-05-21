@@ -321,6 +321,75 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateActivationReadback {
+          subscription: appSubscriptionCreate(
+            name: "Activation readback plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            confirmationUrl
+            appSubscription { id status test trialDays currentPeriodEnd }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let subscription_id = create.body["data"]["subscription"]["appSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["subscription"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": subscription_id,
+                "status": "ACTIVE",
+                "test": true,
+                "trialDays": 7,
+                "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppSubscriptionActivationRead {
+          installation: currentAppInstallation {
+            activeSubscriptions { id status currentPeriodEnd }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body,
+        json!({
+            "data": {
+                "installation": {
+                    "activeSubscriptions": [{
+                        "id": subscription_id,
+                        "status": "ACTIVE",
+                        "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                    }]
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
     let mut proxy = snapshot_proxy();
     let invalid = proxy.process_request(json_graphql_request(
