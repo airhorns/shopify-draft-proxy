@@ -260,8 +260,54 @@ fn decode_chunked_body(body: &[u8]) -> std::io::Result<Vec<u8>> {
 
 fn handle_connection(mut stream: TcpStream, proxy: &mut DraftProxy) -> std::io::Result<()> {
     let request = read_http_request(&mut stream)?;
-    let response = proxy.process_request(request);
+    let response = match staged_upload_response(&request) {
+        Some(response) => response,
+        None => proxy.process_request(request),
+    };
     write_http_response(&mut stream, response)
+}
+
+fn staged_upload_response(request: &Request) -> Option<Response> {
+    let rest = request.path.strip_prefix("/staged-uploads/")?;
+    let (encoded_target_id, encoded_filename) = rest.split_once('/')?;
+    let method = request.method.to_ascii_uppercase();
+    if method != "POST" && method != "PUT" {
+        return Some(Response {
+            status: 405,
+            headers: BTreeMap::new(),
+            body: serde_json::json!({ "errors": [{ "message": "Method not allowed" }] }),
+        });
+    }
+    let target_id = percent_decode(encoded_target_id);
+    let filename = percent_decode(encoded_filename);
+    Some(Response {
+        status: 201,
+        headers: BTreeMap::new(),
+        body: serde_json::json!({
+            "ok": true,
+            "key": format!("shopify-draft-proxy/{target_id}/{filename}")
+        }),
+    })
+}
+
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut offset = 0usize;
+    while offset < bytes.len() {
+        if bytes[offset] == b'%' && offset + 2 < bytes.len() {
+            if let Ok(hex) = std::str::from_utf8(&bytes[offset + 1..offset + 3]) {
+                if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                    decoded.push(byte);
+                    offset += 3;
+                    continue;
+                }
+            }
+        }
+        decoded.push(bytes[offset]);
+        offset += 1;
+    }
+    String::from_utf8_lossy(&decoded).to_string()
 }
 
 fn read_http_request(stream: &mut TcpStream) -> std::io::Result<Request> {

@@ -1,63 +1,87 @@
-import { execFileSync } from 'node:child_process';
-import { once } from 'node:events';
-import type { Server } from 'node:http';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
+import { describe, expect, it } from 'vitest';
 
-import type { AppConfig, DraftProxyHttpApp } from '../../js/src/index.js';
+const repoRoot = new URL('../..', import.meta.url);
+const pnpmCommand = 'corepack';
 
-let createGleamApp: (config: AppConfig) => DraftProxyHttpApp;
+function pnpmArgs(args: string[]): string[] {
+  return ['pnpm', ...args];
+}
 
-const config: AppConfig = {
-  readMode: 'snapshot',
-  port: 0,
-  shopifyAdminOrigin: 'https://shopify.com',
-};
-const adapterTimeoutMs = 20_000;
-
-beforeAll(() => {
-  execFileSync('gleam', ['build', '--target', 'javascript'], {
-    cwd: new URL('../..', import.meta.url),
-    stdio: 'inherit',
+function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () => string } {
+  let output = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
   });
-}, adapterTimeoutMs);
+  child.stderr.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+  return { getOutput: () => output };
+}
 
-beforeAll(async () => {
-  ({ createApp: createGleamApp } = await import('../../js/src/index.js'));
-}, adapterTimeoutMs);
-
-async function withGleamServer<T>(run: (origin: string) => Promise<T>): Promise<T> {
-  const server = createGleamApp(config).listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const address = server.address();
-  if (address === null || typeof address === 'string') {
-    throw new Error('Expected Gleam HTTP adapter to listen on a TCP port.');
+async function waitForRustServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (getOutput().includes('shopify-draft-proxy rust runtime listening')) return;
+    if (child.exitCode !== null) {
+      throw new Error(`server process exited before listening:\n${getOutput()}`);
+    }
+    await delay(100);
   }
+  throw new Error(`server did not start before timeout:\n${getOutput()}`);
+}
 
+async function stopServer(child: ChildProcessWithoutNullStreams): Promise<void> {
+  if (child.exitCode !== null) return;
+  killServerProcess(child, 'SIGTERM');
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (child.exitCode !== null) return;
+    await delay(100);
+  }
+  killServerProcess(child, 'SIGKILL');
+}
+
+function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
   try {
-    return await run(`http://127.0.0.1:${address.port}`);
-  } finally {
-    await closeServer(server);
+    if (child.pid) {
+      process.kill(-child.pid, signal);
+      return;
+    }
+    child.kill(signal);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
   }
 }
 
-async function closeServer(server: Server): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
+async function withRustServer<T>(port: number, run: (origin: string) => Promise<T>): Promise<T> {
+  const child = spawn(pnpmCommand, pnpmArgs(['dev']), {
+    cwd: repoRoot,
+    detached: true,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      SHOPIFY_ADMIN_ORIGIN: 'https://shopify.com',
+    },
   });
+  const { getOutput } = collectOutput(child);
+  try {
+    await waitForRustServer(child, getOutput);
+    return await run(`http://127.0.0.1:${port}`);
+  } finally {
+    await stopServer(child);
+  }
 }
 
-async function getGleamJson(origin: string, path: string, init: RequestInit = {}) {
+async function getJson(origin: string, path: string, init: RequestInit = {}) {
   const response = await fetch(`${origin}${path}`, init);
   return { status: response.status, body: await response.json() };
 }
 
-describe('Gleam JS HTTP adapter route surface', () => {
-  it('serves the required meta route response shapes', async () => {
-    await withGleamServer(async (origin) => {
-      expect(await getGleamJson(origin, '/__meta/health')).toEqual({
+describe('Rust HTTP adapter route surface', () => {
+  it('serves the required meta route response shapes without the TS/Gleam HTTP adapter', async () => {
+    await withRustServer(43_197, async (origin) => {
+      expect(await getJson(origin, '/__meta/health')).toEqual({
         status: 200,
         body: {
           ok: true,
@@ -65,7 +89,7 @@ describe('Gleam JS HTTP adapter route surface', () => {
         },
       });
 
-      expect(await getGleamJson(origin, '/__meta/config')).toEqual({
+      expect(await getJson(origin, '/__meta/config')).toEqual({
         status: 200,
         body: {
           runtime: {
@@ -73,44 +97,44 @@ describe('Gleam JS HTTP adapter route surface', () => {
             unsupportedMutationMode: 'passthrough',
             bulkOperationRunMutationMaxInputFileSizeBytes: 104857600,
           },
-          proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
+          proxy: { port: 43197, shopifyAdminOrigin: 'https://shopify.com' },
           snapshot: { enabled: false, path: null },
         },
       });
 
-      expect(await getGleamJson(origin, '/__meta/log')).toEqual({
+      expect(await getJson(origin, '/__meta/log')).toEqual({
         status: 200,
         body: { entries: [] },
       });
 
-      expect(await getGleamJson(origin, '/__meta/state')).toMatchObject({
+      expect(await getJson(origin, '/__meta/state')).toEqual({
         status: 200,
         body: {
-          baseState: expect.any(Object),
-          stagedState: expect.any(Object),
+          baseState: { products: {}, savedSearches: {} },
+          stagedState: { products: {}, deletedProductIds: [], savedSearches: {} },
         },
       });
 
-      expect(await getGleamJson(origin, '/__meta/reset', { method: 'POST' })).toEqual({
+      expect(await getJson(origin, '/__meta/reset', { method: 'POST' })).toEqual({
         status: 200,
         body: { ok: true, message: 'state reset' },
       });
     });
-  });
+  }, 25_000);
 
-  it('serves Admin GraphQL and error envelopes for the required route surface', async () => {
+  it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
       query:
         'mutation { savedSearchCreate(input: { name: "Promo products", query: "tag:promo", resourceType: PRODUCT }) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } } }',
     };
 
-    await withGleamServer(async (origin) => {
-      const gleamCreate = await getGleamJson(origin, '/admin/api/2026-04/graphql.json', {
+    await withRustServer(43_198, async (origin) => {
+      const rustCreate = await getJson(origin, '/admin/api/2026-04/graphql.json', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(graphQLBody),
       });
-      expect(gleamCreate).toMatchObject({
+      expect(rustCreate).toMatchObject({
         status: 200,
         body: {
           data: {
@@ -127,17 +151,29 @@ describe('Gleam JS HTTP adapter route surface', () => {
         },
       });
 
-      const gleamMissing = await getGleamJson(origin, '/missing');
-      expect(gleamMissing).toEqual({
+      const stagedUpload = await getJson(origin, '/staged-uploads/gid%3A%2F%2Fshopify%2FProduct%2F1/import.jsonl', {
+        method: 'PUT',
+        body: '{"id":"gid://shopify/Product/1"}\n',
+      });
+      expect(stagedUpload).toEqual({
+        status: 201,
+        body: {
+          ok: true,
+          key: 'shopify-draft-proxy/gid://shopify/Product/1/import.jsonl',
+        },
+      });
+
+      const rustMissing = await getJson(origin, '/missing');
+      expect(rustMissing).toEqual({
         status: 404,
         body: { errors: [{ message: 'Not found' }] },
       });
 
-      const gleamMethod = await getGleamJson(origin, '/__meta/health', { method: 'POST' });
-      expect(gleamMethod).toEqual({
+      const rustMethod = await getJson(origin, '/__meta/health', { method: 'POST' });
+      expect(rustMethod).toEqual({
         status: 405,
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  });
+  }, 25_000);
 });
