@@ -154,6 +154,187 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
 }
 
 #[test]
+fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: "<p>Base</p>".to_string(),
+        vendor: "Base vendor".to_string(),
+        product_type: "Base type".to_string(),
+        tags: vec!["base".to_string()],
+    }]);
+
+    let create_product = proxy.process_request(graphql_request(
+        &json!({ "query": "mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\", tags: [\"new\"] }) { product { id } } }" }).to_string(),
+    ));
+    assert_eq!(create_product.status, 200);
+
+    let delete_base = proxy.process_request(graphql_request(
+        &json!({ "query": "mutation { productDelete(product: { id: \"gid://shopify/Product/base\" }) { deletedProductId } }" }).to_string(),
+    ));
+    assert_eq!(delete_base.status, 200);
+
+    let create_saved_search = proxy.process_request(graphql_request(
+        &json!({ "query": "mutation { savedSearchCreate(input: { name: \"Promo products\", query: \"tag:promo\", resourceType: PRODUCT }) { savedSearch { id } } }" }).to_string(),
+    ));
+    assert_eq!(create_saved_search.status, 200);
+
+    let state = proxy.process_request(request("GET", "/__meta/state"));
+    assert_eq!(state.status, 200);
+    assert_eq!(
+        state.body,
+        json!({
+            "baseState": {
+                "products": {
+                    "gid://shopify/Product/base": {
+                        "id": "gid://shopify/Product/base",
+                        "title": "Base product",
+                        "handle": "base-product",
+                        "status": "ACTIVE",
+                        "descriptionHtml": "<p>Base</p>",
+                        "vendor": "Base vendor",
+                        "productType": "Base type",
+                        "tags": ["base"]
+                    }
+                },
+                "savedSearches": {}
+            },
+            "stagedState": {
+                "products": {
+                    "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Created product",
+                        "handle": "created-product",
+                        "status": "ACTIVE",
+                        "descriptionHtml": "",
+                        "vendor": "",
+                        "productType": "",
+                        "tags": ["new"]
+                    }
+                },
+                "deletedProductIds": ["gid://shopify/Product/base"],
+                "savedSearches": {
+                    "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
+                        "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                        "name": "Promo products",
+                        "query": "tag:promo",
+                        "resourceType": "PRODUCT"
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn meta_dump_and_restore_round_trip_staged_rust_state() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+    }]);
+    let create_product_query =
+        "mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } } }";
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": create_product_query }).to_string()
+            ))
+            .status,
+        200
+    );
+    let create_saved_search_query = "mutation { savedSearchCreate(input: { name: \"Promo products\", query: \"tag:promo\", resourceType: PRODUCT }) { savedSearch { id } } }";
+    assert_eq!(
+        proxy
+            .process_request(graphql_request(
+                &json!({ "query": create_saved_search_query }).to_string()
+            ))
+            .status,
+        200
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-05-21T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["schema"],
+        json!("shopify-draft-proxy-rust-state/v1")
+    );
+    assert_eq!(dump.body["createdAt"], json!("2026-05-21T00:00:00.000Z"));
+    assert_eq!(dump.body["log"]["entries"].as_array().unwrap().len(), 2);
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    assert_eq!(
+        restore.body,
+        json!({ "ok": true, "message": "state restored" })
+    );
+
+    let restored_product_read = restored.process_request(graphql_request(
+        &json!({ "query": "{ productByIdentifier(identifier: { handle: \"created-product\" }) { id title handle } }" }).to_string(),
+    ));
+    assert_eq!(restored_product_read.status, 200);
+    assert_eq!(
+        restored_product_read.body,
+        json!({
+            "data": {
+                "productByIdentifier": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Created product",
+                    "handle": "created-product"
+                }
+            }
+        })
+    );
+
+    let restored_saved_search_read = restored.process_request(graphql_request(
+        &json!({ "query": "{ productSavedSearches(query: \"Promo\") { nodes { id name query resourceType } } }" }).to_string(),
+    ));
+    assert_eq!(restored_saved_search_read.status, 200);
+    assert_eq!(
+        restored_saved_search_read.body,
+        json!({
+            "data": {
+                "productSavedSearches": {
+                    "nodes": [{
+                        "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                        "name": "Promo products",
+                        "query": "tag:promo",
+                        "resourceType": "PRODUCT"
+                    }]
+                }
+            }
+        })
+    );
+
+    let restored_log = restored.process_request(request("GET", "/__meta/log"));
+    assert_eq!(restored_log.body, dump.body["log"]);
+
+    let next_create = restored.process_request(graphql_request(
+        &json!({ "query": "mutation { productCreate(product: { title: \"Next product\" }) { product { id } } }" }).to_string(),
+    ));
+    assert_eq!(
+        next_create.body["data"]["productCreate"]["product"]["id"],
+        json!("gid://shopify/Product/3?shopify-draft-proxy=synthetic")
+    );
+}
+
+#[test]
 fn meta_reset_clears_log_and_staged_product_overlay() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),

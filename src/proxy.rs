@@ -17,6 +17,7 @@ use crate::operation_registry::{
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
+const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -91,7 +92,7 @@ pub struct Response {
     pub body: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProductRecord {
     pub id: String,
     pub title: String,
@@ -103,7 +104,7 @@ pub struct ProductRecord {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
     name: String,
@@ -200,6 +201,8 @@ impl DraftProxy {
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
+            Route::MetaDump => self.dump_state(&request),
+            Route::MetaRestore => self.restore_state(&request),
             Route::MetaCommit => self.commit_staged_mutations(&request),
             Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
@@ -249,9 +252,67 @@ impl DraftProxy {
 
     fn state_snapshot(&self) -> Value {
         json!({
-            "baseState": {},
-            "stagedState": {}
+            "baseState": {
+                "products": product_state_map_json(&self.base_products),
+                "savedSearches": {}
+            },
+            "stagedState": {
+                "products": product_state_map_json(&self.staged_products),
+                "deletedProductIds": self.staged_deleted_product_ids.iter().cloned().collect::<Vec<_>>(),
+                "savedSearches": saved_search_state_map_json(&self.staged_saved_searches)
+            }
         })
+    }
+
+    fn dump_state(&self, request: &Request) -> Response {
+        let created_at = serde_json::from_str::<Value>(&request.body)
+            .ok()
+            .and_then(|body| {
+                body.get("createdAt")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string());
+        ok_json(json!({
+            "schema": RUST_STATE_DUMP_SCHEMA,
+            "createdAt": created_at,
+            "state": self.state_snapshot(),
+            "log": { "entries": self.log_entries },
+            "nextSyntheticId": self.next_synthetic_id
+        }))
+    }
+
+    fn restore_state(&mut self, request: &Request) -> Response {
+        let Ok(dump) = serde_json::from_str::<Value>(&request.body) else {
+            return json_error(400, "Invalid Rust state dump JSON");
+        };
+        if dump.get("schema").and_then(Value::as_str) != Some(RUST_STATE_DUMP_SCHEMA) {
+            return json_error(400, "Unsupported Rust state dump schema");
+        }
+        let Some(state) = dump.get("state") else {
+            return json_error(400, "Rust state dump is missing state");
+        };
+
+        self.base_products = product_state_map_from_json(&state["baseState"]["products"]);
+        self.staged_products = product_state_map_from_json(&state["stagedState"]["products"]);
+        self.staged_deleted_product_ids = state["stagedState"]["deletedProductIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+        self.staged_saved_searches =
+            saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]);
+        self.log_entries = dump["log"]["entries"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        self.next_synthetic_id = dump
+            .get("nextSyntheticId")
+            .and_then(Value::as_u64)
+            .unwrap_or_else(|| next_synthetic_id_after_state(self));
+
+        ok_json(json!({ "ok": true, "message": "state restored" }))
     }
 
     fn commit_staged_mutations(&mut self, commit_request: &Request) -> Response {
@@ -1050,6 +1111,70 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
     Value::Object(fields)
 }
 
+fn product_state_map_json(products: &BTreeMap<String, ProductRecord>) -> Value {
+    Value::Object(
+        products
+            .iter()
+            .map(|(id, product)| (id.clone(), product_state_json(product)))
+            .collect(),
+    )
+}
+
+fn product_state_map_from_json(value: &Value) -> BTreeMap<String, ProductRecord> {
+    value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(id, value)| {
+            product_state_from_json(value).map(|product| (id.clone(), product))
+        })
+        .collect()
+}
+
+fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
+    Some(ProductRecord {
+        id: value.get("id")?.as_str()?.to_string(),
+        title: value.get("title")?.as_str()?.to_string(),
+        handle: value.get("handle")?.as_str()?.to_string(),
+        status: value.get("status")?.as_str()?.to_string(),
+        description_html: value
+            .get("descriptionHtml")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        vendor: value
+            .get("vendor")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        product_type: value
+            .get("productType")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        tags: value
+            .get("tags")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|tag| tag.as_str().map(str::to_string))
+            .collect(),
+    })
+}
+
+fn product_state_json(product: &ProductRecord) -> Value {
+    json!({
+        "id": product.id,
+        "title": product.title,
+        "handle": product.handle,
+        "status": product.status,
+        "descriptionHtml": product.description_html,
+        "vendor": product.vendor,
+        "productType": product.product_type,
+        "tags": product.tags
+    })
+}
+
 fn product_cursor(product: &ProductRecord) -> &str {
     &product.id
 }
@@ -1158,6 +1283,66 @@ fn saved_search_json(record: &SavedSearchRecord, selections: &[SelectedField]) -
         }
     }
     Value::Object(fields)
+}
+
+fn saved_search_state_map_json(saved_searches: &BTreeMap<String, SavedSearchRecord>) -> Value {
+    Value::Object(
+        saved_searches
+            .iter()
+            .map(|(id, record)| (id.clone(), saved_search_state_json(record)))
+            .collect(),
+    )
+}
+
+fn saved_search_state_map_from_json(value: &Value) -> BTreeMap<String, SavedSearchRecord> {
+    value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(id, value)| {
+            saved_search_state_from_json(value).map(|record| (id.clone(), record))
+        })
+        .collect()
+}
+
+fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
+    Some(SavedSearchRecord {
+        id: value.get("id")?.as_str()?.to_string(),
+        name: value.get("name")?.as_str()?.to_string(),
+        query: value.get("query")?.as_str()?.to_string(),
+        resource_type: value.get("resourceType")?.as_str()?.to_string(),
+    })
+}
+
+fn next_synthetic_id_after_state(proxy: &DraftProxy) -> u64 {
+    proxy
+        .base_products
+        .keys()
+        .chain(proxy.staged_products.keys())
+        .chain(proxy.staged_saved_searches.keys())
+        .filter_map(|id| synthetic_gid_tail(id))
+        .max()
+        .unwrap_or(0)
+        + 1
+}
+
+fn synthetic_gid_tail(id: &str) -> Option<u64> {
+    if !id.contains("shopify-draft-proxy=synthetic") {
+        return None;
+    }
+    id.split('?')
+        .next()
+        .and_then(|without_query| without_query.rsplit('/').next())
+        .and_then(|tail| tail.parse::<u64>().ok())
+}
+
+fn saved_search_state_json(record: &SavedSearchRecord) -> Value {
+    json!({
+        "id": record.id,
+        "name": record.name,
+        "query": record.query,
+        "resourceType": record.resource_type
+    })
 }
 
 fn saved_search_filter_json(key: &str, value: &str, selections: &[SelectedField]) -> Value {
@@ -1491,6 +1676,8 @@ enum Route {
     MetaLog,
     MetaState,
     MetaReset,
+    MetaDump,
+    MetaRestore,
     MetaCommit,
     Graphql,
     NotFound,
@@ -1505,6 +1692,8 @@ fn route(request: &Request) -> Route {
         "/__meta/log" => only_method("GET", &method, Route::MetaLog),
         "/__meta/state" => only_method("GET", &method, Route::MetaState),
         "/__meta/reset" => only_method("POST", &method, Route::MetaReset),
+        "/__meta/dump" => only_method("POST", &method, Route::MetaDump),
+        "/__meta/restore" => only_method("POST", &method, Route::MetaRestore),
         "/__meta/commit" => only_method("POST", &method, Route::MetaCommit),
         path if admin_graphql_version(path).is_some() => {
             only_method("POST", &method, Route::Graphql)
