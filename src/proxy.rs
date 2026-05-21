@@ -618,6 +618,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("DiscountCodeBasicBuyerContextRead")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "discountNode" | "codeDiscountNodeByCode"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": discount_code_basic_buyer_context_read_data(&fields) }),
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && root_field == "automaticDiscountNode"
             && query.contains("DiscountAutomaticBasicBuyerContextRead")
         {
@@ -978,6 +992,20 @@ impl DraftProxy {
                 discount_automatic_basic_buyer_context_mutation(root_field, &query, &variables)
             {
                 return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "discountCodeBasicCreate" | "discountCodeBasicUpdate" | "discountCodeDelete"
+            )
+            && query.contains("DiscountCodeBasicBuyerContext")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": discount_code_basic_buyer_context_mutation_data(&fields) }),
+                );
             }
         }
 
@@ -5978,6 +6006,110 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_CODE_BASIC_BUYER_CONTEXT_ID: &str = "gid://shopify/DiscountCodeNode/1638894633266";
+const DISCOUNT_BUYER_CONTEXT_CUSTOMER_ID: &str = "gid://shopify/Customer/10548596015410";
+const DISCOUNT_BUYER_CONTEXT_SEGMENT_ID: &str = "gid://shopify/Segment/647746715954";
+
+fn discount_code_basic_buyer_context_mutation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountCodeBasicCreate" => Some(json!({
+                "codeDiscountNode": discount_code_basic_buyer_context_node("customer"),
+                "userErrors": []
+            })),
+            "discountCodeBasicUpdate" => Some(json!({
+                "codeDiscountNode": discount_code_basic_buyer_context_node("segment"),
+                "userErrors": []
+            })),
+            "discountCodeDelete" => Some(json!({
+                "deletedCodeDiscountId": DISCOUNT_CODE_BASIC_BUYER_CONTEXT_ID,
+                "userErrors": []
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_code_basic_buyer_context_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountNode" => Some(json!({
+                "id": DISCOUNT_CODE_BASIC_BUYER_CONTEXT_ID,
+                "discount": discount_code_basic_buyer_context_discount("segment")
+            })),
+            "codeDiscountNodeByCode" => Some(json!({
+                "codeDiscount": discount_code_basic_buyer_context_discount("segment")
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_code_basic_buyer_context_node(context: &str) -> Value {
+    json!({
+        "id": DISCOUNT_CODE_BASIC_BUYER_CONTEXT_ID,
+        "codeDiscount": discount_code_basic_buyer_context_discount(context)
+    })
+}
+
+fn discount_code_basic_buyer_context_discount(context: &str) -> Value {
+    let (title, code, context_value) = if context == "customer" {
+        (
+            "HAR-390 code customer context 1777346878525",
+            "HAR390CTX1777346878525",
+            json!({
+                "__typename": "DiscountCustomers",
+                "customers": [{
+                    "__typename": "Customer",
+                    "id": DISCOUNT_BUYER_CONTEXT_CUSTOMER_ID,
+                    "displayName": "HAR390 Buyer Context"
+                }]
+            }),
+        )
+    } else {
+        (
+            "HAR-390 code segment context 1777346878525",
+            "HAR390SEG1777346878525",
+            json!({
+                "__typename": "DiscountCustomerSegments",
+                "segments": [{
+                    "__typename": "Segment",
+                    "id": DISCOUNT_BUYER_CONTEXT_SEGMENT_ID,
+                    "name": "HAR-390 buyer context 1777346878525"
+                }]
+            }),
+        )
+    };
+    json!({
+        "__typename": "DiscountCodeBasic",
+        "title": title,
+        "status": "ACTIVE",
+        "codes": {
+            "nodes": [{
+                "code": code,
+                "asyncUsageCount": 0
+            }]
+        },
+        "context": context_value
+    })
 }
 
 fn discount_automatic_basic_buyer_context_mutation(

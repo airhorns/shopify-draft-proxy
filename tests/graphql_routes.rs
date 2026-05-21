@@ -6012,6 +6012,125 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation DiscountCodeBasicBuyerContextCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                  status
+                  codes(first: 1) { nodes { code asyncUsageCount } }
+                  context {
+                    __typename
+                    ... on DiscountCustomers { customers { __typename id displayName } }
+                    ... on DiscountCustomerSegments { segments { __typename id name } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let create_input = json!({
+        "title": "HAR-390 code customer context 1777346878525",
+        "code": "HAR390CTX1777346878525",
+        "startsAt": "2023-01-01T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } },
+        "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+    });
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": create_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638894633266")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["context"],
+        json!({
+            "__typename": "DiscountCustomers",
+            "customers": [{
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/10548596015410",
+                "displayName": "HAR390 Buyer Context"
+            }]
+        })
+    );
+
+    let update_query = r#"
+        mutation DiscountCodeBasicBuyerContextUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 1) { nodes { code asyncUsageCount } } context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let update_input = json!({
+        "title": "HAR-390 code segment context 1777346878525",
+        "code": "HAR390SEG1777346878525",
+        "startsAt": "2023-01-01T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } },
+        "customerGets": { "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } }, "items": { "all": true } }
+    });
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266", "input": update_input }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["context"],
+        json!({
+            "__typename": "DiscountCustomerSegments",
+            "segments": [{
+                "__typename": "Segment",
+                "id": "gid://shopify/Segment/647746715954",
+                "name": "HAR-390 buyer context 1777346878525"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(r#"
+        query DiscountCodeBasicBuyerContextRead($id: ID!, $code: String!) {
+          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+          codeDiscountNodeByCode(code: $code) { codeDiscount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+        }
+    "#, json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266", "code": "HAR390SEG1777346878525" })));
+    assert_eq!(
+        read.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-390 code segment context 1777346878525")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["codeDiscount"]["context"]["segments"][0]["id"],
+        json!("gid://shopify/Segment/647746715954")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(r#"
+        mutation DiscountCodeBasicBuyerContextDelete($id: ID!) {
+          discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+        }
+    "#, json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266" })));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
     let mut proxy = snapshot_proxy();
 
