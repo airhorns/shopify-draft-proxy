@@ -2679,6 +2679,28 @@ impl DraftProxy {
         handled.then_some(Value::Object(data))
     }
 
+    fn fulfillment_service_name_or_handle_exists(
+        &self,
+        name: &str,
+        except_id: Option<&str>,
+    ) -> bool {
+        let normalized_name = name.trim().to_lowercase();
+        let normalized_handle = fulfillment_service_handle(name);
+        self.staged_fulfillment_services
+            .iter()
+            .filter(|(id, _)| except_id != Some(id.as_str()))
+            .any(|(_, service)| {
+                service
+                    .get("serviceName")
+                    .and_then(Value::as_str)
+                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized_name))
+                    || service
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .is_some_and(|handle| handle == normalized_handle)
+            })
+    }
+
     fn fulfillment_service_mutation(
         &mut self,
         root_field: &str,
@@ -2727,6 +2749,12 @@ impl DraftProxy {
             user_errors.push(
                 json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
             );
+        }
+        if fulfillment_service_name_is_reserved(&name) {
+            user_errors.push(json!({ "field": ["name"], "message": "Name is reserved" }));
+        } else if self.fulfillment_service_name_or_handle_exists(&name, None) {
+            user_errors
+                .push(json!({ "field": ["name"], "message": "Name has already been taken" }));
         }
         if !user_errors.is_empty() {
             return ok_json(
@@ -2787,15 +2815,25 @@ impl DraftProxy {
                 json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
             );
         };
-        let location_id = existing["location"]["id"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
         let name = arguments
             .get("name")
             .and_then(resolved_as_string)
             .or_else(|| existing["serviceName"].as_str().map(str::to_string))
             .unwrap_or_default();
+        if fulfillment_service_name_is_reserved(&name) {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, vec![json!({ "field": ["name"], "message": "Name is reserved" })]) } }),
+            );
+        }
+        if self.fulfillment_service_name_or_handle_exists(&name, Some(&id)) {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, vec![json!({ "field": ["name"], "message": "Name has already been taken" })]) } }),
+            );
+        }
+        let location_id = existing["location"]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         let mut service = fulfillment_service_record(
             &id,
             &location_id,
@@ -4527,15 +4565,43 @@ fn fulfillment_service_record(
 }
 
 fn fulfillment_service_handle(name: &str) -> String {
-    name.trim()
-        .to_lowercase()
-        .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
+    let mut handle = String::new();
+    let mut previous_dash = false;
+    for ch in name.trim().to_lowercase().chars() {
+        let mapped = match ch {
+            'é' | 'è' | 'ê' | 'ë' => Some('e'),
+            'á' | 'à' | 'â' | 'ä' | 'å' => Some('a'),
+            'í' | 'ì' | 'î' | 'ï' => Some('i'),
+            'ó' | 'ò' | 'ô' | 'ö' => Some('o'),
+            'ú' | 'ù' | 'û' | 'ü' => Some('u'),
+            'ç' => Some('c'),
+            '_' => Some('_'),
+            ch if ch.is_ascii_alphanumeric() => Some(ch),
+            ch if ch.is_whitespace() || ch == '-' => Some('-'),
+            _ => None,
+        };
+        match mapped {
+            Some('-') => {
+                if !previous_dash && !handle.is_empty() {
+                    handle.push('-');
+                    previous_dash = true;
+                }
+            }
+            Some(ch) => {
+                handle.push(ch);
+                previous_dash = false;
+            }
+            None => {}
+        }
+    }
+    handle.trim_matches('-').to_string()
+}
+
+fn fulfillment_service_name_is_reserved(name: &str) -> bool {
+    matches!(
+        fulfillment_service_handle(name).as_str(),
+        "manual" | "gift_card"
+    )
 }
 
 fn delegate_access_token_create_payload_json(
@@ -5087,6 +5153,8 @@ fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
         "CreateFs",
         "CreateBlank",
         "FulfillmentServiceAfterCreate",
+        "FulfillmentServiceUniquenessCreate",
+        "FulfillmentServiceUniquenessUpdate",
         "UpdateFs",
         "DeleteFs",
         "query Loc(",

@@ -1744,6 +1744,177 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
 }
 
 #[test]
+fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation FulfillmentServiceUniquenessCreate($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation FulfillmentServiceUniquenessUpdate($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(
+            id: $id
+            name: $name
+            trackingSupport: false
+            inventoryManagement: false
+            requiresShippingMethod: false
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let create_a = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Acme fsuniq-mowo6bal" }),
+    ));
+    let service_a = &create_a.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"];
+    assert!(service_a["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/FulfillmentService/"));
+    assert!(service_a["location"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Location/"));
+    assert_eq!(
+        service_a,
+        &json!({
+            "id": service_a["id"],
+            "handle": "fs-unique-acme-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Acme fsuniq-mowo6bal",
+            "callbackUrl": null,
+            "trackingSupport": true,
+            "inventoryManagement": true,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+                "id": service_a["location"]["id"],
+                "name": "FS Unique Acme fsuniq-mowo6bal",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+            }
+        })
+    );
+
+    for duplicate_name in [
+        "FS Unique Acme fsuniq-mowo6bal",
+        "FS UNIQUE ACME FSUNIQ-MOWO6BAL",
+    ] {
+        let duplicate = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "name": duplicate_name }),
+        ));
+        assert_eq!(
+            duplicate.body["data"]["fulfillmentServiceCreate"],
+            json!({
+                "fulfillmentService": null,
+                "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+            })
+        );
+    }
+
+    let spaced = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique AB fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        spaced.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["handle"],
+        json!("fs-unique-ab-fsuniq-mowo6bal")
+    );
+
+    let handle_collision = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "fs-unique-ab-fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        handle_collision.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let diacritic = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!" }),
+    ));
+    assert_eq!(
+        diacritic.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["handle"],
+        json!("fs-unique-cafe__3pl-fsuniq-mowo6bal")
+    );
+
+    for reserved_name in ["Manual", "Gift_Card"] {
+        let reserved = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "name": reserved_name }),
+        ));
+        assert_eq!(
+            reserved.body["data"]["fulfillmentServiceCreate"],
+            json!({
+                "fulfillmentService": null,
+                "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
+            })
+        );
+    }
+
+    proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Source fsuniq-mowo6bal" }),
+    ));
+    let target = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Target fsuniq-mowo6bal" }),
+    ));
+    let target_id = target.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_duplicate = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": target_id, "name": "FS Unique Source fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        update_duplicate.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let update_reserved = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": target_id, "name": "Manual" }),
+    ));
+    assert_eq!(
+        update_reserved.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
+        })
+    );
+}
+
+#[test]
 fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
