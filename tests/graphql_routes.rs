@@ -413,6 +413,149 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
 }
 
 #[test]
+fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
+    let mut proxy = snapshot_proxy();
+
+    let expires_after_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateExpiresAfterParent {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        expires_after_parent.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The delegate token can't expire after the parent token.",
+                "code": "EXPIRES_AFTER_PARENT"
+            }]
+        })
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_does_not_exist" }),
+    ));
+    assert_eq!(
+        missing.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": false,
+            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateShopPayload {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken }
+            shop { id myshopifyDomain currencyCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/92891250994",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "currencyCode": "USD"
+        })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": token }),
+    ));
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": true,
+            "userErrors": []
+        })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayloadUnknown {
+          delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        repeat.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": false,
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let mut self_delete = json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_parent_destroy_self" }),
+    );
+    self_delete.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "shpat_parent_destroy_self".to_string(),
+    );
+    let self_delete = proxy.process_request(self_delete);
+    assert_eq!(
+        self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
+        json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
+    );
+}
+
+#[test]
 fn app_revoke_access_scopes_validates_atomically_and_updates_current_installation() {
     let mut proxy = snapshot_proxy();
 

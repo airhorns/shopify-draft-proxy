@@ -227,6 +227,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "deletedProductIds": ["gid://shopify/Product/base"],
                 "shippingPackages": {},
                 "deletedShippingPackageIds": {},
+                "delegatedAccessTokens": {},
                 "savedSearches": {
                     "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
                         "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",

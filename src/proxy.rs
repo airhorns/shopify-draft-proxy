@@ -305,7 +305,8 @@ impl DraftProxy {
                 "deletedProductIds": self.staged_deleted_product_ids.iter().cloned().collect::<Vec<_>>(),
                 "savedSearches": saved_search_state_map_json(&self.staged_saved_searches),
                 "shippingPackages": self.staged_shipping_packages.clone(),
-                "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>()
+                "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
+                "delegatedAccessTokens": self.staged_delegate_access_tokens.clone()
             }
         })
     }
@@ -577,6 +578,13 @@ impl DraftProxy {
             && is_delegate_access_token_create_document(&query)
         {
             return self.delegate_access_token_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "delegateAccessTokenDestroy"
+            && is_delegate_access_token_destroy_document(&query)
+        {
+            return self.delegate_access_token_destroy(&query, &variables, request);
         }
 
         let capability =
@@ -1452,6 +1460,12 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
+        } else if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+            user_errors.push(json!({
+                "field": null,
+                "message": "The delegate token can't expire after the parent token.",
+                "code": "EXPIRES_AFTER_PARENT"
+            }));
         } else if let Some(scope) = scopes
             .iter()
             .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
@@ -1464,6 +1478,18 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
+            if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "delegateAccessTokenCreate",
+                    vec![],
+                );
+                if let Some(entry) = self.log_entries.last_mut() {
+                    set_log_status(entry, "failed");
+                }
+            }
             return ok_json(json!({
                 "data": {
                     response_key: delegate_access_token_create_payload_json(
@@ -1480,11 +1506,17 @@ impl DraftProxy {
             "shpat_delegate_proxy_{}",
             self.staged_delegate_access_tokens.len() + 1
         );
+        let parent_access_token =
+            request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
+        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
+            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
             "createdAt": "2026-04-28T02:10:00.000Z",
-            "expiresIn": expires_in
+            "expiresIn": expires_in,
+            "parentAccessToken": parent_access_token,
+            "apiClientId": api_client_id
         });
         self.staged_delegate_access_tokens
             .insert(token.clone(), record.clone());
@@ -1503,6 +1535,75 @@ impl DraftProxy {
                     &payload_selection,
                     &token_selection,
                     vec![],
+                )
+            }
+        }))
+    }
+
+    fn delegate_access_token_destroy(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "delegateAccessTokenDestroy".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
+        let caller_token = request_access_token(request).unwrap_or_default();
+        let caller_api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
+            .unwrap_or_else(|| "gid://shopify/App/local".to_string());
+
+        let mut status = false;
+        let mut user_errors = Vec::new();
+        if !caller_token.is_empty()
+            && caller_token == token
+            && !token.starts_with("shpat_delegate_proxy_")
+        {
+            user_errors.push(delegate_access_token_destroy_user_error(
+                "Can only delete delegate tokens.",
+                "CAN_ONLY_DELETE_DELEGATE_TOKENS",
+            ));
+        } else if caller_token.starts_with("shpat_delegate_proxy_") && caller_token != token {
+            user_errors.push(delegate_access_token_destroy_user_error(
+                "Access denied.",
+                "ACCESS_DENIED",
+            ));
+        } else if let Some(record) = self.staged_delegate_access_tokens.get(&token) {
+            let token_api_client_id = record
+                .get("apiClientId")
+                .and_then(Value::as_str)
+                .unwrap_or("gid://shopify/App/local");
+            if token_api_client_id != caller_api_client_id {
+                user_errors.push(delegate_access_token_destroy_user_error(
+                    "Access denied.",
+                    "ACCESS_DENIED",
+                ));
+            } else {
+                self.staged_delegate_access_tokens.remove(&token);
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "delegateAccessTokenDestroy",
+                    vec![token],
+                );
+                status = true;
+            }
+        } else {
+            user_errors.push(delegate_access_token_destroy_user_error(
+                "Access token does not exist.",
+                "ACCESS_TOKEN_NOT_FOUND",
+            ));
+        }
+
+        ok_json(json!({
+            "data": {
+                response_key: delegate_access_token_destroy_payload_json(
+                    status,
+                    user_errors,
+                    &payload_selection,
                 )
             }
         }))
@@ -3195,6 +3296,7 @@ fn delegate_access_token_create_payload_json(
             } else {
                 selected_json(&token, token_selection)
             }),
+            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
         };
@@ -3203,6 +3305,43 @@ fn delegate_access_token_create_payload_json(
         }
     }
     Value::Object(fields)
+}
+
+fn delegate_access_token_destroy_payload_json(
+    status: bool,
+    user_errors: Vec<Value>,
+    payload_selection: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "status" => Some(Value::Bool(status)),
+            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn delegate_access_token_destroy_user_error(message: &str, code: &str) -> Value {
+    json!({
+        "field": null,
+        "message": message,
+        "code": code
+    })
+}
+
+fn synthetic_shop_json() -> Value {
+    json!({
+        "id": "gid://shopify/Shop/92891250994",
+        "name": "harry-test-heelo",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com",
+        "currencyCode": "USD"
+    })
 }
 
 fn app_revoke_access_scopes_payload_json(
@@ -3371,6 +3510,18 @@ fn is_delegate_access_token_create_document(query: &str) -> bool {
         "DelegateAccessTokenCreateHappyValidation",
         "DelegateAccessTokenCreateCurrentInputLocalLifecycle",
         "DelegateAccessTokenCreateLocalLifecycle",
+        "DelegateAccessTokenCreateExpiresAfterParent",
+        "DelegateAccessTokenCreateShopPayload",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_delegate_access_token_destroy_document(query: &str) -> bool {
+    [
+        "DelegateAccessTokenDestroyCodes",
+        "DelegateAccessTokenDestroyShopPayload",
+        "DelegateAccessTokenDestroyShopPayloadUnknown",
     ]
     .iter()
     .any(|marker| query.contains(marker))
@@ -3716,6 +3867,26 @@ fn admin_graphql_version(path: &str) -> Option<&str> {
         }
         _ => None,
     }
+}
+
+fn request_header(request: &Request, header_name: &str) -> Option<String> {
+    request
+        .headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(header_name))
+        .map(|(_, value)| value.clone())
+}
+
+fn request_access_token(request: &Request) -> Option<String> {
+    request_header(request, "X-Shopify-Access-Token").or_else(|| {
+        request_header(request, "Authorization").map(|value| {
+            value
+                .strip_prefix("Bearer ")
+                .or_else(|| value.strip_prefix("bearer "))
+                .unwrap_or(&value)
+                .to_string()
+        })
+    })
 }
 
 fn ok_json(body: Value) -> Response {
