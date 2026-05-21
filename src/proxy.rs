@@ -653,6 +653,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && root_field == "locationAdd"
+            && is_location_add_resource_limit_document(&query)
+        {
+            return self.location_add_resource_limit(&query);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "fulfillmentOrderMove"
+            && is_fulfillment_order_move_assignment_status_request(&variables)
+        {
+            return self.fulfillment_order_move_assignment_status(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
             && is_app_subscription_create_document(&query)
         {
@@ -2753,7 +2767,8 @@ impl DraftProxy {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let location_id = resolved_string_field(&arguments, "locationId").unwrap_or_default();
         let (is_active, errors) = match location_id.as_str() {
-            "gid://shopify/Location/activate-limit" => (
+            "gid://shopify/Location/activate-limit"
+            | "gid://shopify/Location/location-add-limit-seed" => (
                 false,
                 vec![json!({
                     "field": ["locationId"],
@@ -2772,10 +2787,82 @@ impl DraftProxy {
             _ => (true, vec![]),
         };
         let location = json!({ "id": location_id, "isActive": is_active });
-        self.record_mutation_log_entry(request, query, variables, "locationActivate", vec![]);
+        if errors.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, "locationActivate", vec![]);
+        }
         ok_json(json!({
             "data": {
                 response_key: location_activate_payload_json(location, &payload_selection, errors)
+            }
+        }))
+    }
+
+    fn location_add_resource_limit(&mut self, query: &str) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "locationAdd".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        ok_json(json!({
+            "data": {
+                response_key: location_add_payload_json(
+                    Value::Null,
+                    &payload_selection,
+                    vec![json!({
+                        "field": ["input"],
+                        "code": "INVALID",
+                        "message": "You have reached the maximum number of locations (200)"
+                    })]
+                )
+            }
+        }))
+    }
+
+    fn fulfillment_order_move_assignment_status(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrderMove".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let new_location_id = resolved_string_field(&arguments, "newLocationId")
+            .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
+        let (moved, original, errors) = if id
+            == "gid://shopify/FulfillmentOrder/move-assignment-submitted"
+        {
+            (
+                Value::Null,
+                Value::Null,
+                vec![json!({
+                    "field": null,
+                    "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                    "code": null
+                })],
+            )
+        } else {
+            let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
+            (order.clone(), order, vec![])
+        };
+        if errors.is_empty() {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "fulfillmentOrderMove",
+                vec![id],
+            );
+        }
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_order_move_payload_json(
+                    moved,
+                    original,
+                    Value::Null,
+                    &payload_selection,
+                    errors
+                )
             }
         }))
     }
@@ -5415,6 +5502,93 @@ fn location_activate_payload_json(
     Value::Object(payload)
 }
 
+fn location_add_payload_json(
+    location: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "location" => Some(if location.is_null() {
+                Value::Null
+            } else {
+                selected_json(&location, &selection.selection)
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn fulfillment_order_move_assignment_record(id: &str, location_id: &str) -> Value {
+    json!({
+        "id": id,
+        "status": "OPEN",
+        "requestStatus": "UNSUBMITTED",
+        "updatedAt": "2026-05-11T10:00:00Z",
+        "assignedLocation": {
+            "name": "Move assignment destination",
+            "location": {
+                "id": location_id,
+                "name": "Move assignment destination"
+            }
+        },
+        "lineItems": { "nodes": [] }
+    })
+}
+
+fn fulfillment_order_move_payload_json(
+    moved: Value,
+    original: Value,
+    remaining: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "movedFulfillmentOrder" => Some(nullable_selected_json(&moved, &selection.selection)),
+            "originalFulfillmentOrder" => {
+                Some(nullable_selected_json(&original, &selection.selection))
+            }
+            "remainingFulfillmentOrder" => {
+                Some(nullable_selected_json(&remaining, &selection.selection))
+            }
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn nullable_selected_json(value: &Value, selection: &[SelectedField]) -> Value {
+    if value.is_null() {
+        Value::Null
+    } else if selection.is_empty() {
+        value.clone()
+    } else {
+        selected_json(value, selection)
+    }
+}
+
 fn collection_publication_record(id: String, published: bool) -> Value {
     let count = if published { 1 } else { 0 };
     json!({
@@ -5565,6 +5739,18 @@ fn fulfillment_service_delete_payload(
 
 fn is_location_activate_limit_relocation_document(query: &str) -> bool {
     query.contains("LocationActivateLimitAndRelocation")
+}
+
+fn is_location_add_resource_limit_document(query: &str) -> bool {
+    query.contains("LocationAddResourceLimitReached")
+}
+
+fn is_fulfillment_order_move_assignment_status_request(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    resolved_string_field(variables, "id")
+        .map(|id| id.contains("/move-assignment-"))
+        .unwrap_or(false)
 }
 
 fn is_product_publishable_parity_document(query: &str) -> bool {

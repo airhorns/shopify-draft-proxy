@@ -324,6 +324,79 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
 }
 
 #[test]
+fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejections() {
+    let mut proxy = snapshot_proxy();
+    let seed_query = r#"
+        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+    "#;
+
+    let seed = proxy.process_request(json_graphql_request(
+        seed_query,
+        json!({
+            "locationId": "gid://shopify/Location/location-add-limit-seed",
+            "idempotencyKey": "location-add-limit-seed"
+        }),
+    ));
+    assert_eq!(
+        seed.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/location-add-limit-seed", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_LIMIT",
+                "message": "Your shop has reached its location limit."
+            }]
+        })
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationAddResourceLimitReached($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Proxy Cap Overflow 20260508142042",
+                "address": {
+                    "countryCode": "US",
+                    "address1": "1 Resource Limit St",
+                    "city": "New York",
+                    "zip": "10001"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You have reached the maximum number of locations (200)"
+            }]
+        })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body, json!({ "entries": [] }));
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -352,6 +425,76 @@ fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     assert_eq!(
         response.body["errors"][0]["extensions"]["code"],
         json!("NOT_FOUND")
+    );
+}
+
+#[test]
+fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_states() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {
+          id
+          status
+          requestStatus
+          updatedAt
+          assignedLocation { name location { id name } }
+          lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+        }
+        mutation FulfillmentOrderMoveValidationMove($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+            movedFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            originalFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            remainingFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    for id in [
+        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
+        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "id": id,
+                "newLocationId": "gid://shopify/Location/move-assignment-destination",
+                "fulfillmentOrderLineItems": null
+            }),
+        ));
+        let payload = &response.body["data"]["fulfillmentOrderMove"];
+        assert_eq!(
+            payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+            json!("gid://shopify/Location/move-assignment-destination")
+        );
+        assert_eq!(
+            payload["originalFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+            json!("gid://shopify/Location/move-assignment-destination")
+        );
+        assert_eq!(payload["remainingFulfillmentOrder"], json!(null));
+        assert_eq!(payload["userErrors"], json!([]));
+    }
+
+    let submitted = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
+            "newLocationId": "gid://shopify/Location/move-assignment-destination",
+            "fulfillmentOrderLineItems": null
+        }),
+    ));
+    assert_eq!(
+        submitted.body["data"]["fulfillmentOrderMove"],
+        json!({
+            "movedFulfillmentOrder": null,
+            "originalFulfillmentOrder": null,
+            "remainingFulfillmentOrder": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                "code": null
+            }]
+        })
     );
 }
 
