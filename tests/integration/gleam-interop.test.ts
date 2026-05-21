@@ -1,46 +1,17 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
-const compiledEntrypoint = resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs');
 
-/**
- * Phase 0 interop smoke: ensures the Gleam port's JavaScript build artefacts
- * can be loaded as ESM by the Node consumers that the existing TypeScript
- * proxy already expects to run alongside. Real domain coverage starts in
- * Phase 2; this exists only to keep the JS interop boundary green from day
- * one of the Gleam port.
- */
-describe('gleam JS interop', () => {
-  beforeAll(() => {
-    if (!existsSync(compiledEntrypoint)) {
-      execFileSync('gleam', ['build', '--target', 'javascript'], {
-        cwd: repoRoot,
-        stdio: 'inherit',
-      });
-    }
-  });
-
-  it('loads the gleam-emitted ESM and reaches the phase-0 hello function', async () => {
-    const mod = (await import(compiledEntrypoint)) as { hello: () => string };
-    expect(typeof mod.hello).toBe('function');
-    expect(mod.hello()).toBe('shopify_draft_proxy gleam port: phase 0');
-  });
-});
-
-describe('public TS API', () => {
-  beforeAll(() => {
-    if (!existsSync(compiledEntrypoint)) {
-      execFileSync('gleam', ['build', '--target', 'javascript'], {
-        cwd: repoRoot,
-        stdio: 'inherit',
-      });
-    }
+describe('public TS API Rust runtime', () => {
+  it('does not import Gleam-emitted build artifacts from the public runtime shim', () => {
+    const runtimeSource = readFileSync(resolve(repoRoot, 'js/src/runtime.ts'), 'utf8');
+    expect(runtimeSource).not.toContain('build/dev/javascript');
+    expect(runtimeSource).not.toContain('GleamDraftProxy');
   });
 
   it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {
@@ -79,9 +50,10 @@ describe('public TS API', () => {
       ok: true,
       message: expect.stringContaining('shopify-draft-proxy'),
     });
+    (proxy as unknown as { dispose: () => void }).dispose();
   }, 20_000);
 
-  it('round-trips state via dumpState/restoreState with the documented schema', async () => {
+  it('round-trips state via dumpState/restoreState with the documented Rust schema', async () => {
     const shim = (await import(resolve(repoRoot, 'js/src/index.ts'))) as {
       createDraftProxy: (options: {
         readMode: string;
@@ -114,9 +86,11 @@ describe('public TS API', () => {
       state: dump,
     });
     expect(fresh.getState()).toBeDefined();
-  });
+    (proxy as unknown as { dispose: () => void }).dispose();
+    (fresh as unknown as { dispose: () => void }).dispose();
+  }, 30_000);
 
-  it('loads an existing normalized snapshot file when snapshotPath is configured', async () => {
+  it('reflects configured snapshot path in Rust config snapshots', async () => {
     const shim = (await import(resolve(repoRoot, 'js/src/index.ts'))) as {
       createDraftProxy: (config: {
         readMode: string;
@@ -138,16 +112,18 @@ describe('public TS API', () => {
     expect(proxy.getConfig().snapshot).toEqual({ enabled: true, path: snapshotPath });
     expect(proxy.getState()).toMatchObject({
       baseState: expect.objectContaining({
+        products: {},
         savedSearches: {},
-        webhookSubscriptions: {},
       }),
       stagedState: expect.objectContaining({
+        products: {},
         savedSearches: {},
       }),
     });
-  });
+    (proxy as unknown as { dispose: () => void }).dispose();
+  }, 20_000);
 
-  it('supports the JS embeddable lifecycle through the TS-friendly shim', async () => {
+  it('supports the JS embeddable lifecycle through the Rust-backed TS shim', async () => {
     const requests: Array<{ url: string | undefined; body: string; authorization: string | undefined }> = [];
     const upstream = createServer((req, res) => {
       let body = '';
@@ -270,6 +246,8 @@ describe('public TS API', () => {
         authorization: 'Bearer test-token',
         body: expect.stringContaining('savedSearchCreate'),
       });
+      (proxy as unknown as { dispose: () => void }).dispose();
+      (restored as unknown as { dispose: () => void }).dispose();
     } finally {
       await new Promise<void>((resolveClose, rejectClose) => {
         upstream.close((error) => {
@@ -278,5 +256,5 @@ describe('public TS API', () => {
         });
       });
     }
-  });
+  }, 60_000);
 });

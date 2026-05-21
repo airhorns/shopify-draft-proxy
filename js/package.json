@@ -2,15 +2,15 @@
   "name": "shopify-draft-proxy-gleam-shim",
   "version": "0.0.0",
   "private": true,
-  "description": "TS shim re-exporting the Gleam-port public API. Mirrors the surface area of the top-level shopify-draft-proxy package so consumers can drop the Gleam build in once domain coverage is complete.",
+  "description": "TS shim re-exporting the Rust-port public API. Mirrors the surface area of the top-level shopify-draft-proxy package while the full runtime is being cut over to Rust.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "dev": "cd .. && gleam build --target javascript && cd js && tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "cd .. && gleam build --target javascript && cd js && tsc -p .",
-    "test": "cd .. && gleam build --target javascript && cd js && vitest run"
+    "build": "cd .. && corepack pnpm exec tsc -p js",
+    "test": "cd .. && corepack pnpm exec vitest run js"
   },
   "devDependencies": {
     "@types/node": "^24.6.1",
