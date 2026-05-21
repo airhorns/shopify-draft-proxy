@@ -44,4 +44,19 @@ describe('Rust parity runner CLI', () => {
     );
     expect(output).toContain('collectionCreate-and-add-products-parity.json passed');
   });
+
+  it('resolves capture-path variables before replaying recorded passthrough node reads', () => {
+    const output = execFileSync(
+      'corepack',
+      [
+        'pnpm',
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/admin-platform/admin-platform-delivery-profile-node-reads.json',
+      ],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    expect(output).toContain('admin-platform-delivery-profile-node-reads.json passed');
+  });
 });

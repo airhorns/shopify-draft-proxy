@@ -196,16 +196,31 @@ function applyExcludedPaths(value: unknown, paths: string[] | undefined): unknow
   return out;
 }
 
-function resolveSpecialVariables(value: unknown, primaryResponse: ProxyResponse | null): unknown {
-  if (Array.isArray(value)) return value.map((entry) => resolveSpecialVariables(entry, primaryResponse));
+function resolveSpecialVariables(
+  value: unknown,
+  capture: unknown,
+  primaryResponse: ProxyResponse | null,
+  namedResponses: Map<string, ProxyResponse>,
+): unknown {
+  if (Array.isArray(value))
+    return value.map((entry) => resolveSpecialVariables(entry, capture, primaryResponse, namedResponses));
   if (typeof value === 'object' && value !== null) {
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
       return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
     }
+    if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
+    if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
+      const response = namedResponses.get(object['fromProxyResponse']);
+      if (!response) throw new Error(`fromProxyResponse references unknown target: ${object['fromProxyResponse']}`);
+      return getPath(response.body, object['path']);
+    }
     return Object.fromEntries(
-      Object.entries(object).map(([key, entry]) => [key, resolveSpecialVariables(entry, primaryResponse)]),
+      Object.entries(object).map(([key, entry]) => [
+        key,
+        resolveSpecialVariables(entry, capture, primaryResponse, namedResponses),
+      ]),
     );
   }
   return value;
@@ -215,6 +230,7 @@ async function loadRequest(
   request: ProxyRequestSpec | undefined,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  namedResponses: Map<string, ProxyResponse>,
 ): Promise<{ query: string; variables: Record<string, unknown>; headers: Record<string, string> } | null> {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let query: string;
@@ -235,7 +251,7 @@ async function loadRequest(
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
-  variables = resolveSpecialVariables(variables, primaryResponse) as Record<string, unknown>;
+  variables = resolveSpecialVariables(variables, capture, primaryResponse, namedResponses) as Record<string, unknown>;
   return { query, variables, headers: request.headers ?? {} };
 }
 
@@ -261,7 +277,10 @@ function stableJson(value: unknown): string {
 function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
-    return parsed['query'] === call.query && stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
+    const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
+    const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
+    const canMatchSynthesizedNodeQuery = call.query?.startsWith('sha:') && /\bnode(?:s)?\s*\(/u.test(query);
+    return variablesMatch && (canMatchSynthesizedNodeQuery || parsed['query'] === call.query);
   } catch {
     return false;
   }
@@ -432,8 +451,9 @@ async function runSpec(
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
+  const namedResponses = new Map<string, ProxyResponse>();
   try {
-    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null);
+    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, namedResponses);
     if (primaryRequest !== null) {
       const primaryFallbackTarget = spec.comparison?.targets?.find(
         (target) => captureResponseForTarget(capture, target) !== null,
@@ -448,9 +468,11 @@ async function runSpec(
       let proxySource: unknown;
       if (target.proxyRequest) {
         cassette.setFallbackResponse(captureResponseForTarget(capture, target));
-        const request = await loadRequest(target.proxyRequest, capture, primaryResponse);
+        const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
-        proxySource = (await sendProxyRequest(proxy, request)).body;
+        const targetResponse = await sendProxyRequest(proxy, request);
+        namedResponses.set(target.name, targetResponse);
+        proxySource = targetResponse.body;
         if (debug)
           log(
             `[parity-debug] ${relativeSpecPath} [${target.name}] proxy response ${JSON.stringify(proxySource).slice(0, 1000)}`,
@@ -461,6 +483,7 @@ async function runSpec(
         proxySource = await proxy.getLog();
       } else {
         proxySource = primaryResponse?.body;
+        if (primaryResponse) namedResponses.set(target.name, primaryResponse);
       }
       const captureValue = normalizeForTarget(getPath(capture, target.capturePath), target);
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';
