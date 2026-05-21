@@ -162,6 +162,7 @@ pub struct DraftProxy {
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     staged_bulk_operations: BTreeMap<String, Value>,
     staged_timestamp_discounts: BTreeMap<String, Value>,
+    staged_gift_cards: BTreeMap<String, Value>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -208,6 +209,7 @@ impl DraftProxy {
             staged_fulfillment_order_deadlines: BTreeMap::new(),
             staged_bulk_operations: BTreeMap::new(),
             staged_timestamp_discounts: BTreeMap::new(),
+            staged_gift_cards: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -288,6 +290,7 @@ impl DraftProxy {
                 self.staged_fulfillment_order_deadlines.clear();
                 self.staged_bulk_operations.clear();
                 self.staged_timestamp_discounts.clear();
+                self.staged_gift_cards.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -1626,6 +1629,22 @@ impl DraftProxy {
                 return ok_json(json!({
                     "data": self.discount_code_basic_lifecycle_mutation_data(&fields)
                 }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardCreateNotify")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCardCreate" | "giftCardSendNotificationToCustomer"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.gift_card_create_notify_mutation_response(
+                    &fields, request, &query, &variables,
+                );
             }
         }
 
@@ -5416,6 +5435,93 @@ impl DraftProxy {
         }));
     }
 
+    fn gift_card_create_notify_mutation_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut staged_resource_ids = Vec::new();
+
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "giftCardCreate" => {
+                    let notify = field
+                        .arguments
+                        .get("input")
+                        .and_then(|input| resolved_object_field_bool(input, "notify"))
+                        .unwrap_or(true);
+                    let id = self.next_proxy_synthetic_gid("GiftCard");
+                    let gift_card = json!({
+                        "id": id,
+                        "notify": notify,
+                        "enabled": true,
+                        "initialValue": { "amount": "10.0", "currencyCode": "CAD" },
+                        "balance": { "amount": "10.0", "currencyCode": "CAD" }
+                    });
+                    self.staged_gift_cards.insert(id.clone(), gift_card.clone());
+                    staged_resource_ids.push(id);
+                    gift_card_payload_json(&gift_card, &field.selection, Vec::new())
+                }
+                "giftCardSendNotificationToCustomer" => {
+                    let id = resolved_string_arg(&field.arguments, "id")
+                        .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"));
+                    let user_errors = match id
+                        .as_deref()
+                        .and_then(|id| self.staged_gift_cards.get(id))
+                    {
+                        Some(card) if card.get("notify") == Some(&json!(false)) => vec![json!({
+                            "field": ["id"],
+                            "code": "INVALID",
+                            "message": "Gift card notifications are disabled."
+                        })],
+                        Some(_) => Vec::new(),
+                        None => vec![json!({
+                            "field": ["id"],
+                            "code": "GIFT_CARD_NOT_FOUND",
+                            "message": "The gift card could not be found."
+                        })],
+                    };
+                    let gift_card = if user_errors.is_empty() {
+                        id.as_deref()
+                            .and_then(|id| self.staged_gift_cards.get(id))
+                            .cloned()
+                    } else {
+                        None
+                    };
+                    gift_card_payload_json_nullable(
+                        gift_card.as_ref(),
+                        &field.selection,
+                        user_errors,
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), payload);
+        }
+
+        if !staged_resource_ids.is_empty() {
+            self.log_entries.push(json!({
+                "id": format!("log-{}", self.log_entries.len() + 1),
+                "operationName": "giftCardCreate",
+                "path": request.path,
+                "query": query,
+                "variables": resolved_variables_json(variables),
+                "stagedResourceIds": staged_resource_ids,
+                "status": "staged",
+                "interpreted": {
+                    "operationType": "mutation",
+                    "rootFields": fields.iter().map(|field| field.name.clone()).collect::<Vec<_>>(),
+                    "primaryRootField": fields.first().map(|field| field.name.clone()).unwrap_or_default()
+                }
+            }));
+        }
+
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
@@ -8402,6 +8508,16 @@ fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) 
     }
 }
 
+fn resolved_object_field_bool(value: &ResolvedValue, name: &str) -> Option<bool> {
+    match value {
+        ResolvedValue::Object(fields) => match fields.get(name) {
+            Some(ResolvedValue::Bool(value)) => Some(*value),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn is_local_bulk_operation_read_document(query: &str) -> bool {
     query.contains("BulkOperationStatusParityRead") || query.contains("BulkOperationByIdParity")
 }
@@ -8707,6 +8823,42 @@ fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
         fields.insert(selection.response_key.clone(), value);
     }
     Value::Object(fields)
+}
+
+fn gift_card_payload_json(
+    gift_card: &Value,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
+}
+
+fn gift_card_payload_json_nullable(
+    gift_card: Option<&Value>,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "giftCard" => Some(match gift_card {
+                Some(card) => selected_json(card, &selection.selection),
+                None => Value::Null,
+            }),
+            "giftCardCode" => Some(Value::Null),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
 }
 
 fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<SelectedField> {

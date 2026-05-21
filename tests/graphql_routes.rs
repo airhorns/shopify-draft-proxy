@@ -6171,6 +6171,50 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateNotify {
+          createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createNotifyFalse": {
+                "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" },
+                "userErrors": []
+            },
+            "notifyDisabled": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "code": "INVALID",
+                    "message": "Gift card notifications are disabled."
+                }]
+            }
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["stagedResourceIds"],
+        json!(["gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"])
+    );
+}
+
+#[test]
 fn discount_timestamps_monotonic_create_update_and_code_reads_preserve_synthetic_order() {
     let mut proxy = snapshot_proxy();
     let create = r#"mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
