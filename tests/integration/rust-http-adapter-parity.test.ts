@@ -141,6 +141,7 @@ describe('Rust HTTP adapter route surface', () => {
             delegatedAccessTokens: {},
             customers: {},
             deletedCustomerIds: [],
+            customerOrders: {},
           },
         },
       });

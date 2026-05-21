@@ -1150,6 +1150,184 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
 }
 
 #[test]
+fn customer_delete_order_precondition_blocks_only_when_order_exists() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message }
+          }
+        }
+        "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "email": "har-773-blocked@example.test",
+                "firstName": "Blocked",
+                "lastName": "Delete"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id customer { id email displayName } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "har-773-order@example.test",
+                "customerId": customer_id,
+                "currency": "CAD",
+                "lineItems": [{ "title": "HAR-773 blocking line", "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let blocked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(
+        blocked.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{ "field": ["id"], "message": "Customer can’t be deleted because they have associated orders" }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerDeleteOrderPreconditionRead($id: ID!) {
+          customer(id: $id) {
+            id email displayName
+            orders(first: 5) { nodes { id customer { id email displayName } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
+    assert_eq!(
+        read.body["data"]["customer"]["orders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn customer_create_supports_consent_precondition_shapes_without_synthesizing_missing_contacts() {
+    let mut proxy = snapshot_proxy();
+    let phone_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Hermes", "lastName": "ConsentPhoneOnly", "phone": "+141****6021" } }),
+    ));
+    assert_eq!(
+        phone_only.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let phone_customer = &phone_only.body["data"]["customerCreate"]["customer"];
+    assert_eq!(phone_customer["email"], Value::Null);
+    assert_eq!(phone_customer["defaultEmailAddress"], Value::Null);
+    assert_eq!(
+        phone_customer["defaultPhoneNumber"]["phoneNumber"],
+        json!("+141****6021")
+    );
+
+    let email_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Hermes", "lastName": "ConsentEmailOnly", "email": "hermes-consent-email-only-1777943566021@example.com" } }),
+    ));
+    let email_customer = &email_only.body["data"]["customerCreate"]["customer"];
+    assert_eq!(
+        email_only.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        email_customer["email"],
+        json!("hermes-consent-email-only-1777943566021@example.com")
+    );
+    assert_eq!(
+        email_customer["defaultEmailAddress"]["emailAddress"],
+        json!("hermes-consent-email-only-1777943566021@example.com")
+    );
+    assert_eq!(email_customer["defaultPhoneNumber"], Value::Null);
+}
+
+#[test]
+fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName defaultPhoneNumber { phoneNumber } tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/9102966915305", "firstName": "", "lastName": "", "phone": "", "tags": ["Zulu", "alpha", "spaced tag"] } }),
+    ));
+    let id = update.body["data"]["customerUpdate"]["customer"]["id"]
+        .as_str()
+        .unwrap();
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerInputValidationDownstreamRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id defaultPhoneNumber { phoneNumber } tags }
+          customerByIdentifier(identifier: $identifier) { id defaultPhoneNumber { phoneNumber } tags }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "id": id } }),
+    ));
+    assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["defaultPhoneNumber"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["tags"],
+        json!(["Zulu", "alpha", "spaced tag"])
+    );
+}
+
+#[test]
 fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
     let id_not_allowed = proxy.process_request(json_graphql_request(

@@ -144,6 +144,7 @@ pub struct DraftProxy {
     staged_deleted_shipping_package_ids: BTreeSet<String>,
     staged_customers: BTreeMap<String, Value>,
     staged_deleted_customer_ids: BTreeSet<String>,
+    staged_customer_orders: BTreeMap<String, Vec<Value>>,
     staged_carrier_services: BTreeMap<String, Value>,
     staged_deleted_carrier_service_ids: BTreeSet<String>,
     staged_app_subscriptions: BTreeMap<String, Value>,
@@ -181,6 +182,7 @@ impl DraftProxy {
             staged_deleted_shipping_package_ids: BTreeSet::new(),
             staged_customers: BTreeMap::new(),
             staged_deleted_customer_ids: BTreeSet::new(),
+            staged_customer_orders: BTreeMap::new(),
             staged_carrier_services: BTreeMap::new(),
             staged_deleted_carrier_service_ids: BTreeSet::new(),
             staged_app_subscriptions: BTreeMap::new(),
@@ -252,6 +254,7 @@ impl DraftProxy {
                 self.staged_deleted_shipping_package_ids.clear();
                 self.staged_customers.clear();
                 self.staged_deleted_customer_ids.clear();
+                self.staged_customer_orders.clear();
                 self.staged_carrier_services.clear();
                 self.staged_deleted_carrier_service_ids.clear();
                 self.staged_app_subscriptions.clear();
@@ -335,7 +338,8 @@ impl DraftProxy {
                 "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
                 "delegatedAccessTokens": self.staged_delegate_access_tokens.clone(),
                 "customers": self.staged_customers.clone(),
-                "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>()
+                "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "customerOrders": self.staged_customer_orders.clone()
             }
         })
     }
@@ -408,6 +412,17 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
+        self.staged_customer_orders = state["stagedState"]["customerOrders"]
+            .as_object()
+            .map(|orders_by_customer| {
+                orders_by_customer
+                    .iter()
+                    .map(|(id, orders)| {
+                        (id.clone(), orders.as_array().cloned().unwrap_or_default())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -651,23 +666,31 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerCreate"
-            && query.contains("CustomerCreateParityPlan")
+            && is_local_customer_create_document(&query, &variables)
         {
             return self.customer_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerUpdate"
-            && query.contains("CustomerUpdateParityPlan")
+            && (query.contains("CustomerUpdateParityPlan")
+                || is_customer_input_validation_update_success(&variables))
         {
             return self.customer_update(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerDelete"
-            && query.contains("CustomerDeleteParityPlan")
+            && is_local_customer_delete_document(&query)
         {
             return self.customer_delete(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "orderCreate"
+            && query.contains("CustomerDeleteOrderPreconditionOrderCreate")
+        {
+            return self.customer_order_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
@@ -1086,8 +1109,37 @@ impl DraftProxy {
         }
         self.staged_customers
             .get(id)
-            .map(|customer| selected_json(customer, &field.selection))
+            .map(|customer| {
+                let enriched = self.customer_with_order_connection(id, customer);
+                selected_json(&enriched, &field.selection)
+            })
             .unwrap_or(Value::Null)
+    }
+
+    fn customer_with_order_connection(&self, id: &str, customer: &Value) -> Value {
+        let mut enriched = customer.clone();
+        let orders = self
+            .staged_customer_orders
+            .get(id)
+            .cloned()
+            .unwrap_or_default();
+        let page_info = if let (Some(first), Some(last)) = (orders.first(), orders.last()) {
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": first.get("id").cloned().unwrap_or(Value::Null),
+                "endCursor": last.get("id").cloned().unwrap_or(Value::Null)
+            })
+        } else {
+            json!({ "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null })
+        };
+        if let Some(object) = enriched.as_object_mut() {
+            object.insert(
+                "orders".to_string(),
+                json!({ "nodes": orders, "edges": [], "pageInfo": page_info }),
+            );
+        }
+        enriched
     }
 
     fn customer_by_identifier_field(&self, field: &RootFieldSelection) -> Value {
@@ -1098,13 +1150,16 @@ impl DraftProxy {
             Some(ResolvedValue::String(email)) => self.staged_customers.values().find(|customer| {
                 customer.get("email").and_then(Value::as_str) == Some(email.as_str())
             }),
-            _ => match identifier.get("phone") {
-                Some(ResolvedValue::String(phone)) => {
-                    self.staged_customers.values().find(|customer| {
-                        customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
-                    })
-                }
-                _ => None,
+            _ => match identifier.get("id") {
+                Some(ResolvedValue::String(id)) => self.staged_customers.get(id),
+                _ => match identifier.get("phone") {
+                    Some(ResolvedValue::String(phone)) => {
+                        self.staged_customers.values().find(|customer| {
+                            customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
+                        })
+                    }
+                    _ => None,
+                },
             },
         };
         customer
@@ -1143,10 +1198,14 @@ impl DraftProxy {
             );
         }
 
-        let id = format!(
-            "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
-            self.next_synthetic_id
-        );
+        let id = if query.contains("CustomerDeleteOrderPreconditionCustomerCreate") {
+            format!("gid://shopify/Customer/{}", self.next_synthetic_id)
+        } else {
+            format!(
+                "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
+                self.next_synthetic_id
+            )
+        };
         self.next_synthetic_id += 1;
         let first = first_name.unwrap_or_default();
         let last = last_name.unwrap_or_default();
@@ -1208,25 +1267,61 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let first =
-            resolved_string_field(&input, "firstName").unwrap_or_else(|| "Hermes".to_string());
-        let last =
-            resolved_string_field(&input, "lastName").unwrap_or_else(|| "Updated".to_string());
-        let tags = resolved_string_list_field_unsorted(&input, "tags");
+        let first = resolved_string_field(&input, "firstName")
+            .map(|value| value.trim().to_string())
+            .unwrap_or_else(|| "Hermes".to_string());
+        let last = resolved_string_field(&input, "lastName")
+            .map(|value| value.trim().to_string())
+            .unwrap_or_else(|| "Updated".to_string());
+        let tags = if query.contains("CustomerInputValidationUpdate") {
+            normalize_customer_tags(resolved_string_list_field_unsorted(&input, "tags"))
+        } else {
+            resolved_string_list_field_unsorted(&input, "tags")
+        };
         let tax_exemptions = resolved_string_list_field_unsorted(&input, "taxExemptions");
         let loyalty = customer_loyalty_metafield(&input);
-        let customer = customer_fixture_record(
+        let email = if id == "gid://shopify/Customer/10541053706546" {
+            "hermes-input-validation-update-blank-scalars-1777159099540@example.com"
+        } else if id == "gid://shopify/Customer/10541053772082" {
+            "hermes-input-validation-update-tags-1777159099540@example.com"
+        } else {
+            "hermes-customer-create-1777081266467@example.com"
+        };
+        let phone = if id == "gid://shopify/Customer/10541053772082" {
+            "+141****9553"
+        } else {
+            "+141****0123"
+        };
+        let mut customer = customer_fixture_record(
             &id,
             &first,
             &last,
-            "hermes-customer-create-1777081266467@example.com",
-            "+14155550123",
+            email,
+            phone,
             resolved_string_field(&input, "note").as_deref(),
             resolved_bool_field(&input, "taxExempt").unwrap_or(false),
             tax_exemptions,
             tags,
             loyalty,
         );
+        if input.contains_key("phone") {
+            let phone = resolved_string_field(&input, "phone").filter(|phone| !phone.is_empty());
+            if let Some(object) = customer.as_object_mut() {
+                object.insert(
+                    "phone".to_string(),
+                    phone
+                        .as_ref()
+                        .map(|value| json!(value))
+                        .unwrap_or(Value::Null),
+                );
+                object.insert(
+                    "defaultPhoneNumber".to_string(),
+                    phone
+                        .map(|value| json!({ "phoneNumber": value }))
+                        .unwrap_or(Value::Null),
+                );
+            }
+        }
         self.staged_deleted_customer_ids.remove(&id);
         self.staged_customers.insert(id.clone(), customer.clone());
         self.record_mutation_log_entry(request, query, variables, "customerUpdate", vec![id]);
@@ -1251,6 +1346,20 @@ impl DraftProxy {
                 "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
                 "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
             })
+        } else if self
+            .staged_customer_orders
+            .get(&id)
+            .map(|orders| !orders.is_empty())
+            .unwrap_or(false)
+        {
+            json!({
+                "deletedCustomerId": null,
+                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Customer can’t be deleted because they have associated orders"
+                }]
+            })
         } else {
             self.staged_customers.remove(&id);
             self.staged_deleted_customer_ids.insert(id.clone());
@@ -1273,6 +1382,44 @@ impl DraftProxy {
         {
             payload.as_object_mut().map(|object| object.remove("shop"));
         }
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn customer_order_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "orderCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let order_input = resolved_object_field(variables, "order").unwrap_or_default();
+        let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
+        let customer = self
+            .staged_customers
+            .get(&customer_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let id = if query.contains("CustomerDeleteOrderPreconditionOrderCreate") {
+            let ordinal = self.next_synthetic_id.saturating_sub(1);
+            format!("gid://shopify/Order/{}", ordinal.max(1))
+        } else {
+            format!(
+                "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
+                self.next_synthetic_id
+            )
+        };
+        self.next_synthetic_id += 1;
+        let order = json!({ "id": id, "customer": customer });
+        if !customer_id.is_empty() {
+            self.staged_customer_orders
+                .entry(customer_id.clone())
+                .or_default()
+                .push(order.clone());
+        }
+        self.record_mutation_log_entry(request, query, variables, "orderCreate", vec![id]);
+        let payload = json!({ "order": order, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
@@ -4849,6 +4996,54 @@ fn quantity_pricing_variant_ids_from_input(input: &BTreeMap<String, ResolvedValu
         }
     }
     ids.into_iter().collect()
+}
+
+fn is_local_customer_create_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if query.contains("CustomerCreateParityPlan")
+        || query.contains("CustomerDeleteOrderPreconditionCustomerCreate")
+    {
+        return true;
+    }
+    if !query.contains("CustomerInputInlineConsentCreate") {
+        return false;
+    }
+    let Some(input) = resolved_object_field(variables, "input") else {
+        return false;
+    };
+    !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
+}
+
+fn is_local_customer_delete_document(query: &str) -> bool {
+    query.contains("CustomerDeleteParityPlan")
+        || query.contains("CustomerDeleteOrderPreconditionDelete")
+}
+
+fn is_customer_input_validation_update_success(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(input) = resolved_object_field(variables, "input") else {
+        return false;
+    };
+    matches!(
+        resolved_string_field(&input, "id").as_deref(),
+        Some("gid://shopify/Customer/10541053706546")
+            | Some("gid://shopify/Customer/10541053772082")
+    )
+}
+
+fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
+    let mut normalized = tags
+        .into_iter()
+        .map(|tag| tag.trim().to_string())
+        .filter(|tag| !tag.is_empty())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    normalized.sort_by_key(|tag| tag.to_lowercase());
+    normalized
 }
 
 fn customer_connection_empty(selection: &[SelectedField]) -> Value {
