@@ -6012,6 +6012,194 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let create = r#"mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let created = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "HAR-784 redeem code validation 1778166762181", "code": "HAR784BASE1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let add = r#"mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { id done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { id code } } } } userErrors { field message code extraInfo } } }"#;
+    let unknown = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/0", "codes": [{"code":"ABC"}] }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"],
+        json!(null)
+    );
+    assert_eq!(
+        unknown.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+
+    let too_many_codes: Vec<_> = (0..251)
+        .map(|i| json!({ "code": format!("HAR784MAX1778166762181-{i}") }))
+        .collect();
+    let too_many = proxy.process_request(json_graphql_request(add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": too_many_codes })));
+    assert_eq!(
+        too_many.body["errors"][0]["message"],
+        json!("The input array size of 251 is greater than the maximum allowed of 250.")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["discountRedeemCodeBulkAdd", "codes"])
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+
+    let empty = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": [] }),
+    ));
+    assert_eq!(
+        empty.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([{ "field": ["codes"], "message": "Codes can't be blank", "code": "BLANK", "extraInfo": null }])
+    );
+
+    let invalid_codes = json!([{"code":""},{"code":"HAR784NL1778166762181\nBAD"},{"code":"HAR784CR1778166762181\rBAD"},{"code":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784OK1778166762181"}]);
+    let invalid_add = proxy.process_request(json_graphql_request(add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": invalid_codes })));
+    let invalid_bulk_id = invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(7)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["importedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["failedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codes"]["nodes"][0]
+            ["errors"],
+        json!([])
+    );
+
+    let creation_read = r#"query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) { discountRedeemCodeBulkCreation(id: $id) { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { code } } } } }"#;
+    let invalid_final = proxy.process_request(json_graphql_request(
+        creation_read,
+        json!({ "id": invalid_bulk_id }),
+    ));
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["done"],
+        json!(true)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["importedCount"],
+        json!(2)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["failedCount"],
+        json!(5)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][0]["errors"]
+            [0]["message"],
+        json!("is too short (minimum is 1 character)")
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][5]["errors"]
+            [0]["message"],
+        json!("Codes must be unique within BulkDiscountCodeCreation")
+    );
+
+    let read = r#"query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } duplicate: codeDiscountNodeByCode(code: $duplicateCode) { id } valid: codeDiscountNodeByCode(code: $validCode) { id } }"#;
+    let read_after_invalid = proxy.process_request(json_graphql_request(read, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "duplicateCode": "HAR784DUP1778166762181", "validCode": "HAR784OK1778166762181" })));
+    assert_eq!(
+        read_after_invalid.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read_after_invalid.body["data"]["duplicate"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        read_after_invalid.body["data"]["valid"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+
+    let conflicts = json!([{"code":"HAR784BASE1778166762181"},{"code":"HAR784CROSS1778166762181"},{"code":"HAR784FRESH1778166762181"}]);
+    let conflicts_add = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": conflicts }),
+    ));
+    let conflicts_bulk_id = conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(3)
+    );
+
+    let conflicts_final = proxy.process_request(json_graphql_request(
+        creation_read,
+        json!({ "id": conflicts_bulk_id }),
+    ));
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["importedCount"],
+        json!(1)
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["failedCount"],
+        json!(2)
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][0]
+            ["errors"][0]["message"],
+        json!("must be unique. Please try a different code.")
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][2]
+            ["discountRedeemCode"]["code"],
+        json!("HAR784FRESH1778166762181")
+    );
+
+    let existing_read = r#"query DiscountRedeemCodeBulkValidationExistingRead($discountId: ID!, $sameDiscountCode: String!, $crossDiscountCode: String!, $freshCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) { id } crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) { id } fresh: codeDiscountNodeByCode(code: $freshCode) { id } }"#;
+    let read_after_conflicts = proxy.process_request(json_graphql_request(existing_read, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "sameDiscountCode": "HAR784BASE1778166762181", "crossDiscountCode": "HAR784CROSS1778166762181", "freshCode": "HAR784FRESH1778166762181" })));
+    assert_eq!(
+        read_after_conflicts.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["sameDiscount"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["crossDiscount"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746254642")
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["fresh"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+}
+
+#[test]
 fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     let mut proxy = snapshot_proxy();
     let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;

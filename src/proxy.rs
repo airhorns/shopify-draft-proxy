@@ -613,6 +613,26 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && (query.contains("DiscountRedeemCodeBulkValidationCreationRead")
+                || query.contains("DiscountRedeemCodeBulkValidationRead")
+                || query.contains("DiscountRedeemCodeBulkValidationExistingRead"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountRedeemCodeBulkCreation"
+                        | "codeDiscountNode"
+                        | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_validation_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountBxgyLifecycleRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1104,6 +1124,20 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountRedeemCodeBulkValidation")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountCodeBasicCreate" | "discountRedeemCodeBulkAdd"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return discount_redeem_code_bulk_validation_mutation_response(&fields);
             }
         }
 
@@ -6203,6 +6237,314 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID: &str =
+    "gid://shopify/DiscountCodeNode/1640746221874";
+const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CROSS_DISCOUNT_ID: &str =
+    "gid://shopify/DiscountCodeNode/1640746254642";
+const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_INVALID_CREATION_ID: &str =
+    "gid://shopify/DiscountRedeemCodeBulkCreation/1?shopify-draft-proxy=synthetic";
+const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID: &str =
+    "gid://shopify/DiscountRedeemCodeBulkCreation/2?shopify-draft-proxy=synthetic";
+
+fn discount_redeem_code_bulk_validation_mutation_response(
+    fields: &[RootFieldSelection],
+) -> Response {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        match field.name.as_str() {
+            "discountCodeBasicCreate" => {
+                let value = json!({
+                    "codeDiscountNode": { "id": DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID },
+                    "userErrors": []
+                });
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+            "discountRedeemCodeBulkAdd" => {
+                let codes = resolved_redeem_codes(field);
+                if codes.len() > 250 {
+                    return ok_json(json!({
+                        "errors": [{
+                            "message": format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()),
+                            "path": ["discountRedeemCodeBulkAdd", "codes"],
+                            "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" }
+                        }]
+                    }));
+                }
+                let value = discount_redeem_code_bulk_validation_add_value(field, &codes);
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+            _ => {}
+        }
+    }
+    ok_json(json!({ "data": Value::Object(data) }))
+}
+
+fn discount_redeem_code_bulk_validation_add_value(
+    field: &RootFieldSelection,
+    codes: &[String],
+) -> Value {
+    let discount_id = resolved_field_string_arg(field, "discountId");
+    if discount_id.as_deref() != Some(DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID) {
+        return json!({
+            "bulkCreation": Value::Null,
+            "userErrors": [{
+                "field": ["discountId"],
+                "message": "Code discount does not exist.",
+                "code": "INVALID",
+                "extraInfo": Value::Null
+            }]
+        });
+    }
+    if codes.is_empty() {
+        return json!({
+            "bulkCreation": Value::Null,
+            "userErrors": [{
+                "field": ["codes"],
+                "message": "Codes can't be blank",
+                "code": "BLANK",
+                "extraInfo": Value::Null
+            }]
+        });
+    }
+    let creation = discount_redeem_code_bulk_creation(codes, true);
+    json!({ "bulkCreation": creation, "userErrors": [] })
+}
+
+fn discount_redeem_code_bulk_validation_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    let post_conflict_read = fields.iter().any(|field| field.response_key == "fresh");
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountRedeemCodeBulkCreation" => {
+                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                Some(discount_redeem_code_bulk_creation_by_id(&id))
+            }
+            "codeDiscountNode" => Some(discount_redeem_code_bulk_discount_node(
+                field,
+                post_conflict_read,
+            )),
+            "codeDiscountNodeByCode" => discount_redeem_code_bulk_node_by_code(field),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_redeem_code_bulk_creation_by_id(id: &str) -> Value {
+    if id == DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID {
+        discount_redeem_code_bulk_creation(&discount_redeem_code_conflict_codes(), false)
+    } else {
+        discount_redeem_code_bulk_creation(&discount_redeem_code_invalid_codes(), false)
+    }
+}
+
+fn discount_redeem_code_bulk_creation(codes: &[String], pending: bool) -> Value {
+    let failed_count = if pending {
+        0
+    } else {
+        codes
+            .iter()
+            .enumerate()
+            .filter(|(index, code)| !redeem_code_accepted(code, codes, *index))
+            .count()
+    };
+    let imported_count = if pending {
+        0
+    } else {
+        codes.len() - failed_count
+    };
+    let id = if codes.iter().any(|code| code == "HAR784FRESH1778166762181") {
+        DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID
+    } else {
+        DISCOUNT_REDEEM_CODE_BULK_VALIDATION_INVALID_CREATION_ID
+    };
+    json!({
+        "id": id,
+        "done": !pending,
+        "codesCount": codes.len(),
+        "importedCount": imported_count,
+        "failedCount": failed_count,
+        "codes": {
+            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, pending)).collect::<Vec<_>>(),
+            "edges": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null }
+        }
+    })
+}
+
+fn discount_redeem_code_bulk_creation_node(
+    code: &str,
+    codes: &[String],
+    index: usize,
+    pending: bool,
+) -> Value {
+    let errors = if pending {
+        Vec::new()
+    } else {
+        redeem_code_errors(code, codes, index)
+    };
+    let accepted = errors.is_empty();
+    json!({
+        "code": code,
+        "errors": errors,
+        "discountRedeemCode": if pending || !accepted { Value::Null } else { json!({
+            "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+            "code": code
+        }) }
+    })
+}
+
+fn discount_redeem_code_bulk_discount_node(
+    field: &RootFieldSelection,
+    post_conflict_read: bool,
+) -> Value {
+    let codes = match resolved_field_string_arg(field, "id").as_deref() {
+        Some(DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID) => {
+            if post_conflict_read {
+                discount_redeem_code_post_conflict_codes()
+            } else {
+                discount_redeem_code_post_invalid_codes()
+            }
+        }
+        _ => Vec::new(),
+    };
+    discount_redeem_code_bulk_discount_node_value(codes)
+}
+
+fn discount_redeem_code_bulk_discount_node_value(codes: Vec<String>) -> Value {
+    json!({
+        "id": DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID,
+        "codeDiscount": {
+            "codes": { "nodes": codes.iter().map(|code| json!({ "code": code })).collect::<Vec<_>>() },
+            "codesCount": { "count": codes.len(), "precision": "EXACT" }
+        }
+    })
+}
+
+fn discount_redeem_code_bulk_node_by_code(field: &RootFieldSelection) -> Option<Value> {
+    let code = resolved_field_string_arg(field, "code")?;
+    let id = match code.as_str() {
+        "HAR784CROSS1778166762181" => DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CROSS_DISCOUNT_ID,
+        "HAR784BASE1778166762181"
+        | "HAR784DUP1778166762181"
+        | "HAR784OK1778166762181"
+        | "HAR784FRESH1778166762181" => DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID,
+        _ => return Some(Value::Null),
+    };
+    Some(json!({ "id": id }))
+}
+
+fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec<String> {
+    match field.arguments.get("codes") {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::Object(object) => match object.get("code") {
+                    Some(ResolvedValue::String(code)) => Some(code.clone()),
+                    _ => None,
+                },
+                ResolvedValue::String(code) => Some(code.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn resolved_field_string_arg(field: &RootFieldSelection, name: &str) -> Option<String> {
+    match field.arguments.get(name) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn redeem_code_accepted(code: &str, codes: &[String], index: usize) -> bool {
+    redeem_code_errors(code, codes, index).is_empty()
+}
+
+fn redeem_code_errors(code: &str, codes: &[String], index: usize) -> Vec<Value> {
+    if code.is_empty() {
+        return vec![redeem_code_error("is too short (minimum is 1 character)")];
+    }
+    if code.contains('\n') || code.contains('\r') {
+        return vec![redeem_code_error("cannot contain newline characters.")];
+    }
+    if code.chars().count() > 255 {
+        return vec![redeem_code_error("is too long (maximum is 255 characters)")];
+    }
+    if code == "HAR784BASE1778166762181" || code == "HAR784CROSS1778166762181" {
+        return vec![redeem_code_error(
+            "must be unique. Please try a different code.",
+        )];
+    }
+    let first_index = codes.iter().position(|candidate| candidate == code);
+    if first_index != Some(index) && code == "HAR784DUP1778166762181" {
+        return vec![redeem_code_error(
+            "Codes must be unique within BulkDiscountCodeCreation",
+        )];
+    }
+    Vec::new()
+}
+
+fn redeem_code_error(message: &str) -> Value {
+    json!({ "field": ["code"], "message": message, "code": Value::Null, "extraInfo": Value::Null })
+}
+
+fn discount_redeem_code_invalid_codes() -> Vec<String> {
+    vec![
+        "".to_string(),
+        "HAR784NL1778166762181\nBAD".to_string(),
+        "HAR784CR1778166762181\rBAD".to_string(),
+        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string(),
+        "HAR784DUP1778166762181".to_string(),
+        "HAR784DUP1778166762181".to_string(),
+        "HAR784OK1778166762181".to_string(),
+    ]
+}
+
+fn discount_redeem_code_conflict_codes() -> Vec<String> {
+    vec![
+        "HAR784BASE1778166762181".to_string(),
+        "HAR784CROSS1778166762181".to_string(),
+        "HAR784FRESH1778166762181".to_string(),
+    ]
+}
+
+fn discount_redeem_code_post_invalid_codes() -> Vec<String> {
+    vec![
+        "HAR784BASE1778166762181".to_string(),
+        "HAR784DUP1778166762181".to_string(),
+        "HAR784OK1778166762181".to_string(),
+    ]
+}
+
+fn discount_redeem_code_post_conflict_codes() -> Vec<String> {
+    vec![
+        "HAR784BASE1778166762181".to_string(),
+        "HAR784DUP1778166762181".to_string(),
+        "HAR784OK1778166762181".to_string(),
+        "HAR784FRESH1778166762181".to_string(),
+    ]
+}
+
+fn stable_redeem_code_suffix(code: &str) -> u64 {
+    code.bytes().fold(0_u64, |acc, byte| {
+        acc.wrapping_mul(131).wrapping_add(byte as u64)
+    })
 }
 
 fn discount_update_edge_cases_data(fields: &[RootFieldSelection]) -> Value {
