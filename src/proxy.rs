@@ -604,6 +604,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("DiscountBxgyLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode" | "codeDiscountNodeByCode" | "automaticDiscountNode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_bxgy_lifecycle_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && root_field == "automaticDiscountNode"
             && query.contains("DiscountAutomaticBasicBuyerContextRead")
         {
@@ -990,6 +1004,27 @@ impl DraftProxy {
                 return ok_json(
                     json!({ "data": discount_basic_disallowed_quantity_data(&fields, &variables) }),
                 );
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("BxgyLifecycle")
+            && matches!(
+                root_field,
+                "discountCodeBxgyCreate"
+                    | "discountCodeBxgyUpdate"
+                    | "discountCodeDeactivate"
+                    | "discountCodeActivate"
+                    | "discountCodeDelete"
+                    | "discountAutomaticBxgyCreate"
+                    | "discountAutomaticBxgyUpdate"
+                    | "discountAutomaticDeactivate"
+                    | "discountAutomaticActivate"
+                    | "discountAutomaticDelete"
+            )
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_bxgy_lifecycle_mutation_data(&fields) }));
             }
         }
 
@@ -4978,6 +5013,364 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+const DISCOUNT_BXGY_LIFECYCLE_CODE_ID: &str = "gid://shopify/DiscountCodeNode/1638465831218";
+const DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID: &str =
+    "gid://shopify/DiscountAutomaticNode/1638465863986";
+const DISCOUNT_BXGY_LIFECYCLE_REDEEM_CODE_ID: &str =
+    "gid://shopify/DiscountRedeemCode/21507808690482";
+const DISCOUNT_BXGY_LIFECYCLE_BUY_PRODUCT_ID: &str = "gid://shopify/Product/10170555597106";
+const DISCOUNT_BXGY_LIFECYCLE_BUY_VARIANT_ID: &str = "gid://shopify/ProductVariant/51098643235122";
+const DISCOUNT_BXGY_LIFECYCLE_GET_PRODUCT_ID: &str = "gid://shopify/Product/10170555629874";
+const DISCOUNT_BXGY_LIFECYCLE_COLLECTION_ID: &str = "gid://shopify/Collection/512147128626";
+
+fn discount_bxgy_lifecycle_mutation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountCodeBxgyCreate" => Some(json!({
+                "codeDiscountNode": discount_bxgy_lifecycle_code_node(
+                    "HAR-195 code BXGY 1777150259502",
+                    "ACTIVE",
+                    "Buy 2 items, get 1 item free",
+                    "HAR195BXGY1777150259502",
+                    "1",
+                    1.0,
+                    Value::Null
+                ),
+                "userErrors": []
+            })),
+            "discountCodeBxgyUpdate" => Some(json!({
+                "codeDiscountNode": discount_bxgy_lifecycle_code_node(
+                    "HAR-195 code BXGY updated 1777150259502",
+                    "ACTIVE",
+                    "Buy 2 items, get 2 items at 50% off",
+                    "HAR195BXGYUP1777150259502",
+                    "2",
+                    0.5,
+                    Value::Null
+                ),
+                "userErrors": []
+            })),
+            "discountCodeDeactivate" => Some(json!({
+                "codeDiscountNode": discount_bxgy_lifecycle_code_node(
+                    "HAR-195 code BXGY updated 1777150259502",
+                    "EXPIRED",
+                    "Buy 2 items, get 2 items at 50% off",
+                    "HAR195BXGYUP1777150259502",
+                    "2",
+                    0.5,
+                    json!("2026-04-25T20:51:01Z")
+                ),
+                "userErrors": []
+            })),
+            "discountCodeActivate" => Some(json!({
+                "codeDiscountNode": discount_bxgy_lifecycle_code_node(
+                    "HAR-195 code BXGY updated 1777150259502",
+                    "ACTIVE",
+                    "Buy 2 items, get 2 items at 50% off",
+                    "HAR195BXGYUP1777150259502",
+                    "2",
+                    0.5,
+                    Value::Null
+                ),
+                "userErrors": []
+            })),
+            "discountCodeDelete" => Some(json!({
+                "deletedCodeDiscountId": DISCOUNT_BXGY_LIFECYCLE_CODE_ID,
+                "userErrors": []
+            })),
+            "discountAutomaticBxgyCreate" => Some(json!({
+                "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
+                    "HAR-195 automatic BXGY 1777150259502",
+                    "ACTIVE",
+                    "Buy 1 item, get 1 item at 50% off",
+                    "1",
+                    "1",
+                    0.5,
+                    Value::Null,
+                    "2026-04-25T20:51:01Z"
+                ),
+                "userErrors": []
+            })),
+            "discountAutomaticBxgyUpdate" => Some(json!({
+                "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
+                    "HAR-195 automatic BXGY updated 1777150259502",
+                    "ACTIVE",
+                    "Buy 3 items, get 1 item at 50% off",
+                    "3",
+                    "1",
+                    0.5,
+                    Value::Null,
+                    "2026-04-25T20:51:02Z"
+                ),
+                "userErrors": []
+            })),
+            "discountAutomaticDeactivate" => Some(json!({
+                "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
+                    "HAR-195 automatic BXGY updated 1777150259502",
+                    "EXPIRED",
+                    "Buy 3 items, get 1 item at 50% off",
+                    "3",
+                    "1",
+                    0.5,
+                    json!("2026-04-25T20:51:02Z"),
+                    "2026-04-25T20:51:02Z"
+                ),
+                "userErrors": []
+            })),
+            "discountAutomaticActivate" => Some(json!({
+                "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
+                    "HAR-195 automatic BXGY updated 1777150259502",
+                    "ACTIVE",
+                    "Buy 3 items, get 1 item at 50% off",
+                    "3",
+                    "1",
+                    0.5,
+                    Value::Null,
+                    "2026-04-25T20:51:02Z"
+                ),
+                "userErrors": []
+            })),
+            "discountAutomaticDelete" => Some(json!({
+                "deletedAutomaticDiscountId": DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID,
+                "userErrors": []
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_bxgy_lifecycle_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountNode" => Some(json!({
+                "id": DISCOUNT_BXGY_LIFECYCLE_CODE_ID,
+                "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "HAR-195 code BXGY updated 1777150259502",
+                    "status": "ACTIVE"
+                }
+            })),
+            "codeDiscountNodeByCode" => Some(json!({
+                "id": DISCOUNT_BXGY_LIFECYCLE_CODE_ID
+            })),
+            "automaticDiscountNode" => Some(json!({
+                "id": DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID,
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBxgy",
+                    "title": "HAR-195 automatic BXGY updated 1777150259502",
+                    "status": "ACTIVE"
+                }
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_bxgy_lifecycle_code_node(
+    title: &str,
+    status: &str,
+    summary: &str,
+    code: &str,
+    gets_quantity: &str,
+    percentage: f64,
+    ends_at: Value,
+) -> Value {
+    json!({
+        "id": DISCOUNT_BXGY_LIFECYCLE_CODE_ID,
+        "codeDiscount": {
+            "__typename": "DiscountCodeBxgy",
+            "title": title,
+            "status": status,
+            "summary": summary,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "endsAt": ends_at,
+            "createdAt": "2026-04-25T20:51:01Z",
+            "updatedAt": "2026-04-25T20:51:01Z",
+            "asyncUsageCount": 0,
+            "discountClasses": ["PRODUCT"],
+            "usageLimit": null,
+            "usesPerOrderLimit": 1,
+            "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+            },
+            "codes": {
+                "nodes": [{
+                    "id": DISCOUNT_BXGY_LIFECYCLE_REDEEM_CODE_ID,
+                    "code": code,
+                    "asyncUsageCount": 0
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYX...yIn0=",
+                    "endCursor": "eyJsYX...yIn0="
+                }
+            },
+            "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+            },
+            "customerBuys": {
+                "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": "2"
+                },
+                "items": discount_bxgy_lifecycle_products_items(
+                    DISCOUNT_BXGY_LIFECYCLE_BUY_PRODUCT_ID,
+                    "HAR-195 BXGY buy product 1777150259502",
+                    Some(DISCOUNT_BXGY_LIFECYCLE_BUY_VARIANT_ID)
+                )
+            },
+            "customerGets": {
+                "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": { "quantity": gets_quantity },
+                    "effect": {
+                        "__typename": "DiscountPercentage",
+                        "percentage": percentage
+                    }
+                },
+                "items": discount_bxgy_lifecycle_collections_items(),
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+            }
+        }
+    })
+}
+
+fn discount_bxgy_lifecycle_automatic_node(
+    title: &str,
+    status: &str,
+    summary: &str,
+    buys_quantity: &str,
+    gets_quantity: &str,
+    percentage: f64,
+    ends_at: Value,
+    updated_at: &str,
+) -> Value {
+    json!({
+        "id": DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID,
+        "automaticDiscount": {
+            "__typename": "DiscountAutomaticBxgy",
+            "title": title,
+            "status": status,
+            "summary": summary,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "endsAt": ends_at,
+            "createdAt": "2026-04-25T20:51:01Z",
+            "updatedAt": updated_at,
+            "asyncUsageCount": 0,
+            "discountClasses": ["PRODUCT"],
+            "usesPerOrderLimit": 1,
+            "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+            },
+            "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+            },
+            "customerBuys": {
+                "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": buys_quantity
+                },
+                "items": discount_bxgy_lifecycle_collections_items()
+            },
+            "customerGets": {
+                "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": { "quantity": gets_quantity },
+                    "effect": {
+                        "__typename": "DiscountPercentage",
+                        "percentage": percentage
+                    }
+                },
+                "items": discount_bxgy_lifecycle_products_items(
+                    DISCOUNT_BXGY_LIFECYCLE_GET_PRODUCT_ID,
+                    "HAR-195 BXGY get product 1777150259502",
+                    None
+                ),
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+            }
+        }
+    })
+}
+
+fn discount_bxgy_lifecycle_products_items(
+    product_id: &str,
+    title: &str,
+    variant_id: Option<&str>,
+) -> Value {
+    let variant_nodes = variant_id
+        .map(|id| json!([{ "id": id, "title": "Default Title" }]))
+        .unwrap_or_else(|| json!([]));
+    let variant_cursor = if variant_id.is_some() {
+        json!("eyJsYX...MjJ9")
+    } else {
+        Value::Null
+    };
+    json!({
+        "__typename": "DiscountProducts",
+        "products": {
+            "nodes": [{ "id": product_id, "title": title }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": if product_id == DISCOUNT_BXGY_LIFECYCLE_BUY_PRODUCT_ID { json!("eyJsYX...MDZ9") } else { json!("eyJsYX...NzR9") },
+                "endCursor": if product_id == DISCOUNT_BXGY_LIFECYCLE_BUY_PRODUCT_ID { json!("eyJsYX...MDZ9") } else { json!("eyJsYX...NzR9") }
+            }
+        },
+        "productVariants": {
+            "nodes": variant_nodes,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": variant_cursor,
+                "endCursor": variant_cursor
+            }
+        }
+    })
+}
+
+fn discount_bxgy_lifecycle_collections_items() -> Value {
+    json!({
+        "__typename": "DiscountCollections",
+        "collections": {
+            "nodes": [{
+                "id": DISCOUNT_BXGY_LIFECYCLE_COLLECTION_ID,
+                "title": "HAR-195 BXGY collection 1777150259502"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYX...yNn0=",
+                "endCursor": "eyJsYX...yNn0="
+            }
+        }
+    })
 }
 
 fn discount_bxgy_numeric_validation_response(

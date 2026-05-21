@@ -6234,3 +6234,176 @@ fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
         json!([])
     );
 }
+
+#[test]
+fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation DiscountBxgyLifecycleCreate($codeInput: DiscountCodeBxgyInput!, $automaticInput: DiscountAutomaticBxgyInput!) {
+          discountCodeBxgyCreate(bxgyCodeDiscount: $codeInput) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBxgy {
+                  title status summary usesPerOrderLimit
+                  codes(first: 2) { nodes { code asyncUsageCount } }
+                  customerBuys { value { __typename ... on DiscountQuantity { quantity } } items { __typename ... on DiscountProducts { products(first: 5) { nodes { id } } productVariants(first: 5) { nodes { id } } } } }
+                  customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } items { __typename ... on DiscountCollections { collections(first: 5) { nodes { id } } } } appliesOnOneTimePurchase appliesOnSubscription }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticInput) {
+            automaticDiscountNode {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBxgy {
+                  title status summary usesPerOrderLimit
+                  customerBuys { value { __typename ... on DiscountQuantity { quantity } } items { __typename ... on DiscountCollections { collections(first: 5) { nodes { id } } } } }
+                  customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } items { __typename ... on DiscountProducts { products(first: 5) { nodes { id } } productVariants(first: 5) { nodes { id } } } } appliesOnOneTimePurchase appliesOnSubscription }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let code_input = json!({
+        "title": "HAR-195 code BXGY 1777150259502",
+        "code": "HAR195BXGY1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "usesPerOrderLimit": 1
+    });
+    let automatic_input = json!({
+        "title": "HAR-195 automatic BXGY 1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555629874"] } } },
+        "usesPerOrderLimit": "1"
+    });
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "codeInput": code_input, "automaticInput": automatic_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638465831218")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Buy 2 items, get 1 item free")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["customerBuys"]["items"]["products"]["nodes"][0]["id"],
+        json!("gid://shopify/Product/10170555597106")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1638465863986")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("Buy 1 item, get 1 item at 50% off")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["customerGets"]["items"]["products"]["nodes"][0]["id"],
+        json!("gid://shopify/Product/10170555629874")
+    );
+
+    let code_update_query = r#"
+        mutation DiscountCodeBxgyLifecycleUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBxgy { title status summary customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } } } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let code_update_input = json!({
+        "title": "HAR-195 code BXGY updated 1777150259502",
+        "code": "HAR195BXGYUP1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "usesPerOrderLimit": 1
+    });
+    let updated_code = proxy.process_request(json_graphql_request(code_update_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638465831218", "input": code_update_input.clone() })));
+    assert_eq!(
+        updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-195 code BXGY updated 1777150259502")
+    );
+    assert_eq!(
+        updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Buy 2 items, get 2 items at 50% off")
+    );
+
+    let status_query = r#"
+        mutation DiscountCodeBxgyLifecycleStatus($id: ID!) {
+          discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBxgy { status endsAt } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deactivated = proxy.process_request(json_graphql_request(
+        status_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465831218" }),
+    ));
+    assert_eq!(
+        deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+
+    let read = proxy.process_request(json_graphql_request(r#"
+        query DiscountBxgyLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+          discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeBxgy { title status } } }
+          codeDiscountNodeByCode(code: $code) { id }
+          automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticBxgy { title status } } }
+        }
+    "#, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465831218", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465863986", "code": "HAR195BXGYUP1777150259502" })));
+    assert_eq!(
+        read.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-195 code BXGY updated 1777150259502")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638465831218")
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["title"],
+        json!("HAR-195 automatic BXGY updated 1777150259502")
+    );
+
+    let delete_query = r#"
+        mutation DiscountBxgyLifecycleDelete($codeId: ID!, $automaticId: ID!) {
+          discountCodeDelete(id: $codeId) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+          discountAutomaticDelete(id: $automaticId) { deletedAutomaticDiscountId userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465831218", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465863986" })));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deleted.body["data"]["discountAutomaticDelete"]["userErrors"],
+        json!([])
+    );
+}
