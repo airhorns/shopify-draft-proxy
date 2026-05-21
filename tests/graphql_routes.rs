@@ -922,6 +922,171 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
 }
 
 #[test]
+fn app_usage_record_create_caps_idempotency_and_readback_balance() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 5, "currencyCode": "USD" }, "terms": "usage terms" } }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        json!("gid://shopify/AppSubscriptionLineItem/expected")
+    );
+
+    let success_query = r#"
+        mutation AppUsageRecordCreateCapSuccess($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "first"
+            idempotencyKey: "usage-key-cap-1"
+          ) {
+            appUsageRecord {
+              id
+              description
+              price { amount currencyCode }
+              subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let success = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        success.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "first",
+                "price": { "amount": "3.00", "currencyCode": "USD" },
+                "subscriptionLineItem": {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(duplicate.body, success.body);
+
+    let over_cap = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateCapOverLimit($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "second"
+            idempotencyKey: "usage-key-cap-2"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        over_cap.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": [], "message": "Total price exceeds balance remaining" }]
+        })
+    );
+
+    let long_key = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateLongIdempotencyKey($id: ID!, $key: String) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "too long"
+            idempotencyKey: $key
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "key": "x".repeat(256)
+        }),
+    ));
+    assert_eq!(
+        long_key.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key must be at most 255 characters", "code": null }]
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query AppUsageRecordCreateCapRead {
+          currentAppInstallation {
+            allSubscriptions(first: 5) {
+              nodes {
+                lineItems {
+                  plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } }
+                  usageRecords { nodes { id description price { amount currencyCode } } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "allSubscriptions": { "nodes": [{
+                "lineItems": [{
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } },
+                    "usageRecords": { "nodes": [{
+                        "id": "gid://shopify/AppUsageRecord/expected",
+                        "description": "first",
+                        "price": { "amount": "3.00", "currencyCode": "USD" }
+                    }] }
+                }]
+            }] }
+        })
+    );
+}
+
+#[test]
 fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
     let mut proxy = snapshot_proxy();
 

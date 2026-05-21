@@ -491,7 +491,8 @@ impl DraftProxy {
                 .iter()
                 .all(|field| field == "currentAppInstallation")
             && (is_app_subscription_activation_document(&query)
-                || is_app_access_scopes_read_document(&query))
+                || is_app_access_scopes_read_document(&query)
+                || is_app_usage_record_read_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({
@@ -578,6 +579,13 @@ impl DraftProxy {
             && is_app_subscription_line_item_update_document(&query)
         {
             return self.app_subscription_line_item_update(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appUsageRecordCreate"
+            && is_app_usage_record_create_document(&query)
+        {
+            return self.app_usage_record_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1716,6 +1724,167 @@ impl DraftProxy {
         }
 
         ok_json(json!({ "data": data }))
+    }
+
+    fn find_staged_app_subscription_line_item(
+        &self,
+        line_item_id: &str,
+    ) -> Option<(String, usize)> {
+        self.staged_app_subscriptions
+            .iter()
+            .find_map(|(subscription_id, subscription)| {
+                subscription["lineItems"]
+                    .as_array()
+                    .and_then(|items| {
+                        items
+                            .iter()
+                            .position(|line_item| line_item["id"] == line_item_id)
+                    })
+                    .map(|index| (subscription_id.clone(), index))
+            })
+    }
+
+    fn app_usage_record_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "appUsageRecordCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let usage_record_selection =
+            selected_child_selection(&payload_selection, "appUsageRecord").unwrap_or_default();
+        let line_item_id =
+            resolved_string_field(&arguments, "subscriptionLineItemId").unwrap_or_default();
+        let idempotency_key =
+            resolved_string_field(&arguments, "idempotencyKey").unwrap_or_default();
+        let price = match arguments.get("price") {
+            Some(ResolvedValue::Object(price)) => price,
+            _ => {
+                return ok_json(json!({
+                    "data": { response_key: app_usage_record_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        &usage_record_selection,
+                        vec![json!({ "field": ["price"], "message": "Price is required", "code": null })],
+                    ) }
+                }));
+            }
+        };
+        let amount = resolved_money_amount_string(price.get("amount"));
+        let currency = match price.get("currencyCode") {
+            Some(ResolvedValue::String(value)) => value.clone(),
+            _ => "USD".to_string(),
+        };
+        let description = resolved_string_field(&arguments, "description").unwrap_or_default();
+
+        let mut usage_record = Value::Null;
+        let mut user_errors = Vec::new();
+        let mut should_record_success = false;
+        if idempotency_key.len() > 255 {
+            user_errors.push(json!({
+                "field": ["idempotencyKey"],
+                "message": "Idempotency key must be at most 255 characters",
+                "code": null
+            }));
+        } else if let Some((subscription_id, line_item_index)) =
+            self.find_staged_app_subscription_line_item(&line_item_id)
+        {
+            let subscription = self
+                .staged_app_subscriptions
+                .get_mut(&subscription_id)
+                .expect("located subscription must still exist");
+            let line_item = subscription["lineItems"]
+                .as_array_mut()
+                .and_then(|items| items.get_mut(line_item_index))
+                .expect("located line item must still exist");
+            let pricing = &line_item["plan"]["pricingDetails"];
+            let existing_currency = pricing["cappedAmount"]["currencyCode"]
+                .as_str()
+                .unwrap_or("USD")
+                .to_string();
+            let capped_amount = pricing["cappedAmount"]["amount"]
+                .as_str()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let current_balance = pricing["balanceUsed"]["amount"]
+                .as_str()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let requested_amount = amount.parse::<f64>().unwrap_or(0.0);
+            let existing = line_item["usageRecords"]["nodes"]
+                .as_array()
+                .and_then(|records| {
+                    records
+                        .iter()
+                        .find(|record| record["idempotencyKey"] == idempotency_key)
+                        .cloned()
+                });
+            if let Some(record) = existing {
+                usage_record = record;
+            } else if currency != existing_currency
+                || current_balance + requested_amount > capped_amount
+            {
+                user_errors.push(json!({
+                    "field": [],
+                    "message": "Total price exceeds balance remaining"
+                }));
+            } else {
+                let new_balance = if current_balance == 0.0 {
+                    amount.clone()
+                } else {
+                    format_money_amount(current_balance + requested_amount)
+                };
+                line_item["plan"]["pricingDetails"]["balanceUsed"] = json!({
+                    "amount": new_balance,
+                    "currencyCode": existing_currency
+                });
+                let subscription_line_item = line_item.clone();
+                usage_record = json!({
+                    "id": "gid://shopify/AppUsageRecord/expected",
+                    "description": description,
+                    "price": { "amount": amount, "currencyCode": currency },
+                    "idempotencyKey": idempotency_key,
+                    "subscriptionLineItem": subscription_line_item
+                });
+                if !line_item["usageRecords"].is_object() {
+                    line_item["usageRecords"] = json!({ "nodes": [] });
+                }
+                if let Some(records) = line_item["usageRecords"]["nodes"].as_array_mut() {
+                    records.push(usage_record.clone());
+                }
+                should_record_success = true;
+            }
+        } else {
+            user_errors.push(json!({
+                "field": ["subscriptionLineItemId"],
+                "message": "The app subscription line item wasn't found.",
+                "code": null
+            }));
+        }
+
+        if should_record_success {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "appUsageRecordCreate",
+                vec![line_item_id],
+            );
+        }
+
+        ok_json(json!({
+            "data": {
+                response_key: app_usage_record_payload_json(
+                    usage_record,
+                    &payload_selection,
+                    &usage_record_selection,
+                    user_errors,
+                )
+            }
+        }))
     }
 
     fn delegate_access_token_create(
@@ -3679,6 +3848,30 @@ fn app_revoke_access_scopes_payload_json(
     Value::Object(fields)
 }
 
+fn app_usage_record_payload_json(
+    usage_record: Value,
+    payload_selection: &[SelectedField],
+    usage_record_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "appUsageRecord" => Some(if usage_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&usage_record, usage_record_selection)
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn app_purchase_one_time_payload_json(
     purchase: Value,
     payload_selection: &[SelectedField],
@@ -3824,6 +4017,15 @@ fn app_subscription_line_item_from_input(
     })
 }
 
+fn format_money_amount(value: f64) -> String {
+    if (value.fract()).abs() < f64::EPSILON {
+        format!("{value:.1}")
+    } else {
+        let text = format!("{value:.2}");
+        text.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
+
 fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
     match value {
         Some(ResolvedValue::Int(value)) => value.to_string(),
@@ -3851,6 +4053,16 @@ fn current_app_installation_json(
                     .map(|subscription| selected_json(subscription, &selection.selection))
                     .collect(),
             )),
+            "allSubscriptions" => {
+                let node_selection =
+                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
+                Some(json!({
+                    "nodes": subscriptions
+                        .values()
+                        .map(|subscription| selected_json(subscription, &node_selection))
+                        .collect::<Vec<_>>()
+                }))
+            }
             "accessScopes" => Some(Value::Array(
                 ["read_products", "write_products"]
                     .into_iter()
@@ -3946,6 +4158,21 @@ fn is_delegate_access_token_destroy_document(query: &str) -> bool {
 
 fn is_app_access_scopes_read_document(query: &str) -> bool {
     query.contains("AppAccessScopesLocalRead")
+}
+
+fn is_app_usage_record_create_document(query: &str) -> bool {
+    [
+        "AppUsageRecordCreateCapSuccess",
+        "AppUsageRecordCreateCapOverLimit",
+        "AppUsageRecordCreateLongIdempotencyKey",
+        "AppUsageRecordCreateLocalLifecycle",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_app_usage_record_read_document(query: &str) -> bool {
+    query.contains("AppUsageRecordCreateCapRead")
 }
 
 fn is_app_revoke_access_scopes_document(query: &str) -> bool {
