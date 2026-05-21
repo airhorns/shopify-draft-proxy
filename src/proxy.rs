@@ -574,6 +574,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && root_field == "appSubscriptionLineItemUpdate"
+            && is_app_subscription_line_item_update_document(&query)
+        {
+            return self.app_subscription_line_item_update(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
             && is_app_purchase_one_time_validation_document(&query)
         {
@@ -1579,6 +1586,136 @@ impl DraftProxy {
                 )
             }
         }))
+    }
+
+    fn app_subscription_line_item_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for root in root_fields(query, variables)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|root| root.name == "appSubscriptionLineItemUpdate")
+        {
+            let subscription_selection =
+                selected_child_selection(&root.selection, "appSubscription").unwrap_or_default();
+            let id = resolved_string_field(&root.arguments, "id").unwrap_or_default();
+            let capped = match root.arguments.get("cappedAmount") {
+                Some(ResolvedValue::Object(value)) => value,
+                _ => {
+                    data.insert(
+                        root.response_key,
+                        app_subscription_payload_json(
+                            Value::Null,
+                            &root.selection,
+                            &subscription_selection,
+                            vec![json!({
+                                "field": ["cappedAmount"],
+                                "message": "Capped amount is required"
+                            })],
+                        ),
+                    );
+                    continue;
+                }
+            };
+            let requested_amount = resolved_money_amount_string(capped.get("amount"));
+            let requested_currency = match capped.get("currencyCode") {
+                Some(ResolvedValue::String(value)) => value.clone(),
+                _ => "USD".to_string(),
+            };
+
+            let mut matched_subscription_id = None;
+            let mut matched_line_item = None;
+            for (subscription_id, subscription) in &self.staged_app_subscriptions {
+                if let Some(line_items) = subscription["lineItems"].as_array() {
+                    if let Some(line_item) =
+                        line_items.iter().find(|line_item| line_item["id"] == id)
+                    {
+                        matched_subscription_id = Some(subscription_id.clone());
+                        matched_line_item = Some(line_item.clone());
+                        break;
+                    }
+                }
+            }
+
+            let (subscription, user_errors) = match (matched_subscription_id, matched_line_item) {
+                (Some(subscription_id), Some(line_item)) => {
+                    let pricing = &line_item["plan"]["pricingDetails"];
+                    if pricing["__typename"] != "AppUsagePricing" {
+                        (
+                            Value::Null,
+                            vec![json!({
+                                "field": ["cappedAmount"],
+                                "message": "Only usage-pricing line items support cappedAmount updates"
+                            })],
+                        )
+                    } else {
+                        let existing_currency = pricing["cappedAmount"]["currencyCode"]
+                            .as_str()
+                            .unwrap_or("USD");
+                        let existing_amount = pricing["cappedAmount"]["amount"]
+                            .as_str()
+                            .and_then(|amount| amount.parse::<f64>().ok())
+                            .unwrap_or(0.0);
+                        let requested_amount_number =
+                            requested_amount.parse::<f64>().unwrap_or(0.0);
+                        if requested_currency != existing_currency {
+                            (
+                                Value::Null,
+                                vec![json!({
+                                    "field": ["cappedAmount"],
+                                    "message": format!("Capped amount currency mismatch. Expected {existing_currency}")
+                                })],
+                            )
+                        } else if requested_amount_number <= existing_amount {
+                            (
+                                Value::Null,
+                                vec![json!({
+                                    "field": ["cappedAmount"],
+                                    "message": "The capped amount must be greater than the existing capped amount"
+                                })],
+                            )
+                        } else {
+                            let subscription = self
+                                .staged_app_subscriptions
+                                .get(&subscription_id)
+                                .cloned()
+                                .unwrap_or(Value::Null);
+                            self.record_mutation_log_entry(
+                                request,
+                                query,
+                                variables,
+                                "appSubscriptionLineItemUpdate",
+                                vec![subscription_id],
+                            );
+                            (subscription, vec![])
+                        }
+                    }
+                }
+                _ => (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "The app subscription line item wasn't found."
+                    })],
+                ),
+            };
+
+            data.insert(
+                root.response_key,
+                app_subscription_payload_json(
+                    subscription,
+                    &root.selection,
+                    &subscription_selection,
+                    user_errors,
+                ),
+            );
+        }
+
+        ok_json(json!({ "data": data }))
     }
 
     fn delegate_access_token_create(
@@ -2796,6 +2933,16 @@ fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {
     Value::Object(data)
 }
 
+fn selected_child_selection(
+    selections: &[SelectedField],
+    name: &str,
+) -> Option<Vec<SelectedField>> {
+    selections
+        .iter()
+        .find(|selection| selection.name == name)
+        .map(|selection| selection.selection.clone())
+}
+
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -3608,26 +3755,49 @@ fn app_subscription_line_items_from_arguments(
         Some(ResolvedValue::List(items)) => items
             .iter()
             .enumerate()
-            .map(|(index, item)| app_subscription_line_item_from_input(index, item))
+            .map(|(index, item)| app_subscription_line_item_from_input(index, items.len(), item))
             .collect(),
         _ => Vec::new(),
     }
 }
 
-fn app_subscription_line_item_from_input(index: usize, value: &ResolvedValue) -> Value {
-    let default_id = if index == 0 {
-        "gid://shopify/AppSubscriptionLineItem/expected".to_string()
-    } else {
-        format!(
+fn app_subscription_line_item_from_input(
+    index: usize,
+    total_items: usize,
+    value: &ResolvedValue,
+) -> Value {
+    let default_id = match (total_items, index) {
+        (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
+        (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
+        _ if index == 0 => "gid://shopify/AppSubscriptionLineItem/expected".to_string(),
+        _ => format!(
             "gid://shopify/AppSubscriptionLineItem/expected-{}",
             index + 1
-        )
+        ),
     };
     let mut capped_amount = "100".to_string();
     let mut currency_code = "USD".to_string();
     let mut terms = "usage terms".to_string();
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
+            if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
+                let mut price_amount = "1".to_string();
+                let mut price_currency = "USD".to_string();
+                if let Some(ResolvedValue::Object(price)) = details.get("price") {
+                    price_amount = resolved_money_amount_string(price.get("amount"));
+                    price_currency = match price.get("currencyCode") {
+                        Some(ResolvedValue::String(value)) => value.clone(),
+                        _ => price_currency,
+                    };
+                }
+                return json!({
+                    "id": default_id,
+                    "plan": { "pricingDetails": {
+                        "__typename": "AppRecurringPricing",
+                        "price": { "amount": price_amount, "currencyCode": price_currency }
+                    }}
+                });
+            }
             if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
                 if let Some(ResolvedValue::Object(capped)) = details.get("cappedAmount") {
                     capped_amount = resolved_money_amount_string(capped.get("amount"));
@@ -3835,6 +4005,15 @@ fn is_app_subscription_trial_extend_document(query: &str) -> bool {
     [
         "AppSubscriptionTrialExtendValidation",
         "AppSubscriptionTrialExtendLocalLifecycle",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_app_subscription_line_item_update_document(query: &str) -> bool {
+    [
+        "AppSubscriptionLineItemUpdateValidation",
+        "AppSubscriptionLineItemUpdateLocalLifecycle",
     ]
     .iter()
     .any(|marker| query.contains(marker))

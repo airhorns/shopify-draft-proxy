@@ -922,6 +922,154 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
 }
 
 #[test]
+fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                    ... on AppRecurringPricing { price { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [
+                { "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 5, "currencyCode": "USD" }, "terms": "usage terms" } } },
+                { "plan": { "appRecurringPricingDetails": { "price": { "amount": 1, "currencyCode": "USD" }, "interval": "EVERY_30_DAYS" } } }
+            ]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "lineItems": [
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                        }}
+                    },
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppRecurringPricing",
+                            "price": { "amount": "1", "currencyCode": "USD" }
+                        }}
+                    }
+                ]
+            },
+            "userErrors": []
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionLineItemUpdateValidation($usageLineItemId: ID!, $recurringLineItemId: ID!) {
+          recurring: appSubscriptionLineItemUpdate(id: $recurringLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          currencyMismatch: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: EUR }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          nonIncreasing: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 3, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          success: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            confirmationUrl
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                    ... on AppRecurringPricing { price { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage",
+            "recurringLineItemId": "gid://shopify/AppSubscriptionLineItem/recurring"
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"],
+        json!({
+            "recurring": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Only usage-pricing line items support cappedAmount updates" }]
+            },
+            "currencyMismatch": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Capped amount currency mismatch. Expected USD" }]
+            },
+            "nonIncreasing": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "The capped amount must be greater than the existing capped amount" }]
+            },
+            "success": {
+                "confirmationUrl": "https://app.example.test/local-confirmation",
+                "appSubscription": {
+                    "id": "gid://shopify/AppSubscription/expected",
+                    "lineItems": [
+                        {
+                            "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                            "plan": { "pricingDetails": {
+                                "__typename": "AppUsagePricing",
+                                "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                            }}
+                        },
+                        {
+                            "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                            "plan": { "pricingDetails": {
+                                "__typename": "AppRecurringPricing",
+                                "price": { "amount": "1", "currencyCode": "USD" }
+                            }}
+                        }
+                    ]
+                },
+                "userErrors": []
+            }
+        })
+    );
+}
+
+#[test]
 fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
     let mut proxy = snapshot_proxy();
 
