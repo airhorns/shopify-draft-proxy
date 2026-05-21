@@ -1633,6 +1633,38 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardCreditLimitExceeded")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": gift_card_credit_limit_exceeded_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("GiftCardEntitlementDisabled")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCardCreate"
+                        | "giftCardUpdate"
+                        | "giftCardCredit"
+                        | "giftCardDebit"
+                        | "giftCardDeactivate"
+                        | "giftCardSendNotificationToCustomer"
+                        | "giftCardSendNotificationToRecipient"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": gift_card_entitlement_disabled_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("GiftCardCreateNotify")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -8831,6 +8863,98 @@ fn gift_card_payload_json(
     user_errors: Vec<Value>,
 ) -> Value {
     gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
+}
+
+fn gift_card_entitlement_disabled_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        data.insert(
+            field.response_key.clone(),
+            gift_card_entitlement_disabled_payload(&field.selection),
+        );
+    }
+    Value::Object(data)
+}
+
+fn gift_card_credit_limit_exceeded_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let payload = match field.name.as_str() {
+            "giftCardCredit" => gift_card_transaction_payload(
+                &field.selection,
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["creditInput", "creditAmount", "amount"],
+                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                    "message": "The gift card's value exceeds the allowed limits."
+                })],
+            ),
+            "giftCardDebit" => gift_card_transaction_payload(
+                &field.selection,
+                "giftCardDebitTransaction",
+                Some(json!({
+                    "__typename": "GiftCardDebitTransaction",
+                    "amount": { "amount": "-0.01", "currencyCode": "CAD" }
+                })),
+                Vec::new(),
+            ),
+            _ => continue,
+        };
+        data.insert(field.response_key.clone(), payload);
+    }
+    Value::Object(data)
+}
+
+fn gift_card_transaction_payload(
+    selections: &[SelectedField],
+    transaction_field: &str,
+    transaction: Option<Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            name if name == transaction_field => Some(match transaction.as_ref() {
+                Some(transaction) => selected_json(transaction, &selection.selection),
+                None => Value::Null,
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn gift_card_entitlement_disabled_payload(selections: &[SelectedField]) -> Value {
+    let user_errors = vec![json!({
+        "field": ["base"],
+        "code": null,
+        "message": "Gift cards are not available on this plan."
+    })];
+    let mut payload = serde_json::Map::new();
+    for selection in selections {
+        let value = if selection.name == "userErrors" {
+            Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )
+        } else {
+            Value::Null
+        };
+        payload.insert(selection.response_key.clone(), value);
+    }
+    Value::Object(payload)
 }
 
 fn gift_card_payload_json_nullable(

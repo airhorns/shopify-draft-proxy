@@ -6171,6 +6171,83 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          overLimitCredit: giftCardCredit(id: $boundaryId, creditInput: $creditInput) {
+            giftCardCreditTransaction { __typename amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitAfterRejectedCredit: giftCardDebit(id: $boundaryId, debitInput: $debitInput) {
+            giftCardDebitTransaction { __typename amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "boundaryId": "gid://shopify/GiftCard/654867595570",
+            "creditInput": { "creditAmount": { "amount": "0.01", "currencyCode": "CAD" } },
+            "debitInput": { "debitAmount": { "amount": "0.01", "currencyCode": "CAD" } }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "overLimitCredit": {
+                "giftCardCreditTransaction": null,
+                "userErrors": [{
+                    "field": ["creditInput", "creditAmount", "amount"],
+                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                    "message": "The gift card's value exceeds the allowed limits."
+                }]
+            },
+            "debitAfterRejectedCredit": {
+                "giftCardDebitTransaction": {
+                    "__typename": "GiftCardDebitTransaction",
+                    "amount": { "amount": "-0.01", "currencyCode": "CAD" }
+                },
+                "userErrors": []
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardEntitlementDisabled {
+          createError: giftCardCreate(input: { initialValue: "0", customerId: "gid://shopify/Customer/disabled-entitlement-customer" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          updateError: giftCardUpdate(id: "gid://shopify/GiftCard/disabled-entitlement-card", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+          creditError: giftCardCredit(id: "gid://shopify/GiftCard/disabled-entitlement-card", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+          debitError: giftCardDebit(id: "gid://shopify/GiftCard/disabled-entitlement-card", debitInput: { debitAmount: { amount: "9999", currencyCode: CAD } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+          deactivateError: giftCardDeactivate(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+          notificationCustomerError: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+          notificationRecipientError: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    let base_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are not available on this plan." }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createError": { "giftCard": null, "giftCardCode": null, "userErrors": base_error },
+            "updateError": { "giftCard": null, "userErrors": base_error },
+            "creditError": { "giftCardCreditTransaction": null, "userErrors": base_error },
+            "debitError": { "giftCardDebitTransaction": null, "userErrors": base_error },
+            "deactivateError": { "giftCard": null, "userErrors": base_error },
+            "notificationCustomerError": { "giftCard": null, "userErrors": base_error },
+            "notificationRecipientError": { "giftCard": null, "userErrors": base_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
     let mut proxy = snapshot_proxy();
 
