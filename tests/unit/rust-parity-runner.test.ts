@@ -74,4 +74,13 @@ describe('Rust parity runner CLI', () => {
     );
     expect(output).toContain('bulk-operation-run-mutation-client-identifier-validation.json passed');
   });
+
+  it('uses the primary capture target, not the first target request, as primary passthrough fallback', () => {
+    const output = execFileSync(
+      'corepack',
+      ['pnpm', 'parity', '--', '--spec', 'config/parity-specs/customers/customer-account-page-data-erasure.json'],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    expect(output).toContain('customer-account-page-data-erasure.json passed');
+  });
 });

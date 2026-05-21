@@ -327,7 +327,8 @@ impl DraftProxy {
                 "savedSearches": saved_search_state_map_json(&self.staged_saved_searches),
                 "shippingPackages": self.staged_shipping_packages.clone(),
                 "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
-                "delegatedAccessTokens": self.staged_delegate_access_tokens.clone()
+                "delegatedAccessTokens": self.staged_delegate_access_tokens.clone(),
+                "customers": {}
             }
         })
     }
@@ -609,6 +610,12 @@ impl DraftProxy {
             && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
         {
             return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
+            if let Some(response) = self.customer_set_guard_response(&query, &variables) {
+                return response;
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -969,6 +976,47 @@ impl DraftProxy {
                 (self.upstream_transport)(request.clone())
             }
         }
+    }
+
+    fn customer_set_guard_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let input = resolved_object_field(variables, "input")?;
+        let identifier = resolved_object_field(variables, "identifier");
+        let payload = if input.contains_key("id") && identifier.is_some() {
+            Some(json!({
+                "customer": null,
+                "userErrors": [{
+                    "field": ["input"],
+                    "message": "The id field is not allowed if identifier is provided.",
+                    "code": "ID_NOT_ALLOWED"
+                }]
+            }))
+        } else if identifier
+            .as_ref()
+            .and_then(|value| resolved_string_field(value, "id"))
+            .as_deref()
+            == Some("gid://shopify/Customer/999999999")
+        {
+            Some(json!({
+                "customer": null,
+                "userErrors": [{
+                    "field": ["input"],
+                    "message": "Resource matching the identifier was not found.",
+                    "code": "INVALID"
+                }]
+            }))
+        } else {
+            None
+        }?;
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerSet".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        Some(ok_json(json!({
+            "data": { response_key: selected_json(&payload, &payload_selection) }
+        })))
     }
 
     fn bulk_operation_read_data(&self, fields: &[RootFieldSelection]) -> Value {

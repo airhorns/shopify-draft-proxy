@@ -492,9 +492,15 @@ async function runSpec(
   try {
     const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, namedResponses);
     if (primaryRequest !== null) {
-      const primaryFallbackTarget = spec.comparison?.targets?.find(
-        (target) => captureResponseForTarget(capture, target) !== null,
-      );
+      const primaryFallbackTarget =
+        spec.comparison?.targets?.find(
+          (target) =>
+            !target.proxyRequest &&
+            !target.proxyUpload &&
+            !target.proxyStatePath &&
+            !target.proxyLogPath &&
+            captureResponseForTarget(capture, target) !== null,
+        ) ?? spec.comparison?.targets?.find((target) => captureResponseForTarget(capture, target) !== null);
       cassette.setFallbackResponse(
         primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null,
       );

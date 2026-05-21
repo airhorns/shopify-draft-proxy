@@ -1022,6 +1022,71 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
 }
 
 #[test]
+fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let id_not_allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetIdNotAllowed($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+          customerSet(input: $input, identifier: $identifier) {
+            customer { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "email": "customer-set-id-not-allowed@example.com" },
+            "input": {
+                "id": "gid://shopify/Customer/999999999999998",
+                "email": "customer-set-id-not-allowed@example.com",
+                "firstName": "IdNotAllowed"
+            }
+        }),
+    ));
+    assert_eq!(
+        id_not_allowed.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "The id field is not allowed if identifier is provided.",
+                "code": "ID_NOT_ALLOWED"
+            }]
+        })
+    );
+
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetUnknownIdErrors($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+          customerSet(input: $input, identifier: $identifier) {
+            customer { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": "gid://shopify/Customer/999999999" },
+            "input": { "email": "buyer@example.com" }
+        }),
+    ));
+    assert_eq!(
+        unknown_id.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found.",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["products"],
+        json!({})
+    );
+}
+
+#[test]
 fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
     let mut proxy = snapshot_proxy();
 
