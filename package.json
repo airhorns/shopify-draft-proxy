@@ -13,9 +13,9 @@
     }
   },
   "scripts": {
-    "dev": "corepack pnpm --dir js dev",
-    "start": "node js/dist/server.js",
-    "build": "corepack pnpm --dir js build",
+    "dev": "cargo run --bin shopify-draft-proxy-server --quiet",
+    "start": "cargo run --bin shopify-draft-proxy-server --quiet",
+    "build": "cargo build --bin shopify-draft-proxy-server && corepack pnpm --dir js build",
     "typecheck": "corepack pnpm --dir js build && tsc -p tsconfig.json --noEmit",
     "test": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts tests/integration/gleam-interop.test.ts tests/integration/gleam-js-http-adapter-parity.test.ts tests/integration/launch-scripts.test.ts",
     "test:watch": "vitest",

@@ -41,7 +41,7 @@ async function waitForServer(child: ChildProcessWithoutNullStreams, getOutput: (
   const deadline = Date.now() + 15_000;
 
   while (Date.now() < deadline) {
-    if (getOutput().includes('shopify-draft-proxy listening')) {
+    if (getOutput().includes('shopify-draft-proxy rust runtime listening')) {
       return;
     }
     if (child.exitCode !== null) {
