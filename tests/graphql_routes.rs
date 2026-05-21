@@ -5620,3 +5620,239 @@ fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
         json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownButUnimplemented" }] })
     );
 }
+
+#[test]
+fn discount_activate_deactivate_noops_preserve_captured_timestamp_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let code_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCodeActivateNoopIdempotence($id: ID!) {
+          discountCodeActivate(id: $id) {
+            codeDiscountNode {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1640637301042" }),
+    ));
+    assert_eq!(
+        code_activate.body["data"]["discountCodeActivate"],
+        json!({
+            "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1640637301042",
+                "codeDiscount": {
+                    "__typename": "DiscountCodeBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": null,
+                    "status": "ACTIVE",
+                    "updatedAt": "2026-05-06T23:08:09Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let code_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCodeDeactivateNoopIdempotence($id: ID!) {
+          discountCodeDeactivate(id: $id) {
+            codeDiscountNode {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1640637333810" }),
+    ));
+    assert_eq!(
+        code_deactivate.body["data"]["discountCodeDeactivate"],
+        json!({
+            "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1640637333810",
+                "codeDiscount": {
+                    "__typename": "DiscountCodeBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": "2026-05-06T23:08:10Z",
+                    "status": "EXPIRED",
+                    "updatedAt": "2026-05-06T23:08:10Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let automatic_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticActivateNoopIdempotence($id: ID!) {
+          discountAutomaticActivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640637366578" }),
+    ));
+    assert_eq!(
+        automatic_activate.body["data"]["discountAutomaticActivate"],
+        json!({
+            "automaticDiscountNode": {
+                "id": "gid://shopify/DiscountAutomaticNode/1640637366578",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": null,
+                    "status": "ACTIVE",
+                    "updatedAt": "2026-05-06T23:08:09Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let automatic_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticDeactivateNoopIdempotence($id: ID!) {
+          discountAutomaticDeactivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640637432114" }),
+    ));
+    assert_eq!(
+        automatic_deactivate.body["data"]["discountAutomaticDeactivate"],
+        json!({
+            "automaticDiscountNode": {
+                "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": "2026-05-06T23:08:10Z",
+                    "status": "EXPIRED",
+                    "updatedAt": "2026-05-06T23:08:10Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomers { customers { __typename id displayName } } ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "HAR-390 automatic customer context 1777346878525", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
+    ));
+    let discount_id = "gid://shopify/DiscountAutomaticNode/1638894666034";
+    assert_eq!(
+        create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        json!(discount_id)
+    );
+    assert_eq!(
+        create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"],
+        json!({
+            "__typename": "DiscountAutomaticBasic",
+            "title": "HAR-390 automatic customer context 1777346878525",
+            "status": "ACTIVE",
+            "context": {
+                "__typename": "DiscountCustomers",
+                "customers": [{
+                    "__typename": "Customer",
+                    "id": "gid://shopify/Customer/10548596015410",
+                    "displayName": "HAR390 Buyer Context"
+                }]
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": discount_id, "input": { "title": "HAR-390 automatic segment context 1777346878525", "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } } } }),
+    ));
+    assert_eq!(
+        update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["context"],
+        json!({
+            "__typename": "DiscountCustomerSegments",
+            "segments": [{
+                "__typename": "Segment",
+                "id": "gid://shopify/Segment/647746715954",
+                "name": "HAR-390 buyer context 1777346878525"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountAutomaticBasicBuyerContextRead($id: ID!) {
+          automaticDiscountNode(id: $id) {
+            id
+            automaticDiscount { __typename ... on DiscountAutomaticBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } }
+          }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"],
+        json!({
+            "__typename": "DiscountAutomaticBasic",
+            "title": "HAR-390 automatic segment context 1777346878525",
+            "context": {
+                "__typename": "DiscountCustomerSegments",
+                "segments": [{
+                    "__typename": "Segment",
+                    "id": "gid://shopify/Segment/647746715954",
+                    "name": "HAR-390 buyer context 1777346878525"
+                }]
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextDelete($id: ID!) {
+          discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["discountAutomaticDelete"],
+        json!({ "deletedAutomaticDiscountId": discount_id, "userErrors": [] })
+    );
+}

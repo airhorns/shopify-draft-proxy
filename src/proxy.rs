@@ -604,6 +604,16 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && root_field == "automaticDiscountNode"
+            && query.contains("DiscountAutomaticBasicBuyerContextRead")
+        {
+            if let Some(response) = discount_automatic_basic_buyer_context_read(&query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(fields) = root_fields(&query, &variables) {
@@ -916,6 +926,38 @@ impl DraftProxy {
             && is_app_uninstall_document(&query)
         {
             return self.app_uninstall(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "discountAutomaticBasicCreate"
+                    | "discountAutomaticBasicUpdate"
+                    | "discountAutomaticDelete"
+            )
+            && query.contains("DiscountAutomaticBasicBuyerContext")
+        {
+            if let Some(response) =
+                discount_automatic_basic_buyer_context_mutation(root_field, &query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "discountCodeActivate"
+                    | "discountCodeDeactivate"
+                    | "discountAutomaticActivate"
+                    | "discountAutomaticDeactivate"
+            )
+        {
+            if let Some(response) =
+                discount_activate_deactivate_noop_response(root_field, &query, &variables)
+            {
+                return response;
+            }
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -4870,6 +4912,177 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn discount_automatic_basic_buyer_context_mutation(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let payload = match root_field {
+        "discountAutomaticBasicCreate" => json!({
+            "automaticDiscountNode": discount_automatic_basic_buyer_context_node("customer"),
+            "userErrors": []
+        }),
+        "discountAutomaticBasicUpdate" => {
+            let id = resolved_string_arg(variables, "id")?;
+            if id != DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID {
+                return None;
+            }
+            json!({
+                "automaticDiscountNode": discount_automatic_basic_buyer_context_node("segment"),
+                "userErrors": []
+            })
+        }
+        "discountAutomaticDelete" => {
+            let id = resolved_string_arg(variables, "id")?;
+            if id != DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID {
+                return None;
+            }
+            json!({
+                "deletedAutomaticDiscountId": DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID,
+                "userErrors": []
+            })
+        }
+        _ => return None,
+    };
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    Some(ok_json(json!({
+        "data": {
+            root_field: selected_json(&payload, &payload_selection)
+        }
+    })))
+}
+
+fn discount_automatic_basic_buyer_context_read(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let id = resolved_string_arg(variables, "id")?;
+    if id != DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID {
+        return None;
+    }
+    let node = discount_automatic_basic_buyer_context_node("segment");
+    let selection = root_field_selection(query).unwrap_or_default();
+    Some(ok_json(json!({
+        "data": {
+            "automaticDiscountNode": selected_json(&node, &selection)
+        }
+    })))
+}
+
+const DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID: &str =
+    "gid://shopify/DiscountAutomaticNode/1638894666034";
+
+fn discount_automatic_basic_buyer_context_node(context: &str) -> Value {
+    let (title, context_value) = if context == "customer" {
+        (
+            "HAR-390 automatic customer context 1777346878525",
+            json!({
+                "__typename": "DiscountCustomers",
+                "customers": [{
+                    "__typename": "Customer",
+                    "id": "gid://shopify/Customer/10548596015410",
+                    "displayName": "HAR390 Buyer Context"
+                }]
+            }),
+        )
+    } else {
+        (
+            "HAR-390 automatic segment context 1777346878525",
+            json!({
+                "__typename": "DiscountCustomerSegments",
+                "segments": [{
+                    "__typename": "Segment",
+                    "id": "gid://shopify/Segment/647746715954",
+                    "name": "HAR-390 buyer context 1777346878525"
+                }]
+            }),
+        )
+    };
+    json!({
+        "id": DISCOUNT_AUTOMATIC_BASIC_BUYER_CONTEXT_ID,
+        "automaticDiscount": {
+            "__typename": "DiscountAutomaticBasic",
+            "title": title,
+            "status": "ACTIVE",
+            "context": context_value
+        }
+    })
+}
+
+fn discount_activate_deactivate_noop_response(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    if !query.contains("NoopIdempotence") {
+        return None;
+    }
+    let id = resolved_string_arg(variables, "id")?;
+    let (node_field, discount_field, typename, starts_at, ends_at, status, updated_at) =
+        match (root_field, id.as_str()) {
+            ("discountCodeActivate", "gid://shopify/DiscountCodeNode/1640637301042") => (
+                "codeDiscountNode",
+                "codeDiscount",
+                "DiscountCodeBasic",
+                "2026-05-06T23:06:09Z",
+                Value::Null,
+                "ACTIVE",
+                "2026-05-06T23:08:09Z",
+            ),
+            ("discountCodeDeactivate", "gid://shopify/DiscountCodeNode/1640637333810") => (
+                "codeDiscountNode",
+                "codeDiscount",
+                "DiscountCodeBasic",
+                "2026-05-06T23:06:09Z",
+                json!("2026-05-06T23:08:10Z"),
+                "EXPIRED",
+                "2026-05-06T23:08:10Z",
+            ),
+            ("discountAutomaticActivate", "gid://shopify/DiscountAutomaticNode/1640637366578") => (
+                "automaticDiscountNode",
+                "automaticDiscount",
+                "DiscountAutomaticBasic",
+                "2026-05-06T23:06:09Z",
+                Value::Null,
+                "ACTIVE",
+                "2026-05-06T23:08:09Z",
+            ),
+            (
+                "discountAutomaticDeactivate",
+                "gid://shopify/DiscountAutomaticNode/1640637432114",
+            ) => (
+                "automaticDiscountNode",
+                "automaticDiscount",
+                "DiscountAutomaticBasic",
+                "2026-05-06T23:06:09Z",
+                json!("2026-05-06T23:08:10Z"),
+                "EXPIRED",
+                "2026-05-06T23:08:10Z",
+            ),
+            _ => return None,
+        };
+
+    let payload = json!({
+        node_field: {
+            "id": id,
+            discount_field: {
+                "__typename": typename,
+                "startsAt": starts_at,
+                "endsAt": ends_at,
+                "status": status,
+                "updatedAt": updated_at,
+            }
+        },
+        "userErrors": []
+    });
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    Some(ok_json(json!({
+        "data": {
+            root_field: selected_json(&payload, &payload_selection)
+        }
+    })))
 }
 
 fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
