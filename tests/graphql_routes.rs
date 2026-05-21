@@ -6012,6 +6012,73 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
+    let mut proxy = snapshot_proxy();
+    let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "HAR-605 bulk rule 1778002393771", "code": "HAR605BULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640428962098")
+    );
+
+    let bulk_add = r#"mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }"#;
+    let bulk_added = proxy.process_request(json_graphql_request(bulk_add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640428962098", "codes": [{"code":"HAR605BULK1778002393771_1"},{"code":"HAR605BULK1778002393771_2"},{"code":"HAR605BULK1778002393771_3"},{"code":"HAR605BULK1778002393771_4"},{"code":"HAR605BULK1778002393771_5"}] })));
+    assert_eq!(
+        bulk_added.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(5)
+    );
+    assert_eq!(
+        bulk_added.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let basic_update = r#"mutation DiscountUpdateEdgeBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
+    let code_change = proxy.process_request(json_graphql_request(basic_update, json!({ "id": "gid://shopify/DiscountCodeNode/1640428962098", "input": { "title": "HAR-605 bulk renamed 1778002393771", "code": "HAR605BULKNEW1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } } } })));
+    assert_eq!(
+        code_change.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        code_change.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Cannot update the code of a bulk discount.", "code": null, "extraInfo": null }])
+    );
+
+    let create_bxgy = r#"mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
+    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
+    assert_eq!(
+        bxgy.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["__typename"],
+        json!("DiscountCodeBxgy")
+    );
+
+    let bxgy_to_basic = proxy.process_request(json_graphql_request(basic_update, json!({ "id": "gid://shopify/DiscountCodeNode/1640428994866", "input": { "title": "HAR-605 coerced basic 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.25 }, "items": { "all": true } } } })));
+    assert_eq!(
+        bxgy_to_basic.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["__typename"],
+        json!("DiscountCodeBasic")
+    );
+    assert_eq!(
+        bxgy_to_basic.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let unknown = r#"mutation DiscountUpdateEdgeUnknownUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let unknown_response = proxy.process_request(json_graphql_request(unknown, json!({ "id": "gid://shopify/DiscountCodeNode/0", "input": { "title": "HAR-605 unknown 1778002393771", "code": "HAR605UNKNOWN1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        unknown_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        unknown_response.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Discount does not exist", "code": null, "extraInfo": null }])
+    );
+}
+
+#[test]
 fn discount_subscription_fields_not_permitted_matches_local_runtime_gating() {
     let mut proxy = snapshot_proxy();
     let primary = r#"

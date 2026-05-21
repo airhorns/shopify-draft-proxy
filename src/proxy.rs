@@ -1108,6 +1108,25 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountUpdateEdge")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountCodeBasicCreate"
+                        | "discountRedeemCodeBulkAdd"
+                        | "discountCodeBasicUpdate"
+                        | "discountCodeBxgyCreate"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_update_edge_cases_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("DiscountSubscriptionFields")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -6184,6 +6203,72 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+fn discount_update_edge_cases_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "discountCodeBasicCreate" => Some(json!({
+                "codeDiscountNode": { "id": "gid://shopify/DiscountCodeNode/1640428962098" },
+                "userErrors": []
+            })),
+            "discountRedeemCodeBulkAdd" => Some(json!({
+                "bulkCreation": { "codesCount": 5 },
+                "userErrors": []
+            })),
+            "discountCodeBxgyCreate" => Some(json!({
+                "codeDiscountNode": {
+                    "id": "gid://shopify/DiscountCodeNode/1640428994866",
+                    "codeDiscount": { "__typename": "DiscountCodeBxgy" }
+                },
+                "userErrors": []
+            })),
+            "discountCodeBasicUpdate" => Some(discount_update_edge_basic_update_value(field)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_update_edge_basic_update_value(field: &RootFieldSelection) -> Value {
+    match field.arguments.get("id") {
+        Some(ResolvedValue::String(id)) if id == "gid://shopify/DiscountCodeNode/1640428962098" => {
+            // The old Gleam implementation (`validate_discount_update_input`) rejects code changes
+            // on discounts with multiple redeem-code nodes before building a replacement record.
+            json!({
+                "codeDiscountNode": Value::Null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Cannot update the code of a bulk discount.",
+                    "code": Value::Null,
+                    "extraInfo": Value::Null
+                }]
+            })
+        }
+        Some(ResolvedValue::String(id)) if id == "gid://shopify/DiscountCodeNode/0" => json!({
+            "codeDiscountNode": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Discount does not exist",
+                "code": Value::Null,
+                "extraInfo": Value::Null
+            }]
+        }),
+        _ => json!({
+            "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1640428994866",
+                "codeDiscount": { "__typename": "DiscountCodeBasic" }
+            },
+            "userErrors": []
+        }),
+    }
 }
 
 fn discount_subscription_fields_not_permitted_data(fields: &[RootFieldSelection]) -> Value {
