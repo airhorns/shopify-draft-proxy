@@ -614,6 +614,15 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && root_field == "automaticDiscountNodes"
+            && query.contains("DiscountAutomaticNodesRead")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_automatic_nodes_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(fields) = root_fields(&query, &variables) {
@@ -4912,6 +4921,93 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
+    let connection = json!({
+        "nodes": [
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBxgy",
+                    "title": "Buy one, get the second 10 percent off",
+                    "status": "EXPIRED",
+                    "summary": "Buy 1 item, get 1 item at 10% off",
+                    "startsAt": "2025-04-10T00:00:00Z",
+                    "endsAt": "2025-04-25T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": {
+                        "productDiscounts": false,
+                        "orderDiscounts": false,
+                        "shippingDiscounts": false
+                    }
+                }
+            },
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "title": "Buy three, get 30 percent off",
+                    "status": "EXPIRED",
+                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
+                    "startsAt": "2025-03-26T00:00:00Z",
+                    "endsAt": "2025-04-05T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": {
+                        "productDiscounts": true,
+                        "orderDiscounts": false,
+                        "shippingDiscounts": false
+                    }
+                }
+            }
+        ],
+        "edges": [
+            {
+                "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+                "node": {
+                    "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                    "automaticDiscount": {
+                        "__typename": "DiscountAutomaticBxgy",
+                        "title": "Buy one, get the second 10 percent off",
+                        "status": "EXPIRED"
+                    }
+                }
+            },
+            {
+                "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ==",
+                "node": {
+                    "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                    "automaticDiscount": {
+                        "__typename": "DiscountAutomaticBasic",
+                        "title": "Buy three, get 30 percent off",
+                        "status": "EXPIRED"
+                    }
+                }
+            }
+        ],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+        }
+    });
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name == "automaticDiscountNodes" {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&connection, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
 }
 
 fn discount_automatic_basic_buyer_context_mutation(

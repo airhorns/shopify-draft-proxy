@@ -5856,3 +5856,76 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
         json!({ "deletedAutomaticDiscountId": discount_id, "userErrors": [] })
     );
 }
+
+#[test]
+fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountAutomaticNodesRead($first: Int!, $query: String) {
+          automaticDiscountNodes(first: $first, query: $query) {
+            nodes {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic { title status summary startsAt endsAt createdAt updatedAt asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } }
+                ... on DiscountAutomaticBxgy { title status summary startsAt endsAt createdAt updatedAt asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } }
+              }
+            }
+            edges { cursor node { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } ... on DiscountAutomaticBxgy { title status } } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 5, "query": null }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["automaticDiscountNodes"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBxgy",
+                    "title": "Buy one, get the second 10 percent off",
+                    "status": "EXPIRED",
+                    "summary": "Buy 1 item, get 1 item at 10% off",
+                    "startsAt": "2025-04-10T00:00:00Z",
+                    "endsAt": "2025-04-25T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": { "productDiscounts": false, "orderDiscounts": false, "shippingDiscounts": false }
+                }
+            },
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "title": "Buy three, get 30 percent off",
+                    "status": "EXPIRED",
+                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
+                    "startsAt": "2025-03-26T00:00:00Z",
+                    "endsAt": "2025-04-05T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }
+                }
+            }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["automaticDiscountNodes"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+        })
+    );
+}
