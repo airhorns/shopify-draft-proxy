@@ -3423,6 +3423,94 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
 }
 
 #[test]
+fn customer_segment_members_query_create_validates_stages_and_reads_node() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {
+          customerSegmentMembersQueryCreate(input: $input) {
+            customerSegmentMembersQuery { id currentCount done }
+            userErrors { field code message }
+          }
+        }
+    "#;
+
+    let both = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Segment/1", "query": "number_of_orders > 0" } }),
+    ));
+    assert_eq!(
+        both.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "Providing both segment_id and query is not supported."
+            }]
+        })
+    );
+
+    let neither = proxy.process_request(json_graphql_request(create_query, json!({ "input": {} })));
+    assert_eq!(
+        neither.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You must provide one of segment_id or query."
+            }]
+        })
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "query": "number_of_orders > 0" } }),
+    ));
+    let created_query =
+        &created.body["data"]["customerSegmentMembersQueryCreate"]["customerSegmentMembersQuery"];
+    let query_id = created_query["id"].as_str().unwrap().to_string();
+    assert!(query_id.starts_with("gid://shopify/CustomerSegmentMembersQuery/"));
+    assert_eq!(
+        created.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": {
+                "id": query_id,
+                "currentCount": 0,
+                "done": false
+            },
+            "userErrors": []
+        })
+    );
+
+    let lookup = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSegmentMembersQueryLookupValidationAndShape($id: ID!) {
+          customerSegmentMembersQuery(id: $id) { id currentCount done }
+        }
+        "#,
+        json!({ "id": query_id }),
+    ));
+    assert_eq!(
+        lookup.body["data"]["customerSegmentMembersQuery"],
+        json!({ "id": query_id, "currentCount": 0, "done": false })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSegmentMembersQueryNodeRead($id: ID!) {
+          node(id: $id) { ... on CustomerSegmentMembersQuery { id currentCount done } }
+        }
+        "#,
+        json!({ "id": query_id }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"],
+        json!({ "id": query_id, "currentCount": 0, "done": false })
+    );
+}
+
+#[test]
 fn saved_search_create_stages_and_reads_back_selection_aware_results() {
     let mut proxy = snapshot_proxy();
 

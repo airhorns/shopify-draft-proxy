@@ -149,6 +149,7 @@ pub struct DraftProxy {
     revoked_app_access_scopes: BTreeSet<String>,
     app_uninstalled: bool,
     staged_delegate_access_tokens: BTreeMap<String, Value>,
+    staged_customer_segment_member_queries: BTreeMap<String, Value>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
@@ -179,6 +180,7 @@ impl DraftProxy {
             revoked_app_access_scopes: BTreeSet::new(),
             app_uninstalled: false,
             staged_delegate_access_tokens: BTreeMap::new(),
+            staged_customer_segment_member_queries: BTreeMap::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
@@ -243,6 +245,7 @@ impl DraftProxy {
                 self.revoked_app_access_scopes.clear();
                 self.app_uninstalled = false;
                 self.staged_delegate_access_tokens.clear();
+                self.staged_customer_segment_member_queries.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
@@ -495,6 +498,20 @@ impl DraftProxy {
             && operation
                 .root_fields
                 .iter()
+                .all(|field| field == "customerSegmentMembersQuery")
+            && is_customer_segment_members_query_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.customer_segment_members_query_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
                 .all(|field| field == "currentAppInstallation")
             && (is_app_subscription_activation_document(&query)
                 || is_app_access_scopes_read_document(&query)
@@ -512,6 +529,12 @@ impl DraftProxy {
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(fields) = root_fields(&query, &variables) {
+                if is_customer_segment_members_query_document(&query) {
+                    if let Some(data) = self.customer_segment_members_query_node_read_data(&fields)
+                    {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
                 if let Some(data) = self.app_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
@@ -563,6 +586,13 @@ impl DraftProxy {
             && is_fulfillment_service_lifecycle_document(&query)
         {
             return self.fulfillment_service_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerSegmentMembersQueryCreate"
+            && is_customer_segment_members_query_document(&query)
+        {
+            return self.customer_segment_members_query_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2632,6 +2662,145 @@ impl DraftProxy {
                     purchase,
                     &payload_selection,
                     &purchase_selection,
+                    vec![],
+                )
+            }
+        }))
+    }
+
+    fn customer_segment_members_query_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "customerSegmentMembersQuery" {
+                continue;
+            }
+            let value = field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .and_then(|id| {
+                    self.staged_customer_segment_member_queries
+                        .get(&id)
+                        .cloned()
+                })
+                .map(|query| selected_json(&query, &field.selection))
+                .unwrap_or(Value::Null);
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn customer_segment_members_query_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    handled = true;
+                    field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| {
+                            self.staged_customer_segment_member_queries
+                                .get(&id)
+                                .cloned()
+                        })
+                        .map(|query| selected_json(&query, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "nodes" => {
+                    handled = true;
+                    let ids = field
+                        .arguments
+                        .get("ids")
+                        .map(resolved_string_list)
+                        .unwrap_or_default();
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| {
+                                self.staged_customer_segment_member_queries
+                                    .get(id)
+                                    .map(|query| selected_json(query, &field.selection))
+                                    .unwrap_or(Value::Null)
+                            })
+                            .collect(),
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
+    }
+
+    fn customer_segment_members_query_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "customerSegmentMembersQueryCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let query_selection =
+            selected_child_selection(&payload_selection, "customerSegmentMembersQuery")
+                .unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let query_input = resolved_string_field(&input, "query");
+        let segment_id_input = resolved_string_field(&input, "segmentId");
+        let user_errors = match (query_input.is_some(), segment_id_input.is_some()) {
+            (true, true) => vec![json!({
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "Providing both segment_id and query is not supported."
+            })],
+            (false, false) => vec![json!({
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You must provide one of segment_id or query."
+            })],
+            _ => Vec::new(),
+        };
+        if !user_errors.is_empty() {
+            return ok_json(json!({
+                "data": {
+                    response_key: customer_segment_members_query_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        &query_selection,
+                        user_errors,
+                    )
+                }
+            }));
+        }
+
+        let id = self.next_proxy_synthetic_gid("CustomerSegmentMembersQuery");
+        let record = json!({
+            "id": id,
+            "currentCount": 0,
+            "done": false,
+            "status": "INITIALIZED"
+        });
+        self.staged_customer_segment_member_queries
+            .insert(id.clone(), record.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "customerSegmentMembersQueryCreate",
+            vec![id],
+        );
+        ok_json(json!({
+            "data": {
+                response_key: customer_segment_members_query_payload_json(
+                    record,
+                    &payload_selection,
+                    &query_selection,
                     vec![],
                 )
             }
@@ -4967,6 +5136,35 @@ fn current_app_installation_json(
     Value::Object(fields)
 }
 
+fn customer_segment_members_query_payload_json(
+    query_record: Value,
+    payload_selection: &[SelectedField],
+    query_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&query_record, query_selection)
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
 fn fulfillment_service_payload_json(
     service: Value,
     payload_selection: &[SelectedField],
@@ -5017,6 +5215,16 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_customer_segment_members_query_document(query: &str) -> bool {
+    [
+        "CustomerSegmentMembersQueryCreateValidationAndShape",
+        "CustomerSegmentMembersQueryLookupValidationAndShape",
+        "CustomerSegmentMembersQueryNodeRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_delegate_access_token_create_document(query: &str) -> bool {
