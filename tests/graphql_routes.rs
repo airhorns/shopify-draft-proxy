@@ -321,6 +321,145 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": true,
+            "active": false
+        }}),
+    ));
+    let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(id.starts_with("gid://shopify/DeliveryCarrierService/"));
+    assert_eq!(
+        create.body["data"]["carrierServiceCreate"]["carrierService"]["formattedName"],
+        json!("Hermes Carrier Local (Rates provided by app)")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": "Hermes Carrier Updated",
+            "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+            "supportsServiceDiscovery": false,
+            "active": true
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Updated")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!, $first: Int!, $activeQuery: String) {
+          carrierService(id: $id) { id name formattedName callbackUrl active supportsServiceDiscovery }
+          active: carrierServices(first: $first, query: $activeQuery, sortKey: ID) {
+            nodes { id name formattedName callbackUrl active supportsServiceDiscovery }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "id": id, "first": 5, "activeQuery": "active:true" }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["active"],
+        json!(true)
+    );
+    assert_eq!(
+        downstream.body["data"]["active"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceDeleteProbe($id: ID!) {
+          carrierServiceDelete(id: $id) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["carrierServiceDelete"]["userErrors"],
+        json!([])
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceDeleteProbe($id: ID!) {
+          carrierServiceDelete(id: $id) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCarrierService/999999999999" }),
+    ));
+    assert_eq!(
+        missing.body["data"]["carrierServiceDelete"]["userErrors"][0]["message"],
+        json!("The carrier or app could not be found.")
+    );
+}
+
+#[test]
+fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_fields() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliverySettingsRead {
+          deliverySettingsAlias: deliverySettings {
+            legacyModeProfiles
+            legacyModeBlocked { blocked reasons }
+          }
+          deliveryPromiseSettingsAlias: deliveryPromiseSettings {
+            deliveryDatesEnabled
+            processingTime
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "deliverySettingsAlias": {
+                    "legacyModeProfiles": false,
+                    "legacyModeBlocked": { "blocked": false, "reasons": null }
+                },
+                "deliveryPromiseSettingsAlias": {
+                    "deliveryDatesEnabled": false,
+                    "processingTime": null
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     let mut proxy = snapshot_proxy();
     let update_query = r#"

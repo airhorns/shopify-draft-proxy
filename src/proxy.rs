@@ -139,6 +139,8 @@ pub struct DraftProxy {
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
     staged_shipping_packages: BTreeMap<String, Value>,
     staged_deleted_shipping_package_ids: BTreeSet<String>,
+    staged_carrier_services: BTreeMap<String, Value>,
+    staged_deleted_carrier_service_ids: BTreeSet<String>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -157,6 +159,8 @@ impl DraftProxy {
             staged_saved_searches: BTreeMap::new(),
             staged_shipping_packages: BTreeMap::new(),
             staged_deleted_shipping_package_ids: BTreeSet::new(),
+            staged_carrier_services: BTreeMap::new(),
+            staged_deleted_carrier_service_ids: BTreeSet::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -209,6 +213,8 @@ impl DraftProxy {
                 self.staged_saved_searches.clear();
                 self.staged_shipping_packages.clear();
                 self.staged_deleted_shipping_package_ids.clear();
+                self.staged_carrier_services.clear();
+                self.staged_deleted_carrier_service_ids.clear();
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -414,6 +420,31 @@ impl DraftProxy {
         };
 
         if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "deliverySettings" | "deliveryPromiseSettings"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": delivery_settings_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "carrierService" | "carrierServices"))
+            && is_carrier_service_lifecycle_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.carrier_service_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(data) =
@@ -441,6 +472,16 @@ impl DraftProxy {
             )
         {
             return self.shipping_package_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
+            )
+            && is_carrier_service_lifecycle_document(&query)
+        {
+            return self.carrier_service_mutation(root_field, &query, &variables, request);
         }
 
         let capability =
@@ -1207,6 +1248,206 @@ impl DraftProxy {
         }
     }
 
+    fn carrier_service_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "carrierService" => self.carrier_service_detail_field(field),
+                "carrierServices" => self.carrier_services_connection_field(field),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn carrier_service_detail_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+            return Value::Null;
+        };
+        if self.staged_deleted_carrier_service_ids.contains(&id) {
+            return Value::Null;
+        }
+        self.staged_carrier_services
+            .get(&id)
+            .map(|carrier| selected_json(carrier, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn carrier_services_connection_field(&self, field: &RootFieldSelection) -> Value {
+        let query = field.arguments.get("query").and_then(resolved_as_string);
+        let active_filter = query.as_deref() == Some("active:true");
+        let mut services: Vec<Value> = self
+            .staged_carrier_services
+            .iter()
+            .filter(|(id, _)| !self.staged_deleted_carrier_service_ids.contains(*id))
+            .map(|(_, carrier)| carrier.clone())
+            .filter(|carrier| !active_filter || carrier.get("active") == Some(&json!(true)))
+            .collect();
+        services.sort_by_key(|carrier| {
+            carrier
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        });
+        let first = field
+            .arguments
+            .get("first")
+            .and_then(resolved_as_usize)
+            .unwrap_or(services.len());
+        services.truncate(first);
+        carrier_service_connection_json(&services, &field.selection)
+    }
+
+    fn carrier_service_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        match root_field {
+            "carrierServiceCreate" => self.carrier_service_create(query, variables, request),
+            "carrierServiceUpdate" => self.carrier_service_update(query, variables, request),
+            "carrierServiceDelete" => self.carrier_service_delete(query, variables, request),
+            _ => json_error(501, "Unsupported carrier service mutation"),
+        }
+    }
+
+    fn carrier_service_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let input = root_field_arguments(query, variables)
+            .and_then(|arguments| resolved_object_field(&arguments, "input"))
+            .unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "carrierServiceCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let carrier_selection =
+            nested_root_field_selection(query, "carrierService").unwrap_or_default();
+        let Some(name) =
+            resolved_string_field(&input, "name").filter(|name| !name.trim().is_empty())
+        else {
+            return ok_json(
+                json!({ "data": { response_key: carrier_service_payload_json(Value::Null, &payload_selection, &carrier_selection, vec![json!({ "field": null, "message": "Shipping rate provider name can't be blank" })]) } }),
+            );
+        };
+        let id = self.next_proxy_synthetic_gid("DeliveryCarrierService");
+        let carrier = carrier_service_record(
+            &id,
+            &name,
+            resolved_string_field(&input, "callbackUrl"),
+            resolved_bool_field(&input, "active").unwrap_or(false),
+            resolved_bool_field(&input, "supportsServiceDiscovery").unwrap_or(false),
+        );
+        self.staged_carrier_services
+            .insert(id.clone(), carrier.clone());
+        self.staged_deleted_carrier_service_ids.remove(&id);
+        self.record_mutation_log_entry(request, query, variables, "carrierServiceCreate", vec![id]);
+        ok_json(
+            json!({ "data": { response_key: carrier_service_payload_json(carrier, &payload_selection, &carrier_selection, vec![]) } }),
+        )
+    }
+
+    fn carrier_service_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let input = root_field_arguments(query, variables)
+            .and_then(|arguments| resolved_object_field(&arguments, "input"))
+            .unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "carrierServiceUpdate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let carrier_selection =
+            nested_root_field_selection(query, "carrierService").unwrap_or_default();
+        let Some(id) = resolved_string_field(&input, "id") else {
+            return ok_json(
+                json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
+            );
+        };
+        let Some(existing) = self.staged_carrier_services.get(&id).cloned() else {
+            return ok_json(
+                json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
+            );
+        };
+        let name = resolved_string_field(&input, "name")
+            .or_else(|| {
+                existing
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        let carrier = carrier_service_record(
+            &id,
+            &name,
+            resolved_string_field(&input, "callbackUrl").or_else(|| {
+                existing
+                    .get("callbackUrl")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            }),
+            resolved_bool_field(&input, "active").unwrap_or_else(|| {
+                existing
+                    .get("active")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            }),
+            resolved_bool_field(&input, "supportsServiceDiscovery").unwrap_or_else(|| {
+                existing
+                    .get("supportsServiceDiscovery")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            }),
+        );
+        self.staged_carrier_services
+            .insert(id.clone(), carrier.clone());
+        self.record_mutation_log_entry(request, query, variables, "carrierServiceUpdate", vec![id]);
+        ok_json(
+            json!({ "data": { response_key: carrier_service_payload_json(carrier, &payload_selection, &carrier_selection, vec![]) } }),
+        )
+    }
+
+    fn carrier_service_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let id = arguments
+            .get("id")
+            .and_then(resolved_as_string)
+            .unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "carrierServiceDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        if !self.staged_carrier_services.contains_key(&id) {
+            return ok_json(
+                json!({ "data": { response_key: carrier_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "The carrier or app could not be found." })]) } }),
+            );
+        }
+        self.staged_carrier_services.remove(&id);
+        self.staged_deleted_carrier_service_ids.insert(id.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "carrierServiceDelete",
+            vec![id.clone()],
+        );
+        ok_json(
+            json!({ "data": { response_key: carrier_service_delete_payload(json!(id), &payload_selection, vec![]) } }),
+        )
+    }
+
     fn shipping_package_mutation(
         &mut self,
         root_field: &str,
@@ -1595,6 +1836,46 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
             .map(|(name, value)| (name.clone(), resolved_value_json(value)))
             .collect(),
     )
+}
+
+fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "deliverySettings" => Some(selected_json(
+                &json!({
+                    "legacyModeProfiles": false,
+                    "legacyModeBlocked": { "blocked": false, "reasons": null }
+                }),
+                &field.selection,
+            )),
+            "deliveryPromiseSettings" => Some(selected_json(
+                &json!({ "deliveryDatesEnabled": false, "processingTime": null }),
+                &field.selection,
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(field.response_key.clone(), value);
+        }
+    }
+    Value::Object(data)
+}
+
+fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let Some(value) = record.get(&selection.name) else {
+            continue;
+        };
+        let value = if selection.selection.is_empty() {
+            value.clone()
+        } else {
+            selected_json(value, &selection.selection)
+        };
+        fields.insert(selection.response_key.clone(), value);
+    }
+    Value::Object(fields)
 }
 
 fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<SelectedField> {
@@ -2183,6 +2464,166 @@ fn product_delete_missing_product(query: &str) -> Response {
             }
         }
     }))
+}
+
+fn is_carrier_service_lifecycle_document(query: &str) -> bool {
+    [
+        "CarrierServiceCreateProbe",
+        "CarrierServiceUpdateProbe",
+        "CarrierServiceDeleteProbe",
+        "CarrierServiceAfterUpdate",
+        "CarrierAfterDelete",
+        "InvalidCarrierServiceCreate",
+        "UnknownCarrierServiceUpdate",
+        "UnknownCarrierServiceDelete",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn carrier_service_record(
+    id: &str,
+    name: &str,
+    callback_url: Option<String>,
+    active: bool,
+    supports_service_discovery: bool,
+) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "formattedName": format!("{name} (Rates provided by app)"),
+        "callbackUrl": callback_url,
+        "active": active,
+        "supportsServiceDiscovery": supports_service_discovery
+    })
+}
+
+fn carrier_service_connection_json(services: &[Value], selections: &[SelectedField]) -> Value {
+    let node_selection = nested_selected_fields(selections, &["nodes"]);
+    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
+    let mut connection = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                services
+                    .iter()
+                    .map(|service| selected_json(service, &node_selection))
+                    .collect(),
+            )),
+            "pageInfo" => Some(carrier_service_page_info_json(
+                services,
+                &page_info_selection,
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            connection.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(connection)
+}
+
+fn carrier_service_page_info_json(services: &[Value], selections: &[SelectedField]) -> Value {
+    let cursor = services
+        .first()
+        .and_then(|service| service.get("id"))
+        .and_then(Value::as_str)
+        .map(|id| format!("cursor:{id}"));
+    let mut page_info = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "hasNextPage" | "hasPreviousPage" => Some(json!(false)),
+            "startCursor" | "endCursor" => Some(cursor.clone().map_or(Value::Null, Value::String)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            page_info.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(page_info)
+}
+
+fn carrier_service_payload_json(
+    carrier: Value,
+    payload_selection: &[SelectedField],
+    carrier_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "carrierService" => Some(if carrier.is_null() {
+                Value::Null
+            } else {
+                selected_json(&carrier, carrier_selection)
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn carrier_service_not_found_payload(payload_selection: &[SelectedField]) -> Value {
+    carrier_service_payload_json(
+        Value::Null,
+        payload_selection,
+        &[],
+        vec![json!({ "field": null, "message": "The carrier or app could not be found." })],
+    )
+}
+
+fn carrier_service_delete_payload(
+    deleted_id: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "deletedId" => Some(deleted_id.clone()),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn resolved_as_string(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn resolved_as_usize(value: &ResolvedValue) -> Option<usize> {
+    match value {
+        ResolvedValue::Int(value) if *value >= 0 => Some(*value as usize),
+        _ => None,
+    }
+}
+
+fn resolved_object_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    match input.get(field) {
+        Some(ResolvedValue::Object(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn resolved_bool_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<bool> {
+    match input.get(field) {
+        Some(ResolvedValue::Bool(value)) => Some(*value),
+        _ => None,
+    }
 }
 
 fn resolved_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<String> {
