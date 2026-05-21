@@ -200,7 +200,7 @@ impl DraftProxy {
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
-            Route::MetaCommit => self.commit_staged_mutations(),
+            Route::MetaCommit => self.commit_staged_mutations(&request),
             Route::Graphql => self.dispatch_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
@@ -254,7 +254,7 @@ impl DraftProxy {
         })
     }
 
-    fn commit_staged_mutations(&mut self) -> Response {
+    fn commit_staged_mutations(&mut self, commit_request: &Request) -> Response {
         let transport = Arc::clone(&self.commit_transport);
         let mut committed = 0usize;
         let mut failed = 0usize;
@@ -285,7 +285,7 @@ impl DraftProxy {
             let replay = Request {
                 method: "POST".to_string(),
                 path,
-                headers: BTreeMap::new(),
+                headers: commit_request.headers.clone(),
                 body: json!({ "query": query, "variables": variables }).to_string(),
             };
             let outcome = transport(replay);
