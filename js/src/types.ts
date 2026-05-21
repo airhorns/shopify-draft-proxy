@@ -1,4 +1,4 @@
-// TS-side public types for the Gleam shim. Every exported symbol from
+// TS-side public types for the Rust runtime shim. Every exported symbol from
 // the package runtime surface should stay callable through this shim
 // with the same shape.
 
@@ -52,7 +52,7 @@ export interface DraftProxyConfigSnapshot {
 export type DraftProxyLogSnapshot = unknown;
 export type DraftProxyStateSnapshot = unknown;
 
-export const DRAFT_PROXY_STATE_DUMP_SCHEMA = 'shopify-draft-proxy/state-dump';
+export const DRAFT_PROXY_STATE_DUMP_SCHEMA = 'shopify-draft-proxy-rust-state/v1';
 
 export interface DraftProxyStateDump {
   schema: typeof DRAFT_PROXY_STATE_DUMP_SCHEMA;

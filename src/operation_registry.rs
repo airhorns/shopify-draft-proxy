@@ -128,6 +128,25 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             runtime_tests: strings(&["test/parity_test.gleam"]),
             support_notes: None,
         },
+        saved_search_query("automaticDiscountSavedSearches"),
+        saved_search_query("codeDiscountSavedSearches"),
+        saved_search_query("collectionSavedSearches"),
+        saved_search_query("customerSavedSearches"),
+        saved_search_query("discountRedeemCodeSavedSearches"),
+        saved_search_query("draftOrderSavedSearches"),
+        saved_search_query("fileSavedSearches"),
+        saved_search_query("orderSavedSearches"),
+        saved_search_query("productSavedSearches"),
+        OperationRegistryEntry {
+            name: "savedSearchCreate".to_string(),
+            operation_type: OperationType::Mutation,
+            domain: CapabilityDomain::SavedSearches,
+            execution: CapabilityExecution::StageLocally,
+            implemented: true,
+            match_names: strings(&["savedSearchCreate", "SavedSearchCreate"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
+            support_notes: None,
+        },
         OperationRegistryEntry {
             name: "app".to_string(),
             operation_type: OperationType::Query,
@@ -182,6 +201,19 @@ pub fn operation_capability(
                 .filter(|name| !name.is_empty())
                 .map(str::to_string),
         },
+    }
+}
+
+fn saved_search_query(name: &str) -> OperationRegistryEntry {
+    OperationRegistryEntry {
+        name: name.to_string(),
+        operation_type: OperationType::Query,
+        domain: CapabilityDomain::SavedSearches,
+        execution: CapabilityExecution::OverlayRead,
+        implemented: true,
+        match_names: vec![name.to_string()],
+        runtime_tests: strings(&["tests/graphql_routes.rs"]),
+        support_notes: None,
     }
 }
 

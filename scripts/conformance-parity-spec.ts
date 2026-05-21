@@ -2,7 +2,7 @@
 // runner that used to live alongside these functions has been retired
 // (cassette playback now drives parity from `test/parity/...`).
 // Only the spec-shape validators remain here, used by:
-//   - scripts/gleam-port-coverage-gate.ts
+//   - scripts/conformance-check.ts
 //   - tests/unit/conformance-scenario-discovery.test.ts
 
 import type { Matcher, ParitySpec } from './support/json-schemas.js';
