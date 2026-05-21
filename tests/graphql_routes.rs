@@ -984,6 +984,44 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
 }
 
 #[test]
+fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": null,
+                    "errors": [{
+                        "message": "you must provide one of first or last",
+                        "path": ["bulkOperations"]
+                    }]
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationsMissingWindowValidation {
+          bulkOperations { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("you must provide one of first or last")
+    );
+    assert_eq!(response.body["data"], Value::Null);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
     let mut proxy = snapshot_proxy();
 

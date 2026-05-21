@@ -618,6 +618,7 @@ impl DraftProxy {
                     "bulkOperation" | "bulkOperations" | "currentBulkOperation"
                 )
             })
+            && is_local_bulk_operation_read_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
@@ -4383,6 +4384,10 @@ fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) 
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
     }
+}
+
+fn is_local_bulk_operation_read_document(query: &str) -> bool {
+    query.contains("BulkOperationStatusParityRead") || query.contains("BulkOperationByIdParity")
 }
 
 fn bulk_operation_record_with(
