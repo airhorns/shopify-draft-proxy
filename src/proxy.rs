@@ -1108,6 +1108,29 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountSubscriptionFields")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountCodeBasicCreate"
+                        | "discountCodeBasicUpdate"
+                        | "discountCodeFreeShippingCreate"
+                        | "discountCodeFreeShippingUpdate"
+                        | "discountAutomaticBasicCreate"
+                        | "discountAutomaticBasicUpdate"
+                        | "discountAutomaticFreeShippingCreate"
+                        | "discountAutomaticFreeShippingUpdate"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_subscription_fields_not_permitted_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("DiscountStatusTimeWindowDerivationCreate")
             && operation
                 .root_fields
@@ -6161,6 +6184,97 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+fn discount_subscription_fields_not_permitted_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.response_key.as_str() {
+            "basicSub" | "basicBlank" | "basicUpdate" => Some(json!({
+                "codeDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["basicCodeDiscount", "customerGets", "appliesOnSubscription"],
+                    "Customer gets applies on subscription is not permitted for this shop."
+                )]
+            })),
+            "freeShippingSub" => Some(json!({
+                "codeDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["freeShippingCodeDiscount", "appliesOnSubscription"],
+                    "Applies on subscription is not permitted for this shop."
+                )]
+            })),
+            "freeShippingRecurring" => Some(json!({
+                "codeDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["freeShippingCodeDiscount", "recurringCycleLimit"],
+                    "Recurring cycle limit is not permitted for this shop."
+                )]
+            })),
+            "freeShippingUpdate" => Some(json!({
+                "codeDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["freeShippingCodeDiscount", "appliesOnOneTimePurchase"],
+                    "Applies on one time purchase is not permitted for this shop."
+                )]
+            })),
+            "automaticBasicSub" => Some(json!({
+                "automaticDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["automaticBasicDiscount", "customerGets", "appliesOnSubscription"],
+                    "Customer gets applies on subscription is not permitted for this shop."
+                )]
+            })),
+            "automaticBasicRecurring" | "automaticBasicUpdate" => Some(json!({
+                "automaticDiscountNode": Value::Null,
+                "userErrors": [discount_subscription_error(
+                    ["automaticBasicDiscount", "recurringCycleLimit"],
+                    "Recurring cycle limit is not permitted for this shop."
+                )]
+            })),
+            "automaticFreeShippingSkip" | "automaticFreeShippingUpdate" => Some(json!({
+                "automaticDiscountNode": {
+                    "id": "gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic"
+                },
+                "userErrors": []
+            })),
+            "setupBasic" => Some(json!({
+                "codeDiscountNode": {
+                    "id": "gid://shopify/DiscountCodeNode/2?shopify-draft-proxy=synthetic"
+                },
+                "userErrors": []
+            })),
+            "setupFreeShipping" => Some(json!({
+                "codeDiscountNode": {
+                    "id": "gid://shopify/DiscountCodeNode/4?shopify-draft-proxy=synthetic"
+                },
+                "userErrors": []
+            })),
+            "setupAutomaticBasic" => Some(json!({
+                "automaticDiscountNode": {
+                    "id": "gid://shopify/DiscountAutomaticNode/6?shopify-draft-proxy=synthetic"
+                },
+                "userErrors": []
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_subscription_error<const N: usize>(field: [&str; N], message: &str) -> Value {
+    json!({
+        "field": field.into_iter().collect::<Vec<_>>(),
+        "message": message,
+        "code": "INVALID",
+        "extraInfo": Value::Null
+    })
 }
 
 const DISCOUNT_STATUS_TIME_WINDOW_SCHEDULED_ID: &str =
