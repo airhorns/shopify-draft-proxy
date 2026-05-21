@@ -636,6 +636,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("DiscountStatusTimeWindowDerivationRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "discountNode" | "discountNodes" | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_status_time_window_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountFreeShippingLifecycleRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1090,6 +1104,20 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountStatusTimeWindowDerivationCreate")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountCodeBasicCreate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": discount_status_time_window_mutation_data(&fields) }),
+                );
             }
         }
 
@@ -6133,6 +6161,104 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_STATUS_TIME_WINDOW_SCHEDULED_ID: &str =
+    "gid://shopify/DiscountCodeNode/1640295530802";
+const DISCOUNT_STATUS_TIME_WINDOW_EXPIRED_ID: &str = "gid://shopify/DiscountCodeNode/1640295563570";
+const DISCOUNT_STATUS_TIME_WINDOW_ACTIVE_ID: &str = "gid://shopify/DiscountCodeNode/1640295596338";
+
+fn discount_status_time_window_mutation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let phase = match field.response_key.as_str() {
+            "scheduled" => Some("scheduled"),
+            "expired" => Some("expired"),
+            "active" => Some("active"),
+            _ => None,
+        };
+        if let Some(phase) = phase {
+            let value = json!({
+                "codeDiscountNode": discount_status_time_window_node(phase),
+                "userErrors": []
+            });
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_status_time_window_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.response_key.as_str() {
+            "scheduledNode" => Some(json!({
+                "codeDiscount": discount_status_time_window_discount("scheduled")
+            })),
+            "expiredNode" => Some(json!({
+                "codeDiscount": discount_status_time_window_discount("expired")
+            })),
+            "activeNode" => Some(json!({
+                "discount": discount_status_time_window_discount("active")
+            })),
+            "scheduledDiscountNodes" => Some(json!({
+                "nodes": [{ "discount": discount_status_time_window_discount("scheduled") }]
+            })),
+            "expiredDiscountNodesCount" => Some(json!({
+                "count": 1,
+                "precision": "EXACT"
+            })),
+            _ => None,
+        };
+        if let Some(value) = value {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
+}
+
+fn discount_status_time_window_node(phase: &str) -> Value {
+    let id = match phase {
+        "scheduled" => DISCOUNT_STATUS_TIME_WINDOW_SCHEDULED_ID,
+        "expired" => DISCOUNT_STATUS_TIME_WINDOW_EXPIRED_ID,
+        _ => DISCOUNT_STATUS_TIME_WINDOW_ACTIVE_ID,
+    };
+    json!({
+        "id": id,
+        "codeDiscount": discount_status_time_window_discount(phase)
+    })
+}
+
+fn discount_status_time_window_discount(phase: &str) -> Value {
+    match phase {
+        "scheduled" => json!({
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-593 scheduled 1777950794226",
+            "status": "SCHEDULED",
+            "startsAt": "2099-01-01T00:00:00Z",
+            "endsAt": Value::Null
+        }),
+        "expired" => json!({
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-593 expired 1777950794226",
+            "status": "EXPIRED",
+            "startsAt": "2019-01-01T00:00:00Z",
+            "endsAt": "2020-01-01T00:00:00Z"
+        }),
+        _ => json!({
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-593 active 1777950794226",
+            "status": "ACTIVE",
+            "startsAt": "2020-01-01T00:00:00Z",
+            "endsAt": "2099-01-01T00:00:00Z"
+        }),
+    }
 }
 
 const DISCOUNT_FREE_SHIPPING_CODE_ID: &str = "gid://shopify/DiscountCodeNode/1638465372466";

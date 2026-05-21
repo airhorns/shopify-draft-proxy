@@ -6012,6 +6012,80 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_status_time_window_derives_create_and_read_filters() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountStatusTimeWindowDerivationCreate(
+          $scheduled: DiscountCodeBasicInput!
+          $expired: DiscountCodeBasicInput!
+          $active: DiscountCodeBasicInput!
+        ) {
+          scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+          expired: discountCodeBasicCreate(basicCodeDiscount: $expired) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+          active: discountCodeBasicCreate(basicCodeDiscount: $active) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(create_query, json!({
+        "scheduled": { "title": "HAR-593 scheduled 1777950794226", "code": "HAR593S1777950794226", "startsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "expired": { "title": "HAR-593 expired 1777950794226", "code": "HAR593E1777950794226", "startsAt": "2019-01-01T00:00:00Z", "endsAt": "2020-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "active": { "title": "HAR-593 active 1777950794226", "code": "HAR593A1777950794226", "startsAt": "2020-01-01T00:00:00Z", "endsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } }
+    })));
+    assert_eq!(
+        created.body["data"]["scheduled"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("SCHEDULED")
+    );
+    assert_eq!(
+        created.body["data"]["expired"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        created.body["data"]["active"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(created.body["data"]["scheduled"]["userErrors"], json!([]));
+
+    let read_query = r#"
+        query DiscountStatusTimeWindowDerivationRead($scheduledId: ID!, $expiredId: ID!, $activeId: ID!, $scheduledQuery: String!, $expiredQuery: String!) {
+          scheduledNode: codeDiscountNode(id: $scheduledId) { codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          expiredNode: codeDiscountNode(id: $expiredId) { codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          activeNode: discountNode(id: $activeId) { discount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) { nodes { discount { __typename ... on DiscountCodeBasic { title status } } } }
+          expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) { count precision }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "scheduledId": "gid://shopify/DiscountCodeNode/1640295530802",
+            "expiredId": "gid://shopify/DiscountCodeNode/1640295563570",
+            "activeId": "gid://shopify/DiscountCodeNode/1640295596338",
+            "scheduledQuery": "status:scheduled title:'HAR-593 scheduled 1777950794226'",
+            "expiredQuery": "status:expired title:'HAR-593 expired 1777950794226'"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["scheduledNode"]["codeDiscount"]["status"],
+        json!("SCHEDULED")
+    );
+    assert_eq!(
+        read.body["data"]["expiredNode"]["codeDiscount"]["endsAt"],
+        json!("2020-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        read.body["data"]["activeNode"]["discount"]["title"],
+        json!("HAR-593 active 1777950794226")
+    );
+    assert_eq!(
+        read.body["data"]["scheduledDiscountNodes"]["nodes"],
+        json!([{ "discount": { "__typename": "DiscountCodeBasic", "title": "HAR-593 scheduled 1777950794226", "status": "SCHEDULED" } }])
+    );
+    assert_eq!(
+        read.body["data"]["expiredDiscountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
