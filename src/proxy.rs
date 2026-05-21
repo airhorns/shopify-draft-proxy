@@ -111,10 +111,17 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
-type CommitTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
+type ProxyTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
+
+type CommitTransport = ProxyTransport;
+type UpstreamTransport = ProxyTransport;
 
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")
+}
+
+fn default_upstream_transport(_request: Request) -> Response {
+    json_error(502, "No Rust upstream transport configured")
 }
 
 #[derive(Clone)]
@@ -128,6 +135,7 @@ pub struct DraftProxy {
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
+    upstream_transport: UpstreamTransport,
 }
 
 impl DraftProxy {
@@ -142,6 +150,7 @@ impl DraftProxy {
             staged_saved_searches: BTreeMap::new(),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
+            upstream_transport: Arc::new(default_upstream_transport),
         }
     }
 
@@ -163,6 +172,14 @@ impl DraftProxy {
         transport: impl Fn(Request) -> Response + Send + Sync + 'static,
     ) -> Self {
         self.commit_transport = Arc::new(transport);
+        self
+    }
+
+    pub fn with_upstream_transport(
+        mut self,
+        transport: impl Fn(Request) -> Response + Send + Sync + 'static,
+    ) -> Self {
+        self.upstream_transport = Arc::new(transport);
         self
     }
 
@@ -347,31 +364,15 @@ impl DraftProxy {
             {
                 self.saved_search_create(&query, &variables, request)
             }
-            (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
-                match operation.operation_type {
-                    OperationType::Query => json_error(
-                        400,
-                        &format!(
-                            "No domain dispatcher implemented for root field: {}",
-                            root_field
-                        ),
-                    ),
-                    OperationType::Mutation => json_error(
-                        400,
-                        &format!(
-                            "No mutation dispatcher implemented for root field: {}",
-                            root_field
-                        ),
-                    ),
-                    OperationType::Subscription => json_error(
-                        400,
-                        &format!(
-                            "No domain dispatcher implemented for root field: {}",
-                            root_field
-                        ),
-                    ),
-                }
-            }
+            (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
+                .dispatch_unknown_passthrough_or_legacy_error(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                    root_field,
+                ),
             (_, CapabilityExecution::OverlayRead) => json_error(
                 501,
                 &format!(
@@ -394,6 +395,96 @@ impl DraftProxy {
                 ),
             ),
         }
+    }
+
+    fn dispatch_unknown_passthrough_or_legacy_error(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        match operation_type {
+            OperationType::Mutation
+                if self.config.unsupported_mutation_mode
+                    == Some(UnsupportedMutationMode::Reject) =>
+            {
+                json_error(
+                    400,
+                    &format!(
+                        "Unsupported mutation rejected by configuration: {}",
+                        root_field
+                    ),
+                )
+            }
+            OperationType::Query if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!(
+                    "No domain dispatcher implemented for root field: {}",
+                    root_field
+                ),
+            ),
+            OperationType::Mutation if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!(
+                    "No mutation dispatcher implemented for root field: {}",
+                    root_field
+                ),
+            ),
+            OperationType::Subscription if self.config.read_mode == ReadMode::Snapshot => {
+                json_error(
+                    400,
+                    &format!(
+                        "No domain dispatcher implemented for root field: {}",
+                        root_field
+                    ),
+                )
+            }
+            _ => {
+                if operation_type == OperationType::Mutation {
+                    self.record_passthrough_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_fields,
+                        root_field,
+                    );
+                }
+                (self.upstream_transport)(request.clone())
+            }
+        }
+    }
+
+    fn record_passthrough_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_fields: &[String],
+        root_field: &str,
+    ) {
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": root_field,
+            "status": "proxied",
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "interpreted": {
+                "operationType": "mutation",
+                "rootFields": root_fields,
+                "primaryRootField": root_field,
+                "capability": {
+                    "operationName": root_field,
+                    "domain": "unknown",
+                    "execution": "passthrough"
+                }
+            },
+            "notes": "Mutation passthrough placeholder until supported local staging is implemented."
+        }));
     }
 
     fn product_overlay_read_fields(

@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use shopify_draft_proxy::graphql::OperationType;
@@ -7,9 +9,16 @@ use shopify_draft_proxy::operation_registry::{
 use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
 
 fn snapshot_proxy() -> DraftProxy {
+    configured_proxy(ReadMode::Snapshot, None)
+}
+
+fn configured_proxy(
+    read_mode: ReadMode,
+    unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
+) -> DraftProxy {
     DraftProxy::new(Config {
-        read_mode: ReadMode::Snapshot,
-        unsupported_mutation_mode: None,
+        read_mode,
+        unsupported_mutation_mode,
         bulk_operation_run_mutation_max_input_file_size_bytes: None,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
@@ -131,6 +140,132 @@ fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
         fragment_before_operation.body,
         json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
     );
+}
+
+#[test]
+fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        captured.lock().unwrap().push(request);
+        shopify_draft_proxy::proxy::Response {
+            status: 202,
+            headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
+            body: json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } }),
+        }
+    });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer passthrough-token".to_string(),
+        )]
+        .into(),
+        body: json!({ "query": "{ currentAppInstallation { id } }" }).to_string(),
+    });
+
+    assert_eq!(response.status, 202);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } })
+    );
+    assert_eq!(
+        response.headers.get("x-test-upstream"),
+        Some(&"domain-read".to_string())
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer passthrough-token".to_string())
+    );
+    assert_eq!(
+        forwarded[0].body,
+        json!({ "query": "{ currentAppInstallation { id } }" }).to_string()
+    );
+}
+
+#[test]
+fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut passthrough = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "definitelyUnsupportedMutation": { "ok": true } } }),
+        }
+    });
+
+    let passthrough_response = passthrough.process_request(graphql_request(
+        "POST",
+        &json!({ "query": "mutation { definitelyUnsupportedMutation { ok } }" }).to_string(),
+    ));
+
+    assert_eq!(passthrough_response.status, 200);
+    assert_eq!(
+        passthrough_response.body,
+        json!({ "data": { "definitelyUnsupportedMutation": { "ok": true } } })
+    );
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        passthrough.get_log_snapshot(),
+        json!({
+            "entries": [{
+                "id": "log-1",
+                "operationName": "definitelyUnsupportedMutation",
+                "status": "proxied",
+                "path": "/admin/api/2026-04/graphql.json",
+                "query": "mutation { definitelyUnsupportedMutation { ok } }",
+                "variables": {},
+                "interpreted": {
+                    "operationType": "mutation",
+                    "rootFields": ["definitelyUnsupportedMutation"],
+                    "primaryRootField": "definitelyUnsupportedMutation",
+                    "capability": {
+                        "operationName": "definitelyUnsupportedMutation",
+                        "domain": "unknown",
+                        "execution": "passthrough"
+                    }
+                },
+                "notes": "Mutation passthrough placeholder until supported local staging is implemented."
+            }]
+        })
+    );
+
+    let reject_hits = Arc::new(Mutex::new(0usize));
+    let reject_counter = Arc::clone(&reject_hits);
+    let mut reject = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_upstream_transport(move |_request| {
+        *reject_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "should not hit upstream" }] }),
+        }
+    });
+
+    let reject_response = reject.process_request(graphql_request(
+        "POST",
+        &json!({ "query": "mutation { definitelyUnsupportedMutation { ok } }" }).to_string(),
+    ));
+
+    assert_eq!(reject_response.status, 400);
+    assert_eq!(
+        reject_response.body,
+        json!({ "errors": [{ "message": "Unsupported mutation rejected by configuration: definitelyUnsupportedMutation" }] })
+    );
+    assert_eq!(*reject_hits.lock().unwrap(), 0);
 }
 
 #[test]
