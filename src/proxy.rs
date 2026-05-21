@@ -137,6 +137,8 @@ pub struct DraftProxy {
     staged_products: BTreeMap<String, ProductRecord>,
     staged_deleted_product_ids: BTreeSet<String>,
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
+    staged_shipping_packages: BTreeMap<String, Value>,
+    staged_deleted_shipping_package_ids: BTreeSet<String>,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
@@ -152,6 +154,8 @@ impl DraftProxy {
             staged_products: BTreeMap::new(),
             staged_deleted_product_ids: BTreeSet::new(),
             staged_saved_searches: BTreeMap::new(),
+            staged_shipping_packages: BTreeMap::new(),
+            staged_deleted_shipping_package_ids: BTreeSet::new(),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
@@ -201,6 +205,8 @@ impl DraftProxy {
                 self.staged_products.clear();
                 self.staged_deleted_product_ids.clear();
                 self.staged_saved_searches.clear();
+                self.staged_shipping_packages.clear();
+                self.staged_deleted_shipping_package_ids.clear();
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
@@ -262,7 +268,9 @@ impl DraftProxy {
             "stagedState": {
                 "products": product_state_map_json(&self.staged_products),
                 "deletedProductIds": self.staged_deleted_product_ids.iter().cloned().collect::<Vec<_>>(),
-                "savedSearches": saved_search_state_map_json(&self.staged_saved_searches)
+                "savedSearches": saved_search_state_map_json(&self.staged_saved_searches),
+                "shippingPackages": self.staged_shipping_packages.clone(),
+                "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>()
             }
         })
     }
@@ -306,6 +314,20 @@ impl DraftProxy {
             .collect();
         self.staged_saved_searches =
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]);
+        self.staged_shipping_packages = state["stagedState"]["shippingPackages"]
+            .as_object()
+            .map(|packages| {
+                packages
+                    .iter()
+                    .map(|(id, package)| (id.clone(), package.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.staged_deleted_shipping_package_ids = state["stagedState"]
+            ["deletedShippingPackageIds"]
+            .as_object()
+            .map(|ids| ids.keys().cloned().collect())
+            .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -394,6 +416,15 @@ impl DraftProxy {
             if let Some(data) = local_node_read_fields(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
+            )
+        {
+            return self.shipping_package_mutation(root_field, &query, &variables, request);
         }
 
         let capability =
@@ -1065,10 +1096,211 @@ impl DraftProxy {
         }))
     }
 
+    fn shipping_package_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let Some(ResolvedValue::String(id)) = arguments.get("id") else {
+            return ok_json(
+                json!({ "data": { response_key: { "userErrors": [{ "field": ["id"], "message": "ID is required" }] } } }),
+            );
+        };
+        let id = id.clone();
+        if !is_known_shipping_package_id(&id) {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "invalid id",
+                    "extensions": { "code": "RESOURCE_NOT_FOUND" },
+                    "path": [root_field]
+                }],
+                "data": { response_key: null }
+            }));
+        }
+
+        let payload = match root_field {
+            "shippingPackageUpdate" => {
+                let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
+                    return ok_json(
+                        json!({ "data": { response_key: { "userErrors": [{ "field": ["shippingPackage"], "message": "Shipping package input is required" }] } } }),
+                    );
+                };
+                let mut package = self.effective_shipping_package(&id);
+                if package.get("boxType") == Some(&json!("FLAT_RATE")) {
+                    return ok_json(json!({
+                        "data": {
+                            response_key: {
+                                "userErrors": [{
+                                    "field": ["shippingPackage"],
+                                    "message": "Custom shipping box is not updatable",
+                                    "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
+                                }]
+                            }
+                        }
+                    }));
+                }
+                let was_default = package.get("default") == Some(&json!(true));
+                merge_shipping_package_input(&mut package, input);
+                if !was_default && package.get("default") == Some(&json!(true)) {
+                    self.clear_default_shipping_packages_except(&id);
+                }
+                package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+                self.staged_deleted_shipping_package_ids.remove(&id);
+                self.staged_shipping_packages.insert(id.clone(), package);
+                json!({ "userErrors": [] })
+            }
+            "shippingPackageMakeDefault" => {
+                self.clear_default_shipping_packages_except(&id);
+                let mut package = self.effective_shipping_package(&id);
+                package["default"] = json!(true);
+                package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+                self.staged_deleted_shipping_package_ids.remove(&id);
+                self.staged_shipping_packages.insert(id.clone(), package);
+                json!({ "userErrors": [] })
+            }
+            "shippingPackageDelete" => {
+                self.staged_shipping_packages.remove(&id);
+                self.staged_deleted_shipping_package_ids.insert(id.clone());
+                json!({ "deletedId": id, "userErrors": [] })
+            }
+            _ => unreachable!("shipping package dispatcher only receives supported roots"),
+        };
+
+        self.record_shipping_package_log_entry(request, query, variables, root_field, vec![id]);
+        ok_json(json!({ "data": { response_key: payload } }))
+    }
+
+    fn effective_shipping_package(&self, id: &str) -> Value {
+        self.staged_shipping_packages
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| seed_shipping_package(id))
+    }
+
+    fn clear_default_shipping_packages_except(&mut self, default_id: &str) {
+        for id in [
+            "gid://shopify/ShippingPackage/1",
+            "gid://shopify/ShippingPackage/2",
+        ] {
+            if id == default_id || self.staged_deleted_shipping_package_ids.contains(id) {
+                continue;
+            }
+            let mut package = self.effective_shipping_package(id);
+            package["default"] = json!(false);
+            package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+            self.staged_shipping_packages
+                .insert(id.to_string(), package);
+        }
+    }
+
+    fn next_shipping_package_timestamp(&self) -> String {
+        let staged_shipping_mutations = self
+            .log_entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .get("operationName")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| {
+                        matches!(
+                            name,
+                            "shippingPackageUpdate"
+                                | "shippingPackageMakeDefault"
+                                | "shippingPackageDelete"
+                        )
+                    })
+            })
+            .count();
+        format!(
+            "2024-01-01T00:00:{:02}.000Z",
+            staged_shipping_mutations * 2 + 1
+        )
+    }
+
+    fn record_shipping_package_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+    ) {
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": root_field,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": "staged",
+            "interpreted": {
+                "operationType": "mutation",
+                "rootFields": [root_field],
+                "primaryRootField": root_field
+            }
+        }));
+    }
+
     fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
+    }
+}
+
+fn is_known_shipping_package_id(id: &str) -> bool {
+    matches!(
+        id,
+        "gid://shopify/ShippingPackage/1"
+            | "gid://shopify/ShippingPackage/2"
+            | "gid://shopify/ShippingPackage/10"
+    )
+}
+
+fn seed_shipping_package(id: &str) -> Value {
+    match id {
+        "gid://shopify/ShippingPackage/10" => json!({
+            "id": "gid://shopify/ShippingPackage/10",
+            "name": "Carrier flat-rate box",
+            "type": "BOX",
+            "boxType": "FLAT_RATE",
+            "default": false,
+            "weight": { "value": 1, "unit": "KILOGRAMS" },
+            "dimensions": { "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" },
+            "createdAt": "2026-05-05T00:00:00.000Z",
+            "updatedAt": "2026-05-05T00:00:00.000Z"
+        }),
+        "gid://shopify/ShippingPackage/2" => json!({
+            "id": "gid://shopify/ShippingPackage/2",
+            "name": "Backup mailer",
+            "type": "ENVELOPE",
+            "default": false,
+            "weight": { "value": 0.5, "unit": "KILOGRAMS" },
+            "dimensions": { "length": 8, "width": 6, "height": 1, "unit": "CENTIMETERS" },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2026-04-27T00:00:00.000Z"
+        }),
+        _ => json!({
+            "id": id,
+            "name": "Starter box",
+            "type": "BOX",
+            "default": true,
+            "weight": { "value": 1, "unit": "KILOGRAMS" },
+            "dimensions": { "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2026-04-27T00:00:00.000Z"
+        }),
+    }
+}
+
+fn merge_shipping_package_input(package: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
+    for (key, value) in input {
+        package[key] = resolved_value_json(value);
     }
 }
 

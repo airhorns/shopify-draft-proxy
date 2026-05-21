@@ -132,7 +132,13 @@ describe('Rust HTTP adapter route surface', () => {
         status: 200,
         body: {
           baseState: { products: {}, savedSearches: {} },
-          stagedState: { products: {}, deletedProductIds: [], savedSearches: {} },
+          stagedState: {
+            products: {},
+            deletedProductIds: [],
+            savedSearches: {},
+            shippingPackages: {},
+            deletedShippingPackageIds: {},
+          },
         },
       });
 
