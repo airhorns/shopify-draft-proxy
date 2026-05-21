@@ -498,6 +498,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && root_field == "locationByIdentifier"
+            && is_location_custom_id_miss_document(&query)
+        {
+            return ok_json(location_custom_id_miss_response());
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation
                 .root_fields
                 .iter()
@@ -5364,6 +5371,22 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_location_custom_id_miss_document(query: &str) -> bool {
+    query.contains("StorePropertiesLocationCustomIdMissing")
+}
+
+fn location_custom_id_miss_response() -> Value {
+    json!({
+        "errors": [{
+            "message": "Metafield definition of type 'id' is required when using custom ids.",
+            "locations": [{ "line": 3, "column": 5 }],
+            "extensions": { "code": "NOT_FOUND" },
+            "path": ["unknownCustomIdentifier"]
+        }],
+        "data": { "unknownCustomIdentifier": null }
+    })
 }
 
 fn is_segment_query_grammar_document(query: &str) -> bool {

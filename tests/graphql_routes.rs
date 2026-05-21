@@ -267,6 +267,38 @@ fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
 }
 
 #[test]
+fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query StorePropertiesLocationCustomIdMissing {
+          unknownCustomIdentifier: locationByIdentifier(
+            identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+          ) { id name }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({ "unknownCustomIdentifier": null })
+    );
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Metafield definition of type 'id' is required when using custom ids.")
+    );
+    assert_eq!(
+        response.body["errors"][0]["path"],
+        json!(["unknownCustomIdentifier"])
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+}
+
+#[test]
 fn store_property_node_reads_resolve_known_shop_records_locally() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
     let query = r#"
