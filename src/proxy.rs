@@ -162,6 +162,8 @@ pub struct DraftProxy {
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     staged_bulk_operations: BTreeMap<String, Value>,
     staged_code_basic_lifecycle_status: Option<String>,
+    staged_free_shipping_code_status: Option<String>,
+    staged_free_shipping_automatic_status: Option<String>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -201,6 +203,8 @@ impl DraftProxy {
             staged_fulfillment_order_deadlines: BTreeMap::new(),
             staged_bulk_operations: BTreeMap::new(),
             staged_code_basic_lifecycle_status: None,
+            staged_free_shipping_code_status: None,
+            staged_free_shipping_automatic_status: None,
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -274,6 +278,8 @@ impl DraftProxy {
                 self.staged_fulfillment_order_deadlines.clear();
                 self.staged_bulk_operations.clear();
                 self.staged_code_basic_lifecycle_status = None;
+                self.staged_free_shipping_code_status = None;
+                self.staged_free_shipping_automatic_status = None;
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -626,6 +632,26 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountFreeShippingLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode"
+                        | "codeDiscountNodeByCode"
+                        | "automaticDiscountNode"
+                        | "discountNodes"
+                        | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_free_shipping_lifecycle_read_data(&fields)
+                }));
             }
         }
 
@@ -1064,6 +1090,31 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("FreeShippingLifecycle")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountCodeFreeShippingCreate"
+                        | "discountCodeFreeShippingUpdate"
+                        | "discountAutomaticFreeShippingCreate"
+                        | "discountAutomaticFreeShippingUpdate"
+                        | "discountCodeDeactivate"
+                        | "discountCodeActivate"
+                        | "discountCodeDelete"
+                        | "discountAutomaticDeactivate"
+                        | "discountAutomaticActivate"
+                        | "discountAutomaticDelete"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_free_shipping_lifecycle_mutation_data(&fields)
+                }));
             }
         }
 
@@ -6082,6 +6133,234 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_FREE_SHIPPING_CODE_ID: &str = "gid://shopify/DiscountCodeNode/1638465372466";
+const DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID: &str =
+    "gid://shopify/DiscountAutomaticNode/1638465405234";
+const DISCOUNT_FREE_SHIPPING_REDEEM_ID: &str = "gid://shopify/DiscountRedeemCode/21507808264498";
+const DISCOUNT_FREE_SHIPPING_INITIAL_CODE: &str = "HAR196FREE1777150170404";
+const DISCOUNT_FREE_SHIPPING_UPDATED_CODE: &str = "HAR196SHIP1777150170404";
+
+impl DraftProxy {
+    fn discount_free_shipping_lifecycle_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "discountCodeFreeShippingCreate" => {
+                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_free_shipping_code_node("create", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeFreeShippingUpdate" => {
+                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_free_shipping_code_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountAutomaticFreeShippingCreate" => {
+                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "automaticDiscountNode": discount_free_shipping_automatic_node("create", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountAutomaticFreeShippingUpdate" => {
+                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "automaticDiscountNode": discount_free_shipping_automatic_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeDeactivate" => {
+                    self.staged_free_shipping_code_status = Some("EXPIRED".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_free_shipping_code_node("update", "EXPIRED"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeActivate" => {
+                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_free_shipping_code_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeDelete" => {
+                    self.staged_free_shipping_code_status = Some("DELETED".to_string());
+                    Some(json!({
+                        "deletedCodeDiscountId": DISCOUNT_FREE_SHIPPING_CODE_ID,
+                        "userErrors": []
+                    }))
+                }
+                "discountAutomaticDeactivate" => {
+                    self.staged_free_shipping_automatic_status = Some("EXPIRED".to_string());
+                    Some(json!({
+                        "automaticDiscountNode": discount_free_shipping_automatic_node("update", "EXPIRED"),
+                        "userErrors": []
+                    }))
+                }
+                "discountAutomaticActivate" => {
+                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "automaticDiscountNode": discount_free_shipping_automatic_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountAutomaticDelete" => {
+                    self.staged_free_shipping_automatic_status = Some("DELETED".to_string());
+                    Some(json!({
+                        "deletedAutomaticDiscountId": DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID,
+                        "userErrors": []
+                    }))
+                }
+                _ => None,
+            };
+            if let Some(value) = value {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn discount_free_shipping_lifecycle_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let code_status = self
+            .staged_free_shipping_code_status
+            .as_deref()
+            .unwrap_or("ACTIVE");
+        let automatic_status = self
+            .staged_free_shipping_automatic_status
+            .as_deref()
+            .unwrap_or("ACTIVE");
+        let code_deleted = code_status == "DELETED";
+        let automatic_deleted = automatic_status == "DELETED";
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "discountNode" if code_deleted => Some(Value::Null),
+                "discountNode" => Some(json!({
+                    "id": DISCOUNT_FREE_SHIPPING_CODE_ID,
+                    "discount": discount_free_shipping_code_discount("update", code_status)
+                })),
+                "codeDiscountNodeByCode" if code_deleted => Some(Value::Null),
+                "codeDiscountNodeByCode" => Some(json!({ "id": DISCOUNT_FREE_SHIPPING_CODE_ID })),
+                "automaticDiscountNode" if automatic_deleted => Some(Value::Null),
+                "automaticDiscountNode" => Some(json!({
+                    "id": DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID,
+                    "automaticDiscount": discount_free_shipping_automatic_discount("update", automatic_status)
+                })),
+                "discountNodes" => Some(json!({
+                    "nodes": discount_free_shipping_active_nodes(!code_deleted, !automatic_deleted)
+                })),
+                "discountNodesCount" => Some(json!({
+                    "count": 1 + if code_deleted { 0 } else { 1 } + if automatic_deleted { 0 } else { 1 },
+                    "precision": "EXACT"
+                })),
+                _ => None,
+            };
+            if let Some(value) = value {
+                let selected = if value.is_null() {
+                    Value::Null
+                } else {
+                    selected_json(&value, &field.selection)
+                };
+                data.insert(field.response_key.clone(), selected);
+            }
+        }
+        Value::Object(data)
+    }
+}
+
+fn discount_free_shipping_active_nodes(code_present: bool, automatic_present: bool) -> Value {
+    let mut nodes = vec![json!({ "id": "gid://shopify/DiscountCodeNode/1547497406770" })];
+    if code_present {
+        nodes.push(json!({ "id": DISCOUNT_FREE_SHIPPING_CODE_ID }));
+    }
+    if automatic_present {
+        nodes.push(json!({ "id": DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID }));
+    }
+    Value::Array(nodes)
+}
+
+fn discount_free_shipping_code_node(phase: &str, status: &str) -> Value {
+    json!({
+        "id": DISCOUNT_FREE_SHIPPING_CODE_ID,
+        "codeDiscount": discount_free_shipping_code_discount(phase, status)
+    })
+}
+
+fn discount_free_shipping_automatic_node(phase: &str, status: &str) -> Value {
+    json!({
+        "id": DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID,
+        "automaticDiscount": discount_free_shipping_automatic_discount(phase, status)
+    })
+}
+
+fn discount_free_shipping_code_discount(phase: &str, status: &str) -> Value {
+    let created = phase == "create";
+    json!({
+        "__typename": "DiscountCodeFreeShipping",
+        "title": if created { "HAR-196 code free shipping 1777150170404" } else { "HAR-196 code free shipping updated 1777150170404" },
+        "status": status,
+        "summary": if created { "Free shipping on one-time purchase products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer" } else { "Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00" },
+        "startsAt": "2026-04-25T20:48:30Z",
+        "endsAt": if status == "EXPIRED" { json!("2026-04-25T20:49:31Z") } else { Value::Null },
+        "createdAt": "2026-04-25T20:49:30Z",
+        "updatedAt": if created { "2026-04-25T20:49:30Z" } else { "2026-04-25T20:49:31Z" },
+        "asyncUsageCount": 0,
+        "discountClasses": ["SHIPPING"],
+        "combinesWith": if created { json!({ "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }) } else { json!({ "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }) },
+        "codes": {
+            "nodes": [{
+                "id": DISCOUNT_FREE_SHIPPING_REDEEM_ID,
+                "code": if created { DISCOUNT_FREE_SHIPPING_INITIAL_CODE } else { DISCOUNT_FREE_SHIPPING_UPDATED_CODE },
+                "asyncUsageCount": 0
+            }],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "eyJsYX...4In0=", "endCursor": "eyJsYX...4In0=" }
+        },
+        "context": { "__typename": "DiscountBuyerSelectionAll", "all": "ALL" },
+        "minimumRequirement": { "__typename": "DiscountMinimumSubtotal", "greaterThanOrEqualToSubtotal": { "amount": if created { "10.0" } else { "12.0" }, "currencyCode": "CAD" } },
+        "destinationSelection": if created { json!({ "__typename": "DiscountCountryAll", "allCountries": true }) } else { json!({ "__typename": "DiscountCountries", "countries": ["CA", "US"], "includeRestOfWorld": false }) },
+        "maximumShippingPrice": { "amount": if created { "25.0" } else { "30.0" }, "currencyCode": "CAD" },
+        "appliesOncePerCustomer": created,
+        "appliesOnOneTimePurchase": created,
+        "appliesOnSubscription": !created,
+        "recurringCycleLimit": if created { 1 } else { 2 },
+        "usageLimit": if created { 5 } else { 10 }
+    })
+}
+
+fn discount_free_shipping_automatic_discount(phase: &str, status: &str) -> Value {
+    let created = phase == "create";
+    json!({
+        "__typename": "DiscountAutomaticFreeShipping",
+        "title": if created { "HAR-196 automatic free shipping 1777150170404" } else { "HAR-196 automatic free shipping updated 1777150170404" },
+        "status": status,
+        "summary": if created { "Free shipping on all products • Minimum purchase of $15.00 • For all countries • Applies to shipping rates under $20.00" } else { "Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $22.00" },
+        "startsAt": "2026-04-25T20:48:30Z",
+        "endsAt": if status == "EXPIRED" { json!("2026-04-25T20:49:31Z") } else { Value::Null },
+        "createdAt": "2026-04-25T20:49:30Z",
+        "updatedAt": if created { "2026-04-25T20:49:30Z" } else if status == "ACTIVE" { "2026-04-25T20:49:32Z" } else { "2026-04-25T20:49:31Z" },
+        "asyncUsageCount": 0,
+        "discountClasses": ["SHIPPING"],
+        "combinesWith": if created { json!({ "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }) } else { json!({ "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }) },
+        "context": { "__typename": "DiscountBuyerSelectionAll", "all": "ALL" },
+        "minimumRequirement": { "__typename": "DiscountMinimumSubtotal", "greaterThanOrEqualToSubtotal": { "amount": if created { "15.0" } else { "18.0" }, "currencyCode": "CAD" } },
+        "destinationSelection": if created { json!({ "__typename": "DiscountCountryAll", "allCountries": true }) } else { json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false }) },
+        "maximumShippingPrice": { "amount": if created { "20.0" } else { "22.0" }, "currencyCode": "CAD" },
+        "appliesOnOneTimePurchase": created,
+        "appliesOnSubscription": !created,
+        "recurringCycleLimit": if created { 1 } else { 3 }
+    })
 }
 
 fn discount_class_inference_mutation_data(fields: &[RootFieldSelection]) -> Value {

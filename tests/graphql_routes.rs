@@ -6012,6 +6012,109 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
+          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
+          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(create_query, json!({
+        "codeInput": { "title": "HAR-196 code free shipping 1777150170404", "code": "HAR196FREE1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" } }, "destination": { "all": true }, "maximumShippingPrice": "25.00", "appliesOncePerCustomer": true, "appliesOnOneTimePurchase": true, "appliesOnSubscription": false, "recurringCycleLimit": 1, "usageLimit": 5 },
+        "automaticInput": { "title": "HAR-196 automatic free shipping 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "endsAt": null, "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "15.00" } }, "destination": { "all": true }, "maximumShippingPrice": "20.00", "appliesOnOneTimePurchase": true, "appliesOnSubscription": false, "recurringCycleLimit": 1 }
+    })));
+    assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR196FREE1777150170404")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["maximumShippingPrice"],
+        json!({ "amount": "20.0", "currencyCode": "CAD" })
+    );
+
+    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
+    let updated = proxy.process_request(json_graphql_request(
+        code_update,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466", "input": {} }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["destinationSelection"],
+        json!({ "__typename": "DiscountCountries", "countries": ["CA", "US"], "includeRestOfWorld": false })
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
+    let automatic_updated = proxy.process_request(json_graphql_request(
+        automatic_update,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1638465405234", "input": {} }),
+    ));
+    assert_eq!(
+        automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
+            ["automaticDiscountNode"]["automaticDiscount"]["destinationSelection"],
+        json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false })
+    );
+
+    let read_query = r#"query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) { discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeFreeShipping { title status } } } codeDiscountNodeByCode(code: $code) { id } automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title status } } } }"#;
+    let read_after_update = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465372466", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465405234", "code": "HAR196SHIP1777150170404" })));
+    assert_eq!(
+        read_after_update.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-196 code free shipping updated 1777150170404")
+    );
+    assert_eq!(
+        read_after_update.body["data"]["automaticDiscountNode"]["automaticDiscount"]["status"],
+        json!("ACTIVE")
+    );
+
+    let code_deactivate = r#"mutation DiscountFreeShippingLifecycleDeactivate($id: ID!) { discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title status } } } userErrors { field message code extraInfo } } }"#;
+    let code_deactivated = proxy.process_request(json_graphql_request(
+        code_deactivate,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466" }),
+    ));
+    assert_eq!(
+        code_deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+
+    let automatic_delete = r#"mutation DiscountFreeShippingLifecycleDelete($id: ID!) { discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } } }"#;
+    let automatic_deleted = proxy.process_request(json_graphql_request(
+        automatic_delete,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1638465405234" }),
+    ));
+    assert_eq!(
+        automatic_deleted.body["data"]["discountAutomaticDelete"]["userErrors"],
+        json!([])
+    );
+
+    let code_delete = r#"mutation DiscountFreeShippingLifecycleDelete($id: ID!) { discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } } }"#;
+    let _ = proxy.process_request(json_graphql_request(
+        code_delete,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466" }),
+    ));
+    let read_after_delete = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465372466", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465405234", "code": "HAR196SHIP1777150170404" })));
+    assert_eq!(read_after_delete.body["data"]["discountNode"], json!(null));
+    assert_eq!(
+        read_after_delete.body["data"]["codeDiscountNodeByCode"],
+        json!(null)
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["automaticDiscountNode"],
+        json!(null)
+    );
+}
+
+#[test]
 fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
