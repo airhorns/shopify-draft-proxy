@@ -1128,6 +1128,21 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && (query.contains("DiscountRedeemCodeBulkDeleteValidation")
+                || query.contains("DiscountRedeemCodeBulkDeleteHappy"))
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_delete_validation_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("DiscountRedeemCodeBulkValidation")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -6237,6 +6252,96 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_REDEEM_CODE_BULK_DELETE_VALIDATION_DISCOUNT_ID: &str =
+    "gid://shopify/DiscountCodeNode/1640468283698";
+
+fn discount_redeem_code_bulk_delete_validation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = discount_redeem_code_bulk_delete_validation_value(field);
+        data.insert(
+            field.response_key.clone(),
+            selected_json(&value, &field.selection),
+        );
+    }
+    Value::Object(data)
+}
+
+fn discount_redeem_code_bulk_delete_validation_value(field: &RootFieldSelection) -> Value {
+    let selector_count = redeem_code_bulk_delete_selector_count(field);
+    let user_errors = if selector_count == 0 {
+        vec![discount_null_field_user_error(
+            "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+            Some("MISSING_ARGUMENT"),
+        )]
+    } else if selector_count > 1 {
+        vec![discount_null_field_user_error(
+            "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+            Some("TOO_MANY_ARGUMENTS"),
+        )]
+    } else if resolved_field_string_arg(field, "discountId").as_deref()
+        != Some(DISCOUNT_REDEEM_CODE_BULK_DELETE_VALIDATION_DISCOUNT_ID)
+    {
+        vec![json!({
+            "field": ["discountId"],
+            "message": "Code discount does not exist.",
+            "code": "INVALID",
+            "extraInfo": Value::Null
+        })]
+    } else if matches!(field.arguments.get("ids"), Some(ResolvedValue::List(ids)) if ids.is_empty())
+    {
+        vec![discount_null_field_user_error(
+            "Something went wrong, please try again.",
+            None,
+        )]
+    } else if matches!(field.arguments.get("search"), Some(ResolvedValue::String(search)) if search.trim().is_empty())
+    {
+        vec![json!({
+            "field": ["search"],
+            "message": "'Search' can't be blank.",
+            "code": "BLANK",
+            "extraInfo": Value::Null
+        })]
+    } else if field.arguments.contains_key("savedSearchId")
+        || field.arguments.contains_key("saved_search_id")
+    {
+        vec![json!({
+            "field": ["savedSearchId"],
+            "message": "Invalid 'saved_search_id'.",
+            "code": "INVALID",
+            "extraInfo": Value::Null
+        })]
+    } else {
+        Vec::new()
+    };
+
+    json!({
+        "job": if user_errors.is_empty() { json!({
+            "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": Value::Null
+        }) } else { Value::Null },
+        "userErrors": user_errors
+    })
+}
+
+fn redeem_code_bulk_delete_selector_count(field: &RootFieldSelection) -> usize {
+    let ids_present = field.arguments.contains_key("ids");
+    let search_present = field.arguments.contains_key("search");
+    let saved_search_present = field.arguments.contains_key("savedSearchId")
+        || field.arguments.contains_key("saved_search_id");
+    ids_present as usize + search_present as usize + saved_search_present as usize
+}
+
+fn discount_null_field_user_error(message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": Value::Null,
+        "message": message,
+        "code": code.map(Value::from).unwrap_or(Value::Null),
+        "extraInfo": Value::Null
+    })
 }
 
 const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID: &str =

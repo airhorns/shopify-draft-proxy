@@ -6012,6 +6012,67 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_redeem_code_bulk_delete_validation_matches_selector_errors_and_happy_job() {
+    let mut proxy = snapshot_proxy();
+    let validation = r#"mutation DiscountRedeemCodeBulkDeleteValidation($discountId: ID!, $unknownDiscountId: ID!, $ids: [ID!], $emptyIds: [ID!], $search: String, $blankSearch: String, $savedSearchId: ID!) { missing: discountCodeRedeemCodeBulkDelete(discountId: $discountId) { job { id done } userErrors { field message code extraInfo } } tooMany: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids, search: $search) { job { id done } userErrors { field message code extraInfo } } unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: $unknownDiscountId, ids: $ids) { job { id done } userErrors { field message code extraInfo } } emptyIds: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $emptyIds) { job { id done } userErrors { field message code extraInfo } } blankSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, search: $blankSearch) { job { id done } userErrors { field message code extraInfo } } invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, savedSearchId: $savedSearchId) { job { id done } userErrors { field message code extraInfo } } }"#;
+    let variables = json!({
+        "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+        "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
+        "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"],
+        "emptyIds": [],
+        "search": "code:ANY",
+        "blankSearch": "   ",
+        "savedSearchId": "gid://shopify/SavedSearch/0"
+    });
+    let response = proxy.process_request(json_graphql_request(validation, variables));
+    assert_eq!(
+        response.body["data"]["missing"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.", "code": "MISSING_ARGUMENT", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["tooMany"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Only one of 'ids', 'search' or 'saved_search_id' is allowed.", "code": "TOO_MANY_ARGUMENTS", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["unknownDiscount"],
+        json!({ "job": null, "userErrors": [{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["emptyIds"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Something went wrong, please try again.", "code": null, "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["blankSearch"],
+        json!({ "job": null, "userErrors": [{ "field": ["search"], "message": "'Search' can't be blank.", "code": "BLANK", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["invalidSavedSearch"],
+        json!({ "job": null, "userErrors": [{ "field": ["savedSearchId"], "message": "Invalid 'saved_search_id'.", "code": "INVALID", "extraInfo": null }] })
+    );
+
+    let happy = r#"mutation DiscountRedeemCodeBulkDeleteHappy($discountId: ID!, $ids: [ID!]!) { happy: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) { job { id done } userErrors { field message code extraInfo } } }"#;
+    let happy_response = proxy.process_request(json_graphql_request(
+        happy,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+            "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"]
+        }),
+    ));
+    assert_eq!(
+        happy_response.body["data"]["happy"]["job"]["done"],
+        json!(true)
+    );
+    assert!(happy_response.body["data"]["happy"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Job/"));
+    assert_eq!(
+        happy_response.body["data"]["happy"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let create = r#"mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
