@@ -40,7 +40,7 @@ const statusCheckSchema = z.enum([
   'conformance:status',
   'conformance:check',
   'conformance:parity',
-  'gleam:test',
+  'rust:test',
   'targeted-runtime-test',
   'manual-capture-review',
 ]);
@@ -63,7 +63,7 @@ const captureIndexSchema = z.array(captureIndexEntrySchema);
 export type ConformanceCaptureIndexEntry = z.infer<typeof captureIndexEntrySchema>;
 type StatusCheck = z.infer<typeof statusCheckSchema>;
 
-const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'gleam:test'];
+const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'rust:test'];
 const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>/';
 const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 
@@ -5511,7 +5511,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${LOCAL_RUNTIME_ROOT}discount-activation-failure-field-base.json`],
     cleanupBehavior:
       'Runs only against the local proxy runtime with a deterministic Function cassette; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'discounts',
@@ -6884,7 +6884,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Runs only against the local proxy runtime with a deterministic order-hydration cassette; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'orders',
