@@ -161,6 +161,7 @@ pub struct DraftProxy {
     staged_collections: BTreeMap<String, Value>,
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     staged_bulk_operations: BTreeMap<String, Value>,
+    staged_timestamp_discounts: BTreeMap<String, Value>,
     staged_code_basic_lifecycle_status: Option<String>,
     staged_free_shipping_code_status: Option<String>,
     staged_free_shipping_automatic_status: Option<String>,
@@ -204,6 +205,7 @@ impl DraftProxy {
             staged_collections: BTreeMap::new(),
             staged_fulfillment_order_deadlines: BTreeMap::new(),
             staged_bulk_operations: BTreeMap::new(),
+            staged_timestamp_discounts: BTreeMap::new(),
             staged_code_basic_lifecycle_status: None,
             staged_free_shipping_code_status: None,
             staged_free_shipping_automatic_status: None,
@@ -281,6 +283,7 @@ impl DraftProxy {
                 self.staged_collections.clear();
                 self.staged_fulfillment_order_deadlines.clear();
                 self.staged_bulk_operations.clear();
+                self.staged_timestamp_discounts.clear();
                 self.staged_code_basic_lifecycle_status = None;
                 self.staged_free_shipping_code_status = None;
                 self.staged_free_shipping_automatic_status = None;
@@ -506,6 +509,101 @@ impl DraftProxy {
         ok_json(json!({ "ok": true, "committed": committed, "failed": failed }))
     }
 
+    fn discount_timestamps_monotonic_create_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = if field.name == "discountCodeBasicCreate" {
+                let record = timestamp_discount_from_input(
+                    &field.arguments,
+                    "basicCodeDiscount",
+                    self.staged_timestamp_discounts.len() + 1,
+                    false,
+                    None,
+                );
+                let id = record["id"].as_str().unwrap().to_string();
+                self.staged_timestamp_discounts.insert(id, record.clone());
+                json!({
+                    "codeDiscountNode": record,
+                    "userErrors": []
+                })
+            } else {
+                Value::Null
+            };
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+        Value::Object(data)
+    }
+
+    fn discount_timestamps_monotonic_update_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = if field.name == "discountCodeBasicUpdate" {
+                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                let existing = self.staged_timestamp_discounts.get(&id).cloned();
+                let record = timestamp_discount_from_input(
+                    &field.arguments,
+                    "basicCodeDiscount",
+                    self.staged_timestamp_discounts.len() + 1,
+                    true,
+                    existing.as_ref(),
+                );
+                self.staged_timestamp_discounts.insert(id, record.clone());
+                json!({
+                    "codeDiscountNode": record,
+                    "userErrors": []
+                })
+            } else {
+                Value::Null
+            };
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&value, &field.selection),
+            );
+        }
+        Value::Object(data)
+    }
+
+    fn discount_timestamps_monotonic_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "codeDiscountNode" => resolved_field_string_arg(field, "id")
+                    .and_then(|id| self.staged_timestamp_discounts.get(&id).cloned())
+                    .unwrap_or(Value::Null),
+                "codeDiscountNodeByCode" => {
+                    let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                    self.staged_timestamp_discounts
+                        .values()
+                        .find(|record| {
+                            record["codeDiscount"]["codes"]["nodes"][0]["code"].as_str()
+                                == Some(code.as_str())
+                        })
+                        .cloned()
+                        .unwrap_or(Value::Null)
+                }
+                _ => Value::Null,
+            };
+            if value.is_null() {
+                data.insert(field.response_key.clone(), Value::Null);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -614,6 +712,22 @@ impl DraftProxy {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({
                     "data": self.current_app_installation_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountTimestampsMonotonicRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_timestamps_monotonic_read_data(&fields)
                 }));
             }
         }
@@ -1150,6 +1264,34 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": discount_class_inference_mutation_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountTimestampsMonotonicCreate")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountCodeBasicCreate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_timestamps_monotonic_create_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountTimestampsMonotonicUpdate")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "discountCodeBasicUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_timestamps_monotonic_update_data(&fields)
+                }));
             }
         }
 
@@ -6308,6 +6450,56 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+fn timestamp_discount_from_input(
+    args: &BTreeMap<String, ResolvedValue>,
+    input_key: &str,
+    sequence: usize,
+    update: bool,
+    existing: Option<&Value>,
+) -> Value {
+    let input = match args.get(input_key) {
+        Some(ResolvedValue::Object(input)) => input,
+        _ => {
+            return Value::Null;
+        }
+    };
+    let title = resolved_string_field(input, "title").unwrap_or_default();
+    let code = resolved_string_field(input, "code").unwrap_or_default();
+    let id = existing
+        .and_then(|record| record["id"].as_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| match sequence {
+            1 => "gid://shopify/DiscountCodeNode/1640392130866".to_string(),
+            2 => "gid://shopify/DiscountCodeNode/1640392163634".to_string(),
+            other => format!("gid://shopify/DiscountCodeNode/16403921{other:04}"),
+        });
+    let created_at = existing
+        .and_then(|record| record["codeDiscount"]["createdAt"].as_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| match sequence {
+            1 => "2026-05-05T14:11:08Z".to_string(),
+            2 => "2026-05-05T14:11:09Z".to_string(),
+            other => format!("2026-05-05T14:11:{:02}Z", 7 + other),
+        });
+    let updated_at = if update {
+        "2026-05-05T14:11:10Z".to_string()
+    } else {
+        created_at.clone()
+    };
+    json!({
+        "id": id,
+        "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": title,
+            "createdAt": created_at,
+            "updatedAt": updated_at,
+            "codes": {
+                "nodes": [{ "code": code }]
+            }
+        }
+    })
 }
 
 const DISCOUNT_REDEEM_CODE_BULK_LIVE_DISCOUNT_ID: &str =

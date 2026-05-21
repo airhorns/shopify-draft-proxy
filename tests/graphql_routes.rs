@@ -6012,6 +6012,140 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_timestamps_monotonic_create_update_and_code_reads_preserve_synthetic_order() {
+    let mut proxy = snapshot_proxy();
+    let create = r#"mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
+    let first_create = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": {
+            "title": "HAR-603 first 1777990267935",
+            "code": "HAR603A1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let first_id = first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first_created_at = first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]
+        ["codeDiscount"]["createdAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-603 first 1777990267935")
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["updatedAt"],
+        json!(first_created_at)
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"],
+        json!({ "nodes": [{ "code": "HAR603A1777990267935" }] })
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let second_create = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": {
+            "title": "HAR-603 second 1777990267935",
+            "code": "HAR603B1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let second_id = second_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_created_at = second_create.body["data"]["discountCodeBasicCreate"]
+        ["codeDiscountNode"]["codeDiscount"]["createdAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_id, second_id);
+    assert!(first_created_at < second_created_at);
+    assert_eq!(
+        second_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["updatedAt"],
+        json!(second_created_at)
+    );
+
+    let update = r#"mutation DiscountTimestampsMonotonicUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
+    let update_response = proxy.process_request(json_graphql_request(
+        update,
+        json!({ "id": first_id, "input": {
+            "title": "HAR-603 first updated 1777990267935",
+            "code": "HAR603A1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
+        }}),
+    ));
+    let updated_at = update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]
+        ["codeDiscount"]["updatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["createdAt"],
+        json!(first_created_at)
+    );
+    assert!(second_created_at < updated_at);
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-603 first updated 1777990267935")
+    );
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = r#"query DiscountTimestampsMonotonicRead($firstId: ID!, $secondId: ID!, $firstCode: String!, $secondCode: String!) { first: codeDiscountNode(id: $firstId) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } second: codeDiscountNode(id: $secondId) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } firstByCode: codeDiscountNodeByCode(code: $firstCode) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } secondByCode: codeDiscountNodeByCode(code: $secondCode) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } }"#;
+    let read_response = proxy.process_request(json_graphql_request(
+        read,
+        json!({
+            "firstId": first_id,
+            "secondId": second_id,
+            "firstCode": "HAR603A1777990267935",
+            "secondCode": "HAR603B1777990267935"
+        }),
+    ));
+    assert_eq!(
+        read_response.body["data"]["first"],
+        read_response.body["data"]["firstByCode"]
+    );
+    assert_eq!(
+        read_response.body["data"]["second"],
+        read_response.body["data"]["secondByCode"]
+    );
+    assert_eq!(
+        read_response.body["data"]["first"]["codeDiscount"]["updatedAt"],
+        json!(updated_at)
+    );
+    assert_eq!(
+        read_response.body["data"]["second"]["codeDiscount"]["updatedAt"],
+        json!(second_created_at)
+    );
+}
+
+#[test]
 fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookups() {
     let mut proxy = snapshot_proxy();
     let add = r#"mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { done codesCount importedCount failedCount } userErrors { field message code extraInfo } } }"#;
