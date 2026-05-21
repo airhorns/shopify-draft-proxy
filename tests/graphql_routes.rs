@@ -1099,7 +1099,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         r#"
         mutation CustomerUpdateParityPlan($input: CustomerInput!) {
           customerUpdate(input: $input) {
-            customer { id firstName lastName displayName email note taxExempt taxExemptions tags loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+            customer { id firstName lastName displayName email note taxExempt taxExemptions tags defaultPhoneNumber { phoneNumber } loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
             userErrors { field message }
           }
         }
@@ -1124,6 +1124,10 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
     assert_eq!(
         update.body["data"]["customerUpdate"]["customer"]["loyalty"]["value"],
         json!("gold")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+14155550123")
     );
 
     let delete = proxy.process_request(json_graphql_request(

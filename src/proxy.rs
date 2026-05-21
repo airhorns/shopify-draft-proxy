@@ -1290,7 +1290,7 @@ impl DraftProxy {
         let phone = if id == "gid://shopify/Customer/10541053772082" {
             "+141****9553"
         } else {
-            "+141****0123"
+            "+14155550123"
         };
         let mut customer = customer_fixture_record(
             &id,
