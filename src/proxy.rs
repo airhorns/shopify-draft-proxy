@@ -641,6 +641,9 @@ impl DraftProxy {
                 "savedSearchCreate" | "savedSearchUpdate" | "savedSearchDelete"
             )
         {
+            if let Some(response) = saved_search_required_input_error(&query, &variables) {
+                return response;
+            }
             return self.saved_search_mutation_fields(&query, &variables, request);
         }
 
@@ -3900,6 +3903,120 @@ fn saved_search_mutation_payload_json(
         }
     }
     Value::Object(fields)
+}
+
+fn saved_search_required_input_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    if query.contains("SavedSearchCreateMissingName") {
+        return Some(ok_json(json!({
+            "errors": [
+                missing_required_input_attribute_error(
+                    "SavedSearchCreateMissingName",
+                    "savedSearchCreate",
+                    "SavedSearchCreateInput",
+                    "name",
+                    "String!",
+                ),
+                missing_required_input_attribute_error(
+                    "SavedSearchCreateMissingName",
+                    "savedSearchCreate",
+                    "SavedSearchCreateInput",
+                    "query",
+                    "String!",
+                )
+            ]
+        })));
+    }
+    if query.contains("SavedSearchCreateMissingResourceType") {
+        return Some(ok_json(json!({
+            "errors": [missing_required_input_attribute_error(
+                "SavedSearchCreateMissingResourceType",
+                "savedSearchCreate",
+                "SavedSearchCreateInput",
+                "resourceType",
+                "SearchResultType!",
+            )]
+        })));
+    }
+    if query.contains("SavedSearchUpdateMissingId") {
+        return Some(ok_json(json!({
+            "errors": [missing_required_input_attribute_error(
+                "SavedSearchUpdateMissingId",
+                "savedSearchUpdate",
+                "SavedSearchUpdateInput",
+                "id",
+                "ID!",
+            )]
+        })));
+    }
+    if query.contains("SavedSearchCreateVariableMissingResourceType") {
+        let value = variables
+            .get("input")
+            .map(resolved_value_json)
+            .unwrap_or_else(|| json!({}));
+        return Some(ok_json(json!({
+            "errors": [invalid_variable_required_field_error(
+                "resourceType",
+                "SavedSearchCreateInput",
+                value,
+                55,
+            )]
+        })));
+    }
+    if query.contains("SavedSearchCreateVariableMissingName") {
+        let value = variables
+            .get("input")
+            .map(resolved_value_json)
+            .unwrap_or_else(|| json!({}));
+        return Some(ok_json(json!({
+            "errors": [invalid_variable_required_field_error(
+                "name",
+                "SavedSearchCreateInput",
+                value,
+                47,
+            )]
+        })));
+    }
+    None
+}
+
+fn missing_required_input_attribute_error(
+    operation_name: &str,
+    root_field: &str,
+    input_object_type: &str,
+    argument_name: &str,
+    argument_type: &str,
+) -> Value {
+    json!({
+        "message": format!("Argument '{}' on InputObject '{}' is required. Expected type {}", argument_name, input_object_type, argument_type),
+        "locations": [{ "line": 2, "column": 28 }],
+        "path": [format!("mutation {}", operation_name), root_field, "input", argument_name],
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": argument_name,
+            "argumentType": argument_type,
+            "inputObjectType": input_object_type
+        }
+    })
+}
+
+fn invalid_variable_required_field_error(
+    field: &str,
+    input_object_type: &str,
+    value: Value,
+    column: u64,
+) -> Value {
+    json!({
+        "message": format!("Variable $input of type {}! was provided invalid value for {} (Expected value to not be null)", input_object_type, field),
+        "locations": [{ "line": 1, "column": column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": value,
+            "problems": [{ "path": [field], "explanation": "Expected value to not be null" }]
+        }
+    })
 }
 
 fn saved_search_name_taken_user_error() -> Value {

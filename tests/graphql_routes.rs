@@ -3537,6 +3537,155 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
 }
 
 #[test]
+fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateMissingName {
+          savedSearchCreate(input: { resourceType: PRODUCT }) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_name.status, 200);
+    assert_eq!(missing_name.body.get("data"), None);
+    assert_eq!(
+        missing_name.body["errors"],
+        json!([
+            {
+                "message": "Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+                "locations": [{ "line": 2, "column": 28 }],
+                "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "name"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "name",
+                    "argumentType": "String!",
+                    "inputObjectType": "SavedSearchCreateInput"
+                }
+            },
+            {
+                "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+                "locations": [{ "line": 2, "column": 28 }],
+                "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "query",
+                    "argumentType": "String!",
+                    "inputObjectType": "SavedSearchCreateInput"
+                }
+            }
+        ])
+    );
+
+    let missing_resource_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateMissingResourceType {
+          savedSearchCreate(input: { name: "Missing resource type", query: "tag:missing-resource-type" }) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_resource_type.body.get("data"), None);
+    assert_eq!(
+        missing_resource_type.body["errors"][0],
+        json!({
+            "message": "Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!",
+            "locations": [{ "line": 2, "column": 28 }],
+            "path": ["mutation SavedSearchCreateMissingResourceType", "savedSearchCreate", "input", "resourceType"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "resourceType",
+                "argumentType": "SearchResultType!",
+                "inputObjectType": "SavedSearchCreateInput"
+            }
+        })
+    );
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUpdateMissingId {
+          savedSearchUpdate(input: { name: "Missing id" }) {
+            savedSearch { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_id.body.get("data"), None);
+    assert_eq!(
+        missing_id.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!",
+            "locations": [{ "line": 2, "column": 28 }],
+            "path": ["mutation SavedSearchUpdateMissingId", "savedSearchUpdate", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "SavedSearchUpdateInput"
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_resource_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateVariableMissingResourceType($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" } }),
+    ));
+    assert_eq!(missing_resource_type.body.get("data"), None);
+    assert_eq!(
+        missing_resource_type.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 55 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" },
+                "problems": [{ "path": ["resourceType"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+
+    let missing_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateVariableMissingName($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "query": "tag:variable-required" } }),
+    ));
+    assert_eq!(missing_name.body.get("data"), None);
+    assert_eq!(
+        missing_name.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 47 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": { "resourceType": "PRODUCT", "query": "tag:variable-required" },
+                "problems": [{ "path": ["name"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+}
+
+#[test]
 fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
     let mut proxy = snapshot_proxy();
 
