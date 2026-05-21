@@ -17,7 +17,7 @@ lower the handoff bar for fidelity work.
 - When checking a narrow fix before rerunning the required full gates.
 
 Do not use targeted parity as a replacement for the ticket's required
-validation, `corepack pnpm gleam:test`, or CI.
+validation, `corepack pnpm rust:test`, or CI.
 
 ## Commands
 
@@ -50,13 +50,12 @@ eval "$(mise env)" && corepack pnpm parity -- --all
 
 ## Notes
 
-- The command builds the JavaScript target before invoking
-  `scripts/parity-run.ts`.
+- The command runs the Rust-backed parity path exposed by the root package scripts.
 - Scenario lookup uses the spec's `scenarioId` field under
   `config/parity-specs/`.
-- Failure output names the spec path and the Gleam parity assertion or runner
+- Failure output names the spec path and the Rust parity assertion or runner
   error.
 - Full handoff validation for runtime or conformance changes still follows the
   ticket workpad and repository guidance, usually including
-  `corepack pnpm conformance:check`, `corepack pnpm gleam:test`, and
+  `corepack pnpm conformance:check`, `corepack pnpm rust:test`, and
   `corepack pnpm typecheck`.

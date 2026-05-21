@@ -50,7 +50,7 @@ description: Create a well-formed git commit from current changes using session 
 13. If the change touched any parity spec, capture file under
     `fixtures/conformance/**`, parity request document, or any operation
     handler in `src/shopify_draft_proxy/proxy/`, confirm cassettes were
-    re-recorded via `pnpm parity:record <scenario-id>` and `pnpm gleam:test`
+    re-recorded via `pnpm parity:record <scenario-id>` and `pnpm rust:test`
     is green on both targets. See `docs/parity-runner.md`.
 
 ## Output
