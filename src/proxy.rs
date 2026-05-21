@@ -139,6 +139,7 @@ pub struct DraftProxy {
     staged_products: BTreeMap<String, ProductRecord>,
     staged_deleted_product_ids: BTreeSet<String>,
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
+    staged_deleted_saved_search_ids: BTreeSet<String>,
     staged_shipping_packages: BTreeMap<String, Value>,
     staged_deleted_shipping_package_ids: BTreeSet<String>,
     staged_carrier_services: BTreeMap<String, Value>,
@@ -168,6 +169,7 @@ impl DraftProxy {
             staged_products: BTreeMap::new(),
             staged_deleted_product_ids: BTreeSet::new(),
             staged_saved_searches: BTreeMap::new(),
+            staged_deleted_saved_search_ids: BTreeSet::new(),
             staged_shipping_packages: BTreeMap::new(),
             staged_deleted_shipping_package_ids: BTreeSet::new(),
             staged_carrier_services: BTreeMap::new(),
@@ -231,6 +233,7 @@ impl DraftProxy {
                 self.staged_products.clear();
                 self.staged_deleted_product_ids.clear();
                 self.staged_saved_searches.clear();
+                self.staged_deleted_saved_search_ids.clear();
                 self.staged_shipping_packages.clear();
                 self.staged_deleted_shipping_package_ids.clear();
                 self.staged_carrier_services.clear();
@@ -632,9 +635,13 @@ impl DraftProxy {
             return self.app_uninstall(&query, &variables, request);
         }
 
-        if operation.operation_type == OperationType::Mutation && root_field == "savedSearchUpdate"
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "savedSearchCreate" | "savedSearchUpdate" | "savedSearchDelete"
+            )
         {
-            return self.saved_search_update(&query, &variables, request);
+            return self.saved_search_mutation_fields(&query, &variables, request);
         }
 
         let capability =
@@ -665,17 +672,13 @@ impl DraftProxy {
             {
                 self.product_delete(&query, &variables, request)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
-                if self.config.read_mode == ReadMode::Snapshot =>
-            {
-                ok_json(json!({
-                    "data": self.saved_search_overlay_read_fields(&query, &variables)
-                }))
-            }
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
+                "data": self.saved_search_overlay_read_fields(&query, &variables)
+            })),
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
                 if root_field == "savedSearchCreate" =>
             {
-                self.saved_search_create(&query, &variables, request)
+                self.saved_search_mutation_fields(&query, &variables, request)
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(
@@ -1241,11 +1244,21 @@ impl DraftProxy {
     }
 
     fn saved_search_records_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
-        let mut records = default_saved_searches(resource_type);
+        let mut records: Vec<_> = default_saved_searches(resource_type)
+            .into_iter()
+            .filter(|record| !self.staged_deleted_saved_search_ids.contains(&record.id))
+            .map(|record| {
+                self.staged_saved_searches
+                    .get(&record.id)
+                    .cloned()
+                    .unwrap_or(record)
+            })
+            .collect();
         records.extend(
             self.staged_saved_searches
                 .values()
                 .filter(|record| record.resource_type == resource_type)
+                .filter(|record| default_saved_search_by_id(&record.id).is_none())
                 .cloned(),
         );
         records
@@ -1266,118 +1279,184 @@ impl DraftProxy {
             })
     }
 
-    fn saved_search_create(
+    fn saved_search_mutation_fields(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "savedSearchCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let saved_search_selection =
-            nested_root_field_selection(query, "savedSearch").unwrap_or_default();
-        let Some(input) = saved_search_input(query, variables) else {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
-                        "field": ["input"],
-                        "message": "Saved search input is required",
-                        "code": "REQUIRED"
-                    })])
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            let value = match field.name.as_str() {
+                "savedSearchCreate" => {
+                    self.saved_search_create_field(&field, request, query, variables)
                 }
-            }));
+                "savedSearchUpdate" => {
+                    self.saved_search_update_field(&field, request, query, variables)
+                }
+                "savedSearchDelete" => {
+                    self.saved_search_delete_field(&field, request, query, variables)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn saved_search_create_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let payload_selection = &field.selection;
+        let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
+        let Some(input) = saved_search_input_from_field(field) else {
+            return saved_search_mutation_payload_json(
+                None,
+                payload_selection,
+                &saved_search_selection,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "Saved search input is required",
+                    "code": "REQUIRED"
+                })],
+            );
         };
         let Some(name) =
             resolved_string_field(&input, "name").filter(|value| !value.trim().is_empty())
         else {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
-                        "field": ["input", "name"],
-                        "message": "Name can't be blank",
-                        "code": "BLANK"
-                    })])
-                }
-            }));
+            return saved_search_mutation_payload_json(
+                None,
+                payload_selection,
+                &saved_search_selection,
+                vec![json!({
+                    "field": ["input", "name"],
+                    "message": "Name can't be blank",
+                    "code": "BLANK"
+                })],
+            );
         };
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
             resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
+        let mut user_errors = Vec::new();
         if is_reserved_saved_search_name(&resource_type, &name)
             || self.saved_search_name_exists(&resource_type, &name, None)
         {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![saved_search_name_taken_user_error()])
-                }
+            user_errors.push(saved_search_name_taken_user_error());
+        }
+        if resource_type == "CUSTOMER" {
+            user_errors.push(json!({
+                "field": null,
+                "message": "Customer saved searches have been deprecated. Use Segmentation API instead."
             }));
+        }
+        if name.chars().count() > 40 {
+            user_errors.push(json!({
+                "field": ["input", "name"],
+                "message": "Name is too long (maximum is 40 characters)"
+            }));
+        }
+        user_errors.extend(saved_search_query_user_errors(
+            &resource_type,
+            &search_query,
+        ));
+        if !user_errors.is_empty() {
+            return saved_search_mutation_payload_json(
+                None,
+                payload_selection,
+                &saved_search_selection,
+                user_errors,
+            );
         }
         let id = self.next_proxy_synthetic_gid("SavedSearch");
         let record = SavedSearchRecord {
             id: id.clone(),
             name,
-            query: search_query,
+            query: normalize_saved_search_query(&search_query),
             resource_type,
         };
         self.staged_saved_searches
             .insert(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, "savedSearchCreate", vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: saved_search_mutation_payload_json(Some(&record), &payload_selection, &saved_search_selection, Vec::new())
-            }
-        }))
+        saved_search_mutation_payload_json(
+            Some(&record),
+            payload_selection,
+            &saved_search_selection,
+            Vec::new(),
+        )
     }
 
-    fn saved_search_update(
+    fn saved_search_update_field(
         &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "savedSearchUpdate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let saved_search_selection =
-            nested_root_field_selection(query, "savedSearch").unwrap_or_default();
-        let Some(input) = saved_search_input(query, variables) else {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
-                        "field": ["input"],
-                        "message": "Saved search input is required",
-                        "code": "REQUIRED"
-                    })])
-                }
-            }));
+    ) -> Value {
+        let payload_selection = &field.selection;
+        let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
+        let Some(input) = saved_search_input_from_field(field) else {
+            return saved_search_mutation_payload_json(
+                None,
+                payload_selection,
+                &saved_search_selection,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "Saved search input is required",
+                    "code": "REQUIRED"
+                })],
+            );
         };
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let existing = self.staged_saved_searches.get(&id).cloned();
+        let existing = self
+            .staged_saved_searches
+            .get(&id)
+            .cloned()
+            .or_else(|| default_saved_search_by_id(&id));
         let Some(existing) = existing else {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(None, &payload_selection, &saved_search_selection, vec![json!({
-                        "field": ["input", "id"],
-                        "message": "Saved search not found"
-                    })])
-                }
-            }));
+            return saved_search_mutation_payload_json(
+                None,
+                payload_selection,
+                &saved_search_selection,
+                vec![json!({
+                    "field": ["input", "id"],
+                    "message": "Saved Search does not exist"
+                })],
+            );
         };
         let requested_name =
             resolved_string_field(&input, "name").unwrap_or_else(|| existing.name.clone());
         let requested_query =
             resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
         let mut updated = existing.clone();
-        updated.query = requested_query;
+        updated.query = normalize_saved_search_query(&requested_query);
+        let mut user_errors = Vec::new();
         if is_reserved_saved_search_name(&existing.resource_type, &requested_name)
             || self.saved_search_name_exists(&existing.resource_type, &requested_name, Some(&id))
         {
-            return ok_json(json!({
-                "data": {
-                    response_key: saved_search_mutation_payload_json(Some(&updated), &payload_selection, &saved_search_selection, vec![saved_search_name_taken_user_error()])
-                }
+            user_errors.push(saved_search_name_taken_user_error());
+        }
+        if requested_name.chars().count() > 40 {
+            user_errors.push(json!({
+                "field": ["input", "name"],
+                "message": "Name is too long (maximum is 40 characters)"
             }));
+        }
+        user_errors.extend(saved_search_query_user_errors(
+            &existing.resource_type,
+            &requested_query,
+        ));
+        if !user_errors.is_empty() {
+            return saved_search_mutation_payload_json(
+                Some(&updated),
+                payload_selection,
+                &saved_search_selection,
+                user_errors,
+            );
         }
         updated.name = requested_name;
         self.staged_saved_searches
@@ -1389,11 +1468,55 @@ impl DraftProxy {
             "savedSearchUpdate",
             vec![updated.id.clone()],
         );
-        ok_json(json!({
-            "data": {
-                response_key: saved_search_mutation_payload_json(Some(&updated), &payload_selection, &saved_search_selection, Vec::new())
-            }
-        }))
+        saved_search_mutation_payload_json(
+            Some(&updated),
+            payload_selection,
+            &saved_search_selection,
+            Vec::new(),
+        )
+    }
+
+    fn saved_search_delete_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = saved_search_input_from_field(field);
+        let id = input
+            .as_ref()
+            .and_then(|input| resolved_string_field(input, "id"))
+            .unwrap_or_default();
+        let deleted = if self.staged_saved_searches.remove(&id).is_some() {
+            true
+        } else if default_saved_search_by_id(&id).is_some() {
+            self.staged_deleted_saved_search_ids.insert(id.clone());
+            true
+        } else {
+            false
+        };
+        if deleted {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "savedSearchDelete",
+                vec![id.clone()],
+            );
+        }
+        saved_search_delete_payload_json(
+            if deleted { Some(&id) } else { None },
+            &field.selection,
+            if deleted {
+                Vec::new()
+            } else {
+                vec![json!({
+                    "field": ["input", "id"],
+                    "message": "Saved Search does not exist"
+                })]
+            },
+        )
     }
 
     fn backup_region_update(
@@ -3587,7 +3710,7 @@ fn saved_search_connection_json(
             "nodes" => Some(Value::Array(
                 records
                     .iter()
-                    .map(|record| saved_search_json(record, &node_selection))
+                    .map(|record| saved_search_read_json(record, &node_selection))
                     .collect(),
             )),
             "edges" => Some(Value::Array(
@@ -3596,7 +3719,7 @@ fn saved_search_connection_json(
                     .map(|record| {
                         json!({
                             "cursor": saved_search_cursor(record),
-                            "node": saved_search_json(record, &edge_node_selection)
+                            "node": saved_search_read_json(record, &edge_node_selection)
                         })
                     })
                     .collect(),
@@ -3616,8 +3739,20 @@ fn saved_search_connection_json(
     Value::Object(connection)
 }
 
+fn saved_search_read_json(record: &SavedSearchRecord, selections: &[SelectedField]) -> Value {
+    saved_search_json_with_query(record, selections, &saved_search_read_query(&record.query))
+}
+
 fn saved_search_json(record: &SavedSearchRecord, selections: &[SelectedField]) -> Value {
-    let filters = saved_search_filters(&record.query);
+    saved_search_json_with_query(record, selections, &record.query)
+}
+
+fn saved_search_json_with_query(
+    record: &SavedSearchRecord,
+    selections: &[SelectedField],
+    query_display: &str,
+) -> Value {
+    let filters = saved_search_filters(query_display);
     let legacy_id = saved_search_legacy_resource_id(&record.id);
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -3626,9 +3761,9 @@ fn saved_search_json(record: &SavedSearchRecord, selections: &[SelectedField]) -
             "id" => Some(json!(record.id)),
             "legacyResourceId" => Some(json!(legacy_id)),
             "name" => Some(json!(record.name)),
-            "query" => Some(json!(record.query)),
+            "query" => Some(json!(query_display)),
             "resourceType" => Some(json!(record.resource_type)),
-            "searchTerms" => Some(json!("")),
+            "searchTerms" => Some(json!(saved_search_search_terms(query_display))),
             "filters" => Some(Value::Array(
                 filters
                     .iter()
@@ -3708,6 +3843,7 @@ fn saved_search_filter_json(key: &str, value: &str, selections: &[SelectedField]
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
+            "__typename" => Some(json!("SearchFilter")),
             "key" => Some(json!(key)),
             "value" => Some(json!(value)),
             _ => None,
@@ -3773,6 +3909,161 @@ fn saved_search_name_taken_user_error() -> Value {
     })
 }
 
+fn saved_search_delete_payload_json(
+    deleted_id: Option<&str>,
+    payload_selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selections {
+        let value = match selection.name.as_str() {
+            "deletedSavedSearchId" => Some(match deleted_id {
+                Some(id) => json!(id),
+                None => Value::Null,
+            }),
+            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn saved_search_input_from_field(
+    field: &RootFieldSelection,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    match field.arguments.get("input") {
+        Some(ResolvedValue::Object(input)) => Some(input.clone()),
+        _ => None,
+    }
+}
+
+fn saved_search_query_user_errors(resource_type: &str, query: &str) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if resource_type == "ORDER" && query.contains("reference_location_id:") {
+        errors.push(json!({
+            "field": ["input", "query"],
+            "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
+        }));
+    }
+    let filters = saved_search_filters(query);
+    for (key, _) in &filters {
+        if !saved_search_known_filter(resource_type, key) {
+            errors.push(json!({
+                "field": ["input", "query"],
+                "message": format!("Query is invalid, '{}' is not a valid filter", key.trim_end_matches("_not"))
+            }));
+        }
+    }
+    if resource_type == "PRODUCT" {
+        let has_collection = filters.iter().any(|(key, _)| key == "collection_id");
+        let incompatible: Vec<&str> = ["tag", "published_status", "error_feedback"]
+            .iter()
+            .copied()
+            .filter(|needle| filters.iter().any(|(key, _)| key == *needle))
+            .collect();
+        if has_collection && !incompatible.is_empty() {
+            let mut keys = vec!["collection_id"];
+            keys.extend(incompatible);
+            errors.push(json!({
+                "field": ["input", "query"],
+                "message": format!("Query has incompatible filters: {}", keys.join(", "))
+            }));
+        }
+    }
+    errors
+}
+
+fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
+    let base_key = key
+        .trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max");
+    match resource_type {
+        "PRODUCT" => {
+            matches!(
+                base_key,
+                "title"
+                    | "tag"
+                    | "vendor"
+                    | "sku"
+                    | "status"
+                    | "collection_id"
+                    | "published_status"
+                    | "error_feedback"
+                    | "inventory_total"
+            ) || base_key.starts_with("metafields.")
+        }
+        "ORDER" => matches!(
+            base_key,
+            "status"
+                | "financial_status"
+                | "fulfillment_status"
+                | "vendor"
+                | "tag"
+                | "reference_location_id"
+        ),
+        "DRAFT_ORDER" => matches!(base_key, "status" | "invoice_sent" | "source" | "vendor"),
+        "FILE" | "COLLECTION" | "DISCOUNT_REDEEM_CODE" => true,
+        _ => true,
+    }
+}
+
+fn normalize_saved_search_query(query: &str) -> String {
+    query.replace("metafields.$app.", "metafields.app--347082227713.")
+}
+
+fn saved_search_read_query(query: &str) -> String {
+    let namespace_normalized = normalize_saved_search_query(query);
+    let quote_normalized = namespace_normalized.replace('\'', "\"");
+    let canonical = canonical_saved_search_query(&quote_normalized);
+    if saved_search_filters(&canonical).is_empty() && canonical.contains('-') {
+        canonical.replace('-', "\\-")
+    } else {
+        canonical
+    }
+}
+
+fn canonical_saved_search_query(query: &str) -> String {
+    let tokens = saved_search_query_tokens(query);
+    if tokens.len() == 2 {
+        let first_is_filter = saved_search_filter_from_token(tokens[0].as_str()).is_some();
+        let second_is_filter = saved_search_filter_from_token(tokens[1].as_str()).is_some();
+        if first_is_filter && !second_is_filter {
+            return format!("{} {}", tokens[1], tokens[0]);
+        }
+    }
+    if let Some((key, value)) = saved_search_filter_from_token(query) {
+        if key == "inventory_total_min" && query.starts_with("-inventory_total:<") {
+            return format!("inventory_total:>={}", value);
+        }
+    }
+    query.to_string()
+}
+
+fn saved_search_search_terms(query: &str) -> String {
+    let display_query = query.replace('\'', "\"");
+    let tokens = saved_search_query_tokens(&display_query);
+    let has_grouping = display_query.contains(" OR ")
+        || display_query.contains('(')
+        || display_query.contains(')');
+    let mut terms = Vec::new();
+    for token in tokens {
+        let trimmed = token.trim_matches(|ch| ch == '(' || ch == ')');
+        if has_grouping && token.starts_with('-') {
+            continue;
+        }
+        if !has_grouping && saved_search_filter_from_token(trimmed).is_some() {
+            continue;
+        }
+        terms.push(token);
+    }
+    terms.join(" ").replace("\\-", "-")
+}
+
 fn is_reserved_saved_search_name(resource_type: &str, name: &str) -> bool {
     let normalized = name.trim().to_lowercase();
     let reserved = match resource_type {
@@ -3831,17 +4122,6 @@ fn product_create_input(
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
     product_input(query, variables)
-}
-
-fn saved_search_input(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<BTreeMap<String, ResolvedValue>> {
-    let mut arguments = root_field_arguments(query, variables)?;
-    match arguments.remove("input") {
-        Some(ResolvedValue::Object(input)) => Some(input),
-        _ => None,
-    }
 }
 
 fn is_saved_search_root(root: &str) -> bool {
@@ -3906,7 +4186,7 @@ fn default_saved_searches(resource_type: &str) -> Vec<SavedSearchRecord> {
             saved_search_record(
                 "gid://shopify/SavedSearch/3634390597938",
                 "Open and invoice sent",
-                "status:open invoice_sent:true",
+                "status:open_and_invoice_sent",
                 "DRAFT_ORDER",
             ),
             saved_search_record(
@@ -3915,9 +4195,43 @@ fn default_saved_searches(resource_type: &str) -> Vec<SavedSearchRecord> {
                 "status:open",
                 "DRAFT_ORDER",
             ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634390663474",
+                "Invoice sent",
+                "status:invoice_sent",
+                "DRAFT_ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634390696242",
+                "Completed",
+                "status:completed",
+                "DRAFT_ORDER",
+            ),
+            saved_search_record(
+                "gid://shopify/SavedSearch/3634390729010",
+                "Submitted for review",
+                "status:open source:online_store",
+                "DRAFT_ORDER",
+            ),
         ],
         _ => Vec::new(),
     }
+}
+
+fn default_saved_search_by_id(id: &str) -> Option<SavedSearchRecord> {
+    [
+        "ORDER",
+        "DRAFT_ORDER",
+        "PRODUCT",
+        "COLLECTION",
+        "CUSTOMER",
+        "FILE",
+        "DISCOUNT_REDEEM_CODE",
+        "DISCOUNT",
+    ]
+    .iter()
+    .flat_map(|resource_type| default_saved_searches(resource_type))
+    .find(|record| record.id == id)
 }
 
 fn saved_search_record(
@@ -3949,17 +4263,75 @@ fn saved_search_legacy_resource_id(id: &str) -> String {
 }
 
 fn saved_search_filters(query: &str) -> Vec<(String, String)> {
-    query
-        .split_whitespace()
+    let query = normalize_saved_search_query(query);
+    let tokens = saved_search_query_tokens(&query);
+    let grouped = query.contains(" OR ") || query.contains('(') || query.contains(')');
+    tokens
+        .iter()
         .filter_map(|term| {
-            let (key, value) = term.split_once(':')?;
-            if key.is_empty() || value.is_empty() {
-                None
-            } else {
-                Some((key.to_string(), value.to_string()))
+            let trimmed = term.trim_matches(|ch| ch == '(' || ch == ')');
+            if grouped && !trimmed.starts_with('-') {
+                return None;
             }
+            saved_search_filter_from_token(trimmed)
         })
         .collect()
+}
+
+fn saved_search_filter_from_token(term: &str) -> Option<(String, String)> {
+    let (raw_key, raw_value) = term.split_once(':')?;
+    if raw_key.is_empty() || raw_value.is_empty() {
+        return None;
+    }
+    let mut key = raw_key.to_string();
+    let mut value = raw_value.trim_matches('"').to_string();
+    let negated = key.starts_with('-');
+    if negated {
+        key = key.trim_start_matches('-').to_string();
+    }
+    if value == "*" {
+        value = "true".to_string();
+    }
+    if let Some(stripped) = value.strip_prefix(">=").or_else(|| value.strip_prefix('>')) {
+        key = if negated {
+            format!("{}_max", key)
+        } else {
+            format!("{}_min", key)
+        };
+        value = stripped.to_string();
+    } else if let Some(stripped) = value.strip_prefix("<=").or_else(|| value.strip_prefix('<')) {
+        key = if negated {
+            format!("{}_min", key)
+        } else {
+            format!("{}_max", key)
+        };
+        value = stripped.to_string();
+    } else if negated {
+        key = format!("{}_not", key);
+    }
+    Some((key, value))
+}
+
+fn saved_search_query_tokens(query: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for ch in query.chars() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            current.push(ch);
+        } else if ch.is_whitespace() && !in_quotes {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(ch);
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
 }
 
 fn product_input(

@@ -3416,6 +3416,127 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
 }
 
 #[test]
+fn saved_search_multi_root_create_delete_and_filter_projection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchFilterProjection($product: SavedSearchCreateInput!, $collection: SavedSearchCreateInput!, $exists: SavedSearchCreateInput!, $bounded: SavedSearchCreateInput!, $grammar: SavedSearchCreateInput!) {
+          product: savedSearchCreate(input: $product) { savedSearch { id name query resourceType searchTerms filters { __typename key value } } userErrors { field message } }
+          collection: savedSearchCreate(input: $collection) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          exists: savedSearchCreate(input: $exists) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          bounded: savedSearchCreate(input: $bounded) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          grammar: savedSearchCreate(input: $grammar) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "product": { "resourceType": "PRODUCT", "name": "Recorder Product", "query": "1778109773860 title:Recorder" },
+            "collection": { "resourceType": "COLLECTION", "name": "Collection Search", "query": "Collection Search" },
+            "exists": { "resourceType": "PRODUCT", "name": "Exists Search", "query": "sku:*" },
+            "bounded": { "resourceType": "PRODUCT", "name": "Bounded Search", "query": "inventory_total:>2 inventory_total:<10" },
+            "grammar": { "resourceType": "PRODUCT", "name": "Grammar Search", "query": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\") -vendor:Archived" }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["product"],
+        json!({
+            "savedSearch": {
+                "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                "name": "Recorder Product",
+                "query": "1778109773860 title:Recorder",
+                "resourceType": "PRODUCT",
+                "searchTerms": "1778109773860",
+                "filters": [{ "__typename": "SearchFilter", "key": "title", "value": "Recorder" }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        create.body["data"]["collection"]["savedSearch"],
+        json!({
+            "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+            "name": "Collection Search",
+            "query": "Collection Search",
+            "resourceType": "COLLECTION",
+            "searchTerms": "Collection Search",
+            "filters": []
+        })
+    );
+    assert_eq!(
+        create.body["data"]["exists"]["savedSearch"]["filters"],
+        json!([{ "key": "sku", "value": "true" }])
+    );
+    assert_eq!(
+        create.body["data"]["bounded"]["savedSearch"]["filters"],
+        json!([
+            { "key": "inventory_total_min", "value": "2" },
+            { "key": "inventory_total_max", "value": "10" }
+        ])
+    );
+    assert_eq!(
+        create.body["data"]["grammar"]["savedSearch"],
+        json!({
+            "id": "gid://shopify/SavedSearch/5?shopify-draft-proxy=synthetic",
+            "name": "Grammar Search",
+            "query": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\") -vendor:Archived",
+            "resourceType": "PRODUCT",
+            "searchTerms": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\")",
+            "filters": [{ "key": "vendor_not", "value": "Archived" }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchResourceReads {
+          products: productSavedSearches(first: 10) { nodes { id name searchTerms filters { key value } } pageInfo { hasNextPage hasPreviousPage } }
+          collections: collectionSavedSearches(first: 10) { nodes { id name searchTerms filters { key value } } pageInfo { hasNextPage hasPreviousPage } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(
+        read.body["data"]["collections"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCleanup($first: SavedSearchDeleteInput!, $second: SavedSearchDeleteInput!, $missing: SavedSearchDeleteInput!) {
+          first: savedSearchDelete(input: $first) { deletedSavedSearchId userErrors { field message } }
+          second: savedSearchDelete(input: $second) { deletedSavedSearchId userErrors { field message } }
+          missing: savedSearchDelete(input: $missing) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({
+            "first": { "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic" },
+            "second": { "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic" },
+            "missing": { "id": "gid://shopify/SavedSearch/missing" }
+        }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"],
+        json!({
+            "first": { "deletedSavedSearchId": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic", "userErrors": [] },
+            "second": { "deletedSavedSearchId": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic", "userErrors": [] },
+            "missing": { "deletedSavedSearchId": null, "userErrors": [{ "field": ["input", "id"], "message": "Saved Search does not exist" }] }
+        })
+    );
+}
+
+#[test]
 fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
     let mut proxy = snapshot_proxy();
 
