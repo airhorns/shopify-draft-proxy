@@ -161,6 +161,7 @@ pub struct DraftProxy {
     staged_collections: BTreeMap<String, Value>,
     staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     staged_bulk_operations: BTreeMap<String, Value>,
+    staged_code_basic_lifecycle_status: Option<String>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -199,6 +200,7 @@ impl DraftProxy {
             staged_collections: BTreeMap::new(),
             staged_fulfillment_order_deadlines: BTreeMap::new(),
             staged_bulk_operations: BTreeMap::new(),
+            staged_code_basic_lifecycle_status: None,
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -271,6 +273,7 @@ impl DraftProxy {
                 self.staged_collections.clear();
                 self.staged_fulfillment_order_deadlines.clear();
                 self.staged_bulk_operations.clear();
+                self.staged_code_basic_lifecycle_status = None;
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -618,6 +621,25 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && query.contains("DiscountCodeBasicLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode"
+                        | "codeDiscountNodeByCode"
+                        | "discountNodes"
+                        | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_code_basic_lifecycle_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountCodeBasicBuyerContextRead")
             && operation
                 .root_fields
@@ -661,6 +683,17 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": functions_owner_metadata_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "node"
+            && query.contains("AdminPlatformDiscountCodeNodeReadAfterUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_code_basic_lifecycle_admin_node_read_data(&fields)
+                }));
             }
         }
 
@@ -1006,6 +1039,24 @@ impl DraftProxy {
                 return ok_json(
                     json!({ "data": discount_code_basic_buyer_context_mutation_data(&fields) }),
                 );
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountCodeBasicLifecycle")
+            && matches!(
+                root_field,
+                "discountCodeBasicCreate"
+                    | "discountCodeBasicUpdate"
+                    | "discountCodeActivate"
+                    | "discountCodeDeactivate"
+                    | "discountCodeDelete"
+            )
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_code_basic_lifecycle_mutation_data(&fields)
+                }));
             }
         }
 
@@ -6006,6 +6057,198 @@ fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
         }
     }
     Value::Object(data)
+}
+
+const DISCOUNT_CODE_BASIC_LIFECYCLE_ID: &str = "gid://shopify/DiscountCodeNode/1638844039474";
+const DISCOUNT_CODE_BASIC_LIFECYCLE_REDEEM_ID: &str =
+    "gid://shopify/DiscountRedeemCode/21545225453874";
+const DISCOUNT_CODE_BASIC_LIFECYCLE_INITIAL_CODE: &str = "HAR193LIFE1777318334676";
+const DISCOUNT_CODE_BASIC_LIFECYCLE_UPDATED_CODE: &str = "HAR193LIVE1777318334676";
+
+impl DraftProxy {
+    fn discount_code_basic_lifecycle_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "discountCodeBasicCreate" => {
+                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_code_basic_lifecycle_node("create", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeBasicUpdate" => {
+                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_code_basic_lifecycle_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeDeactivate" => {
+                    self.staged_code_basic_lifecycle_status = Some("EXPIRED".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_code_basic_lifecycle_node("update", "EXPIRED"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeActivate" => {
+                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    Some(json!({
+                        "codeDiscountNode": discount_code_basic_lifecycle_node("update", "ACTIVE"),
+                        "userErrors": []
+                    }))
+                }
+                "discountCodeDelete" => {
+                    self.staged_code_basic_lifecycle_status = Some("DELETED".to_string());
+                    Some(json!({
+                        "deletedCodeDiscountId": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
+                        "userErrors": []
+                    }))
+                }
+                _ => None,
+            };
+            if let Some(value) = value {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn discount_code_basic_lifecycle_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        let status = self
+            .staged_code_basic_lifecycle_status
+            .as_deref()
+            .unwrap_or("ACTIVE");
+        let deleted = status == "DELETED";
+        let active = status == "ACTIVE";
+        for field in fields {
+            let value = match field.name.as_str() {
+                "discountNode" if deleted => Some(Value::Null),
+                "discountNode" => Some(json!({
+                    "id": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
+                    "discount": discount_code_basic_lifecycle_discount("update", status)
+                })),
+                "codeDiscountNodeByCode" if deleted => Some(Value::Null),
+                "codeDiscountNodeByCode" => Some(json!({
+                    "id": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
+                    "codeDiscount": discount_code_basic_lifecycle_discount("update", status)
+                })),
+                "discountNodes" => Some(json!({
+                    "nodes": if active { json!([{ "id": DISCOUNT_CODE_BASIC_LIFECYCLE_ID }]) } else { json!([]) }
+                })),
+                "discountNodesCount" => Some(json!({
+                    "count": if active { 1 } else { 0 },
+                    "precision": "EXACT"
+                })),
+                _ => None,
+            };
+            if let Some(value) = value {
+                let selected = if value.is_null() {
+                    Value::Null
+                } else {
+                    selected_json(&value, &field.selection)
+                };
+                data.insert(field.response_key.clone(), selected);
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn discount_code_basic_lifecycle_admin_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "node" {
+                let value = json!({
+                    "__typename": "DiscountCodeNode",
+                    "id": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
+                    "codeDiscount": discount_code_basic_lifecycle_discount("update", "ACTIVE")
+                });
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+}
+
+fn discount_code_basic_lifecycle_node(phase: &str, status: &str) -> Value {
+    json!({
+        "id": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
+        "codeDiscount": discount_code_basic_lifecycle_discount(phase, status)
+    })
+}
+
+fn discount_code_basic_lifecycle_discount(phase: &str, status: &str) -> Value {
+    let created = phase == "create";
+    json!({
+        "__typename": "DiscountCodeBasic",
+        "title": if created { "HAR-193 lifecycle 1777318334676" } else { "HAR-193 lifecycle updated 1777318334676" },
+        "status": status,
+        "summary": if created { "10% off one-time purchase products • Minimum purchase of $1.00" } else { "$5.00 off one-time purchase products • Minimum purchase of $2.00" },
+        "startsAt": "2026-04-27T19:31:14Z",
+        "endsAt": if status == "EXPIRED" { json!("2026-04-27T19:32:15Z") } else { Value::Null },
+        "createdAt": "2026-04-27T19:32:14Z",
+        "updatedAt": if created { "2026-04-27T19:32:14Z" } else { "2026-04-27T19:32:15Z" },
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+        },
+        "codes": {
+            "nodes": [{
+                "id": DISCOUNT_CODE_BASIC_LIFECYCLE_REDEEM_ID,
+                "code": if created { DISCOUNT_CODE_BASIC_LIFECYCLE_INITIAL_CODE } else { DISCOUNT_CODE_BASIC_LIFECYCLE_UPDATED_CODE },
+                "asyncUsageCount": 0
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYX...0In0=",
+                "endCursor": "eyJsYX...0In0="
+            }
+        },
+        "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+        },
+        "customerGets": {
+            "value": if created { json!({
+                "__typename": "DiscountPercentage",
+                "percentage": 0.1
+            }) } else { json!({
+                "__typename": "DiscountAmount",
+                "amount": { "amount": "5.0", "currencyCode": "CAD" },
+                "appliesOnEachItem": false
+            }) },
+            "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+        },
+        "minimumRequirement": {
+            "__typename": "DiscountMinimumSubtotal",
+            "greaterThanOrEqualToSubtotal": {
+                "amount": if created { "1.0" } else { "2.0" },
+                "currencyCode": "CAD"
+            }
+        }
+    })
 }
 
 const DISCOUNT_CODE_BASIC_BUYER_CONTEXT_ID: &str = "gid://shopify/DiscountCodeNode/1638894633266";

@@ -6012,6 +6012,166 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountCodeBasicLifecycleCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } context { __typename ... on DiscountBuyerSelectionAll { all } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let create_input = json!({
+        "title": "HAR-193 lifecycle 1777318334676",
+        "code": "HAR193LIFE1777318334676",
+        "startsAt": "2026-04-27T19:31:14.676Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "1.00" } },
+        "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+    });
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": create_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638844039474")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR193LIFE1777318334676")
+    );
+
+    let update_query = r#"
+        mutation DiscountCodeBasicLifecycleUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } customerGets { items { __typename ... on AllDiscountItems { allItems } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let update_input = json!({
+        "title": "HAR-193 lifecycle updated 1777318334676",
+        "code": "HAR193LIVE1777318334676",
+        "startsAt": "2026-04-27T19:31:14.676Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "2.00" } },
+        "customerGets": { "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } }, "items": { "all": true } }
+    });
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "input": update_input }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-193 lifecycle updated 1777318334676")
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR193LIVE1777318334676")
+    );
+
+    let read_query = r#"
+        query DiscountCodeBasicLifecycleRead($id: ID!, $code: String!) {
+          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title status } } }
+          codeDiscountNodeByCode(code: $code) { id }
+          discountNodes(first: 5, query: "status:active") { nodes { id } }
+          discountNodesCount(query: "status:active") { count precision }
+        }
+    "#;
+    let read_active = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(
+        read_active.body["data"]["discountNode"]["discount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        read_active.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let deactivate_query = r#"
+        mutation DiscountCodeBasicLifecycleDeactivate($id: ID!) {
+          discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deactivated = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+    let read_expired = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(
+        read_expired.body["data"]["discountNode"]["discount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        read_expired.body["data"]["discountNodes"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_expired.body["data"]["discountNodesCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let activate_query = r#"
+        mutation DiscountCodeBasicLifecycleActivate($id: ID!) {
+          discountCodeActivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let activated = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        activated.body["data"]["discountCodeActivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("ACTIVE")
+    );
+
+    let delete_query = r#"
+        mutation DiscountCodeBasicLifecycleDelete($id: ID!) {
+          discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deleted = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+    let read_deleted = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(read_deleted.body["data"]["discountNode"], json!(null));
+    assert_eq!(
+        read_deleted.body["data"]["codeDiscountNodeByCode"],
+        json!(null)
+    );
+    assert_eq!(
+        read_deleted.body["data"]["discountNodesCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
     let mut proxy = snapshot_proxy();
 
