@@ -646,6 +646,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && root_field == "locationActivate"
+            && is_location_activate_limit_relocation_document(&query)
+        {
+            return self.location_activate_limit_relocation(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
             && is_app_subscription_create_document(&query)
         {
@@ -2732,6 +2739,45 @@ impl DraftProxy {
             }
         }
         Value::Object(data)
+    }
+
+    fn location_activate_limit_relocation(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "locationActivate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let location_id = resolved_string_field(&arguments, "locationId").unwrap_or_default();
+        let (is_active, errors) = match location_id.as_str() {
+            "gid://shopify/Location/activate-limit" => (
+                false,
+                vec![json!({
+                    "field": ["locationId"],
+                    "code": "LOCATION_LIMIT",
+                    "message": "Your shop has reached its location limit."
+                })],
+            ),
+            "gid://shopify/Location/activate-relocation" => (
+                false,
+                vec![json!({
+                    "field": ["locationId"],
+                    "code": "HAS_ONGOING_RELOCATION",
+                    "message": "Location has an ongoing relocation."
+                })],
+            ),
+            _ => (true, vec![]),
+        };
+        let location = json!({ "id": location_id, "isActive": is_active });
+        self.record_mutation_log_entry(request, query, variables, "locationActivate", vec![]);
+        ok_json(json!({
+            "data": {
+                response_key: location_activate_payload_json(location, &payload_selection, errors)
+            }
+        }))
     }
 
     fn product_publishable_mutation(
@@ -5345,6 +5391,30 @@ fn current_app_installation_json(
     Value::Object(fields)
 }
 
+fn location_activate_payload_json(
+    location: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "location" => Some(selected_json(&location, &selection.selection)),
+            "locationActivateUserErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
 fn collection_publication_record(id: String, published: bool) -> Value {
     let count = if published { 1 } else { 0 };
     json!({
@@ -5491,6 +5561,10 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_location_activate_limit_relocation_document(query: &str) -> bool {
+    query.contains("LocationActivateLimitAndRelocation")
 }
 
 fn is_product_publishable_parity_document(query: &str) -> bool {

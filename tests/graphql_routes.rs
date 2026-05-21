@@ -267,6 +267,63 @@ fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
 }
 
 #[test]
+fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+    "#;
+
+    let limit = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-limit", "idempotencyKey": "activate-limit" }),
+    ));
+    assert_eq!(
+        limit.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-limit", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_LIMIT",
+                "message": "Your shop has reached its location limit."
+            }]
+        })
+    );
+
+    let relocation = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-relocation", "idempotencyKey": "activate-relocation" }),
+    ));
+    assert_eq!(
+        relocation.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-relocation", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "HAS_ONGOING_RELOCATION",
+                "message": "Location has an ongoing relocation."
+            }]
+        })
+    );
+
+    let control = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-control", "idempotencyKey": "activate-control" }),
+    ));
+    assert_eq!(
+        control.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-control", "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
