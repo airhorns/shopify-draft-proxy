@@ -146,6 +146,7 @@ pub struct DraftProxy {
     staged_app_subscriptions: BTreeMap<String, Value>,
     staged_app_one_time_purchases: BTreeMap<String, Value>,
     revoked_app_access_scopes: BTreeSet<String>,
+    staged_delegate_access_tokens: BTreeMap<String, Value>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
@@ -173,6 +174,7 @@ impl DraftProxy {
             staged_app_subscriptions: BTreeMap::new(),
             staged_app_one_time_purchases: BTreeMap::new(),
             revoked_app_access_scopes: BTreeSet::new(),
+            staged_delegate_access_tokens: BTreeMap::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
@@ -234,6 +236,7 @@ impl DraftProxy {
                 self.staged_app_subscriptions.clear();
                 self.staged_app_one_time_purchases.clear();
                 self.revoked_app_access_scopes.clear();
+                self.staged_delegate_access_tokens.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
                 self.staged_deleted_fulfillment_service_ids.clear();
@@ -567,6 +570,13 @@ impl DraftProxy {
             && is_app_revoke_access_scopes_document(&query)
         {
             return self.app_revoke_access_scopes(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "delegateAccessTokenCreate"
+            && is_delegate_access_token_create_document(&query)
+        {
+            return self.delegate_access_token_create(&query, &variables, request);
         }
 
         let capability =
@@ -1401,6 +1411,98 @@ impl DraftProxy {
                     &subscription,
                     &payload_selection,
                     &subscription_selection,
+                )
+            }
+        }))
+    }
+
+    fn delegate_access_token_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "delegateAccessTokenCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let token_selection =
+            nested_root_field_selection(query, "delegateAccessToken").unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let scopes = input
+            .get("delegateAccessScope")
+            .or_else(|| input.get("accessScopes"))
+            .map(resolved_string_list)
+            .unwrap_or_default();
+        let expires_in = match input.get("expiresIn") {
+            Some(ResolvedValue::Int(value)) => *value,
+            _ => 3600,
+        };
+
+        let mut user_errors = Vec::new();
+        if scopes.is_empty() {
+            user_errors.push(json!({
+                "field": null,
+                "message": "The access scope can't be empty.",
+                "code": "EMPTY_ACCESS_SCOPE"
+            }));
+        } else if expires_in <= 0 {
+            user_errors.push(json!({
+                "field": null,
+                "message": "The expires_in value must be greater than 0.",
+                "code": "NEGATIVE_EXPIRES_IN"
+            }));
+        } else if let Some(scope) = scopes
+            .iter()
+            .find(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
+        {
+            user_errors.push(json!({
+                "field": null,
+                "message": format!("The access scope is invalid: {scope}"),
+                "code": "UNKNOWN_SCOPES"
+            }));
+        }
+
+        if !user_errors.is_empty() {
+            return ok_json(json!({
+                "data": {
+                    response_key: delegate_access_token_create_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        &token_selection,
+                        user_errors,
+                    )
+                }
+            }));
+        }
+
+        let token = format!(
+            "shpat_delegate_proxy_{}",
+            self.staged_delegate_access_tokens.len() + 1
+        );
+        let record = json!({
+            "accessToken": token,
+            "accessScopes": scopes,
+            "createdAt": "2026-04-28T02:10:00.000Z",
+            "expiresIn": expires_in
+        });
+        self.staged_delegate_access_tokens
+            .insert(token.clone(), record.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "delegateAccessTokenCreate",
+            vec![token],
+        );
+
+        ok_json(json!({
+            "data": {
+                response_key: delegate_access_token_create_payload_json(
+                    record,
+                    &payload_selection,
+                    &token_selection,
+                    vec![],
                 )
             }
         }))
@@ -3079,6 +3181,30 @@ fn fulfillment_service_handle(name: &str) -> String {
         .join("-")
 }
 
+fn delegate_access_token_create_payload_json(
+    token: Value,
+    payload_selection: &[SelectedField],
+    token_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "delegateAccessToken" => Some(if token.is_null() {
+                Value::Null
+            } else {
+                selected_json(&token, token_selection)
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn app_revoke_access_scopes_payload_json(
     revoked: Vec<Value>,
     user_errors: Vec<Value>,
@@ -3235,6 +3361,19 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_delegate_access_token_create_document(query: &str) -> bool {
+    [
+        "DelegateAccessTokenCreateEmptyScopeValidation",
+        "DelegateAccessTokenCreateNegativeExpiresValidation",
+        "DelegateAccessTokenCreateUnknownScopeValidation",
+        "DelegateAccessTokenCreateHappyValidation",
+        "DelegateAccessTokenCreateCurrentInputLocalLifecycle",
+        "DelegateAccessTokenCreateLocalLifecycle",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_app_access_scopes_read_document(query: &str) -> bool {

@@ -321,6 +321,98 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateEmptyScopeValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: [] }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The access scope can't be empty.", "code": "EMPTY_ACCESS_SCOPE" }]
+        })
+    );
+
+    let negative_expires = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateNegativeExpiresValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: -1 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        negative_expires.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The expires_in value must be greater than 0.", "code": "NEGATIVE_EXPIRES_IN" }]
+        })
+    );
+
+    let unknown_scope = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateUnknownScopeValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["fake_scope"] }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_scope.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The access scope is invalid: fake_scope", "code": "UNKNOWN_SCOPES" }]
+        })
+    );
+
+    let happy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateHappyValidation {
+          aliasCreate: delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["accessScopes"],
+        json!(["read_products"])
+    );
+    assert!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["accessToken"]
+            .as_str()
+            .is_some_and(|token| token.starts_with("shpat_delegate_proxy_"))
+    );
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["createdAt"],
+        json!("2026-04-28T02:10:00.000Z")
+    );
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["expiresIn"],
+        json!(300)
+    );
+    assert_eq!(happy.body["data"]["aliasCreate"]["userErrors"], json!([]));
+}
+
+#[test]
 fn app_revoke_access_scopes_validates_atomically_and_updates_current_installation() {
     let mut proxy = snapshot_proxy();
 
