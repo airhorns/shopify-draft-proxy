@@ -141,6 +141,10 @@ pub struct DraftProxy {
     staged_deleted_shipping_package_ids: BTreeSet<String>,
     staged_carrier_services: BTreeMap<String, Value>,
     staged_deleted_carrier_service_ids: BTreeSet<String>,
+    staged_fulfillment_services: BTreeMap<String, Value>,
+    staged_fulfillment_service_locations: BTreeMap<String, Value>,
+    staged_deleted_fulfillment_service_ids: BTreeSet<String>,
+    staged_deleted_fulfillment_service_location_ids: BTreeSet<String>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -161,6 +165,10 @@ impl DraftProxy {
             staged_deleted_shipping_package_ids: BTreeSet::new(),
             staged_carrier_services: BTreeMap::new(),
             staged_deleted_carrier_service_ids: BTreeSet::new(),
+            staged_fulfillment_services: BTreeMap::new(),
+            staged_fulfillment_service_locations: BTreeMap::new(),
+            staged_deleted_fulfillment_service_ids: BTreeSet::new(),
+            staged_deleted_fulfillment_service_location_ids: BTreeSet::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -215,6 +223,10 @@ impl DraftProxy {
                 self.staged_deleted_shipping_package_ids.clear();
                 self.staged_carrier_services.clear();
                 self.staged_deleted_carrier_service_ids.clear();
+                self.staged_fulfillment_services.clear();
+                self.staged_fulfillment_service_locations.clear();
+                self.staged_deleted_fulfillment_service_ids.clear();
+                self.staged_deleted_fulfillment_service_location_ids.clear();
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -445,6 +457,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "fulfillmentService" | "location"))
+            && is_fulfillment_service_lifecycle_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if let Some(data) = self.fulfillment_service_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if let Some(data) =
@@ -482,6 +508,18 @@ impl DraftProxy {
             && is_carrier_service_lifecycle_document(&query)
         {
             return self.carrier_service_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "fulfillmentServiceCreate"
+                    | "fulfillmentServiceUpdate"
+                    | "fulfillmentServiceDelete"
+            )
+            && is_fulfillment_service_lifecycle_document(&query)
+        {
+            return self.fulfillment_service_mutation(root_field, &query, &variables, request);
         }
 
         let capability =
@@ -1246,6 +1284,245 @@ impl DraftProxy {
                 }))
             }
         }
+    }
+
+    fn fulfillment_service_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            match field.name.as_str() {
+                "fulfillmentService" => {
+                    handled = true;
+                    let value = field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| {
+                            if self.staged_deleted_fulfillment_service_ids.contains(&id) {
+                                None
+                            } else {
+                                self.staged_fulfillment_services.get(&id).cloned()
+                            }
+                        })
+                        .map(|service| selected_json(&service, &field.selection))
+                        .unwrap_or(Value::Null);
+                    data.insert(field.response_key.clone(), value);
+                }
+                "location" => {
+                    handled = true;
+                    let value = field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| {
+                            if self
+                                .staged_deleted_fulfillment_service_location_ids
+                                .contains(&id)
+                            {
+                                None
+                            } else {
+                                self.staged_fulfillment_service_locations.get(&id).cloned()
+                            }
+                        })
+                        .map(|location| selected_json(&location, &field.selection))
+                        .unwrap_or(Value::Null);
+                    data.insert(field.response_key.clone(), value);
+                }
+                _ => {}
+            }
+        }
+        handled.then_some(Value::Object(data))
+    }
+
+    fn fulfillment_service_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        match root_field {
+            "fulfillmentServiceCreate" => {
+                self.fulfillment_service_create(query, variables, request)
+            }
+            "fulfillmentServiceUpdate" => {
+                self.fulfillment_service_update(query, variables, request)
+            }
+            "fulfillmentServiceDelete" => {
+                self.fulfillment_service_delete(query, variables, request)
+            }
+            _ => json_error(501, "Unsupported fulfillment service mutation"),
+        }
+    }
+
+    fn fulfillment_service_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "fulfillmentServiceCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let service_selection =
+            nested_root_field_selection(query, "fulfillmentService").unwrap_or_default();
+        let name = arguments
+            .get("name")
+            .and_then(resolved_as_string)
+            .unwrap_or_default();
+        let callback_url_present = arguments
+            .get("callbackUrl")
+            .is_some_and(|value| !matches!(value, ResolvedValue::Null));
+        let mut user_errors = Vec::new();
+        if name.trim().is_empty() {
+            user_errors.push(json!({ "field": ["name"], "message": "Name can't be blank" }));
+        }
+        if callback_url_present {
+            user_errors.push(
+                json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
+            );
+        }
+        if !user_errors.is_empty() {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, user_errors) } }),
+            );
+        }
+
+        let service_id = self.next_proxy_synthetic_gid("FulfillmentService");
+        let location_id = self.next_proxy_synthetic_gid("Location");
+        let service = fulfillment_service_record(
+            &service_id,
+            &location_id,
+            &name,
+            resolved_bool_field(&arguments, "trackingSupport").unwrap_or(false),
+            resolved_bool_field(&arguments, "inventoryManagement").unwrap_or(false),
+            resolved_bool_field(&arguments, "requiresShippingMethod").unwrap_or(false),
+        );
+        let location = service["location"].clone();
+        self.staged_fulfillment_services
+            .insert(service_id.clone(), service.clone());
+        self.staged_fulfillment_service_locations
+            .insert(location_id.clone(), location);
+        self.staged_deleted_fulfillment_service_ids
+            .remove(&service_id);
+        self.staged_deleted_fulfillment_service_location_ids
+            .remove(&location_id);
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentServiceCreate",
+            vec![service_id],
+        );
+        ok_json(
+            json!({ "data": { response_key: fulfillment_service_payload_json(service, &payload_selection, &service_selection, vec![]) } }),
+        )
+    }
+
+    fn fulfillment_service_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "fulfillmentServiceUpdate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let service_selection =
+            nested_root_field_selection(query, "fulfillmentService").unwrap_or_default();
+        let Some(id) = arguments.get("id").and_then(resolved_as_string) else {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
+            );
+        };
+        let Some(existing) = self.staged_fulfillment_services.get(&id).cloned() else {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
+            );
+        };
+        let location_id = existing["location"]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let name = arguments
+            .get("name")
+            .and_then(resolved_as_string)
+            .or_else(|| existing["serviceName"].as_str().map(str::to_string))
+            .unwrap_or_default();
+        let mut service = fulfillment_service_record(
+            &id,
+            &location_id,
+            &name,
+            resolved_bool_field(&arguments, "trackingSupport")
+                .unwrap_or_else(|| existing["trackingSupport"].as_bool().unwrap_or(false)),
+            resolved_bool_field(&arguments, "inventoryManagement")
+                .unwrap_or_else(|| existing["inventoryManagement"].as_bool().unwrap_or(false)),
+            resolved_bool_field(&arguments, "requiresShippingMethod").unwrap_or_else(|| {
+                existing["requiresShippingMethod"]
+                    .as_bool()
+                    .unwrap_or(false)
+            }),
+        );
+        if let Some(handle) = existing.get("handle").and_then(Value::as_str) {
+            service["handle"] = json!(handle);
+        }
+        self.staged_fulfillment_services
+            .insert(id.clone(), service.clone());
+        self.staged_fulfillment_service_locations
+            .insert(location_id, service["location"].clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentServiceUpdate",
+            vec![id],
+        );
+        ok_json(
+            json!({ "data": { response_key: fulfillment_service_payload_json(service, &payload_selection, &service_selection, vec![]) } }),
+        )
+    }
+
+    fn fulfillment_service_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let id = arguments
+            .get("id")
+            .and_then(resolved_as_string)
+            .unwrap_or_default();
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "fulfillmentServiceDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let Some(service) = self.staged_fulfillment_services.remove(&id) else {
+            return ok_json(
+                json!({ "data": { response_key: fulfillment_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })]) } }),
+            );
+        };
+        let location_id = service["location"]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        self.staged_fulfillment_service_locations
+            .remove(&location_id);
+        self.staged_deleted_fulfillment_service_ids
+            .insert(id.clone());
+        self.staged_deleted_fulfillment_service_location_ids
+            .insert(location_id);
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentServiceDelete",
+            vec![id.clone()],
+        );
+        ok_json(
+            json!({ "data": { response_key: fulfillment_service_delete_payload(json!(id.replace("?id=true", "")), &payload_selection, vec![]) } }),
+        )
     }
 
     fn carrier_service_read_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -2464,6 +2741,113 @@ fn product_delete_missing_product(query: &str) -> Response {
             }
         }
     }))
+}
+
+fn fulfillment_service_record(
+    service_id: &str,
+    location_id: &str,
+    name: &str,
+    tracking_support: bool,
+    inventory_management: bool,
+    requires_shipping_method: bool,
+) -> Value {
+    json!({
+        "id": service_id,
+        "handle": fulfillment_service_handle(name),
+        "serviceName": name,
+        "callbackUrl": null,
+        "trackingSupport": tracking_support,
+        "inventoryManagement": inventory_management,
+        "requiresShippingMethod": requires_shipping_method,
+        "type": "THIRD_PARTY",
+        "location": {
+            "id": location_id,
+            "name": name,
+            "isFulfillmentService": true,
+            "fulfillsOnlineOrders": true,
+            "shipsInventory": false
+        }
+    })
+}
+
+fn fulfillment_service_handle(name: &str) -> String {
+    name.trim()
+        .to_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn fulfillment_service_payload_json(
+    service: Value,
+    payload_selection: &[SelectedField],
+    service_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "fulfillmentService" => Some(if service.is_null() {
+                Value::Null
+            } else {
+                selected_json(&service, service_selection)
+            }),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn fulfillment_service_not_found_payload(payload_selection: &[SelectedField]) -> Value {
+    fulfillment_service_payload_json(
+        Value::Null,
+        payload_selection,
+        &[],
+        vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })],
+    )
+}
+
+fn fulfillment_service_delete_payload(
+    deleted_id: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "deletedId" => Some(deleted_id.clone()),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
+    [
+        "CreateFs",
+        "CreateBlank",
+        "FulfillmentServiceAfterCreate",
+        "UpdateFs",
+        "DeleteFs",
+        "query Loc(",
+        "UpdateUnknown",
+        "DeleteUnknown",
+        "UnknownUpdate",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_carrier_service_lifecycle_document(query: &str) -> bool {

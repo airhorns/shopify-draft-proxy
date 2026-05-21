@@ -321,6 +321,163 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
+    let mut proxy = snapshot_proxy();
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBlank($name: String!, $callbackUrl: URL) {
+          fulfillmentServiceCreate(
+            name: $name
+            callbackUrl: $callbackUrl
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "", "callbackUrl": "https://example.com/fulfillment-service/moeomiux" }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name can't be blank" },
+                { "field": ["callbackUrl"], "message": "Callback url is not allowed" }
+            ]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFs($name: String!) {
+          fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS moeompnx" }),
+    ));
+    let service_id = create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let location_id = create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+        ["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"],
+        json!({
+            "id": service_id,
+            "handle": "hermes-fs-moeompnx",
+            "serviceName": "Hermes FS moeompnx",
+            "callbackUrl": null,
+            "trackingSupport": true,
+            "inventoryManagement": true,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+                "id": location_id,
+                "name": "Hermes FS moeompnx",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceAfterCreate($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) {
+            id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+            location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+          }
+          location(id: $locationId) { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+        }
+        "#,
+        json!({ "id": service_id, "locationId": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentService"],
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+    );
+    assert_eq!(
+        read.body["data"]["location"],
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"]
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFs($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": service_id, "name": "Hermes FS Updated moeompnx" }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["serviceName"],
+        json!("Hermes FS Updated moeompnx")
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["location"]["name"],
+        json!("Hermes FS Updated moeompnx")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteFs($id: ID!) {
+          fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": service_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentServiceDelete"],
+        json!({ "deletedId": service_id.replace("?id=true", ""), "userErrors": [] })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query Loc($id: ID!) { location(id: $id) { id name isFulfillmentService isActive } }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["location"], json!(null));
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownUpdate($id: ID!) {
+          fulfillmentServiceUpdate(id: $id, name: "Nope") { fulfillmentService { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentService/999999999999" }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["id"], "message": "Fulfillment service could not be found." }]
+        })
+    );
+}
+
+#[test]
 fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
