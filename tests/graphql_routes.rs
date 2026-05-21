@@ -2659,6 +2659,88 @@ fn product_read_preserves_root_alias() {
 }
 
 #[test]
+fn collection_publishable_mutations_stage_publication_state_for_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let variables = json!({
+        "id": "gid://shopify/Collection/468787757289",
+        "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }],
+        "publicationId": "gid://shopify/Publication/82090459369"
+    });
+    let publish_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionPublishablePublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        variables.clone(),
+    ));
+    assert_eq!(
+        publish_response.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+    assert_eq!(
+        publish_response.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+
+    let read_query = r#"
+        query CollectionPublicationRead($id: ID!, $publicationId: ID!) {
+          collection(id: $id) {
+            id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId)
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+          }
+        }
+    "#;
+    let read_after_publish =
+        proxy.process_request(json_graphql_request(read_query, variables.clone()));
+    assert_eq!(
+        read_after_publish.body["data"]["collection"],
+        publish_response.body["data"]["publishablePublish"]["publishable"]
+    );
+
+    let unpublish_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionPublishableUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishableUnpublish(id: $id, input: $input) {
+            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        variables.clone(),
+    ));
+    assert_eq!(
+        unpublish_response.body["data"]["publishableUnpublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+    let read_after_unpublish = proxy.process_request(json_graphql_request(read_query, variables));
+    assert_eq!(
+        read_after_unpublish.body["data"]["collection"],
+        unpublish_response.body["data"]["publishableUnpublish"]["publishable"]
+    );
+}
+
+#[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
     let mut proxy = snapshot_proxy();
     for (root, query) in [

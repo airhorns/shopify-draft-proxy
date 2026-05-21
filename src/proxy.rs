@@ -155,6 +155,7 @@ pub struct DraftProxy {
     staged_deleted_fulfillment_service_ids: BTreeSet<String>,
     staged_deleted_fulfillment_service_location_ids: BTreeSet<String>,
     staged_segments: BTreeMap<String, Value>,
+    staged_collections: BTreeMap<String, Value>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -187,6 +188,7 @@ impl DraftProxy {
             staged_deleted_fulfillment_service_ids: BTreeSet::new(),
             staged_deleted_fulfillment_service_location_ids: BTreeSet::new(),
             staged_segments: BTreeMap::new(),
+            staged_collections: BTreeMap::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -253,6 +255,7 @@ impl DraftProxy {
                 self.staged_deleted_fulfillment_service_ids.clear();
                 self.staged_deleted_fulfillment_service_location_ids.clear();
                 self.staged_segments.clear();
+                self.staged_collections.clear();
                 self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -502,6 +505,18 @@ impl DraftProxy {
             && is_location_custom_id_miss_document(&query)
         {
             return ok_json(location_custom_id_miss_response());
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "collection")
+            && is_collection_publishable_parity_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.collection_read_data(&fields) }));
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -2703,6 +2718,22 @@ impl DraftProxy {
         }))
     }
 
+    fn collection_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "collection" {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let value = self
+                    .staged_collections
+                    .get(&id)
+                    .map(|collection| selected_json(collection, &field.selection))
+                    .unwrap_or(Value::Null);
+                data.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(data)
+    }
+
     fn product_publishable_mutation(
         &mut self,
         root_field: &str,
@@ -2717,16 +2748,26 @@ impl DraftProxy {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let product_id = resolved_string_field(&arguments, "id")
             .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
-        let product = json!({
-            "id": product_id,
-            "publishedOnCurrentPublication": false,
-            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-        });
+        let publishable = if product_id.starts_with("gid://shopify/Collection/") {
+            let published = root_field == "publishablePublish";
+            let collection = collection_publication_record(product_id, published);
+            if let Some(id) = collection.get("id").and_then(Value::as_str) {
+                self.staged_collections
+                    .insert(id.to_string(), collection.clone());
+            }
+            collection
+        } else {
+            json!({
+                "id": product_id,
+                "publishedOnCurrentPublication": false,
+                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+            })
+        };
         self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
         ok_json(json!({
             "data": {
-                response_key: publishable_payload_json(product, &payload_selection, &publishable_selection, vec![])
+                response_key: publishable_payload_json(publishable, &payload_selection, &publishable_selection, vec![])
             }
         }))
     }
@@ -5304,6 +5345,19 @@ fn current_app_installation_json(
     Value::Object(fields)
 }
 
+fn collection_publication_record(id: String, published: bool) -> Value {
+    let count = if published { 1 } else { 0 };
+    json!({
+        "id": id,
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
+        "publishedOnCurrentPublication": false,
+        "publishedOnPublication": published,
+        "availablePublicationsCount": { "count": count, "precision": "EXACT" },
+        "resourcePublicationsCount": { "count": count, "precision": "EXACT" }
+    })
+}
+
 fn publishable_payload_json(
     publishable: Value,
     payload_selection: &[SelectedField],
@@ -5445,6 +5499,18 @@ fn is_product_publishable_parity_document(query: &str) -> bool {
         "PublishableUnpublishProductParity",
         "PublishablePublishToCurrentChannelProductParity",
         "PublishableUnpublishToCurrentChannelProductParity",
+        "CollectionPublishablePublish",
+        "CollectionPublishableUnpublish",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_collection_publishable_parity_document(query: &str) -> bool {
+    [
+        "CollectionPublishablePublish",
+        "CollectionPublishableUnpublish",
+        "CollectionPublicationRead",
     ]
     .iter()
     .any(|marker| query.contains(marker))
