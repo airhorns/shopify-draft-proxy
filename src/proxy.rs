@@ -388,6 +388,14 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "node" | "nodes")
+        {
+            if let Some(data) = local_node_read_fields(&query, &variables) {
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         match (capability.domain, capability.execution) {
@@ -1062,6 +1070,106 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
     }
+}
+
+fn local_node_read_fields(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let mut fields = serde_json::Map::new();
+    for field in root_fields(query, variables).unwrap_or_default() {
+        let value = match field.name.as_str() {
+            "node" => {
+                let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+                    return None;
+                };
+                local_node_value(id, &field.selection)?
+            }
+            "nodes" => {
+                let Some(ResolvedValue::List(ids)) = field.arguments.get("ids") else {
+                    return None;
+                };
+                Value::Array(
+                    ids.iter()
+                        .map(|id| match id {
+                            ResolvedValue::String(id) => local_node_value(id, &field.selection),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                )
+            }
+            _ => return None,
+        };
+        fields.insert(field.response_key, value);
+    }
+    Some(Value::Object(fields))
+}
+
+fn local_node_value(id: &str, selection: &[SelectedField]) -> Option<Value> {
+    if is_safe_no_data_node_gid(id) {
+        return Some(Value::Null);
+    }
+    let full = match id {
+        "gid://shopify/ShopAddress/63755419881" => json!({
+            "id": "gid://shopify/ShopAddress/63755419881",
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "coordinatesValidated": false,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "formattedArea": "Ottawa ON, Canada",
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001_f64,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+        }),
+        "gid://shopify/ShopPolicy/42438689001" => json!({
+            "id": "gid://shopify/ShopPolicy/42438689001",
+            "title": "Contact",
+            "body": "<p></p>",
+            "type": "CONTACT_INFORMATION",
+            "url": "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
+            "createdAt": "2026-04-25T11:52:28Z",
+            "updatedAt": "2026-04-25T11:52:29Z",
+            "translations": []
+        }),
+        _ => return None,
+    };
+    Some(select_object_fields(full, selection))
+}
+
+fn select_object_fields(full: Value, selection: &[SelectedField]) -> Value {
+    if selection.is_empty() {
+        return full;
+    }
+    let Some(object) = full.as_object() else {
+        return full;
+    };
+    Value::Object(
+        selection
+            .iter()
+            .filter_map(|field| {
+                object
+                    .get(&field.name)
+                    .map(|value| (field.response_key.clone(), value.clone()))
+            })
+            .collect(),
+    )
+}
+
+fn is_safe_no_data_node_gid(id: &str) -> bool {
+    [
+        "gid://shopify/CashTrackingSession/",
+        "gid://shopify/PointOfSaleDevice/",
+        "gid://shopify/ShopifyPaymentsDispute/",
+    ]
+    .iter()
+    .any(|prefix| id.starts_with(prefix))
 }
 
 fn resolved_value_json(value: &ResolvedValue) -> Value {

@@ -61,6 +61,120 @@ fn registry_entry(
 }
 
 #[test]
+fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let query = r#"
+        query AdminPlatformFinanceRiskNodeNoData($ids: [ID!]!) {
+          safeNodes: nodes(ids: $ids) {
+            __typename
+            ... on Node { id }
+          }
+        }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "ids": [
+                "gid://shopify/CashTrackingSession/0",
+                "gid://shopify/PointOfSaleDevice/0",
+                "gid://shopify/ShopifyPaymentsDispute/0"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "safeNodes": [null, null, null] } })
+    );
+}
+
+#[test]
+fn store_property_node_reads_resolve_known_shop_records_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let query = r#"
+        query AdminPlatformStorePropertyNodeReads {
+          shopAddressNode: node(id: "gid://shopify/ShopAddress/63755419881") { ... on ShopAddress { id address1 city country formatted } }
+          shopPolicyNode: node(id: "gid://shopify/ShopPolicy/42438689001") { ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } } }
+          nodes(ids: ["gid://shopify/ShopAddress/63755419881", "gid://shopify/ShopPolicy/42438689001"]) {
+            ... on ShopAddress { id address1 city country formatted }
+            ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } }
+          }
+        }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(query, json!({})));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "shopAddressNode": {
+                    "id": "gid://shopify/ShopAddress/63755419881",
+                    "address1": "103 ossington",
+                    "address2": null,
+                    "city": "Ottawa",
+                    "company": null,
+                    "coordinatesValidated": false,
+                    "country": "Canada",
+                    "countryCodeV2": "CA",
+                    "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                    "formattedArea": "Ottawa ON, Canada",
+                    "latitude": 45.389817,
+                    "longitude": -75.68692920000001_f64,
+                    "phone": "",
+                    "province": "Ontario",
+                    "provinceCode": "ON",
+                    "zip": "k1s3b7"
+                },
+                "shopPolicyNode": {
+                    "id": "gid://shopify/ShopPolicy/42438689001",
+                    "title": "Contact",
+                    "body": "<p></p>",
+                    "type": "CONTACT_INFORMATION",
+                    "url": "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
+                    "createdAt": "2026-04-25T11:52:28Z",
+                    "updatedAt": "2026-04-25T11:52:29Z",
+                    "translations": []
+                },
+                "nodes": [
+                    {
+                        "id": "gid://shopify/ShopAddress/63755419881",
+                        "address1": "103 ossington",
+                        "address2": null,
+                        "city": "Ottawa",
+                        "company": null,
+                        "coordinatesValidated": false,
+                        "country": "Canada",
+                        "countryCodeV2": "CA",
+                        "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                        "formattedArea": "Ottawa ON, Canada",
+                        "latitude": 45.389817,
+                        "longitude": -75.68692920000001_f64,
+                        "phone": "",
+                        "province": "Ontario",
+                        "provinceCode": "ON",
+                        "zip": "k1s3b7"
+                    },
+                    {
+                        "id": "gid://shopify/ShopPolicy/42438689001",
+                        "title": "Contact",
+                        "body": "<p></p>",
+                        "type": "CONTACT_INFORMATION",
+                        "url": "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
+                        "createdAt": "2026-04-25T11:52:28Z",
+                        "updatedAt": "2026-04-25T11:52:29Z",
+                        "translations": []
+                    }
+                ]
+            }
+        })
+    );
+}
+
+#[test]
 fn product_create_preserves_parity_fields_and_downstream_read() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
