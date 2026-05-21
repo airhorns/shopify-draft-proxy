@@ -1,3 +1,4 @@
+import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
@@ -54,14 +55,19 @@ function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS
   }
 }
 
-async function withRustServer<T>(port: number, run: (origin: string) => Promise<T>): Promise<T> {
+async function withRustServer<T>(
+  port: number,
+  run: (origin: string) => Promise<T>,
+  options: { shopifyAdminOrigin?: string; readMode?: string } = {},
+): Promise<T> {
   const child = spawn(pnpmCommand, pnpmArgs(['dev']), {
     cwd: repoRoot,
     detached: true,
     env: {
       ...process.env,
       PORT: String(port),
-      SHOPIFY_ADMIN_ORIGIN: 'https://shopify.com',
+      SHOPIFY_ADMIN_ORIGIN: options.shopifyAdminOrigin ?? 'https://shopify.com',
+      READ_MODE: options.readMode,
     },
   });
   const { getOutput } = collectOutput(child);
@@ -76,6 +82,21 @@ async function withRustServer<T>(port: number, run: (origin: string) => Promise<
 async function getJson(origin: string, path: string, init: RequestInit = {}) {
   const response = await fetch(`${origin}${path}`, init);
   return { status: response.status, body: await response.json() };
+}
+
+async function withChunkedUpstream<T>(port: number, run: (origin: string) => Promise<T>): Promise<T> {
+  const server = createServer((request, response) => {
+    request.resume();
+    response.statusCode = 500;
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ errors: [{ message: 'unexpected upstream' }] }));
+  });
+  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  try {
+    return await run(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
 }
 
 describe('Rust HTTP adapter route surface', () => {
@@ -174,6 +195,29 @@ describe('Rust HTTP adapter route surface', () => {
         status: 405,
         body: { errors: [{ message: 'Method not allowed' }] },
       });
+    });
+  }, 25_000);
+
+  it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
+    await withChunkedUpstream(43_200, async (upstreamOrigin) => {
+      await withRustServer(
+        43_199,
+        async (origin) => {
+          const response = await getJson(origin, '/admin/api/2026-04/graphql.json', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              query:
+                'mutation { delegateAccessTokenCreate(input: { expiresIn: 60, delegateAccessScope: ["read_products"] }) { userErrors { message } } }',
+            }),
+          });
+          expect(response).toEqual({
+            status: 500,
+            body: { errors: [{ message: 'unexpected upstream' }] },
+          });
+        },
+        { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
+      );
     });
   }, 25_000);
 });

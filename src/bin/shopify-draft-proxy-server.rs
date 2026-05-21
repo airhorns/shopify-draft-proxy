@@ -357,6 +357,12 @@ fn write_http_response(stream: &mut TcpStream, response: Response) -> std::io::R
     write!(stream, "HTTP/1.1 {} {}\r\n", response.status, reason)?;
     let mut has_content_type = false;
     for (name, value) in response.headers {
+        if name.eq_ignore_ascii_case("content-length")
+            || name.eq_ignore_ascii_case("connection")
+            || name.eq_ignore_ascii_case("transfer-encoding")
+        {
+            continue;
+        }
         if name.eq_ignore_ascii_case("content-type") {
             has_content_type = true;
         }
