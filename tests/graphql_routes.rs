@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
-use serde_json::json;
+use serde_json::{json, Value};
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
@@ -1083,6 +1083,189 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
                 }]
             }] }
         })
+    );
+}
+
+#[test]
+fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
+    let mut proxy = snapshot_proxy();
+
+    let create_subscription = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(name: "Local plan", returnUrl: "https://app.example.test/return", trialDays: 7, test: true, lineItems: $lineItems) {
+            appSubscription { id status trialDays lineItems { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 100, "currencyCode": "USD" }, "terms": "usage terms" } }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        json!("gid://shopify/AppSubscription/expected")
+    );
+
+    let one_time = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateLocalLifecycle {
+          appPurchaseOneTimeCreate(name: "Import package", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: true) {
+            confirmationUrl
+            appPurchaseOneTime { id name status test price { amount currencyCode } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "Import package",
+                "status": "ACTIVE",
+                "test": true,
+                "price": { "amount": "10", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let usage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateLocalLifecycle($id: ID!) {
+          appUsageRecordCreate(subscriptionLineItemId: $id, price: { amount: "12.5", currencyCode: USD }, description: "metered import", idempotencyKey: "usage-local-1") {
+            appUsageRecord { id description price { amount currencyCode } subscriptionLineItem { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"],
+        json!({
+            "id": "gid://shopify/AppUsageRecord/expected",
+            "description": "metered import",
+            "price": { "amount": "12.5", "currencyCode": "USD" },
+            "subscriptionLineItem": { "id": "gid://shopify/AppSubscriptionLineItem/expected" }
+        })
+    );
+
+    let expired_trial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionTrialExtendLocalLifecycle($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        expired_trial.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+        })
+    );
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) { appSubscription { id status trialDays } userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query AppBillingLocalRead {
+          currentAppInstallation {
+            id
+            activeSubscriptions { id }
+            allSubscriptions(first: 5) { nodes { id status trialDays lineItems { id usageRecords(first: 5) { nodes { description price { amount currencyCode } } } } } }
+            oneTimePurchases(first: 5) { nodes { name status price { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "id": "gid://shopify/AppInstallation/expected",
+            "activeSubscriptions": [],
+            "allSubscriptions": { "nodes": [{
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "CANCELLED",
+                "trialDays": 7,
+                "lineItems": [{
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "usageRecords": { "nodes": [{
+                        "description": "metered import",
+                        "price": { "amount": "12.5", "currencyCode": "USD" }
+                    }] }
+                }]
+            }] },
+            "oneTimePurchases": { "nodes": [{
+                "name": "Import package",
+                "status": "ACTIVE",
+                "price": { "amount": "10", "currencyCode": "USD" }
+            }] }
+        })
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppBillingNodeRead($id: ID!) {
+          node(id: $id) {
+            ... on AppPurchaseOneTime { id name status test price { amount currencyCode } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppPurchaseOneTime/expected" }),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        json!({
+            "id": "gid://shopify/AppPurchaseOneTime/expected",
+            "name": "Import package",
+            "status": "ACTIVE",
+            "test": true,
+            "price": { "amount": "10", "currencyCode": "USD" }
+        })
+    );
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUninstallLocalLifecycle { appUninstall { app { id handle } userErrors { field message } } }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": { "id": "gid://shopify/App/expected", "handle": "shopify-draft-proxy" },
+            "userErrors": []
+        })
+    );
+
+    let after_uninstall = proxy.process_request(json_graphql_request(
+        r#"query AppInstallationIdLocalRead { currentAppInstallation { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_uninstall.body["data"]["currentAppInstallation"],
+        Value::Null
     );
 }
 

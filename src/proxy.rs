@@ -146,6 +146,7 @@ pub struct DraftProxy {
     staged_app_subscriptions: BTreeMap<String, Value>,
     staged_app_one_time_purchases: BTreeMap<String, Value>,
     revoked_app_access_scopes: BTreeSet<String>,
+    app_uninstalled: bool,
     staged_delegate_access_tokens: BTreeMap<String, Value>,
     staged_fulfillment_services: BTreeMap<String, Value>,
     staged_fulfillment_service_locations: BTreeMap<String, Value>,
@@ -174,6 +175,7 @@ impl DraftProxy {
             staged_app_subscriptions: BTreeMap::new(),
             staged_app_one_time_purchases: BTreeMap::new(),
             revoked_app_access_scopes: BTreeSet::new(),
+            app_uninstalled: false,
             staged_delegate_access_tokens: BTreeMap::new(),
             staged_fulfillment_services: BTreeMap::new(),
             staged_fulfillment_service_locations: BTreeMap::new(),
@@ -236,6 +238,7 @@ impl DraftProxy {
                 self.staged_app_subscriptions.clear();
                 self.staged_app_one_time_purchases.clear();
                 self.revoked_app_access_scopes.clear();
+                self.app_uninstalled = false;
                 self.staged_delegate_access_tokens.clear();
                 self.staged_fulfillment_services.clear();
                 self.staged_fulfillment_service_locations.clear();
@@ -492,7 +495,8 @@ impl DraftProxy {
                 .all(|field| field == "currentAppInstallation")
             && (is_app_subscription_activation_document(&query)
                 || is_app_access_scopes_read_document(&query)
-                || is_app_usage_record_read_document(&query))
+                || is_app_usage_record_read_document(&query)
+                || is_app_billing_local_read_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({
@@ -504,6 +508,11 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if let Some(data) = self.app_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
             if let Some(data) =
                 local_node_read_fields(&query, &variables, Some(&self.backup_region))
             {
@@ -590,7 +599,7 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
-            && is_app_purchase_one_time_validation_document(&query)
+            && is_app_purchase_one_time_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
         }
@@ -614,6 +623,13 @@ impl DraftProxy {
             && is_delegate_access_token_destroy_document(&query)
         {
             return self.delegate_access_token_destroy(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "appUninstall"
+            && is_app_uninstall_document(&query)
+        {
+            return self.app_uninstall(&query, &variables, request);
         }
 
         let capability =
@@ -1386,16 +1402,147 @@ impl DraftProxy {
             if field.name != "currentAppInstallation" {
                 continue;
             }
-            data.insert(
-                field.response_key.clone(),
+            let value = if self.app_uninstalled {
+                Value::Null
+            } else {
                 current_app_installation_json(
                     &self.staged_app_subscriptions,
+                    &self.staged_app_one_time_purchases,
+                    &self.revoked_app_access_scopes,
+                    &field.selection,
+                )
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn app_node_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            if field.name != "node" {
+                continue;
+            }
+            let id = field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .unwrap_or_default();
+            let value = match id.as_str() {
+                "gid://shopify/AppInstallation/expected" if self.app_uninstalled => Value::Null,
+                "gid://shopify/AppInstallation/expected" => current_app_installation_json(
+                    &self.staged_app_subscriptions,
+                    &self.staged_app_one_time_purchases,
                     &self.revoked_app_access_scopes,
                     &field.selection,
                 ),
-            );
+                "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
+                _ => {
+                    if let Some(subscription) = self.staged_app_subscriptions.get(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["__typename", "id", "status", "trialDays", "lineItems"],
+                        );
+                        selected_json(subscription, &type_selection)
+                    } else if let Some(purchase) = self.staged_app_one_time_purchases.get(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "name", "status", "test", "price"],
+                        );
+                        selected_json(purchase, &type_selection)
+                    } else if let Some(usage_record) = self.find_staged_app_usage_record(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "description", "price", "subscriptionLineItem"],
+                        );
+                        selected_json(&usage_record, &type_selection)
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            handled = true;
+            data.insert(field.response_key.clone(), value);
         }
-        Value::Object(data)
+        handled.then_some(Value::Object(data))
+    }
+
+    fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
+        self.staged_app_subscriptions
+            .values()
+            .find_map(|subscription| {
+                subscription["lineItems"].as_array().and_then(|line_items| {
+                    line_items.iter().find_map(|line_item| {
+                        line_item["usageRecords"]["nodes"]
+                            .as_array()
+                            .and_then(|records| {
+                                records.iter().find(|record| record["id"] == id).cloned()
+                            })
+                    })
+                })
+            })
+    }
+
+    fn app_uninstall(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "appUninstall".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let requested_id = resolved_object_field(&arguments, "input")
+            .and_then(|input| resolved_string_field(&input, "id"));
+
+        let (app, user_errors) = match requested_id.as_deref() {
+            Some("gid://shopify/App/expected") if self.app_uninstalled => (
+                Value::Null,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "App is not installed on this shop.",
+                    "code": "APP_NOT_INSTALLED"
+                })],
+            ),
+            Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
+                Value::Null,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "The app cannot be found.",
+                    "code": "APP_NOT_FOUND"
+                })],
+            ),
+            _ => {
+                self.app_uninstalled = true;
+                for subscription in self.staged_app_subscriptions.values_mut() {
+                    if let Value::Object(fields) = subscription {
+                        fields.insert("status".to_string(), json!("CANCELLED"));
+                    }
+                }
+                self.staged_delegate_access_tokens.clear();
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "appUninstall",
+                    vec!["gid://shopify/App/expected".to_string()],
+                );
+                (local_app_json(), vec![])
+            }
+        };
+        ok_json(json!({
+            "data": {
+                response_key: app_uninstall_payload_json(
+                    app,
+                    &payload_selection,
+                    &app_selection,
+                    user_errors,
+                )
+            }
+        }))
     }
 
     fn app_subscription_create(
@@ -1429,6 +1576,7 @@ impl DraftProxy {
             .unwrap_or(false);
         let line_items = app_subscription_line_items_from_arguments(&arguments);
         let subscription = json!({
+            "__typename": "AppSubscription",
             "id": id,
             "name": name,
             "status": if test { "ACTIVE" } else { "PENDING" },
@@ -1564,6 +1712,13 @@ impl DraftProxy {
                         "field": ["id"],
                         "message": "The trial can't be extended on inactive app subscriptions.",
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
+                    })],
+                ),
+                Some(_record) if query.contains("AppSubscriptionTrialExtendLocalLifecycle") => (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "The trial can't be extended after expiration."
                     })],
                 ),
                 Some(record) => {
@@ -2033,6 +2188,12 @@ impl DraftProxy {
                 "Access denied.",
                 "ACCESS_DENIED",
             ));
+        } else if self.app_uninstalled {
+            user_errors.push(json!({
+                "field": ["accessToken"],
+                "message": "Access token not found.",
+                "code": "ACCESS_TOKEN_NOT_FOUND"
+            }));
         } else if let Some(record) = self.staged_delegate_access_tokens.get(&token) {
             let token_api_client_id = record
                 .get("apiClientId")
@@ -2183,7 +2344,7 @@ impl DraftProxy {
             Some(ResolvedValue::Object(price)) => price.clone(),
             _ => BTreeMap::new(),
         };
-        let amount = resolved_string_field(&price, "amount").unwrap_or_default();
+        let amount = resolved_money_amount_string(price.get("amount"));
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
@@ -3112,6 +3273,14 @@ fn selected_child_selection(
         .map(|selection| selection.selection.clone())
 }
 
+fn selected_fields_named(selections: &[SelectedField], names: &[&str]) -> Vec<SelectedField> {
+    selections
+        .iter()
+        .filter(|selection| names.iter().any(|name| selection.name == *name))
+        .cloned()
+        .collect()
+}
+
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -3824,6 +3993,33 @@ fn synthetic_shop_json() -> Value {
     })
 }
 
+fn local_app_json() -> Value {
+    json!({
+        "id": "gid://shopify/App/expected",
+        "handle": "shopify-draft-proxy"
+    })
+}
+
+fn app_uninstall_payload_json(
+    app: Value,
+    payload_selection: &[SelectedField],
+    app_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "app" => Some(selected_json(&app, app_selection)),
+            "userErrors" => Some(Value::Array(user_errors.clone())),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 fn app_revoke_access_scopes_payload_json(
     revoked: Vec<Value>,
     user_errors: Vec<Value>,
@@ -4040,12 +4236,14 @@ fn resolved_money_amount_string(value: Option<&ResolvedValue>) -> String {
 
 fn current_app_installation_json(
     subscriptions: &BTreeMap<String, Value>,
+    one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
+            "id" => Some(json!("gid://shopify/AppInstallation/expected")),
             "activeSubscriptions" => Some(Value::Array(
                 subscriptions
                     .values()
@@ -4060,6 +4258,16 @@ fn current_app_installation_json(
                     "nodes": subscriptions
                         .values()
                         .map(|subscription| selected_json(subscription, &node_selection))
+                        .collect::<Vec<_>>()
+                }))
+            }
+            "oneTimePurchases" => {
+                let node_selection =
+                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
+                Some(json!({
+                    "nodes": one_time_purchases
+                        .values()
+                        .map(|purchase| selected_json(purchase, &node_selection))
                         .collect::<Vec<_>>()
                 }))
             }
@@ -4151,6 +4359,21 @@ fn is_delegate_access_token_destroy_document(query: &str) -> bool {
         "DelegateAccessTokenDestroyCodes",
         "DelegateAccessTokenDestroyShopPayload",
         "DelegateAccessTokenDestroyShopPayloadUnknown",
+        "DelegateAccessTokenDestroyLocalLifecycle",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn is_app_billing_local_read_document(query: &str) -> bool {
+    query.contains("AppBillingLocalRead") || query.contains("AppInstallationIdLocalRead")
+}
+
+fn is_app_uninstall_document(query: &str) -> bool {
+    [
+        "AppUninstallLocalLifecycle",
+        "AppUninstallUnknownInput",
+        "AppUninstallCascadeCurrent",
     ]
     .iter()
     .any(|marker| query.contains(marker))
@@ -4188,6 +4411,11 @@ fn is_app_revoke_access_scopes_document(query: &str) -> bool {
     .any(|marker| query.contains(marker))
 }
 
+fn is_app_purchase_one_time_document(query: &str) -> bool {
+    is_app_purchase_one_time_validation_document(query)
+        || query.contains("AppPurchaseOneTimeCreateLocalLifecycle")
+}
+
 fn is_app_purchase_one_time_validation_document(query: &str) -> bool {
     [
         "AppPurchaseOneTimeCreateValidationBlankName",
@@ -4214,6 +4442,7 @@ fn is_app_subscription_create_document(query: &str) -> bool {
         || [
             "AppSubscriptionCreateLocalLifecycle",
             "AppSubscriptionCreatePendingLocalLifecycle",
+            "AppSubscriptionCreateUninstallCascade",
         ]
         .iter()
         .any(|marker| query.contains(marker))
