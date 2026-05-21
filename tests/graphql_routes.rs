@@ -1022,6 +1022,134 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
 }
 
 #[test]
+fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id firstName lastName displayName email locale note verifiedEmail taxExempt taxExemptions tags state canDelete
+              loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value }
+              metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+              defaultEmailAddress { emailAddress }
+              defaultPhoneNumber { phoneNumber }
+              defaultAddress { address1 city province country zip formattedArea }
+              createdAt updatedAt
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "hermes-customer-create@example.com",
+                "firstName": "Hermes",
+                "lastName": "Create",
+                "locale": "en",
+                "note": "customer create parity probe",
+                "phone": "+14155550123",
+                "tags": ["parity", "create"],
+                "taxExempt": true
+            }
+        }),
+    ));
+    let customer = &create.body["data"]["customerCreate"]["customer"];
+    let id = customer["id"].as_str().unwrap();
+    assert!(id.starts_with("gid://shopify/Customer/"));
+    assert_eq!(customer["displayName"], json!("Hermes Create"));
+    assert_eq!(customer["tags"], json!(["create", "parity"]));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!) {
+          customer(id: $id) { id firstName lastName displayName email tags defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) { nodes { id email } pageInfo { hasNextPage hasPreviousPage } }
+          customersCount { count precision }
+        }
+        "#,
+        json!({ "id": id, "query": "__customer_parity_no_match__", "first": 5 }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["customer"]["email"],
+        json!("hermes-customer-create@example.com")
+    );
+    assert_eq!(
+        read.body["data"]["customers"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customersCount"],
+        json!({ "count": 177, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn customer_update_and_delete_stage_known_fixture_customer_reads() {
+    let mut proxy = snapshot_proxy();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName email note taxExempt taxExemptions tags loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/9102966915305",
+                "firstName": "Hermes",
+                "lastName": "Updated",
+                "note": "customer update parity probe",
+                "tags": ["parity", "updated"],
+                "taxExempt": false,
+                "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+                "metafields": [{ "namespace": "custom", "key": "loyalty", "type": "single_line_text_field", "value": "gold" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["displayName"],
+        json!("Hermes Updated")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["loyalty"]["value"],
+        json!("gold")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/9102966915305" } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": "gid://shopify/Customer/9102966915305",
+            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "userErrors": []
+        })
+    );
+    let read = proxy.process_request(json_graphql_request(
+        "query($id: ID!) { customer(id: $id) { id email } }",
+        json!({ "id": "gid://shopify/Customer/9102966915305" }),
+    ));
+    assert_eq!(read.body["data"]["customer"], Value::Null);
+}
+
+#[test]
 fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
     let id_not_allowed = proxy.process_request(json_graphql_request(

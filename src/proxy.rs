@@ -142,6 +142,8 @@ pub struct DraftProxy {
     staged_deleted_saved_search_ids: BTreeSet<String>,
     staged_shipping_packages: BTreeMap<String, Value>,
     staged_deleted_shipping_package_ids: BTreeSet<String>,
+    staged_customers: BTreeMap<String, Value>,
+    staged_deleted_customer_ids: BTreeSet<String>,
     staged_carrier_services: BTreeMap<String, Value>,
     staged_deleted_carrier_service_ids: BTreeSet<String>,
     staged_app_subscriptions: BTreeMap<String, Value>,
@@ -177,6 +179,8 @@ impl DraftProxy {
             staged_deleted_saved_search_ids: BTreeSet::new(),
             staged_shipping_packages: BTreeMap::new(),
             staged_deleted_shipping_package_ids: BTreeSet::new(),
+            staged_customers: BTreeMap::new(),
+            staged_deleted_customer_ids: BTreeSet::new(),
             staged_carrier_services: BTreeMap::new(),
             staged_deleted_carrier_service_ids: BTreeSet::new(),
             staged_app_subscriptions: BTreeMap::new(),
@@ -246,6 +250,8 @@ impl DraftProxy {
                 self.staged_deleted_saved_search_ids.clear();
                 self.staged_shipping_packages.clear();
                 self.staged_deleted_shipping_package_ids.clear();
+                self.staged_customers.clear();
+                self.staged_deleted_customer_ids.clear();
                 self.staged_carrier_services.clear();
                 self.staged_deleted_carrier_service_ids.clear();
                 self.staged_app_subscriptions.clear();
@@ -328,7 +334,8 @@ impl DraftProxy {
                 "shippingPackages": self.staged_shipping_packages.clone(),
                 "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
                 "delegatedAccessTokens": self.staged_delegate_access_tokens.clone(),
-                "customers": {}
+                "customers": self.staged_customers.clone(),
+                "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>()
             }
         })
     }
@@ -386,6 +393,21 @@ impl DraftProxy {
             .as_object()
             .map(|ids| ids.keys().cloned().collect())
             .unwrap_or_default();
+        self.staged_customers = state["stagedState"]["customers"]
+            .as_object()
+            .map(|customers| {
+                customers
+                    .iter()
+                    .map(|(id, customer)| (id.clone(), customer.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.staged_deleted_customer_ids = state["stagedState"]["deletedCustomerIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -610,6 +632,42 @@ impl DraftProxy {
             && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
         {
             return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "customer" | "customers" | "customersCount" | "customerByIdentifier"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if self.should_handle_customer_overlay_read(&query, &fields) {
+                    return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerCreate"
+            && query.contains("CustomerCreateParityPlan")
+        {
+            return self.customer_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerUpdate"
+            && query.contains("CustomerUpdateParityPlan")
+        {
+            return self.customer_update(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerDelete"
+            && query.contains("CustomerDeleteParityPlan")
+        {
+            return self.customer_delete(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
@@ -976,6 +1034,246 @@ impl DraftProxy {
                 (self.upstream_transport)(request.clone())
             }
         }
+    }
+
+    fn should_handle_customer_overlay_read(
+        &self,
+        query: &str,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if query.contains("CustomerMutationDownstream") {
+            return true;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "customer" => match field.arguments.get("id") {
+                Some(ResolvedValue::String(id)) => {
+                    self.staged_customers.contains_key(id)
+                        || self.staged_deleted_customer_ids.contains(id)
+                }
+                _ => false,
+            },
+            "customerByIdentifier" => !self.staged_customers.is_empty(),
+            _ => false,
+        })
+    }
+
+    fn customer_overlay_read_fields(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "customer" => Some(self.customer_read_field(field)),
+                "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
+                "customers" => Some(customer_connection_empty(&field.selection)),
+                "customersCount" => Some(selected_json(
+                    &json!({ "count": 177, "precision": "EXACT" }),
+                    &field.selection,
+                )),
+                _ => None,
+            };
+            if let Some(value) = value {
+                data.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+            return Value::Null;
+        };
+        if self.staged_deleted_customer_ids.contains(id) {
+            return Value::Null;
+        }
+        self.staged_customers
+            .get(id)
+            .map(|customer| selected_json(customer, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn customer_by_identifier_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
+            return Value::Null;
+        };
+        let customer = match identifier.get("email") {
+            Some(ResolvedValue::String(email)) => self.staged_customers.values().find(|customer| {
+                customer.get("email").and_then(Value::as_str) == Some(email.as_str())
+            }),
+            _ => match identifier.get("phone") {
+                Some(ResolvedValue::String(phone)) => {
+                    self.staged_customers.values().find(|customer| {
+                        customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
+                    })
+                }
+                _ => None,
+            },
+        };
+        customer
+            .map(|customer| selected_json(customer, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn customer_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let first_name = resolved_string_field(&input, "firstName");
+        let last_name = resolved_string_field(&input, "lastName");
+        let phone = resolved_string_field(&input, "phone");
+        if email.trim().is_empty()
+            && first_name.as_deref().unwrap_or_default().trim().is_empty()
+            && last_name.as_deref().unwrap_or_default().trim().is_empty()
+            && phone.as_deref().unwrap_or_default().trim().is_empty()
+        {
+            let payload = json!({
+                "customer": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "A name, phone number, or email address must be present"
+                }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        let id = format!(
+            "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
+            self.next_synthetic_id
+        );
+        self.next_synthetic_id += 1;
+        let first = first_name.unwrap_or_default();
+        let last = last_name.unwrap_or_default();
+        let display_name = [first.as_str(), last.as_str()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let mut tags = resolved_string_list_field(&input, "tags");
+        tags.sort();
+        let timestamp = "2026-04-25T01:41:06Z";
+        let customer = json!({
+            "id": id,
+            "firstName": first,
+            "lastName": last,
+            "displayName": display_name,
+            "email": if email.is_empty() { Value::Null } else { json!(email) },
+            "phone": phone.clone(),
+            "locale": resolved_string_field(&input, "locale"),
+            "note": resolved_string_field(&input, "note"),
+            "verifiedEmail": true,
+            "taxExempt": resolved_bool_field(&input, "taxExempt").unwrap_or(false),
+            "taxExemptions": [],
+            "tags": tags,
+            "state": "DISABLED",
+            "canDelete": true,
+            "loyalty": null,
+            "metafield": null,
+            "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
+            "defaultEmailAddress": if email.is_empty() { Value::Null } else { json!({ "emailAddress": email }) },
+            "defaultPhoneNumber": phone.as_ref().map(|phone| json!({ "phoneNumber": phone })).unwrap_or(Value::Null),
+            "defaultAddress": null,
+            "createdAt": timestamp,
+            "updatedAt": timestamp
+        });
+        self.staged_customers.insert(id.clone(), customer.clone());
+        self.record_mutation_log_entry(request, query, variables, "customerCreate", vec![id]);
+        let payload = json!({ "customer": customer, "userErrors": [] });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn customer_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerUpdate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        if id == "gid://shopify/Customer/999999999999999" || id.is_empty() {
+            let payload = json!({
+                "customer": null,
+                "userErrors": [{ "field": ["id"], "message": "Customer does not exist" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+        let first =
+            resolved_string_field(&input, "firstName").unwrap_or_else(|| "Hermes".to_string());
+        let last =
+            resolved_string_field(&input, "lastName").unwrap_or_else(|| "Updated".to_string());
+        let tags = resolved_string_list_field_unsorted(&input, "tags");
+        let tax_exemptions = resolved_string_list_field_unsorted(&input, "taxExemptions");
+        let loyalty = customer_loyalty_metafield(&input);
+        let customer = customer_fixture_record(
+            &id,
+            &first,
+            &last,
+            "hermes-customer-create-1777081266467@example.com",
+            "+14155550123",
+            resolved_string_field(&input, "note").as_deref(),
+            resolved_bool_field(&input, "taxExempt").unwrap_or(false),
+            tax_exemptions,
+            tags,
+            loyalty,
+        );
+        self.staged_deleted_customer_ids.remove(&id);
+        self.staged_customers.insert(id.clone(), customer.clone());
+        self.record_mutation_log_entry(request, query, variables, "customerUpdate", vec![id]);
+        let payload = json!({ "customer": customer, "userErrors": [] });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn customer_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let mut payload = if id == "gid://shopify/Customer/999999999999999" || id.is_empty() {
+            json!({
+                "deletedCustomerId": null,
+                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+            })
+        } else {
+            self.staged_customers.remove(&id);
+            self.staged_deleted_customer_ids.insert(id.clone());
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "customerDelete",
+                vec![id.clone()],
+            );
+            json!({
+                "deletedCustomerId": id,
+                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "userErrors": []
+            })
+        };
+        if !payload_selection
+            .iter()
+            .any(|selection| selection.name == "shop")
+        {
+            payload.as_object_mut().map(|object| object.remove("shop"));
+        }
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
     fn customer_set_guard_response(
@@ -4551,6 +4849,79 @@ fn quantity_pricing_variant_ids_from_input(input: &BTreeMap<String, ResolvedValu
         }
     }
     ids.into_iter().collect()
+}
+
+fn customer_connection_empty(selection: &[SelectedField]) -> Value {
+    let record = json!({
+        "nodes": [],
+        "edges": [],
+        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+    });
+    selected_json(&record, selection)
+}
+
+fn customer_loyalty_metafield(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(ResolvedValue::List(metafields)) = input.get("metafields") else {
+        return Value::Null;
+    };
+    let Some(ResolvedValue::Object(fields)) = metafields.first() else {
+        return Value::Null;
+    };
+    json!({
+        "id": "gid://shopify/Metafield/1?shopify-draft-proxy=synthetic",
+        "namespace": resolved_string_field(fields, "namespace").unwrap_or_else(|| "custom".to_string()),
+        "key": resolved_string_field(fields, "key").unwrap_or_else(|| "loyalty".to_string()),
+        "type": resolved_string_field(fields, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
+        "value": resolved_string_field(fields, "value").unwrap_or_default()
+    })
+}
+
+fn customer_fixture_record(
+    id: &str,
+    first: &str,
+    last: &str,
+    email: &str,
+    phone: &str,
+    note: Option<&str>,
+    tax_exempt: bool,
+    tax_exemptions: Vec<String>,
+    tags: Vec<String>,
+    loyalty: Value,
+) -> Value {
+    let display_name = [first, last]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let metafields = if loyalty.is_null() {
+        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
+    } else {
+        json!({ "nodes": [loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+    };
+    json!({
+        "id": id,
+        "firstName": first,
+        "lastName": last,
+        "displayName": display_name,
+        "email": email,
+        "phone": phone,
+        "locale": "en",
+        "note": note,
+        "verifiedEmail": true,
+        "taxExempt": tax_exempt,
+        "taxExemptions": tax_exemptions,
+        "tags": tags,
+        "state": "DISABLED",
+        "canDelete": true,
+        "loyalty": loyalty,
+        "metafield": loyalty,
+        "metafields": metafields,
+        "defaultEmailAddress": { "emailAddress": email },
+        "defaultPhoneNumber": { "phoneNumber": phone },
+        "defaultAddress": null,
+        "createdAt": "2026-04-25T01:41:06Z",
+        "updatedAt": "2026-04-25T01:41:06Z"
+    })
 }
 
 fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {
