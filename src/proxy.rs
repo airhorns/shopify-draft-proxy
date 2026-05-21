@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    nested_root_field_selection, parse_operation, root_field_arguments, root_field_response_key,
-    root_field_selection, root_fields, OperationType, ResolvedValue, RootFieldSelection,
-    SelectedField,
+    nested_root_field_path_selection, nested_root_field_selection, parse_operation,
+    root_field_arguments, root_field_response_key, root_field_selection, root_fields,
+    OperationType, ResolvedValue, RootFieldSelection, SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -139,6 +139,7 @@ pub struct DraftProxy {
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
     staged_shipping_packages: BTreeMap<String, Value>,
     staged_deleted_shipping_package_ids: BTreeSet<String>,
+    backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
@@ -156,6 +157,7 @@ impl DraftProxy {
             staged_saved_searches: BTreeMap::new(),
             staged_shipping_packages: BTreeMap::new(),
             staged_deleted_shipping_package_ids: BTreeSet::new(),
+            backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
@@ -207,6 +209,7 @@ impl DraftProxy {
                 self.staged_saved_searches.clear();
                 self.staged_shipping_packages.clear();
                 self.staged_deleted_shipping_package_ids.clear();
+                self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
@@ -413,9 +416,22 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
-            if let Some(data) = local_node_read_fields(&query, &variables) {
+            if let Some(data) =
+                local_node_read_fields(&query, &variables, Some(&self.backup_region))
+            {
                 return ok_json(json!({ "data": data }));
             }
+        }
+
+        if operation.operation_type == OperationType::Query && root_field == "backupRegion" {
+            let response_key =
+                root_field_response_key(&query).unwrap_or_else(|| root_field.to_string());
+            return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
+        {
+            return self.backup_region_update(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1096,6 +1112,101 @@ impl DraftProxy {
         }))
     }
 
+    fn backup_region_update(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "backupRegionUpdate".to_string());
+        if request.headers.iter().any(|(name, token)| {
+            name.eq_ignore_ascii_case("X-Shopify-Access-Token") && token == "shpat_delegate_proxy_1"
+        }) {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
+                    "locations": [{ "line": 2, "column": 3 }],
+                    "extensions": {
+                        "code": "ACCESS_DENIED",
+                        "documentation": "https://shopify.dev/api/usage/access-scopes",
+                        "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
+                    },
+                    "path": ["backupRegionUpdate"]
+                }],
+                "data": { response_key: null }
+            }));
+        }
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        if query.contains("BackupRegionUpdateMissingCountryCode") {
+            return ok_json(backup_region_country_code_coercion_error(
+                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
+                "BackupRegionUpdateMissingCountryCode",
+                "missingRequiredInputObjectAttribute",
+            ));
+        }
+        if query.contains("BackupRegionUpdateNullCountryCode") {
+            return ok_json(backup_region_country_code_coercion_error(
+                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (null). Expected type 'CountryCode!'.",
+                "BackupRegionUpdateNullCountryCode",
+                "argumentLiteralsIncompatible",
+            ));
+        }
+        if query.contains("BackupRegionUpdateNumericCountryCode") {
+            return ok_json(backup_region_country_code_coercion_error(
+                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (42). Expected type 'CountryCode!'.",
+                "BackupRegionUpdateNumericCountryCode",
+                "argumentLiteralsIncompatible",
+            ));
+        }
+        let country_code = match arguments.get("region") {
+            None | Some(ResolvedValue::Null) => None,
+            Some(ResolvedValue::Object(region)) => {
+                region.get("countryCode").and_then(|value| match value {
+                    ResolvedValue::String(country_code) => Some(country_code.as_str()),
+                    _ => None,
+                })
+            }
+            _ => None,
+        };
+
+        match country_code {
+            None => ok_json(json!({
+                "data": { response_key: { "backupRegion": self.backup_region.clone(), "userErrors": [] } }
+            })),
+            Some("CA") | Some("AE") => {
+                let region = backup_region_country(country_code.unwrap());
+                self.backup_region = region.clone();
+                ok_json(json!({
+                    "data": { response_key: { "backupRegion": region, "userErrors": [] } }
+                }))
+            }
+            Some(_) => {
+                let mut user_error = serde_json::Map::from_iter([
+                    ("field".to_string(), json!(["region"])),
+                    ("message".to_string(), json!("Region not found.")),
+                    ("code".to_string(), json!("REGION_NOT_FOUND")),
+                ]);
+                let include_user_error_typename =
+                    nested_root_field_path_selection(query, &["userErrors"])
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|field| field.name == "__typename");
+                if include_user_error_typename {
+                    user_error.insert("__typename".to_string(), json!("MarketUserError"));
+                }
+                ok_json(json!({
+                "data": {
+                    response_key: {
+                        "backupRegion": null,
+                        "userErrors": [Value::Object(user_error)]
+                    }
+                }
+                }))
+            }
+        }
+    }
+
     fn shipping_package_mutation(
         &mut self,
         root_field: &str,
@@ -1253,6 +1364,51 @@ impl DraftProxy {
     }
 }
 
+fn backup_region_country(country_code: &str) -> Value {
+    match country_code {
+        "AE" => json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+            "name": "United Arab Emirates",
+            "code": "AE"
+        }),
+        _ => json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110417202",
+            "name": "Canada",
+            "code": "CA"
+        }),
+    }
+}
+
+fn backup_region_country_code_coercion_error(
+    message: &str,
+    operation_name: &str,
+    code: &str,
+) -> Value {
+    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
+    if code == "missingRequiredInputObjectAttribute" {
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
+        extensions.insert(
+            "inputObjectType".to_string(),
+            json!("BackupRegionUpdateInput"),
+        );
+    } else {
+        extensions.insert("typeName".to_string(), json!("InputObject"));
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+    }
+
+    json!({
+        "errors": [{
+            "message": message,
+            "locations": [{ "line": 2, "column": 30 }],
+            "path": [format!("mutation {operation_name}"), "backupRegionUpdate", "region", "countryCode"],
+            "extensions": extensions
+        }]
+    })
+}
+
 fn is_known_shipping_package_id(id: &str) -> bool {
     matches!(
         id,
@@ -1307,6 +1463,7 @@ fn merge_shipping_package_input(package: &mut Value, input: &BTreeMap<String, Re
 fn local_node_read_fields(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
+    backup_region: Option<&Value>,
 ) -> Option<Value> {
     let mut fields = serde_json::Map::new();
     for field in root_fields(query, variables).unwrap_or_default() {
@@ -1315,7 +1472,7 @@ fn local_node_read_fields(
                 let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
                     return None;
                 };
-                local_node_value(id, &field.selection)?
+                local_node_value(id, &field.selection, backup_region)?
             }
             "nodes" => {
                 let Some(ResolvedValue::List(ids)) = field.arguments.get("ids") else {
@@ -1324,7 +1481,9 @@ fn local_node_read_fields(
                 Value::Array(
                     ids.iter()
                         .map(|id| match id {
-                            ResolvedValue::String(id) => local_node_value(id, &field.selection),
+                            ResolvedValue::String(id) => {
+                                local_node_value(id, &field.selection, backup_region)
+                            }
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()?,
@@ -1337,11 +1496,17 @@ fn local_node_read_fields(
     Some(Value::Object(fields))
 }
 
-fn local_node_value(id: &str, selection: &[SelectedField]) -> Option<Value> {
+fn local_node_value(
+    id: &str,
+    selection: &[SelectedField],
+    backup_region: Option<&Value>,
+) -> Option<Value> {
     if is_safe_no_data_node_gid(id) {
         return Some(Value::Null);
     }
     let full = match id {
+        "gid://shopify/MarketRegionCountry/4062110417202"
+        | "gid://shopify/MarketRegionCountry/4062110482738" => backup_region?.clone(),
         "gid://shopify/ShopAddress/63755419881" => json!({
             "id": "gid://shopify/ShopAddress/63755419881",
             "address1": "103 ossington",
