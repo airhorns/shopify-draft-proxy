@@ -994,6 +994,23 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("DiscountBxgyNumericValidation")
+            && matches!(
+                root_field,
+                "discountCodeBxgyCreate"
+                    | "discountCodeBxgyUpdate"
+                    | "discountAutomaticBxgyCreate"
+                    | "discountAutomaticBxgyUpdate"
+            )
+        {
+            if let Some(response) =
+                discount_bxgy_numeric_validation_response(root_field, &query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
                 "discountCodeActivate"
@@ -4961,6 +4978,300 @@ fn resolved_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value
 
 fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
+}
+
+fn discount_bxgy_numeric_validation_response(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let is_code = root_field.starts_with("discountCode");
+    let is_create = root_field.ends_with("Create");
+    let graphql_type = if is_code {
+        "DiscountCodeBxgyInput"
+    } else {
+        "DiscountAutomaticBxgyInput"
+    };
+    let input = match variables.get("input") {
+        Some(ResolvedValue::Object(input)) => input,
+        _ => return None,
+    };
+
+    if let Some(error) = discount_bxgy_variable_error(input, is_code, is_create, graphql_type) {
+        return Some(ok_json(json!({ "errors": [error] })));
+    }
+
+    let prefix = if is_code {
+        "bxgyCodeDiscount"
+    } else {
+        "automaticBxgyDiscount"
+    };
+    let node_key = if is_code {
+        "codeDiscountNode"
+    } else {
+        "automaticDiscountNode"
+    };
+    let node_id = if is_code {
+        "gid://shopify/DiscountCodeNode/1640810610994"
+    } else {
+        "gid://shopify/DiscountAutomaticNode/1640810643762"
+    };
+
+    let user_error = discount_bxgy_user_error(input, prefix);
+    let payload = if let Some(error) = user_error {
+        discount_bxgy_payload(node_key, None, json!([error]))
+    } else {
+        discount_bxgy_payload(node_key, Some(node_id), json!([]))
+    };
+
+    let fields = root_fields(query, variables)?;
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name == root_field {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+    }
+    Some(ok_json(json!({ "data": Value::Object(data) })))
+}
+
+fn discount_bxgy_variable_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    is_code: bool,
+    is_create: bool,
+    graphql_type: &str,
+) -> Option<Value> {
+    let column = match (is_code, is_create) {
+        (true, true) => 50,
+        (true, false) => 60,
+        (false, true) => 55,
+        (false, false) => 65,
+    };
+
+    if let Some(value) = input.get("usesPerOrderLimit") {
+        match (is_code, value) {
+            (true, ResolvedValue::String(raw)) => {
+                return Some(discount_bxgy_invalid_variable(
+                    graphql_type,
+                    "usesPerOrderLimit",
+                    vec!["usesPerOrderLimit"],
+                    format!("Could not coerce value \"{raw}\" to Int"),
+                    false,
+                    column,
+                ));
+            }
+            (false, ResolvedValue::String(raw)) => match raw.parse::<i64>() {
+                Ok(n) if n >= 0 => {}
+                Ok(n) => {
+                    return Some(discount_bxgy_invalid_variable(
+                        graphql_type,
+                        "usesPerOrderLimit",
+                        vec!["usesPerOrderLimit"],
+                        format!("UnsignedInt64 '{n}' is out of range"),
+                        true,
+                        column,
+                    ));
+                }
+                Err(_) => {
+                    return Some(discount_bxgy_invalid_variable(
+                        graphql_type,
+                        "usesPerOrderLimit",
+                        vec!["usesPerOrderLimit"],
+                        format!("UnsignedInt64 invalid value '{raw}'"),
+                        true,
+                        column,
+                    ));
+                }
+            },
+            (false, ResolvedValue::Int(n)) if *n < 0 => {
+                return Some(discount_bxgy_invalid_variable(
+                    graphql_type,
+                    "usesPerOrderLimit",
+                    vec!["usesPerOrderLimit"],
+                    format!("UnsignedInt64 '{n}' is out of range"),
+                    true,
+                    column,
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    for (path, label) in [
+        (
+            vec!["customerBuys", "value", "quantity"],
+            "customerBuys.value.quantity",
+        ),
+        (
+            vec!["customerGets", "value", "discountOnQuantity", "quantity"],
+            "customerGets.value.discountOnQuantity.quantity",
+        ),
+    ] {
+        if let Some(value) =
+            resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &path)
+        {
+            match value {
+                ResolvedValue::String(raw) if raw.contains('.') => {
+                    return Some(discount_bxgy_invalid_variable(
+                        graphql_type,
+                        label,
+                        path,
+                        format!("UnsignedInt64 invalid value '{raw}'"),
+                        true,
+                        column,
+                    ));
+                }
+                ResolvedValue::String(raw) if raw.starts_with('-') => {
+                    return Some(discount_bxgy_invalid_variable(
+                        graphql_type,
+                        label,
+                        path,
+                        format!("UnsignedInt64 '{raw}' is out of range"),
+                        true,
+                        column,
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+fn discount_bxgy_invalid_variable(
+    graphql_type: &str,
+    label: &str,
+    path: Vec<&str>,
+    explanation: String,
+    include_problem_message: bool,
+    column: i64,
+) -> Value {
+    let mut problem = serde_json::Map::new();
+    problem.insert("path".to_string(), json!(path));
+    problem.insert("explanation".to_string(), json!(explanation));
+    if include_problem_message {
+        problem.insert("message".to_string(), problem["explanation"].clone());
+    }
+    json!({
+        "message": format!("Variable $input of type {graphql_type}! was provided invalid value for {label} ({})", problem["explanation"].as_str().unwrap_or_default()),
+        "locations": [{ "line": 1, "column": column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "problems": [Value::Object(problem)]
+        }
+    })
+}
+
+fn discount_bxgy_user_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    prefix: &str,
+) -> Option<Value> {
+    if let Some(value) = input.get("usesPerOrderLimit") {
+        if let Some(n) = resolved_i64(value) {
+            if n == 0 {
+                return Some(discount_user_error(
+                    vec![prefix, "usesPerOrderLimit"],
+                    "Allocation limit cannot be zero",
+                    "VALUE_OUTSIDE_RANGE",
+                ));
+            }
+            if n < 0 {
+                return Some(discount_user_error(
+                    vec![prefix, "usesPerOrderLimit"],
+                    "Allocation limit must be greater than 0",
+                    "GREATER_THAN",
+                ));
+            }
+            if n > 2_147_483_647 {
+                return Some(discount_user_error(
+                    vec![prefix, "usesPerOrderLimit"],
+                    "Allocation limit must be less than or equal to 2147483647",
+                    "LESS_THAN_OR_EQUAL_TO",
+                ));
+            }
+        }
+    }
+
+    if let Some(n) = resolved_i64_path(input, &["customerBuys", "value", "quantity"]) {
+        if n == 0 {
+            return Some(discount_user_error(
+                vec![prefix, "customerBuys", "value", "quantity"],
+                "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
+                "GREATER_THAN",
+            ));
+        }
+        if n >= 100_000 {
+            return Some(discount_user_error(
+                vec![prefix, "customerBuys", "value", "quantity"],
+                "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
+                "LESS_THAN",
+            ));
+        }
+    }
+
+    if let Some(n) = resolved_i64_path(
+        input,
+        &["customerGets", "value", "discountOnQuantity", "quantity"],
+    ) {
+        if n == 0 {
+            return Some(discount_user_error(
+                vec![
+                    prefix,
+                    "customerGets",
+                    "value",
+                    "discountOnQuantity",
+                    "quantity",
+                ],
+                "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
+                "GREATER_THAN",
+            ));
+        }
+        if n >= 100_000 {
+            return Some(discount_user_error(
+                vec![
+                    prefix,
+                    "customerGets",
+                    "value",
+                    "discountOnQuantity",
+                    "quantity",
+                ],
+                "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
+                "LESS_THAN",
+            ));
+        }
+    }
+    None
+}
+
+fn resolved_i64_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<i64> {
+    resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path).and_then(resolved_i64)
+}
+
+fn resolved_i64(value: &ResolvedValue) -> Option<i64> {
+    match value {
+        ResolvedValue::Int(n) => Some(*n),
+        ResolvedValue::String(raw) => raw.parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code,
+        "extraInfo": null
+    })
+}
+
+fn discount_bxgy_payload(node_key: &str, node_id: Option<&str>, user_errors: Value) -> Value {
+    let node = node_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null);
+    let mut object = serde_json::Map::new();
+    object.insert(node_key.to_string(), node);
+    object.insert("userErrors".to_string(), user_errors);
+    Value::Object(object)
 }
 
 fn discount_basic_disallowed_quantity_data(

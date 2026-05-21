@@ -6120,3 +6120,117 @@ fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
         json!("discountOnQuantity field is only permitted with bxgy discounts.")
     );
 }
+
+#[test]
+fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
+    let mut proxy = snapshot_proxy();
+
+    let code_query = r#"
+        mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let automatic_query = r#"
+        mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {
+          discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+
+    let mut base = json!({
+        "title": "Conformance BXGY code SETUP 1778195290726",
+        "code": "BXGYNSETUP1778195290726",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+    });
+
+    let setup = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        setup.body["data"]["discountCodeBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        setup.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640810610994")
+    );
+
+    base["usesPerOrderLimit"] = json!(0);
+    let uses_zero = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        uses_zero.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        uses_zero.body["data"]["discountCodeBxgyCreate"]["userErrors"][0],
+        json!({
+            "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+            "message": "Allocation limit cannot be zero",
+            "code": "VALUE_OUTSIDE_RANGE",
+            "extraInfo": null
+        })
+    );
+
+    base["usesPerOrderLimit"] = json!("1.5");
+    let uses_float = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        uses_float.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        uses_float.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!(["usesPerOrderLimit"])
+    );
+
+    base.as_object_mut().unwrap().remove("usesPerOrderLimit");
+    base["customerBuys"]["value"]["quantity"] = json!("100000");
+    let buy_too_large = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        buy_too_large.body["data"]["discountCodeBxgyCreate"]["userErrors"][0]["message"],
+        json!("Prerequisite to entitlement quantity ratio antecedent must be less than 100000")
+    );
+
+    base["customerBuys"]["value"]["quantity"] = json!("1");
+    base["customerGets"]["value"]["discountOnQuantity"]["quantity"] = json!("0");
+    let get_zero = proxy.process_request(json_graphql_request(
+        automatic_query,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640810643762", "input": base.clone() }),
+    ));
+    assert_eq!(
+        get_zero.body["data"]["discountAutomaticBxgyUpdate"]["userErrors"][0]["field"],
+        json!([
+            "automaticBxgyDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity",
+            "quantity"
+        ])
+    );
+
+    base["customerGets"]["value"]["discountOnQuantity"]["quantity"] = json!("2");
+    let ratio_ok = proxy.process_request(json_graphql_request(
+        automatic_query,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640810643762", "input": base }),
+    ));
+    assert_eq!(
+        ratio_ok.body["data"]["discountAutomaticBxgyUpdate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1640810643762")
+    );
+    assert_eq!(
+        ratio_ok.body["data"]["discountAutomaticBxgyUpdate"]["userErrors"],
+        json!([])
+    );
+}
