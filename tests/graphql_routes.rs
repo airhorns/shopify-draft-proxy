@@ -499,6 +499,254 @@ fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_state
 }
 
 #[test]
+fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
+    let mut proxy = snapshot_proxy();
+    let open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
+          fulfillmentOrderOpen(id: $id) {
+            fulfillmentOrder { id status updatedAt supportedActions { action } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
+    ));
+    assert_eq!(
+        open.body["data"]["fulfillmentOrderOpen"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment order must be scheduled.",
+                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }]
+        })
+    );
+
+    let after_open = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10, includeClosed: true) {
+              nodes { id status updatedAt supportedActions { action } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
+    ));
+    assert_eq!(
+        after_open.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/status-precondition-open-closed",
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+                "status": "CLOSED",
+                "updatedAt": "2026-05-11T10:00:00Z",
+                "supportedActions": []
+            }] }
+        })
+    );
+
+    let progress = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderStatusPreconditionReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+          fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+            fulfillmentOrder { id status updatedAt supportedActions { action } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+            "progressReport": { "reasonNotes": "local-runtime progress precondition" }
+        }),
+    ));
+    assert_eq!(
+        progress.body["data"]["fulfillmentOrderReportProgress"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment order must be in progress.",
+                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }]
+        })
+    );
+
+    let after_progress = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10, includeClosed: true) {
+              nodes { id status updatedAt supportedActions { action } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+    ));
+    assert_eq!(
+        after_progress.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "status": "SCHEDULED",
+                "updatedAt": "2026-05-11T10:05:00Z",
+                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
+            }] }
+        })
+    );
+}
+
+#[test]
+fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
+    let mut proxy = snapshot_proxy();
+    let read_query = r#"
+        query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {
+          order(id: $id) {
+            id name displayFulfillmentStatus
+            fulfillmentOrders(first: 10) { nodes { id status fulfillBy } }
+          }
+        }
+    "#;
+    let mutation = r#"
+        mutation FulfillmentOrdersSetDeadlineValidation($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+          fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $fulfillmentOrderIds, fulfillmentDeadline: $fulfillmentDeadline) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["base"],
+                "message": "The fulfillment orders could not be found.",
+                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+            }]
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        mixed.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
+    );
+
+    let after_mixed = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+    ));
+    assert_eq!(
+        after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
+        json!(null)
+    );
+
+    for id in [
+        "gid://shopify/FulfillmentOrder/deadline-closed",
+        "gid://shopify/FulfillmentOrder/deadline-cancelled",
+    ] {
+        let rejected = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({
+                "fulfillmentOrderIds": [id],
+                "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+            }),
+        ));
+        assert_eq!(
+            rejected.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+            json!({
+                "success": false,
+                "userErrors": [{
+                    "field": ["base"],
+                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+                    "code": null
+                }]
+            })
+        );
+    }
+
+    let happy = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/deadline-open-b"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        happy.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let after_happy = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+    ));
+    assert_eq!(
+        after_happy.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/deadline-validation",
+            "name": "#DEADLINE-VALIDATION",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "fulfillmentOrders": { "nodes": [
+                { "id": "gid://shopify/FulfillmentOrder/deadline-open-a", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-open-b", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-closed", "status": "CLOSED", "fulfillBy": null },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-cancelled", "status": "CANCELLED", "fulfillBy": null }
+            ] }
+        })
+    );
+}
+
+#[test]
+fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_status() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderRequestDirectRead($id: ID!) {
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            requestStatus
+            merchantRequests(first: 10) { nodes { kind message requestOptions responseData } }
+            lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id title } } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentOrder/9656703910194" }),
+    ));
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["requestStatus"],
+        json!("SUBMITTED")
+    );
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["merchantRequests"]["nodes"][0]["message"],
+        json!("Hermes partial submit")
+    );
+}
+
+#[test]
 fn store_property_node_reads_resolve_known_shop_records_locally() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
     let query = r#"

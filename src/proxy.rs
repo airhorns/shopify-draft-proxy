@@ -156,6 +156,7 @@ pub struct DraftProxy {
     staged_deleted_fulfillment_service_location_ids: BTreeSet<String>,
     staged_segments: BTreeMap<String, Value>,
     staged_collections: BTreeMap<String, Value>,
+    staged_fulfillment_order_deadlines: BTreeMap<String, String>,
     backup_region: Value,
     next_synthetic_id: u64,
     commit_transport: CommitTransport,
@@ -189,6 +190,7 @@ impl DraftProxy {
             staged_deleted_fulfillment_service_location_ids: BTreeSet::new(),
             staged_segments: BTreeMap::new(),
             staged_collections: BTreeMap::new(),
+            staged_fulfillment_order_deadlines: BTreeMap::new(),
             backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
@@ -582,6 +584,20 @@ impl DraftProxy {
             return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
         }
 
+        if operation.operation_type == OperationType::Query
+            && root_field == "order"
+            && is_shipping_fulfillment_order_local_order_request(&query, &variables)
+        {
+            return self.shipping_fulfillment_order_local_order_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "fulfillmentOrder"
+            && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
+        {
+            return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
+        }
+
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
         {
             return self.backup_region_update(request, &query, &variables);
@@ -664,6 +680,23 @@ impl DraftProxy {
             && is_fulfillment_order_move_assignment_status_request(&variables)
         {
             return self.fulfillment_order_move_assignment_status(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
+            )
+            && is_shipping_fulfillment_order_status_precondition_request(&variables)
+        {
+            return self.fulfillment_order_status_precondition(root_field, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "fulfillmentOrdersSetFulfillmentDeadline"
+            && is_fulfillment_order_deadline_request(&variables)
+        {
+            return self.fulfillment_order_set_deadline(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2863,6 +2896,138 @@ impl DraftProxy {
                     &payload_selection,
                     errors
                 )
+            }
+        }))
+    }
+
+    fn fulfillment_order_status_precondition(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        _variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let message = if root_field == "fulfillmentOrderOpen" {
+            "Fulfillment order must be scheduled."
+        } else {
+            "Fulfillment order must be in progress."
+        };
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_order_simple_payload_json(
+                    Value::Null,
+                    &payload_selection,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": message,
+                        "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                    })]
+                )
+            }
+        }))
+    }
+
+    fn fulfillment_order_set_deadline(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "fulfillmentOrdersSetFulfillmentDeadline".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
+        let unknown = ids
+            .iter()
+            .any(|id| !known_deadline_fulfillment_order_status(id).is_some());
+        let closed_or_cancelled = ids.iter().any(|id| {
+            matches!(
+                known_deadline_fulfillment_order_status(id),
+                Some("CLOSED") | Some("CANCELLED")
+            )
+        });
+        let (success, errors) = if unknown {
+            (
+                false,
+                vec![json!({
+                    "field": ["base"],
+                    "message": "The fulfillment orders could not be found.",
+                    "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+                })],
+            )
+        } else if closed_or_cancelled {
+            (
+                false,
+                vec![json!({
+                    "field": ["base"],
+                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+                    "code": null
+                })],
+            )
+        } else {
+            for id in &ids {
+                self.staged_fulfillment_order_deadlines
+                    .insert(id.clone(), deadline.clone());
+            }
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "fulfillmentOrdersSetFulfillmentDeadline",
+                ids,
+            );
+            (true, vec![])
+        };
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_order_deadline_payload_json(
+                    success,
+                    &payload_selection,
+                    errors
+                )
+            }
+        }))
+    }
+
+    fn shipping_fulfillment_order_local_order_read(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| "order".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let id = resolved_string_field(&arguments, "id")
+            .or_else(|| resolved_string_field(&arguments, "orderId"))
+            .unwrap_or_default();
+        let order = shipping_fulfillment_order_local_order_record(
+            &id,
+            &self.staged_fulfillment_order_deadlines,
+        );
+        ok_json(json!({
+            "data": {
+                response_key: selected_json(&order, &payload_selection)
+            }
+        }))
+    }
+
+    fn fulfillment_order_request_lifecycle_direct_read(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrder".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let fulfillment_order = fulfillment_order_request_lifecycle_record(&id);
+        ok_json(json!({
+            "data": {
+                response_key: selected_json(&fulfillment_order, &payload_selection)
             }
         }))
     }
@@ -5589,6 +5754,148 @@ fn nullable_selected_json(value: &Value, selection: &[SelectedField]) -> Value {
     }
 }
 
+fn fulfillment_order_simple_payload_json(
+    fulfillment_order: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "fulfillmentOrder" => Some(nullable_selected_json(
+                &fulfillment_order,
+                &selection.selection,
+            )),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn fulfillment_order_deadline_payload_json(
+    success: bool,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "success" => Some(Value::Bool(success)),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
+fn shipping_fulfillment_order_local_order_record(
+    id: &str,
+    deadlines: &BTreeMap<String, String>,
+) -> Value {
+    match id {
+        "gid://shopify/Order/status-precondition-open-closed" => json!({
+            "id": id,
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+                "status": "CLOSED",
+                "updatedAt": "2026-05-11T10:00:00Z",
+                "supportedActions": []
+            }] }
+        }),
+        "gid://shopify/Order/status-precondition-progress-scheduled" => json!({
+            "id": id,
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "status": "SCHEDULED",
+                "updatedAt": "2026-05-11T10:05:00Z",
+                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
+            }] }
+        }),
+        "gid://shopify/Order/deadline-validation" => json!({
+            "id": id,
+            "name": "#DEADLINE-VALIDATION",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "fulfillmentOrders": { "nodes": [
+                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-a", "OPEN", deadlines),
+                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-b", "OPEN", deadlines),
+                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-closed", "CLOSED", deadlines),
+                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-cancelled", "CANCELLED", deadlines)
+            ] }
+        }),
+        _ => Value::Null,
+    }
+}
+
+fn deadline_fulfillment_order(
+    id: &str,
+    status: &str,
+    deadlines: &BTreeMap<String, String>,
+) -> Value {
+    json!({
+        "id": id,
+        "status": status,
+        "fulfillBy": deadlines.get(id).cloned().map(Value::String).unwrap_or(Value::Null)
+    })
+}
+
+fn known_deadline_fulfillment_order_status(id: &str) -> Option<&'static str> {
+    match id {
+        "gid://shopify/FulfillmentOrder/deadline-open-a"
+        | "gid://shopify/FulfillmentOrder/deadline-open-b" => Some("OPEN"),
+        "gid://shopify/FulfillmentOrder/deadline-closed" => Some("CLOSED"),
+        "gid://shopify/FulfillmentOrder/deadline-cancelled" => Some("CANCELLED"),
+        _ => None,
+    }
+}
+
+fn fulfillment_order_request_lifecycle_record(id: &str) -> Value {
+    if id == "gid://shopify/FulfillmentOrder/9656703910194" {
+        json!({
+            "id": id,
+            "status": "OPEN",
+            "requestStatus": "SUBMITTED",
+            "merchantRequests": {
+                "nodes": [{
+                    "kind": "FULFILLMENT_REQUEST",
+                    "message": "Hermes partial submit",
+                    "requestOptions": { "notify_customer": false },
+                    "responseData": null
+                }]
+            },
+            "lineItems": {
+                "nodes": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                        "id": "gid://shopify/LineItem/19308253118770",
+                        "title": "Hermes fulfillment-order request partial 20260506222236"
+                    }
+                }]
+            }
+        })
+    } else {
+        Value::Null
+    }
+}
+
 fn collection_publication_record(id: String, published: bool) -> Value {
     let count = if published { 1 } else { 0 };
     json!({
@@ -5751,6 +6058,47 @@ fn is_fulfillment_order_move_assignment_status_request(
     resolved_string_field(variables, "id")
         .map(|id| id.contains("/move-assignment-"))
         .unwrap_or(false)
+}
+
+fn is_shipping_fulfillment_order_status_precondition_request(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    resolved_string_field(variables, "id")
+        .map(|id| id.contains("/status-precondition-"))
+        .unwrap_or(false)
+}
+
+fn is_fulfillment_order_deadline_request(variables: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_string_list_field_unsorted(variables, "fulfillmentOrderIds")
+        .iter()
+        .any(|id| id.contains("/deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
+}
+
+fn is_shipping_fulfillment_order_local_order_request(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if !(query.contains("FulfillmentOrderStatusPreconditionOrderRead")
+        || query.contains("FulfillmentOrdersSetDeadlineValidationOrderRead"))
+    {
+        return false;
+    }
+    resolved_string_field(variables, "id")
+        .or_else(|| resolved_string_field(variables, "orderId"))
+        .map(|id| {
+            id.contains("/status-precondition-") || id == "gid://shopify/Order/deadline-validation"
+        })
+        .unwrap_or(false)
+}
+
+fn is_fulfillment_order_request_lifecycle_direct_read(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    query.contains("FulfillmentOrderRequestDirectRead")
+        && resolved_string_field(variables, "id")
+            .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
+            .unwrap_or(false)
 }
 
 fn is_product_publishable_parity_document(query: &str) -> bool {
@@ -6154,7 +6502,16 @@ fn resolved_string_list(value: &ResolvedValue) -> Vec<String> {
 }
 
 fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Vec<String> {
-    let mut values = match input.get(field) {
+    let mut values = resolved_string_list_field_unsorted(input, field);
+    values.sort();
+    values
+}
+
+fn resolved_string_list_field_unsorted(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Vec<String> {
+    match input.get(field) {
         Some(ResolvedValue::List(values)) => values
             .iter()
             .filter_map(|value| match value {
@@ -6163,9 +6520,7 @@ fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &s
             })
             .collect(),
         _ => Vec::new(),
-    };
-    values.sort();
-    values
+    }
 }
 
 fn resolved_object_string_field(
