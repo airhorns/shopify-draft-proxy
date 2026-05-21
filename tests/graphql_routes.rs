@@ -2659,6 +2659,75 @@ fn product_read_preserves_root_alias() {
 }
 
 #[test]
+fn product_publishable_mutations_return_captured_aggregate_shape() {
+    let mut proxy = snapshot_proxy();
+    for (root, query) in [
+        (
+            "publishablePublish",
+            r#"
+            mutation PublishablePublishProductParity($id: ID!, $input: [PublicationInput!]!) {
+              publishablePublish(id: $id, input: $input) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublish",
+            r#"
+            mutation PublishableUnpublishProductParity($id: ID!, $input: [PublicationInput!]!) {
+              publishableUnpublish(id: $id, input: $input) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishablePublishToCurrentChannel",
+            r#"
+            mutation PublishablePublishToCurrentChannelProductParity($id: ID!) {
+              publishablePublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublishToCurrentChannel",
+            r#"
+            mutation PublishableUnpublishToCurrentChannelProductParity($id: ID!) {
+              publishableUnpublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "id": "gid://shopify/Product/9264105488617",
+                "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }]
+            }),
+        ));
+        assert_eq!(
+            response.body["data"][root]["publishable"],
+            json!({
+                "id": "gid://shopify/Product/9264105488617",
+                "publishedOnCurrentPublication": false,
+                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+            })
+        );
+        assert_eq!(response.body["data"][root]["userErrors"], json!([]));
+    }
+}
+
+#[test]
 fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields() {
     let mut proxy = snapshot_proxy();
 

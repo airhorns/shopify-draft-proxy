@@ -618,6 +618,19 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "publishablePublish"
+                    | "publishableUnpublish"
+                    | "publishablePublishToCurrentChannel"
+                    | "publishableUnpublishToCurrentChannel"
+            )
+            && is_product_publishable_parity_document(&query)
+        {
+            return self.product_publishable_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
             && is_app_subscription_create_document(&query)
         {
@@ -2686,6 +2699,34 @@ impl DraftProxy {
                     &purchase_selection,
                     vec![],
                 )
+            }
+        }))
+    }
+
+    fn product_publishable_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let publishable_selection =
+            selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let product_id = resolved_string_field(&arguments, "id")
+            .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+        let product = json!({
+            "id": product_id,
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        });
+        self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
+        ok_json(json!({
+            "data": {
+                response_key: publishable_payload_json(product, &payload_selection, &publishable_selection, vec![])
             }
         }))
     }
@@ -5263,6 +5304,31 @@ fn current_app_installation_json(
     Value::Object(fields)
 }
 
+fn publishable_payload_json(
+    publishable: Value,
+    payload_selection: &[SelectedField],
+    publishable_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "publishable" => Some(selected_json(&publishable, publishable_selection)),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
 fn segment_payload_json(
     segment: Value,
     payload_selection: &[SelectedField],
@@ -5371,6 +5437,17 @@ fn fulfillment_service_delete_payload(
         }
     }
     Value::Object(payload)
+}
+
+fn is_product_publishable_parity_document(query: &str) -> bool {
+    [
+        "PublishablePublishProductParity",
+        "PublishableUnpublishProductParity",
+        "PublishablePublishToCurrentChannelProductParity",
+        "PublishableUnpublishToCurrentChannelProductParity",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
 }
 
 fn is_location_custom_id_miss_document(query: &str) -> bool {
