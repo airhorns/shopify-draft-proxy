@@ -3276,6 +3276,146 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 }
 
 #[test]
+fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing_name() {
+    let mut proxy = snapshot_proxy();
+
+    for (resource_type, name) in [
+        ("PRODUCT", "All products"),
+        ("PRODUCT", "ALL PRODUCTS"),
+        ("ORDER", "All"),
+        ("DRAFT_ORDER", "All Drafts"),
+        ("FILE", "All Files"),
+        ("COLLECTION", "All collections"),
+        ("DISCOUNT_REDEEM_CODE", "All codes"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+              savedSearchCreate(input: $input) {
+                savedSearch { id name query resourceType }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "resourceType": resource_type, "name": name, "query": "vendor:Acme" } }),
+        ));
+        assert_eq!(
+            create.body["data"]["savedSearchCreate"],
+            json!({
+                "savedSearch": null,
+                "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+            })
+        );
+    }
+
+    let positive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "All products v2", "query": "vendor:Acme" } }),
+    ));
+    let id = positive.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        positive.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchNameUniquenessUpdateConflict($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id, "name": "All products", "query": "vendor:Changed" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": positive.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone(),
+                "name": "All products v2",
+                "query": "vendor:Changed",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Changed" }]
+            },
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let create_a = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict A", "query": "title:a" } }),
+    ));
+    let create_b = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict B", "query": "title:b" } }),
+    ));
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict A", "query": "title:duplicate" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+    let b_id = create_b.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap();
+    let rename_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchNameUniquenessUpdateConflict($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": b_id, "name": "Conflict A", "query": "title:rename-conflict" } }),
+    ));
+    assert_eq!(
+        rename_conflict.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": create_b.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone(),
+                "name": "Conflict B",
+                "query": "title:rename-conflict",
+                "resourceType": "PRODUCT",
+                "filters": [{ "key": "title", "value": "rename-conflict" }]
+            },
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+    assert_eq!(
+        create_a.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
     let mut proxy = snapshot_proxy();
 
