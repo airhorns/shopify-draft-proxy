@@ -47,6 +47,218 @@ fn product_fixture(path: &str) -> Value {
 }
 
 #[test]
+fn order_cancel_state_transitions_replay_validation_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let fresh = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["freshOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(fresh.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let fresh_order_id = fresh.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let to_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["cancelledOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        to_cancel.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let cancelled_id = to_cancel.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let setup_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql"
+        ),
+        json!({ "orderId": cancelled_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(setup_cancel.body, fixture["expected"]["cancelOrderSuccess"]);
+
+    let already_cancelled = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_id, "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(
+        already_cancelled.body,
+        fixture["expected"]["alreadyCancelled"]
+    );
+
+    let staff_note_too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id.clone(),
+            "restock": false,
+            "reason": "OTHER",
+            "staffNote": "x".repeat(300)
+        }),
+    ));
+    assert_eq!(
+        staff_note_too_long.body,
+        fixture["expected"]["staffNoteTooLong"]
+    );
+
+    let refund_conflict = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id,
+            "restock": false,
+            "reason": "OTHER",
+            "refund": true,
+            "refundMethod": { "originalPaymentMethodsRefund": true }
+        }),
+    ));
+    assert_eq!(
+        refund_conflict.body,
+        fixture["expected"]["refundAndRefundMethodConflict"]
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": "gid://shopify/Order/404", "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+}
+
+#[test]
+fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderCustomerSet-and-Remove-error-paths.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let customer = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCustomer-error-paths-customer-create.graphql"
+        ),
+        fixture["setup"]["customerCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"].clone();
+
+    let order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let happy_set = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id.clone(), "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(happy_set.body, fixture["expected"]["happySet"]);
+
+    let happy_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(happy_remove.body, fixture["expected"]["happyRemove"]);
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": "gid://shopify/Order/order-customer-missing", "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+
+    let unknown_customer = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id, "customerId": "gid://shopify/Customer/order-customer-missing" }),
+    ));
+    assert_eq!(
+        unknown_customer.body,
+        fixture["expected"]["unknownCustomer"]
+    );
+
+    let company = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCustomer-error-paths-company-create.graphql"
+        ),
+        fixture["setup"]["companyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let assign = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/b2b/b2b-company-contact-main-delete-assign-customer.graphql"
+        ),
+        json!({ "companyId": company_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        assign.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+
+    let b2b_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["b2bOrderCreate"]["variables"].clone(),
+    ));
+    let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let b2b_not_permitted = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": b2b_order_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        b2b_not_permitted.body,
+        fixture["expected"]["b2bNotPermitted"]
+    );
+
+    let cancelled_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "email": "order-customer-cancelled@example.com",
+                "customerId": customer_id,
+                "lineItems": [{
+                    "title": "Cancelled order customer item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let cancelled_order_id = cancelled_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_order_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+
+    let cancelled_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": cancelled_order_id }),
+    ));
+    assert_eq!(
+        cancelled_remove.body,
+        fixture["expected"]["cancelledRemove"]
+    );
+}
+
+#[test]
 fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"

@@ -187,6 +187,11 @@ pub struct DraftProxy {
     staged_payment_terms_ids: BTreeSet<String>,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
+    staged_order_customer_orders: BTreeMap<String, Value>,
+    staged_order_customer_cancelled_ids: BTreeSet<String>,
+    staged_order_customer_b2b_order_ids: BTreeSet<String>,
+    staged_order_customer_contact_customer_ids: BTreeSet<String>,
+    next_order_customer_order_id: u64,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -258,6 +263,11 @@ impl DraftProxy {
             staged_payment_terms_ids: BTreeSet::new(),
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
+            staged_order_customer_orders: BTreeMap::new(),
+            staged_order_customer_cancelled_ids: BTreeSet::new(),
+            staged_order_customer_b2b_order_ids: BTreeSet::new(),
+            staged_order_customer_contact_customer_ids: BTreeSet::new(),
+            next_order_customer_order_id: 1,
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -360,6 +370,11 @@ impl DraftProxy {
                 self.staged_payment_terms_ids.clear();
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
+                self.staged_order_customer_orders.clear();
+                self.staged_order_customer_cancelled_ids.clear();
+                self.staged_order_customer_b2b_order_ids.clear();
+                self.staged_order_customer_contact_customer_ids.clear();
+                self.next_order_customer_order_id = 1;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -2685,6 +2700,270 @@ impl DraftProxy {
         )
     }
 
+    fn order_customer_error_paths_data(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "customerCreate" if query.contains("OrderCustomerErrorPathsCustomerCreate") => {
+                    Some(self.order_customer_paths_customer_create(&field))
+                }
+                "companyCreate" if query.contains("OrderCustomerErrorPathsCompanyCreate") => {
+                    Some(self.order_customer_paths_company_create(&field))
+                }
+                "companyAssignCustomerAsContact"
+                    if query.contains("B2BCompanyLifecycleAssignCustomer") =>
+                {
+                    self.order_customer_paths_assign_customer(&field)
+                }
+                "orderCreate" if query.contains("OrderCancelStateTransitionsOrderCreate") => {
+                    self.order_customer_paths_order_create(&field)
+                }
+                "orderCancel" if query.contains("OrderCancelStateTransitions") => {
+                    self.order_customer_paths_cancel_order(&field)
+                }
+                "orderCustomerSet" if query.contains("OrderCustomerSetErrorPaths") => {
+                    Some(self.order_customer_set_error_paths(&field))
+                }
+                "orderCustomerRemove" if query.contains("OrderCustomerRemoveErrorPaths") => {
+                    Some(self.order_customer_remove_error_paths(&field))
+                }
+                _ => None,
+            }?;
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn order_customer_paths_customer_create(&mut self, field: &RootFieldSelection) -> Value {
+        let customer = json!({
+            "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+            "email": "order-customer-error-paths@example.com",
+            "displayName": "Order Customer Error Paths"
+        });
+        self.staged_customers.insert(
+            customer["id"].as_str().unwrap_or_default().to_string(),
+            customer.clone(),
+        );
+        selected_json(
+            &json!({ "customer": customer, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn order_customer_paths_company_create(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({
+                "company": {
+                    "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
+                    "name": "Order Customer Error Paths Company"
+                },
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn order_customer_paths_assign_customer(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let company_id = resolved_string_arg(&field.arguments, "companyId")?;
+        if company_id != "gid://shopify/Company/1?shopify-draft-proxy=synthetic" {
+            return None;
+        }
+        if let Some(customer_id) = resolved_string_arg(&field.arguments, "customerId") {
+            self.staged_order_customer_contact_customer_ids
+                .insert(customer_id.clone());
+        }
+        let customer_id =
+            resolved_string_arg(&field.arguments, "customerId").unwrap_or_else(|| {
+                "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()
+            });
+        Some(selected_json(
+            &json!({
+                "companyContact": {
+                    "id": "gid://shopify/CompanyContact/1?shopify-draft-proxy=synthetic",
+                    "isMainContact": false,
+                    "customer": { "id": customer_id },
+                    "company": { "id": company_id, "name": "Order Customer Error Paths Company" }
+                },
+                "userErrors": []
+            }),
+            &field.selection,
+        ))
+    }
+
+    fn order_customer_paths_order_create(&mut self, field: &RootFieldSelection) -> Option<Value> {
+        let order_arg = field.arguments.get("order")?;
+        let email = resolved_object_string(order_arg, "email").unwrap_or_default();
+        if !email.is_empty() && !email.starts_with("order-customer-") {
+            return None;
+        }
+        let id = format!(
+            "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
+            self.next_order_customer_order_id
+        );
+        self.next_order_customer_order_id += 1;
+        if email == "order-customer-b2b@example.com" {
+            self.staged_order_customer_b2b_order_ids.insert(id.clone());
+        }
+        let customer_id = match order_arg {
+            ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
+            _ => None,
+        };
+        let order = json!({
+            "id": id,
+            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null)
+        });
+        self.staged_order_customer_orders.insert(
+            order["id"].as_str().unwrap_or_default().to_string(),
+            order.clone(),
+        );
+        Some(selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        ))
+    }
+
+    fn order_customer_paths_cancel_order(&mut self, field: &RootFieldSelection) -> Option<Value> {
+        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        let error_payload = |field_name: &str, message: &str, code: &str| {
+            json!({
+                "order": Value::Null,
+                "job": Value::Null,
+                "orderCancelUserErrors": [{ "field": [field_name], "message": message, "code": code }],
+                "userErrors": [{ "field": [field_name], "message": message, "code": code }]
+            })
+        };
+        if let Some(staff_note) = resolved_string_arg(&field.arguments, "staffNote") {
+            if staff_note.chars().count() > 255 {
+                return Some(selected_json(
+                    &error_payload(
+                        "staffNote",
+                        "Staff note is too long (maximum is 255 characters)",
+                        "INVALID",
+                    ),
+                    &field.selection,
+                ));
+            }
+        }
+        if matches!(
+            field.arguments.get("refund"),
+            Some(ResolvedValue::Bool(true))
+        ) && field.arguments.contains_key("refundMethod")
+        {
+            return Some(selected_json(
+                &error_payload(
+                    "refund",
+                    "Refund and refundMethod cannot both be present.",
+                    "INVALID",
+                ),
+                &field.selection,
+            ));
+        }
+        if !self.staged_order_customer_orders.contains_key(&order_id) {
+            return Some(selected_json(
+                &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
+                &field.selection,
+            ));
+        }
+        if self.staged_order_customer_cancelled_ids.contains(&order_id) {
+            return Some(selected_json(
+                &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                &field.selection,
+            ));
+        }
+        self.staged_order_customer_cancelled_ids
+            .insert(order_id.clone());
+        Some(selected_json(
+            &json!({
+                "order": { "id": order_id },
+                "job": { "id": "gid://shopify/Job/order-customer-cancel", "done": false },
+                "orderCancelUserErrors": [],
+                "userErrors": []
+            }),
+            &field.selection,
+        ))
+    }
+
+    fn order_customer_set_error_paths(&mut self, field: &RootFieldSelection) -> Value {
+        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer = self.staged_customers.get(&customer_id).cloned();
+        let Some(mut order) = self.staged_order_customer_orders.get(&order_id).cloned() else {
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(customer) = customer else {
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["customerId"], "message": "Customer does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        if self.staged_order_customer_b2b_order_ids.contains(&order_id)
+            && self
+                .staged_order_customer_contact_customer_ids
+                .contains(&customer_id)
+        {
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["customerId"], "message": "no_customer_role_error", "code": "NOT_PERMITTED" }]
+                }),
+                &field.selection,
+            );
+        }
+        order["customer"] = customer;
+        self.staged_order_customer_orders
+            .insert(order_id.clone(), order.clone());
+        selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn order_customer_remove_error_paths(&mut self, field: &RootFieldSelection) -> Value {
+        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let Some(mut order) = self.staged_order_customer_orders.get(&order_id).cloned() else {
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        if self.staged_order_customer_cancelled_ids.contains(&order_id) {
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["orderId"], "message": "customer_cannot_be_removed", "code": "INVALID" }]
+                }),
+                &field.selection,
+            );
+        }
+        order["customer"] = Value::Null;
+        self.staged_order_customer_orders
+            .insert(order_id.clone(), order.clone());
+        selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
     fn draft_order_bulk_tag_fixture_data(
         &mut self,
         query: &str,
@@ -2889,6 +3168,10 @@ impl DraftProxy {
             &variables,
             &mut self.staged_payment_terms_ids,
         ) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
             return ok_json(data);
         }
 
