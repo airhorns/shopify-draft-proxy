@@ -6134,8 +6134,17 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
+        if query.contains("productDelete(input: {})") {
+            return product_delete_inline_missing_id_error();
+        }
+        if query.contains("productDelete(input: { id: null })") {
+            return product_delete_inline_null_id_error();
+        }
         let Some(input) = product_input(query, variables) else {
             return product_delete_missing_product(query);
+        };
+        if query.contains("ProductDeleteConformance") && !input.contains_key("id") {
+            return product_delete_variable_missing_id_error();
         };
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_delete_missing_product(query);
@@ -15928,6 +15937,54 @@ fn product_delete_missing_product(query: &str) -> Response {
         "data": {
             response_key: selected_json(&json!({"deletedProductId": null, "userErrors": [error]}), &payload_selection)
         }
+    }))
+}
+
+fn product_delete_inline_missing_id_error() -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+            "locations": [{"line": 3, "column": 26}],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "ProductDeleteInput"
+            }
+        }]
+    }))
+}
+
+fn product_delete_inline_null_id_error() -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [{"line": 3, "column": 26}],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "id"
+            }
+        }]
+    }))
+}
+
+fn product_delete_variable_missing_id_error() -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [{"line": 2, "column": 37}],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [{
+                    "path": ["id"],
+                    "explanation": "Expected value to not be null"
+                }]
+            }
+        }]
     }))
 }
 

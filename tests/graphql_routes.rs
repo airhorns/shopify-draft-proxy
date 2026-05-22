@@ -10644,3 +10644,77 @@ fn product_update_tag_normalization_limits_match_shopify_shapes() {
         json!([{ "field": ["tags"], "message": "Product tags is invalid" }])
     );
 }
+
+#[test]
+fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let inline_missing = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-inline-missing-id-parity.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(inline_missing.status, 200);
+    assert!(inline_missing.body.get("data").is_none());
+    assert_eq!(
+        inline_missing.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+            "locations": [{ "line": 3, "column": 26 }],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "ProductDeleteInput"
+            }
+        })
+    );
+
+    let inline_null = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-inline-null-id-parity.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(inline_null.status, 200);
+    assert!(inline_null.body.get("data").is_none());
+    assert_eq!(
+        inline_null.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [{ "line": 3, "column": 26 }],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "id"
+            }
+        })
+    );
+
+    let variable_missing = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-variable-missing-id-parity.graphql"
+        ),
+        json!({ "input": {} }),
+    ));
+    assert_eq!(variable_missing.status, 200);
+    assert!(variable_missing.body.get("data").is_none());
+    assert_eq!(
+        variable_missing.body["errors"][0],
+        json!({
+            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [{ "line": 2, "column": 37 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [{
+                    "path": ["id"],
+                    "explanation": "Expected value to not be null"
+                }]
+            }
+        })
+    );
+}
