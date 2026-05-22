@@ -11985,3 +11985,49 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
     );
     assert_eq!(node_read.body["data"]["node"]["status"], "COMPLETE");
 }
+
+#[test]
+fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
+    let validation_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
+    ));
+    let relationship_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    ));
+
+    let mut validation_proxy = snapshot_proxy();
+    let created = validation_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-parity-plan.graphql"),
+        validation_fixture["captures"]["productCreate"]["variables"].clone(),
+    ));
+    assert_eq!(created.status, 200);
+    let staged_product_id = created.body["data"]["productCreate"]["product"]["id"].clone();
+    let validation_read = validation_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-relationship-product-options-read.graphql"
+        ),
+        json!({ "productId": staged_product_id }),
+    ));
+    assert_eq!(validation_read.status, 200);
+    assert_eq!(
+        validation_read.body["data"]["product"]["options"],
+        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["options"]
+    );
+    assert_eq!(
+        validation_read.body["data"]["product"]["variants"],
+        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["variants"]
+    );
+
+    let mut relationship_proxy = snapshot_proxy();
+    let relationship_read = relationship_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-relationship-product-options-read.graphql"
+        ),
+        relationship_fixture["optionDownstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(relationship_read.status, 200);
+    assert_eq!(
+        relationship_read.body["data"],
+        relationship_fixture["optionDownstreamRead"]["response"]["data"]
+    );
+}

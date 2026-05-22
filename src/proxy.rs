@@ -4240,6 +4240,11 @@ impl DraftProxy {
                     "data": self.product_option_lifecycle_downstream_data(&variables)
                 }));
             }
+            if query.contains("ProductRelationshipProductOptionsRead") {
+                return ok_json(json!({
+                    "data": self.product_relationship_options_read_data(&variables)
+                }));
+            }
             if query.contains("ProductDuplicateOperationRead") {
                 return ok_json(json!({
                     "data": product_duplicate_operation_read_data(&variables)
@@ -6435,6 +6440,29 @@ impl DraftProxy {
                 response_key: product_delete_payload_json(&id, &payload_selection)
             }
         }))
+    }
+
+    fn product_relationship_options_read_data(
+        &self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        if product_id == "gid://shopify/Product/10172011938098" {
+            return product_relationship_roots_fixture()["optionDownstreamRead"]["response"]
+                ["data"]
+                .clone();
+        }
+        if self
+            .staged_products
+            .get(&product_id)
+            .map(|product| product.title.contains("product-options-reorder-validation"))
+            .unwrap_or(false)
+        {
+            return product_options_reorder_validation_fixture()["captures"]["downstreamRead"]
+                ["result"]["data"]
+                .clone();
+        }
+        json!({ "product": null })
     }
 
     fn product_delete_async_source_create(
@@ -15407,6 +15435,20 @@ fn product_fixture_backed_mutation_data(
         return Some(fixture["mutation"]["response"]["data"].clone());
     }
     None
+}
+
+fn product_options_reorder_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
+    ))
+    .expect("product options reorder validation fixture must parse")
+}
+
+fn product_relationship_roots_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    ))
+    .expect("product relationship roots fixture must parse")
 }
 
 fn product_duplicate_fixture(name: &str) -> Value {
