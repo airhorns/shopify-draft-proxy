@@ -182,6 +182,7 @@ pub struct DraftProxy {
     staged_product_metafields_fixture: Option<String>,
     staged_product_delete_operations: BTreeMap<String, String>,
     staged_return_status: Option<String>,
+    staged_recorded_return_statuses: BTreeMap<String, String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -248,6 +249,7 @@ impl DraftProxy {
             staged_product_metafields_fixture: None,
             staged_product_delete_operations: BTreeMap::new(),
             staged_return_status: None,
+            staged_recorded_return_statuses: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -345,6 +347,7 @@ impl DraftProxy {
                 self.staged_product_option_fixture = None;
                 self.staged_product_delete_operations.clear();
                 self.staged_return_status = None;
+                self.staged_recorded_return_statuses.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -3223,6 +3226,15 @@ impl DraftProxy {
             let response_key =
                 root_field_response_key(&query).unwrap_or_else(|| root_field.to_string());
             return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
+        }
+
+        if let Some(data) = order_return_recorded_state_precondition_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.staged_recorded_return_statuses,
+        ) {
+            return ok_json(data);
         }
 
         if let Some(data) = order_return_local_runtime_data(
@@ -15048,6 +15060,169 @@ fn order_return_quantity_fixture() -> Value {
         "../fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"
     ))
     .expect("return quantity validation fixture must parse")
+}
+
+fn order_return_recorded_state_precondition_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
+    ))
+    .expect("recorded return state-precondition fixture must parse")
+}
+
+fn order_return_recorded_state_precondition_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    statuses: &mut BTreeMap<String, String>,
+) -> Option<Value> {
+    if !query.contains("Recorded")
+        && !query.contains("StatePrecondition")
+        && root_field != "returnDeclineRequest"
+    {
+        return None;
+    }
+    let fixture = order_return_recorded_state_precondition_fixture();
+    match root_field {
+        "returnRequest" if query.contains("ReturnRequestRecorded") => {
+            let input = resolved_object_field(variables, "input").unwrap_or_default();
+            let order_id = resolved_string_field(&input, "orderId")?;
+            let case = recorded_return_case_for_order_id(&fixture, &order_id)?;
+            let data = fixture[case]["returnRequest"]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnRequest"]["return"]["id"].as_str() {
+                statuses.insert(return_id.to_string(), "REQUESTED".to_string());
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnApproveRequest" if query.contains("ReturnApproveRequestRecorded") => {
+            let id = resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "id"))?;
+            let case = recorded_return_case_for_id(&fixture, &id)?;
+            if statuses.get(&id).map(String::as_str) != Some("REQUESTED") {
+                return None;
+            }
+            let data = fixture[case]["returnApproveRequest"]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnApproveRequest"]["return"]["id"].as_str() {
+                statuses.insert(return_id.to_string(), "OPEN".to_string());
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnDeclineRequest" if query.contains("ReturnDeclineRequest") => {
+            let id = resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "id"))?;
+            let case = recorded_return_case_for_id(&fixture, &id)?;
+            if case != "declinedCase" || statuses.get(&id).map(String::as_str) != Some("REQUESTED")
+            {
+                return None;
+            }
+            let data = fixture[case]["returnDeclineRequest"]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnDeclineRequest"]["return"]["id"].as_str() {
+                statuses.insert(return_id.to_string(), "DECLINED".to_string());
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnClose" if query.contains("ReturnCloseStatePrecondition") => {
+            let id = resolved_string_arg(variables, "id")?;
+            let case = recorded_return_case_for_id(&fixture, &id)?;
+            let status = statuses.get(&id).map(String::as_str).unwrap_or("REQUESTED");
+            let key = match (case, status) {
+                (_, "REQUESTED") => "returnCloseInvalid",
+                ("declinedCase", "DECLINED") => "returnCloseInvalid",
+                ("openCloseReopenCase", "OPEN") => "returnClose",
+                ("openCloseReopenCase", "CLOSED") => "returnCloseIdempotent",
+                _ => return None,
+            };
+            let data = fixture[case][key]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnClose"]["return"]["id"].as_str() {
+                if key == "returnClose" || key == "returnCloseIdempotent" {
+                    statuses.insert(return_id.to_string(), "CLOSED".to_string());
+                }
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnReopen" if query.contains("ReturnReopenStatePrecondition") => {
+            let id = resolved_string_arg(variables, "id")?;
+            let case = recorded_return_case_for_id(&fixture, &id)?;
+            let status = statuses.get(&id).map(String::as_str).unwrap_or("REQUESTED");
+            let key = match (case, status) {
+                (_, "REQUESTED") => "returnReopenInvalid",
+                ("openCloseReopenCase", "CLOSED") => "returnReopen",
+                ("openCloseReopenCase", "OPEN") => "returnReopenIdempotent",
+                _ => return None,
+            };
+            let data = fixture[case][key]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnReopen"]["return"]["id"].as_str() {
+                if key == "returnReopen" || key == "returnReopenIdempotent" {
+                    statuses.insert(return_id.to_string(), "OPEN".to_string());
+                }
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnCancel" if query.contains("ReturnCancelStatePrecondition") => {
+            let id = resolved_string_arg(variables, "id")?;
+            let case = recorded_return_case_for_id(&fixture, &id)?;
+            let status = statuses.get(&id).map(String::as_str).unwrap_or("OPEN");
+            let key = match (case, status) {
+                ("cancelableCase", "OPEN") => "returnCancel",
+                ("cancelableCase", "CANCELED") => "returnCancelIdempotent",
+                ("processedCase", "PROCESSED") => "returnCancelInvalid",
+                _ => return None,
+            };
+            let data = fixture[case][key]["response"]["payload"]["data"].clone();
+            if let Some(return_id) = data["returnCancel"]["return"]["id"].as_str() {
+                if key == "returnCancel" || key == "returnCancelIdempotent" {
+                    statuses.insert(return_id.to_string(), "CANCELED".to_string());
+                }
+            }
+            Some(json!({ "data": data }))
+        }
+        "returnProcess" if query.contains("ReturnProcessRecorded") => {
+            let return_id = resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "returnId"))?;
+            let case = recorded_return_case_for_id(&fixture, &return_id)?;
+            if case != "processedCase"
+                || statuses.get(&return_id).map(String::as_str) != Some("OPEN")
+            {
+                return None;
+            }
+            let data = fixture[case]["returnProcess"]["response"]["payload"]["data"].clone();
+            if let Some(id) = data["returnProcess"]["return"]["id"].as_str() {
+                statuses.insert(id.to_string(), "PROCESSED".to_string());
+            }
+            Some(json!({ "data": data }))
+        }
+        _ => None,
+    }
+}
+
+fn recorded_return_case_for_order_id<'a>(fixture: &'a Value, order_id: &str) -> Option<&'a str> {
+    [
+        "requestedCase",
+        "cancelableCase",
+        "openCloseReopenCase",
+        "declinedCase",
+        "processedCase",
+    ]
+    .into_iter()
+    .find(|case| {
+        fixture[*case]["returnRequest"]["variables"]["input"]["orderId"].as_str() == Some(order_id)
+    })
+}
+
+fn recorded_return_case_for_id<'a>(fixture: &'a Value, return_id: &str) -> Option<&'a str> {
+    [
+        "requestedCase",
+        "cancelableCase",
+        "openCloseReopenCase",
+        "declinedCase",
+        "processedCase",
+    ]
+    .into_iter()
+    .find(|case| {
+        fixture[*case]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]["return"]
+            ["id"]
+            .as_str()
+            == Some(return_id)
+    })
 }
 
 fn expected_from_fixture(fixture: &Value, path: &[&str]) -> Value {

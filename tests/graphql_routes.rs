@@ -171,6 +171,228 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     );
 }
 
+#[test]
+fn order_return_recorded_close_reopen_cancel_state_preconditions_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
+    ))
+    .unwrap();
+    let request_query =
+        include_str!("../config/parity-requests/orders/return-request-recorded.graphql");
+    let approve_query =
+        include_str!("../config/parity-requests/orders/return-approve-request-recorded.graphql");
+    let decline_query = include_str!(
+        "../config/parity-requests/orders/return-decline-request-local-staging.graphql"
+    );
+    let close_query =
+        include_str!("../config/parity-requests/orders/return-close-state-precondition.graphql");
+    let reopen_query =
+        include_str!("../config/parity-requests/orders/return-reopen-state-precondition.graphql");
+    let cancel_query =
+        include_str!("../config/parity-requests/orders/return-cancel-state-precondition.graphql");
+    let process_query =
+        include_str!("../config/parity-requests/orders/return-process-recorded.graphql");
+    let mut proxy = snapshot_proxy();
+
+    let requested = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["requestedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        requested.body["data"]["returnRequest"],
+        fixture["requestedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let requested_id = requested.body["data"]["returnRequest"]["return"]["id"].clone();
+    let requested_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": requested_id.clone() }),
+    ));
+    assert_eq!(
+        requested_close.body["data"]["returnClose"],
+        fixture["requestedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let requested_reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": requested_id }),
+    ));
+    assert_eq!(
+        requested_reopen.body["data"]["returnReopen"],
+        fixture["requestedCase"]["returnReopenInvalid"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let cancelable = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["cancelableCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cancelable.body["data"]["returnRequest"],
+        fixture["cancelableCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let cancelable_id = cancelable.body["data"]["returnRequest"]["return"]["id"].clone();
+    let cancelable_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": cancelable_id } }),
+    ));
+    assert_eq!(
+        cancelable_approve.body["data"]["returnApproveRequest"],
+        fixture["cancelableCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let cancelable_approved_id =
+        cancelable_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": cancelable_approved_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancel"]["response"]["payload"]["data"]["returnCancel"]
+    );
+    let canceled_id = cancel.body["data"]["returnCancel"]["return"]["id"].clone();
+    let cancel_again = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": canceled_id }),
+    ));
+    assert_eq!(
+        cancel_again.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancelIdempotent"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+
+    let open_case = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["openCloseReopenCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        open_case.body["data"]["returnRequest"],
+        fixture["openCloseReopenCase"]["returnRequest"]["response"]["payload"]["data"]
+            ["returnRequest"]
+    );
+    let open_id = open_case.body["data"]["returnRequest"]["return"]["id"].clone();
+    let open_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": open_id } }),
+    ));
+    assert_eq!(
+        open_approve.body["data"]["returnApproveRequest"],
+        fixture["openCloseReopenCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let open_approved_id =
+        open_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": open_approved_id }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnClose"]["response"]["payload"]["data"]["returnClose"]
+    );
+    let closed_id = close.body["data"]["returnClose"]["return"]["id"].clone();
+    let close_again = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": closed_id }),
+    ));
+    assert_eq!(
+        close_again.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnCloseIdempotent"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let reopen_id = close_again.body["data"]["returnClose"]["return"]["id"].clone();
+    let reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopen_id }),
+    ));
+    assert_eq!(
+        reopen.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopen"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+    let reopened_id = reopen.body["data"]["returnReopen"]["return"]["id"].clone();
+    let reopen_again = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopened_id }),
+    ));
+    assert_eq!(
+        reopen_again.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopenIdempotent"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let declined = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["declinedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        declined.body["data"]["returnRequest"],
+        fixture["declinedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let declined_id = declined.body["data"]["returnRequest"]["return"]["id"].clone();
+    let decline = proxy.process_request(json_graphql_request(
+        decline_query,
+        json!({ "input": { "id": declined_id, "declineReason": fixture["declineRequest"]["declineInput"]["declineReason"].clone(), "declineNote": fixture["declineRequest"]["declineInput"]["declineNote"].clone(), "notifyCustomer": fixture["declineRequest"]["declineInput"]["notifyCustomer"].clone() } }),
+    ));
+    assert_eq!(
+        decline.body["data"]["returnDeclineRequest"],
+        fixture["declinedCase"]["returnDeclineRequest"]["response"]["payload"]["data"]
+            ["returnDeclineRequest"]
+    );
+    let declined_return_id = decline.body["data"]["returnDeclineRequest"]["return"]["id"].clone();
+    let declined_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": declined_return_id }),
+    ));
+    assert_eq!(
+        declined_close.body["data"]["returnClose"],
+        fixture["declinedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]["returnClose"]
+    );
+
+    let processed = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["processedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        processed.body["data"]["returnRequest"],
+        fixture["processedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let processed_id = processed.body["data"]["returnRequest"]["return"]["id"].clone();
+    let processed_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": processed_id } }),
+    ));
+    assert_eq!(
+        processed_approve.body["data"]["returnApproveRequest"],
+        fixture["processedCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let process_return_id =
+        processed_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let process_line_id = processed_approve.body["data"]["returnApproveRequest"]["return"]
+        ["returnLineItems"]["nodes"][0]["id"]
+        .clone();
+    let processed_result = proxy.process_request(json_graphql_request(
+        process_query,
+        json!({ "input": { "returnId": process_return_id, "returnLineItems": [{ "id": process_line_id, "quantity": 1 }], "notifyCustomer": true } }),
+    ));
+    assert_eq!(
+        processed_result.body["data"]["returnProcess"],
+        fixture["processedCase"]["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+    let processed_return_id =
+        processed_result.body["data"]["returnProcess"]["return"]["id"].clone();
+    let processed_cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": processed_return_id }),
+    ));
+    assert_eq!(
+        processed_cancel.body["data"]["returnCancel"],
+        fixture["processedCase"]["returnCancelInvalid"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+}
+
 fn registry_entry(
     name: &str,
     operation_type: OperationType,
