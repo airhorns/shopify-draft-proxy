@@ -10021,3 +10021,56 @@ fn product_catalog_and_search_reads_replay_captured_fixture_data() {
         include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"),
     );
 }
+
+#[test]
+fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let set_query = include_str!(
+        "../config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql"
+    );
+    let read_query = include_str!(
+        "../config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql"
+    );
+
+    for batch in fixture["metafieldBatches"].as_array().unwrap() {
+        let set_variables = batch["mutation"]["request"]["variables"].clone();
+        let set_response = proxy.process_request(json_graphql_request(set_query, set_variables));
+        assert_eq!(set_response.status, 200);
+        assert_eq!(
+            set_response.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            set_response.body["data"]["metafieldsSet"]["metafields"]
+                .as_array()
+                .unwrap()
+                .len(),
+            batch["mutation"]["request"]["variables"]["metafields"]
+                .as_array()
+                .unwrap()
+                .len()
+        );
+
+        let read_variables = batch["downstreamRead"]["request"]["variables"].clone();
+        let read_response = proxy.process_request(json_graphql_request(read_query, read_variables));
+        assert_eq!(read_response.status, 200);
+        let expected_nodes = batch["downstreamRead"]["response"]["data"]["product"]["metafields"]
+            ["nodes"]
+            .as_array()
+            .unwrap();
+        let actual_nodes = read_response.body["data"]["product"]["metafields"]["nodes"]
+            .as_array()
+            .unwrap();
+        assert_eq!(actual_nodes.len(), expected_nodes.len());
+        assert_eq!(actual_nodes[0]["namespace"], expected_nodes[0]["namespace"]);
+        assert_eq!(actual_nodes[0]["key"], expected_nodes[0]["key"]);
+        assert_eq!(actual_nodes[0]["type"], expected_nodes[0]["type"]);
+        assert_eq!(actual_nodes[0]["value"], expected_nodes[0]["value"]);
+        assert_eq!(actual_nodes[0]["jsonValue"], expected_nodes[0]["jsonValue"]);
+        assert_eq!(actual_nodes[0]["ownerType"], expected_nodes[0]["ownerType"]);
+    }
+}

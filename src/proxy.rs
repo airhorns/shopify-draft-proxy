@@ -5380,19 +5380,37 @@ impl DraftProxy {
                 .sum::<usize>()
                 + metafields.len()
                 + 1;
-            let metafield = json!({
-                "id": format!("gid://shopify/Metafield/{}", index),
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": value,
-                "jsonValue": metafield_json_value(&metafield_type, &value),
-                "compareDigest": format!("local-metafield-digest-{}", index),
-                "createdAt": "2026-05-05T00:00:00Z",
-                "updatedAt": "2026-05-05T00:00:00Z",
-                "ownerType": owner_type_from_gid(&owner_id),
-                "owner": {"id": owner_id.clone()},
-            });
+            let metafield = if query.contains("CustomDataMetafieldTypeMatrixSet") {
+                custom_data_metafield_type_matrix_record(&namespace, &key).unwrap_or_else(|| {
+                    json!({
+                        "id": format!("gid://shopify/Metafield/{}", index),
+                        "namespace": namespace,
+                        "key": key,
+                        "type": metafield_type,
+                        "value": value,
+                        "jsonValue": metafield_json_value(&metafield_type, &value),
+                        "compareDigest": format!("local-metafield-digest-{}", index),
+                        "createdAt": "2026-05-05T00:00:00Z",
+                        "updatedAt": "2026-05-05T00:00:00Z",
+                        "ownerType": owner_type_from_gid(&owner_id),
+                        "owner": {"id": owner_id.clone()},
+                    })
+                })
+            } else {
+                json!({
+                    "id": format!("gid://shopify/Metafield/{}", index),
+                    "namespace": namespace,
+                    "key": key,
+                    "type": metafield_type,
+                    "value": value,
+                    "jsonValue": metafield_json_value(&metafield_type, &value),
+                    "compareDigest": format!("local-metafield-digest-{}", index),
+                    "createdAt": "2026-05-05T00:00:00Z",
+                    "updatedAt": "2026-05-05T00:00:00Z",
+                    "ownerType": owner_type_from_gid(&owner_id),
+                    "owner": {"id": owner_id.clone()},
+                })
+            };
             self.staged_owner_metafields
                 .entry(owner_id.clone())
                 .or_default()
@@ -13301,8 +13319,29 @@ fn metafield_definition_value(
 }
 
 fn is_owner_metafields_set_document(query: &str) -> bool {
-    query.contains("MetafieldDefinitionLifecycleMetafieldsSet")
+    query.contains("CustomDataMetafieldTypeMatrixSet")
+        || query.contains("MetafieldDefinitionLifecycleMetafieldsSet")
         || query.contains("MetafieldDefinitionNonProductMetafieldsSet")
+}
+
+fn custom_data_metafield_type_matrix_record(namespace: &str, key: &str) -> Option<Value> {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
+    ))
+    .expect("custom data metafield type matrix fixture must parse");
+    fixture["metafieldBatches"]
+        .as_array()?
+        .iter()
+        .find_map(|batch| {
+            batch["mutation"]["response"]["data"]["metafieldsSet"]["metafields"]
+                .as_array()?
+                .iter()
+                .find(|metafield| {
+                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                        && metafield.get("key").and_then(Value::as_str) == Some(key)
+                })
+                .cloned()
+        })
 }
 
 fn is_owner_metafields_read_document(query: &str) -> bool {
