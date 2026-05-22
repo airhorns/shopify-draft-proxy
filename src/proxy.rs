@@ -185,6 +185,8 @@ pub struct DraftProxy {
     staged_recorded_return_statuses: BTreeMap<String, String>,
     staged_mandate_payment_keys: BTreeSet<String>,
     staged_payment_terms_ids: BTreeSet<String>,
+    staged_draft_order_tags: BTreeMap<String, Vec<String>>,
+    next_draft_order_bulk_tag_job_id: u64,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -254,6 +256,8 @@ impl DraftProxy {
             staged_recorded_return_statuses: BTreeMap::new(),
             staged_mandate_payment_keys: BTreeSet::new(),
             staged_payment_terms_ids: BTreeSet::new(),
+            staged_draft_order_tags: BTreeMap::new(),
+            next_draft_order_bulk_tag_job_id: 1,
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -354,6 +358,8 @@ impl DraftProxy {
                 self.staged_recorded_return_statuses.clear();
                 self.staged_mandate_payment_keys.clear();
                 self.staged_payment_terms_ids.clear();
+                self.staged_draft_order_tags.clear();
+                self.next_draft_order_bulk_tag_job_id = 1;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -2679,6 +2685,177 @@ impl DraftProxy {
         )
     }
 
+    fn draft_order_bulk_tag_fixture_data(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if !query.contains("DraftOrderBulkTagValidation") {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "draftOrderCreate" => Some(self.draft_order_bulk_tag_create(&field)),
+                "draftOrder" => Some(self.draft_order_bulk_tag_read(&field)),
+                "draftOrderBulkAddTags" => Some(self.draft_order_bulk_add_tags(&field)),
+                "draftOrderBulkRemoveTags" => Some(self.draft_order_bulk_remove_tags(&field)),
+                _ => None,
+            }?;
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn draft_order_bulk_tag_create(&mut self, field: &RootFieldSelection) -> Value {
+        let id = "gid://shopify/DraftOrder/1?shopify-draft-proxy=synthetic".to_string();
+        let tags = field
+            .arguments
+            .get("input")
+            .and_then(|input| match input {
+                ResolvedValue::Object(fields) => Some(resolved_string_list_arg(fields, "tags")),
+                _ => None,
+            })
+            .unwrap_or_default();
+        self.staged_draft_order_tags
+            .insert(id.clone(), tags.clone());
+        selected_json(
+            &json!({
+                "draftOrder": { "id": id, "tags": tags },
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        let value = self
+            .staged_draft_order_tags
+            .get(&id)
+            .map(|tags| json!({ "id": id, "tags": tags }))
+            .unwrap_or(Value::Null);
+        selected_json(&value, &field.selection)
+    }
+
+    fn next_draft_order_bulk_tag_job(&mut self) -> Value {
+        let id = self.next_draft_order_bulk_tag_job_id;
+        self.next_draft_order_bulk_tag_job_id += 1;
+        json!({ "id": format!("gid://shopify/Job/{id}"), "done": false })
+    }
+
+    fn draft_order_bulk_add_tags(&mut self, field: &RootFieldSelection) -> Value {
+        let ids = resolved_string_list_arg(&field.arguments, "ids");
+        let tags = resolved_string_list_arg(&field.arguments, "tags");
+        let normalized_tags: Vec<String> = tags
+            .iter()
+            .map(|tag| normalize_draft_order_tag(tag))
+            .collect();
+
+        let mut user_errors = Vec::new();
+        for (index, tag) in normalized_tags.iter().enumerate() {
+            if tag.chars().count() >= 256 {
+                user_errors.push(json!({
+                    "field": ["input", "tags", index.to_string()],
+                    "message": "tag_too_long",
+                    "code": "INVALID"
+                }));
+            }
+        }
+
+        let mut valid_ids = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            if self.staged_draft_order_tags.contains_key(id) {
+                valid_ids.push(id.clone());
+            } else {
+                user_errors.push(json!({
+                    "field": ["input", "ids", index.to_string()],
+                    "message": "Draft order does not exist",
+                    "code": "NOT_FOUND"
+                }));
+            }
+        }
+
+        let too_many = valid_ids.iter().any(|id| {
+            let current = self
+                .staged_draft_order_tags
+                .get(id)
+                .cloned()
+                .unwrap_or_default();
+            let mut identities: BTreeSet<String> = current
+                .iter()
+                .map(|tag| normalize_draft_order_tag(tag))
+                .collect();
+            for tag in &normalized_tags {
+                identities.insert(tag.clone());
+            }
+            identities.len() > 250
+        });
+        if too_many {
+            user_errors.clear();
+            user_errors.push(json!({
+                "field": ["input", "tags"],
+                "message": "too_many_tags",
+                "code": "INVALID"
+            }));
+            return selected_json(
+                &json!({ "job": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+
+        if !normalized_tags.iter().any(|tag| tag.chars().count() >= 256) {
+            for id in valid_ids {
+                if let Some(current) = self.staged_draft_order_tags.get_mut(&id) {
+                    let mut existing: BTreeSet<String> = current
+                        .iter()
+                        .map(|tag| normalize_draft_order_tag(tag))
+                        .collect();
+                    for tag in &normalized_tags {
+                        if existing.insert(tag.clone()) {
+                            current.push(tag.clone());
+                        }
+                    }
+                    current.sort_by_key(|tag| normalize_draft_order_tag(tag));
+                }
+            }
+        }
+
+        let job = self.next_draft_order_bulk_tag_job();
+        selected_json(
+            &json!({ "job": job, "userErrors": user_errors }),
+            &field.selection,
+        )
+    }
+
+    fn draft_order_bulk_remove_tags(&mut self, field: &RootFieldSelection) -> Value {
+        let ids = resolved_string_list_arg(&field.arguments, "ids");
+        let tags: BTreeSet<String> = resolved_string_list_arg(&field.arguments, "tags")
+            .iter()
+            .map(|tag| normalize_draft_order_tag(tag))
+            .collect();
+        let mut user_errors = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            if let Some(current) = self.staged_draft_order_tags.get_mut(id) {
+                current.retain(|tag| !tags.contains(&normalize_draft_order_tag(tag)));
+            } else {
+                user_errors.push(json!({
+                    "field": ["input", "ids", index.to_string()],
+                    "message": "Draft order does not exist",
+                    "code": "NOT_FOUND"
+                }));
+            }
+        }
+        let job = self.next_draft_order_bulk_tag_job();
+        selected_json(
+            &json!({ "job": job, "userErrors": user_errors }),
+            &field.selection,
+        )
+    }
+
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -2712,6 +2889,10 @@ impl DraftProxy {
             &variables,
             &mut self.staged_payment_terms_ids,
         ) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = self.draft_order_bulk_tag_fixture_data(&query, &variables) {
             return ok_json(data);
         }
 
@@ -13937,6 +14118,10 @@ fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) 
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
     }
+}
+
+fn normalize_draft_order_tag(tag: &str) -> String {
+    tag.trim().to_ascii_lowercase()
 }
 
 fn resolved_object_field_bool(value: &ResolvedValue, name: &str) -> Option<bool> {

@@ -47,6 +47,80 @@ fn product_fixture(path: &str) -> Value {
 }
 
 #[test]
+fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql"
+        ),
+        fixture["setup"]["simpleDraftOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let partial_add = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({
+            "ids": [draft_order_id.clone(), "gid://shopify/DraftOrder/draft-order-bulk-tag-missing"],
+            "tags": [" added ", "ADDED"]
+        }),
+    ));
+    assert_eq!(
+        partial_add.body,
+        fixture["expected"]["partialSuccessWithUnknownId"]
+    );
+
+    let read_after_partial = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_partial.body,
+        fixture["expected"]["readAfterPartialSuccess"]
+    );
+
+    let long_tag = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({ "ids": [draft_order_id.clone()], "tags": [fixture["inputs"]["longTag"].clone()] }),
+    ));
+    assert_eq!(long_tag.body, fixture["expected"]["longTagRejected"]);
+
+    let remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": [" INITIAL "] }),
+    ));
+    assert_eq!(
+        remove.body,
+        fixture["expected"]["removeNormalizesTagIdentity"]
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_remove.body,
+        fixture["expected"]["readAfterNormalizedRemove"]
+    );
+
+    let too_many = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({ "ids": [draft_order_id], "tags": fixture["inputs"]["tooManyTags"].clone() }),
+    ));
+    assert_eq!(too_many.body, fixture["expected"]["tooManyInputTags"]);
+}
+
+#[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
