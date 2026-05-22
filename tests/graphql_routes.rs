@@ -42,6 +42,131 @@ fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     )
 }
 
+#[test]
+fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-create-local-staging.graphql"),
+        json!({
+            "returnInput": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "UNWANTED",
+                    "returnReasonNote": "Changed mind"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["id"],
+        json!("gid://shopify/Return/2")
+    );
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["returnLineItems"]["nodes"][0]
+            ["fulfillmentLineItem"]["lineItem"]["title"],
+        json!("Return flow item")
+    );
+
+    let close = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-close-local-staging.graphql"),
+        json!({ "id": "gid://shopify/Return/2" }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"]["return"],
+        json!({
+            "id": "gid://shopify/Return/2",
+            "status": "CLOSED",
+            "closedAt": "2024-01-01T00:00:03.000Z"
+        })
+    );
+
+    let cancel_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-read-local-staging.graphql"),
+        json!({
+            "id": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow"
+        }),
+    ));
+    assert_eq!(
+        cancel_read.body["data"]["order"]["returns"]["nodes"][0]["id"],
+        json!("gid://shopify/Return/2")
+    );
+
+    let reverse_request = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-request-reverse-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        reverse_request.body["data"]["returnRequest"]["return"]["status"],
+        json!("REQUESTED")
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-approve-request-local-staging.graphql"
+        ),
+        json!({ "input": { "id": "gid://shopify/Return/2" } }),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"]
+            [0]["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(1)
+    );
+
+    let reverse_delivery = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/reverse-delivery-create-with-shipping-local-staging.graphql"),
+        json!({
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5",
+            "reverseDeliveryLineItems": [{
+                "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "quantity": 1
+            }],
+            "trackingInput": {
+                "number": "TRACK-1",
+                "url": "https://tracking.example/1",
+                "company": "Example Carrier"
+            },
+            "labelInput": { "fileUrl": "https://labels.example/return.pdf" }
+        }),
+    ));
+    assert_eq!(
+        reverse_delivery.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]
+            ["deliverable"]["tracking"]["number"],
+        json!("TRACK-1")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-reverse-logistics-read-local-staging.graphql"
+        ),
+        json!({
+            "returnId": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow",
+            "reverseDeliveryId": "gid://shopify/ReverseDelivery/8",
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5"
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
+        json!("gid://shopify/ReverseDelivery/8")
+    );
+}
+
 fn registry_entry(
     name: &str,
     operation_type: OperationType,

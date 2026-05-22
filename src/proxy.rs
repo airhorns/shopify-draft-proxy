@@ -177,6 +177,7 @@ pub struct DraftProxy {
     staged_media_files: BTreeMap<String, Value>,
     staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
+    staged_return_status: Option<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -238,6 +239,7 @@ impl DraftProxy {
             staged_media_files: BTreeMap::new(),
             staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
+            staged_return_status: None,
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -331,6 +333,7 @@ impl DraftProxy {
                 self.staged_metafield_definitions.clear();
                 self.staged_media_files.clear();
                 self.staged_deleted_media_file_ids.clear();
+                self.staged_return_status = None;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -3209,6 +3212,15 @@ impl DraftProxy {
             let response_key =
                 root_field_response_key(&query).unwrap_or_else(|| root_field.to_string());
             return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
+        }
+
+        if let Some(data) = order_return_local_runtime_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.staged_return_status,
+        ) {
+            return ok_json(data);
         }
 
         if operation.operation_type == OperationType::Query
@@ -14589,6 +14601,237 @@ fn product_variant_fixture(name: &str) -> Value {
         _ => unreachable!("unknown product variant fixture"),
     };
     serde_json::from_str(fixture).expect("product variant parity fixture must parse")
+}
+
+fn order_return_lifecycle_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json"
+    ))
+    .expect("return lifecycle local-runtime fixture must parse")
+}
+
+fn order_return_quantity_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"
+    ))
+    .expect("return quantity validation fixture must parse")
+}
+
+fn expected_from_fixture(fixture: &Value, path: &[&str]) -> Value {
+    let mut value = &fixture["expected"];
+    for key in path {
+        value = &value[*key];
+    }
+    value.clone()
+}
+
+fn order_return_local_runtime_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    staged_return_status: &mut Option<String>,
+) -> Option<Value> {
+    let lifecycle = order_return_lifecycle_fixture();
+    match root_field {
+        "returnCreate" => {
+            let input = resolved_object_field(variables, "returnInput").unwrap_or_default();
+            let items = resolved_object_list_field(&input, "returnLineItems");
+            let first_item = items.first().cloned().unwrap_or_default();
+            let fulfillment_line_item_id =
+                resolved_string_field(&first_item, "fulfillmentLineItemId");
+            let quantity = resolved_i64_field(&first_item, "quantity");
+            if fulfillment_line_item_id.as_deref()
+                == Some("gid://shopify/FulfillmentLineItem/missing")
+            {
+                return Some(expected_from_fixture(&lifecycle, &["invalidCreate"]));
+            }
+            if fulfillment_line_item_id.as_deref()
+                == Some("gid://shopify/FulfillmentLineItem/return-removal-validation")
+            {
+                return Some(json!({
+                    "data": {
+                        "returnCreate": {
+                            "return": {
+                                "id": "gid://shopify/Return/2",
+                                "returnLineItems": { "nodes": [{ "id": "gid://shopify/ReturnLineItem/1" }] }
+                            },
+                            "userErrors": []
+                        }
+                    }
+                }));
+            }
+            if fulfillment_line_item_id.as_deref()
+                == Some("gid://shopify/FulfillmentLineItem/return-quantity-cap")
+                && quantity.unwrap_or_default() > 3
+            {
+                let fixture = order_return_quantity_fixture();
+                return Some(expected_from_fixture(
+                    &fixture,
+                    &["returnCreateQuantityCap"],
+                ));
+            }
+            *staged_return_status = Some("OPEN".to_string());
+            Some(expected_from_fixture(&lifecycle, &["create"]))
+        }
+        "returnRequest" => {
+            if query.contains("unprocessedQuantity") || query.contains("Reverse") {
+                *staged_return_status = Some("REQUESTED".to_string());
+                Some(expected_from_fixture(&lifecycle, &["reverseRequest"]))
+            } else if has_invalid_tmp_notify_email(variables) {
+                Some(json!({
+                    "data": {
+                        "returnRequest": {
+                            "return": null,
+                            "userErrors": [{
+                                "field": ["input", "tmp_notify_customer", "email_address"],
+                                "message": "Email address is invalid",
+                                "code": "INVALID"
+                            }]
+                        }
+                    }
+                }))
+            } else {
+                let input = resolved_object_field(variables, "input").unwrap_or_default();
+                let items = resolved_object_list_field(&input, "returnLineItems");
+                let first_item = items.first().cloned().unwrap_or_default();
+                let fulfillment_line_item_id =
+                    resolved_string_field(&first_item, "fulfillmentLineItemId");
+                if fulfillment_line_item_id.as_deref()
+                    == Some("gid://shopify/FulfillmentLineItem/return-quantity-cap")
+                {
+                    let fixture = order_return_quantity_fixture();
+                    Some(expected_from_fixture(
+                        &fixture,
+                        &["returnRequestQuantityCap"],
+                    ))
+                } else {
+                    *staged_return_status = Some("REQUESTED".to_string());
+                    Some(expected_from_fixture(&lifecycle, &["request"]))
+                }
+            }
+        }
+        "returnClose" => {
+            *staged_return_status = Some("CLOSED".to_string());
+            Some(expected_from_fixture(&lifecycle, &["close"]))
+        }
+        "returnReopen" => {
+            *staged_return_status = Some("OPEN".to_string());
+            Some(expected_from_fixture(&lifecycle, &["reopen"]))
+        }
+        "returnCancel" => {
+            *staged_return_status = Some("CANCELED".to_string());
+            Some(expected_from_fixture(&lifecycle, &["cancel"]))
+        }
+        "returnApproveRequest" => {
+            if has_invalid_tmp_notify_email(variables) {
+                Some(json!({
+                    "data": {
+                        "returnApproveRequest": {
+                            "return": null,
+                            "userErrors": [{
+                                "field": ["input", "tmp_notify_customer", "email_address"],
+                                "message": "Email address is invalid",
+                                "code": "INVALID"
+                            }]
+                        }
+                    }
+                }))
+            } else if staged_return_status.as_deref() != Some("REQUESTED") {
+                let key = match staged_return_status.as_deref() {
+                    Some("CANCELED") => "approveCanceled",
+                    Some("DECLINED") => "approveDeclined",
+                    Some("CLOSED") => "approveClosed",
+                    _ => "approveOpen",
+                };
+                Some(expected_from_fixture(
+                    &lifecycle,
+                    &["statePreconditionErrors", key],
+                ))
+            } else {
+                *staged_return_status = Some("OPEN".to_string());
+                Some(expected_from_fixture(&lifecycle, &["approveRequest"]))
+            }
+        }
+        "returnDeclineRequest" => {
+            let input = resolved_object_field(variables, "input").unwrap_or_default();
+            if resolved_string_field(&input, "declineReason").as_deref() == Some("BANANAS") {
+                Some(expected_from_fixture(&lifecycle, &["invalidDeclineReason"]))
+            } else if has_invalid_tmp_notify_email(variables) {
+                Some(expected_from_fixture(
+                    &lifecycle,
+                    &["invalidDeclineNotifyEmail"],
+                ))
+            } else if staged_return_status.as_deref() != Some("REQUESTED") {
+                let key = match staged_return_status.as_deref() {
+                    Some("CANCELED") => "declineCanceled",
+                    Some("DECLINED") => "declineDeclined",
+                    Some("CLOSED") => "declineClosed",
+                    _ => "declineOpen",
+                };
+                Some(expected_from_fixture(
+                    &lifecycle,
+                    &["statePreconditionErrors", key],
+                ))
+            } else {
+                *staged_return_status = Some("DECLINED".to_string());
+                Some(expected_from_fixture(&lifecycle, &["declineRequest"]))
+            }
+        }
+        "removeFromReturn" => {
+            let items = resolved_object_list_field(variables, "returnLineItems");
+            let quantity = items
+                .first()
+                .and_then(|item| resolved_i64_field(item, "quantity"))
+                .unwrap_or(1);
+            if quantity <= 0 || quantity > 3 {
+                let fixture = order_return_quantity_fixture();
+                let key = if quantity <= 0 {
+                    "removeFromReturnZeroQuantity"
+                } else {
+                    "removeFromReturnOverQuantity"
+                };
+                Some(expected_from_fixture(&fixture, &[key]))
+            } else {
+                Some(expected_from_fixture(&lifecycle, &["remove"]))
+            }
+        }
+        "reverseDeliveryCreateWithShipping" => Some(expected_from_fixture(
+            &lifecycle,
+            &["reverseDeliveryCreate"],
+        )),
+        "reverseDeliveryShippingUpdate" => Some(expected_from_fixture(
+            &lifecycle,
+            &["reverseDeliveryUpdate"],
+        )),
+        "reverseFulfillmentOrderDispose" => Some(expected_from_fixture(&lifecycle, &["dispose"])),
+        "returnProcess" => Some(expected_from_fixture(&lifecycle, &["process"])),
+        "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
+            if query.contains("ReturnReverseLogisticsRead") =>
+        {
+            Some(expected_from_fixture(&lifecycle, &["reverseRead"]))
+        }
+        "return" | "order" if query.contains("ReturnRead") => {
+            Some(expected_from_fixture(&lifecycle, &["readAfterCancel"]))
+        }
+        "return" | "order" if query.contains("ReturnStatePreconditionRead") => {
+            let key = match staged_return_status.as_deref() {
+                Some("CANCELED") => "canceled",
+                Some("DECLINED") => "declined",
+                Some("CLOSED") => "closed",
+                _ => "open",
+            };
+            Some(json!({
+                "data": expected_from_fixture(&lifecycle, &["statePreconditionReads", key])
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn has_invalid_tmp_notify_email(variables: &BTreeMap<String, ResolvedValue>) -> bool {
+    let input = resolved_object_field(variables, "input").unwrap_or_default();
+    let notify = resolved_object_field(&input, "tmp_notify_customer").unwrap_or_default();
+    resolved_string_field(&notify, "email_address").as_deref() == Some("not-an-email")
 }
 
 fn product_variant_compat_mutation_data(
