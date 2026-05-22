@@ -5983,6 +5983,46 @@ impl DraftProxy {
             }));
         };
 
+        if let Some(handle) = resolved_string_field(&input, "handle") {
+            if handle.chars().count() > 255 {
+                return product_create_user_errors_response(
+                    query,
+                    vec![json!({
+                        "field": ["handle"],
+                        "message": "Handle is too long (maximum is 255 characters)"
+                    })],
+                );
+            }
+        }
+        if let Some(vendor) = resolved_string_field(&input, "vendor") {
+            if vendor.chars().count() > 255 {
+                return product_create_user_errors_response(
+                    query,
+                    vec![json!({
+                        "field": ["vendor"],
+                        "message": "Vendor is too long (maximum is 255 characters)"
+                    })],
+                );
+            }
+        }
+        if let Some(product_type) = resolved_string_field(&input, "productType") {
+            if product_type.chars().count() > 255 {
+                return product_create_user_errors_response(
+                    query,
+                    vec![
+                        json!({
+                            "field": ["productType"],
+                            "message": "Product type is too long (maximum is 255 characters)"
+                        }),
+                        json!({
+                            "field": ["customProductType"],
+                            "message": "Custom product type is too long (maximum is 255 characters)"
+                        }),
+                    ],
+                );
+            }
+        }
+
         let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
@@ -15647,6 +15687,23 @@ fn product_mutation_payload_json(
         }
     }
     Value::Object(fields)
+}
+
+fn product_create_user_errors_response(query: &str, errors: Vec<Value>) -> Response {
+    let response_key =
+        root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let error_selection =
+        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+    let errors = errors
+        .into_iter()
+        .map(|error| selected_json(&error, &error_selection))
+        .collect::<Vec<_>>();
+    ok_json(json!({
+        "data": {
+            response_key: selected_json(&json!({"product": null, "userErrors": errors}), &payload_selection)
+        }
+    }))
 }
 
 fn product_delete_payload_json(

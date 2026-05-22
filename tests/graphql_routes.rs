@@ -10718,3 +10718,65 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         })
     );
 }
+
+#[test]
+fn product_create_length_validation_errors_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+    let too_long = "a".repeat(260);
+
+    let handle = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-too-long-handle-parity.graphql"
+        ),
+        json!({
+            "product": {
+                "title": "HAR too-long handle",
+                "handle": too_long
+            }
+        }),
+    ));
+    assert_eq!(handle.status, 200);
+    assert_eq!(handle.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        handle.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["handle"], "message": "Handle is too long (maximum is 255 characters)" }])
+    );
+
+    let vendor = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-input-validation.graphql"),
+        json!({
+            "product": {
+                "title": "HAR too-long vendor",
+                "vendor": "v".repeat(256)
+            }
+        }),
+    ));
+    assert_eq!(vendor.status, 200);
+    assert_eq!(vendor.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        vendor.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["vendor"], "message": "Vendor is too long (maximum is 255 characters)" }])
+    );
+
+    let product_type = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-input-validation.graphql"),
+        json!({
+            "product": {
+                "title": "HAR too-long product type",
+                "productType": "t".repeat(256)
+            }
+        }),
+    ));
+    assert_eq!(product_type.status, 200);
+    assert_eq!(
+        product_type.body["data"]["productCreate"]["product"],
+        json!(null)
+    );
+    assert_eq!(
+        product_type.body["data"]["productCreate"]["userErrors"],
+        json!([
+            { "field": ["productType"], "message": "Product type is too long (maximum is 255 characters)" },
+            { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
+        ])
+    );
+}
