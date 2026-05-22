@@ -4130,6 +4130,15 @@ impl DraftProxy {
             }
         }
 
+        if operation.operation_type == OperationType::Query {
+            if query.contains("ProductHelperRoots") {
+                return ok_json(product_helper_roots_read_payload());
+            }
+            if query.contains("ProductVariantsRead") {
+                return ok_json(json!({ "data": product_variants_read_data() }));
+            }
+        }
+
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         match (capability.domain, capability.execution) {
@@ -14044,6 +14053,55 @@ fn selected_fields_named(selections: &[SelectedField], names: &[&str]) -> Vec<Se
         .filter(|selection| names.iter().any(|name| selection.name == *name))
         .cloned()
         .collect()
+}
+
+fn product_helper_roots_read_payload() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"
+    ))
+    .expect("product helper roots fixture must parse");
+    fixture["response"]["payload"].clone()
+}
+
+fn product_variants_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
+    ))
+    .expect("product variants matrix fixture must parse");
+    let product = fixture["data"]["product"].clone();
+    let variant_node = product["variants"]["edges"][0]["node"].clone();
+    let inventory_item = variant_node["inventoryItem"].clone();
+
+    let mut variant = variant_node.as_object().cloned().unwrap_or_default();
+    variant.insert(
+        "product".to_string(),
+        json!({
+            "id": product["id"].clone(),
+            "title": product["title"].clone()
+        }),
+    );
+
+    let mut stock_backreference = inventory_item.as_object().cloned().unwrap_or_default();
+    stock_backreference.insert(
+        "variant".to_string(),
+        json!({
+            "id": variant_node["id"].clone(),
+            "title": variant_node["title"].clone(),
+            "sku": variant_node["sku"].clone(),
+            "inventoryQuantity": variant_node["inventoryQuantity"].clone(),
+            "product": {
+                "id": product["id"].clone(),
+                "title": product["title"].clone()
+            }
+        }),
+    );
+
+    json!({
+        "product": product,
+        "variant": Value::Object(variant),
+        "stock": inventory_item,
+        "stockBackreference": Value::Object(stock_backreference)
+    })
 }
 
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {

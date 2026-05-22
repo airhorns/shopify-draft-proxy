@@ -9804,3 +9804,82 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         ])
     );
 }
+
+#[test]
+fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+    let helper_query =
+        include_str!("../config/parity-requests/products/product-helper-roots-read.graphql");
+    let helper = proxy.process_request(json_graphql_request(
+        helper_query,
+        json!({
+            "helperProductId": "gid://shopify/Product/9801098789170",
+            "productHandle": "the-inventory-not-tracked-snowboard",
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "missingProductId": "gid://shopify/Product/999999999999",
+            "missingVariantId": "gid://shopify/ProductVariant/999999999999",
+            "missingJobId": "gid://shopify/ProductDuplicateJob/999999999999",
+            "missingOperationId": "gid://shopify/ProductSetOperation/999999999999"
+        }),
+    ));
+    assert_eq!(helper.status, 200);
+    assert_eq!(
+        helper.body["data"]["byId"],
+        json!({
+            "id": "gid://shopify/Product/9801098789170",
+            "handle": "the-inventory-not-tracked-snowboard",
+            "title": "The Inventory Not Tracked Snowboard"
+        })
+    );
+    assert_eq!(helper.body["data"]["missingProduct"], Value::Null);
+    assert_eq!(
+        helper.body["data"]["variantById"],
+        json!({
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Default Title",
+            "sku": "sku-untracked-1",
+            "product": { "id": "gid://shopify/Product/9801098789170" }
+        })
+    );
+    assert_eq!(
+        helper.body["data"]["productVariantsCount"],
+        json!({ "count": 2279, "precision": "EXACT" })
+    );
+    assert_eq!(
+        helper.body["data"]["productDuplicateJob"],
+        json!({ "id": "gid://shopify/ProductDuplicateJob/999999999999", "done": true })
+    );
+
+    let variant_query =
+        include_str!("../config/parity-requests/products/product-variants-read.graphql");
+    let variant = proxy.process_request(json_graphql_request(
+        variant_query,
+        json!({
+            "productId": "gid://shopify/Product/8971842846953",
+            "variantId": "gid://shopify/ProductVariant/48540157378793",
+            "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
+        }),
+    ));
+    assert_eq!(variant.status, 200);
+    assert_eq!(
+        variant.body["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"],
+        variant.body["data"]["variant"]["inventoryItem"]
+    );
+    assert_eq!(
+        variant.body["data"]["stock"],
+        variant.body["data"]["variant"]["inventoryItem"]
+    );
+    assert_eq!(
+        variant.body["data"]["stockBackreference"]["variant"],
+        json!({
+            "id": "gid://shopify/ProductVariant/48540157378793",
+            "title": "Default Title",
+            "sku": null,
+            "inventoryQuantity": 0,
+            "product": {
+                "id": "gid://shopify/Product/8971842846953",
+                "title": "Test Product - 6635"
+            }
+        })
+    );
+}
