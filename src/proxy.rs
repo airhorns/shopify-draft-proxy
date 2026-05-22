@@ -3228,6 +3228,17 @@ impl DraftProxy {
             return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
         }
 
+        if let Some(data) =
+            order_return_recorded_reverse_logistics_data(root_field, &query, &variables)
+        {
+            return ok_json(data);
+        }
+
+        if let Some(data) = order_return_recorded_shipping_fee_data(root_field, &query, &variables)
+        {
+            return ok_json(data);
+        }
+
         if let Some(data) = order_return_recorded_state_precondition_data(
             root_field,
             &query,
@@ -15060,6 +15071,112 @@ fn order_return_quantity_fixture() -> Value {
         "../fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"
     ))
     .expect("return quantity validation fixture must parse")
+}
+
+fn order_return_recorded_reverse_logistics_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
+    ))
+    .expect("recorded return reverse logistics fixture must parse")
+}
+
+fn order_return_recorded_shipping_fee_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
+    ))
+    .expect("recorded return shipping fee fixture must parse")
+}
+
+fn order_return_recorded_reverse_logistics_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let fixture = order_return_recorded_reverse_logistics_fixture();
+    match root_field {
+        "returnRequest" if query.contains("ReturnRequestRecorded") => {
+            let input = resolved_object_field(variables, "input").unwrap_or_default();
+            let order_id = resolved_string_field(&input, "orderId")?;
+            if fixture["returnRequest"]["variables"]["input"]["orderId"].as_str() != Some(&order_id)
+            {
+                return None;
+            }
+            Some(json!({ "data": fixture["returnRequest"]["response"]["payload"]["data"].clone() }))
+        }
+        "returnApproveRequest" if query.contains("ReturnApproveRequestRecorded") => {
+            let id = resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "id"))?;
+            if fixture["returnApproveRequest"]["variables"]["input"]["id"].as_str() != Some(&id) {
+                return None;
+            }
+            Some(
+                json!({ "data": fixture["returnApproveRequest"]["response"]["payload"]["data"].clone() }),
+            )
+        }
+        "reverseDeliveryCreateWithShipping"
+            if query.contains("ReverseDeliveryCreateWithShippingRecorded") =>
+        {
+            Some(
+                json!({ "data": fixture["reverseDeliveryCreate"]["response"]["payload"]["data"].clone() }),
+            )
+        }
+        "reverseDeliveryShippingUpdate"
+            if query.contains("ReverseDeliveryShippingUpdateRecorded") =>
+        {
+            Some(
+                json!({ "data": fixture["reverseDeliveryUpdate"]["response"]["payload"]["data"].clone() }),
+            )
+        }
+        "reverseFulfillmentOrderDispose"
+            if query.contains("ReverseFulfillmentOrderDisposeRecorded") =>
+        {
+            Some(
+                json!({ "data": fixture["reverseFulfillmentDispose"]["response"]["payload"]["data"].clone() }),
+            )
+        }
+        "returnProcess" if query.contains("ReturnProcessRecorded") => {
+            let return_id = resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "returnId"))?;
+            if fixture["returnProcess"]["variables"]["input"]["returnId"].as_str()
+                != Some(&return_id)
+            {
+                return None;
+            }
+            Some(json!({ "data": fixture["returnProcess"]["response"]["payload"]["data"].clone() }))
+        }
+        "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
+            if query.contains("ReturnReverseLogisticsReadRecorded") =>
+        {
+            Some(
+                json!({ "data": fixture["downstreamRead"]["response"]["payload"]["data"].clone() }),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn order_return_recorded_shipping_fee_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let fixture = order_return_recorded_shipping_fee_fixture();
+    match root_field {
+        "returnCreate" if query.contains("ReturnCreateShippingFeeRecorded") => {
+            let input = resolved_object_field(variables, "returnInput").unwrap_or_default();
+            let order_id = resolved_string_field(&input, "orderId")?;
+            if fixture["returnCreate"]["variables"]["returnInput"]["orderId"].as_str()
+                != Some(&order_id)
+            {
+                return None;
+            }
+            Some(json!({ "data": fixture["returnCreate"]["response"]["payload"]["data"].clone() }))
+        }
+        "return" | "order" if query.contains("ReturnShippingFeeReadRecorded") => Some(
+            json!({ "data": fixture["downstreamRead"]["response"]["payload"]["data"].clone() }),
+        ),
+        _ => None,
+    }
 }
 
 fn order_return_recorded_state_precondition_fixture() -> Value {

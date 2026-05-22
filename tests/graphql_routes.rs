@@ -172,6 +172,118 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
 }
 
 #[test]
+fn order_return_recorded_reverse_logistics_and_shipping_fee_replay_captured_shapes() {
+    let reverse_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
+    ))
+    .unwrap();
+    let shipping_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let request = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-request-recorded.graphql"),
+        reverse_fixture["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        request.body["data"]["returnRequest"],
+        reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-approve-request-recorded.graphql"),
+        reverse_fixture["returnApproveRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"],
+        reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+
+    let delivery_create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql"),
+        reverse_fixture["reverseDeliveryCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_create.body["data"]["reverseDeliveryCreateWithShipping"],
+        reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]
+            ["reverseDeliveryCreateWithShipping"]
+    );
+
+    let delivery_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql"
+        ),
+        reverse_fixture["reverseDeliveryUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_update.body["data"]["reverseDeliveryShippingUpdate"],
+        reverse_fixture["reverseDeliveryUpdate"]["response"]["payload"]["data"]
+            ["reverseDeliveryShippingUpdate"]
+    );
+
+    let dispose = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql"
+        ),
+        reverse_fixture["reverseFulfillmentDispose"]["variables"].clone(),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"],
+        reverse_fixture["reverseFulfillmentDispose"]["response"]["payload"]["data"]
+            ["reverseFulfillmentOrderDispose"]
+    );
+
+    let process = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-process-recorded.graphql"),
+        reverse_fixture["returnProcess"]["variables"].clone(),
+    ));
+    assert_eq!(
+        process.body["data"]["returnProcess"],
+        reverse_fixture["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql"),
+        json!({
+            "returnId": reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]["return"]["id"].clone(),
+            "orderId": reverse_fixture["returnRequest"]["variables"]["input"]["orderId"].clone(),
+            "reverseDeliveryId": reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]["id"].clone(),
+            "reverseFulfillmentOrderId": reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"][0]["id"].clone()
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"],
+        reverse_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+
+    let shipping_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-create-shipping-fee-recorded.graphql"
+        ),
+        shipping_fixture["returnCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        shipping_create.body["data"]["returnCreate"],
+        shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+
+    let shipping_downstream = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-shipping-fee-read-recorded.graphql"),
+        json!({
+            "returnId": shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]["return"]["id"].clone(),
+            "orderId": shipping_fixture["returnCreate"]["variables"]["returnInput"]["orderId"].clone()
+        }),
+    ));
+    assert_eq!(
+        shipping_downstream.body["data"],
+        shipping_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+}
+
+#[test]
 fn order_return_recorded_close_reopen_cancel_state_preconditions_replay_captured_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
