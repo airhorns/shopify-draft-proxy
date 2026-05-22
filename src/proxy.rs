@@ -6741,6 +6741,33 @@ impl DraftProxy {
                 }
             }));
         };
+        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("variants") {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
+                    "locations": [{"line": 2, "column": 39}],
+                    "extensions": {
+                        "code": "INVALID_VARIABLE",
+                        "value": resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                        "problems": [{
+                            "path": ["variants"],
+                            "explanation": "Field is not defined on ProductInput"
+                        }]
+                    }
+                }]
+            }));
+        }
+
+        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("id") {
+            return product_create_user_errors_response(
+                query,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "id cannot be specified during creation"
+                })],
+            );
+        }
+
         let Some(title) =
             resolved_string_field(&input, "title").filter(|value| !value.trim().is_empty())
         else {

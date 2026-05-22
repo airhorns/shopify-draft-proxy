@@ -5515,6 +5515,41 @@ fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields
 }
 
 #[test]
+fn product_create_legacy_input_id_and_variants_validation_matches_2026_04_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-no-key-on-create.json"
+    ))
+    .unwrap();
+    let query =
+        include_str!("../config/parity-requests/products/product-create-no-key-on-create.graphql");
+    let mut proxy = snapshot_proxy();
+
+    for scenario in ["inputId", "inputIdBeforeBlankTitle"] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            fixture["scenarios"][scenario]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body["data"]["productCreate"],
+            fixture["scenarios"][scenario]["response"]["data"]["productCreate"]
+        );
+    }
+
+    let variants_response = proxy.process_request(json_graphql_request(
+        query,
+        fixture["scenarios"]["variantProductId"]["variables"].clone(),
+    ));
+    assert_eq!(
+        variants_response.body["errors"][0]["message"],
+        fixture["scenarios"]["variantProductId"]["response"]["errors"][0]["message"]
+    );
+    assert_eq!(
+        variants_response.body["errors"][0]["extensions"],
+        fixture["scenarios"]["variantProductId"]["response"]["errors"][0]["extensions"]
+    );
+}
+
+#[test]
 fn product_create_serializes_only_requested_payload_fields() {
     let mut proxy = snapshot_proxy();
 
