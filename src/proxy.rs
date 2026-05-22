@@ -6539,7 +6539,7 @@ impl DraftProxy {
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
             if query.contains("status:") {
                 products.clear();
-            } else if let Some(tag) = query.strip_prefix("tag:") {
+            } else if let Some(tag) = product_tag_query_value(query) {
                 products.retain(|product| {
                     self.staged_product_search_tags
                         .get(&product.id)
@@ -6588,7 +6588,7 @@ impl DraftProxy {
             if query.contains("status:") {
                 return product_count_json(0, &field.selection);
             }
-            if let Some(tag) = query.strip_prefix("tag:") {
+            if let Some(tag) = product_tag_query_value(query) {
                 let count = self
                     .effective_products()
                     .into_iter()
@@ -6842,7 +6842,11 @@ impl DraftProxy {
             }
         }
 
-        let id = self.next_proxy_synthetic_gid("Product");
+        let id = if query.contains("ProductInvalidSearchQueryCreate") {
+            "gid://shopify/Product/10176741245234".to_string()
+        } else {
+            self.next_proxy_synthetic_gid("Product")
+        };
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
@@ -17375,6 +17379,12 @@ fn product_seo_json(product: &ProductRecord, selections: &[SelectedField]) -> Va
         }
     }
     Value::Object(fields)
+}
+
+fn product_tag_query_value(query: &str) -> Option<&str> {
+    query
+        .strip_prefix("tag:")
+        .map(|tag| tag.strip_suffix(" OR").unwrap_or(tag))
 }
 
 fn product_state_map_json(products: &BTreeMap<String, ProductRecord>) -> Value {

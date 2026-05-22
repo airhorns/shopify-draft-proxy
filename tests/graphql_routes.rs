@@ -13218,3 +13218,43 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
         json!(0)
     );
 }
+
+#[test]
+fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json"
+    ))
+    .unwrap();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-invalid-search-query-create.graphql"
+        ),
+        fixture["captures"]["productCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["id"],
+        fixture["captures"]["productCreate"]["result"]["payload"]["data"]["productCreate"]
+            ["product"]["id"]
+    );
+
+    for capture in [
+        "validTagSearchAfterCreate",
+        "fieldOpenParenSearchAfterCreate",
+        "fieldQuotedOpenParenSearchAfterCreate",
+        "bareLeadingParenSearchAfterCreate",
+        "danglingOrSearchAfterCreate",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../config/parity-requests/products/product-invalid-search-query-search.graphql"
+            ),
+            fixture["captures"][capture]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body["data"], fixture["captures"][capture]["result"]["payload"]["data"],
+            "{capture}"
+        );
+    }
+}
