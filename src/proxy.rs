@@ -168,6 +168,7 @@ pub struct DraftProxy {
     staged_catalogs: BTreeMap<String, Value>,
     staged_price_lists: BTreeMap<String, Value>,
     staged_web_presences: BTreeMap<String, Value>,
+    staged_shop_locales: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
@@ -254,6 +255,7 @@ impl DraftProxy {
             staged_catalogs: BTreeMap::new(),
             staged_price_lists: BTreeMap::new(),
             staged_web_presences: BTreeMap::new(),
+            staged_shop_locales: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
@@ -374,6 +376,7 @@ impl DraftProxy {
                 self.staged_catalogs.clear();
                 self.staged_price_lists.clear();
                 self.staged_web_presences.clear();
+                self.staged_shop_locales.clear();
                 self.staged_localization_translations.clear();
                 self.staged_marketing_activities.clear();
                 self.staged_deleted_marketing_activity_ids.clear();
@@ -868,6 +871,15 @@ impl DraftProxy {
         };
         for field in fields {
             match field.name.as_str() {
+                "shopLocales" => {
+                    let published_filter = resolved_bool_field(&field.arguments, "published");
+                    data[field.response_key.as_str()] = Value::Array(
+                        self.localization_shop_locales(published_filter)
+                            .iter()
+                            .map(|locale| selected_json(locale, &field.selection))
+                            .collect(),
+                    );
+                }
                 "translatableResource" => {
                     let resource_id = resolved_string_arg(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
@@ -904,33 +916,9 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "shopLocaleEnable" | "shopLocaleUpdate" => {
-                    let locale = resolved_string_arg(&field.arguments, "locale")
-                        .unwrap_or_else(|| "fr".to_string());
-                    let locale_record = shop_locale_record(&locale, false);
-                    selected_json(
-                        &json!({ "shopLocale": locale_record, "userErrors": [] }),
-                        &field.selection,
-                    )
-                }
-                "shopLocaleDisable" => {
-                    let locale = resolved_string_arg(&field.arguments, "locale")
-                        .unwrap_or_else(|| "fr".to_string());
-                    let payload = if locale == "en" {
-                        json!({
-                            "locale": null,
-                            "userErrors": [{
-                                "field": ["locale"],
-                                "message": "The primary locale of your store can't be changed through this endpoint."
-                            }]
-                        })
-                    } else {
-                        self.staged_localization_translations
-                            .retain(|translation| translation["locale"] != json!(locale));
-                        json!({ "locale": locale, "userErrors": [] })
-                    };
-                    selected_json(&payload, &field.selection)
-                }
+                "shopLocaleEnable" => self.shop_locale_enable_response(field),
+                "shopLocaleUpdate" => self.shop_locale_update_response(field),
+                "shopLocaleDisable" => self.shop_locale_disable_response(field),
                 "translationsRegister" => self.localization_register_response(field),
                 "translationsRemove" => self.localization_remove_response(field),
                 _ => Value::Null,
@@ -938,6 +926,120 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    fn localization_shop_locales(&self, published_filter: Option<bool>) -> Vec<Value> {
+        let mut locales = vec![shop_locale_record("en", true)];
+        locales.extend(self.staged_shop_locales.values().cloned());
+        locales.sort_by_key(|locale| locale["locale"].as_str().unwrap_or_default().to_string());
+        if let Some(published) = published_filter {
+            locales.retain(|locale| locale["published"].as_bool() == Some(published));
+        }
+        locales
+    }
+
+    fn shop_locale_enable_response(&mut self, field: &RootFieldSelection) -> Value {
+        let locale =
+            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+        let payload = if locale == "en" {
+            json!({
+                "shopLocale": null,
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+            })
+        } else if !is_valid_shop_locale(&locale) {
+            json!({
+                "shopLocale": null,
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid", "INVALID")]
+            })
+        } else if self.staged_shop_locales.contains_key(&locale) {
+            json!({
+                "shopLocale": null,
+                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
+            })
+        } else {
+            let record = shop_locale_record(&locale, false);
+            self.staged_shop_locales
+                .insert(locale.clone(), record.clone());
+            json!({ "shopLocale": record, "userErrors": [] })
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn shop_locale_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let locale =
+            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+        let input = resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
+        let published = resolved_bool_field(&input, "published");
+        let market_web_presence_ids =
+            resolved_string_list_field_unsorted(&input, "marketWebPresenceIds");
+
+        if locale == "en" && published == Some(false) {
+            return selected_json(
+                &json!({
+                    "shopLocale": null,
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let locale_exists = locale == "en" || self.staged_shop_locales.contains_key(&locale);
+        if !locale_exists && market_web_presence_ids.is_empty() {
+            return selected_json(
+                &json!({
+                    "shopLocale": null,
+                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut record = self
+            .staged_shop_locales
+            .get(&locale)
+            .cloned()
+            .unwrap_or_else(|| shop_locale_record(&locale, false));
+        if let Some(published) = published {
+            record["published"] = json!(published);
+        }
+        if input.contains_key("marketWebPresenceIds") {
+            record["marketWebPresences"] = Value::Array(
+                market_web_presence_ids
+                    .into_iter()
+                    .filter(|id| is_known_market_web_presence_id(id))
+                    .map(|id| shop_locale_market_web_presence_record(&id))
+                    .collect(),
+            );
+        }
+        if locale != "en" {
+            self.staged_shop_locales.insert(locale, record.clone());
+        }
+        selected_json(
+            &json!({ "shopLocale": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn shop_locale_disable_response(&mut self, field: &RootFieldSelection) -> Value {
+        let locale =
+            resolved_string_arg(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+        let payload = if locale == "en" {
+            json!({
+                "locale": null,
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
+            })
+        } else if !self.staged_shop_locales.contains_key(&locale) {
+            json!({
+                "locale": null,
+                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
+            })
+        } else {
+            self.staged_shop_locales.remove(&locale);
+            self.staged_localization_translations
+                .retain(|translation| translation["locale"] != json!(locale));
+            json!({ "locale": locale, "userErrors": [] })
+        };
+        selected_json(&payload, &field.selection)
     }
 
     fn market_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -16908,6 +17010,7 @@ fn is_ported_localization_document(query: &str) -> bool {
         "LocalizationTranslationsRemove(",
         "LocalizationTranslationsMarketScopedRead",
         "LocalizationTranslationsMarketScopedRemove",
+        "RustLocalizationShopLocaleTailHelpers",
     ]
     .iter()
     .any(|marker| query.contains(marker))
@@ -17560,17 +17663,47 @@ fn localization_collection_read_data(with_translation: bool) -> Value {
 }
 
 fn shop_locale_record(locale: &str, published: bool) -> Value {
-    let name = match locale {
-        "fr" => "French",
-        "es" => "Spanish",
-        "en" => "English",
-        _ => locale,
-    };
+    let name = localization_available_locale_name(locale).unwrap_or_else(|| locale.to_string());
     json!({
         "locale": locale,
         "name": name,
         "primary": locale == "en",
-        "published": published
+        "published": published,
+        "marketWebPresences": []
+    })
+}
+
+fn localization_available_locale_name(locale: &str) -> Option<String> {
+    localization_baseline_read_data()["availableLocalesExcerpt"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|candidate| candidate["isoCode"].as_str() == Some(locale))
+        .and_then(|candidate| candidate["name"].as_str())
+        .map(str::to_string)
+}
+
+fn shop_locale_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn is_valid_shop_locale(locale: &str) -> bool {
+    localization_available_locale_name(locale).is_some()
+}
+
+fn is_known_market_web_presence_id(id: &str) -> bool {
+    !id.contains("9999999999") && !id.contains("unknown")
+}
+
+fn shop_locale_market_web_presence_record(id: &str) -> Value {
+    json!({
+        "id": id,
+        "__typename": "MarketWebPresence",
+        "defaultLocale": { "locale": "en" }
     })
 }
 

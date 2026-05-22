@@ -9256,6 +9256,152 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
 }
 
 #[test]
+fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+    let known_presence = "gid://shopify/MarketWebPresence/known";
+    let unknown_presence = "gid://shopify/MarketWebPresence/9999999999";
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation RustLocalizationShopLocaleTailHelpers($known: ID!, $unknown: ID!) {
+          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
+          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
+          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
+          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
+          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
+        }"#,
+        json!({ "known": known_presence, "unknown": unknown_presence }),
+    ));
+    assert_eq!(lifecycle.status, 200);
+    assert_eq!(
+        lifecycle.body["data"]["enableFr"],
+        json!({ "shopLocale": { "locale": "fr", "published": false }, "userErrors": [] })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["publishFr"],
+        json!({
+            "shopLocale": {
+                "locale": "fr",
+                "name": "French",
+                "published": true,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["attachMissing"],
+        json!({
+            "shopLocale": {
+                "locale": "tr",
+                "name": "Turkish",
+                "published": false,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["missingNoPresence"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The locale doesn't exist.",
+                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["primaryUnpublish"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["disablePrimary"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["disableUnknown"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The locale doesn't exist.",
+                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query RustLocalizationShopLocaleTailHelpersRead {
+          allLocales: shopLocales { locale published marketWebPresences { id __typename defaultLocale { locale } } }
+          publishedLocales: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    let all_locales = read.body["data"]["allLocales"].as_array().unwrap();
+    let staged_fr = all_locales
+        .iter()
+        .find(|locale| locale["locale"] == json!("fr"))
+        .unwrap();
+    assert_eq!(staged_fr["published"], json!(true));
+    assert_eq!(
+        staged_fr["marketWebPresences"],
+        json!([{ "id": known_presence, "__typename": "MarketWebPresence", "defaultLocale": { "locale": "en" } }])
+    );
+    assert!(all_locales
+        .iter()
+        .any(|locale| locale["locale"] == json!("tr")));
+    assert!(read.body["data"]["publishedLocales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+
+    let disabled = proxy.process_request(json_graphql_request(
+        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query RustLocalizationShopLocaleTailHelpersReadAfterDisable { shopLocales { locale published } }"#,
+        json!({}),
+    ));
+    assert!(!after_disable.body["data"]["shopLocales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+}
+
+#[test]
 fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs_and_allows_note() {
     let mut proxy = snapshot_proxy();
 
