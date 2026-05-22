@@ -14506,6 +14506,16 @@ fn product_fixture_backed_mutation_data(
     if query.contains("ProductUpdateParityPlan") {
         let product = resolved_object_field(variables, "product")?;
         if resolved_string_field(&product, "id").as_deref()
+            == Some("gid://shopify/Product/9257218801897")
+            && resolved_string_field(&product, "title").as_deref() == Some("")
+        {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
+            ))
+            .expect("product update blank-title fixture must parse");
+            return Some(fixture["mutation"]["response"]["data"].clone());
+        }
+        if resolved_string_field(&product, "id").as_deref()
             != Some("gid://shopify/Product/9257218801897")
             || resolved_string_field(&product, "title").as_deref()
                 != Some("Hermes Product Conformance 1776550632328 Updated")
@@ -14517,6 +14527,21 @@ fn product_fixture_backed_mutation_data(
         ))
         .expect("product update parity fixture must parse");
         return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductUpdateTooLongHandle") {
+        let product = resolved_object_field(variables, "product")?;
+        let handle = resolved_string_field(&product, "handle").unwrap_or_default();
+        if resolved_string_field(&product, "id").as_deref()
+            != Some("gid://shopify/Product/10170567196978")
+            || handle.len() <= 255
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-validation-parity.json"
+        ))
+        .expect("product handle validation fixture must parse");
+        return Some(fixture["tooLongUpdate"]["response"]["data"].clone());
     }
     if query.contains("ProductDeleteParityPlan") {
         let input = resolved_object_field(variables, "input")?;

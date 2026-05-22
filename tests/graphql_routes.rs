@@ -10514,3 +10514,52 @@ fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
         })
     );
 }
+
+#[test]
+fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-parity-plan.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/9257218801897",
+                "title": ""
+            }
+        }),
+    ));
+    assert_eq!(blank.status, 200);
+    let blank_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        blank.body["data"],
+        blank_fixture["mutation"]["response"]["data"]
+    );
+
+    let too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-too-long-handle-parity.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10170567196978",
+                "handle": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+        }),
+    ));
+    assert_eq!(too_long.status, 200);
+    assert_eq!(
+        too_long.body["data"]["productUpdate"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10170567196978",
+                "title": "HAR-22 update seed 1777153541365",
+                "handle": "har-22-update-seed-1777153541365"
+            },
+            "userErrors": [{
+                "field": ["handle"],
+                "message": "Handle is too long (maximum is 255 characters)"
+            }]
+        })
+    );
+}
