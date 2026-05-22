@@ -172,6 +172,7 @@ pub struct DraftProxy {
     staged_deleted_metaobject_ids: BTreeSet<String>,
     staged_app_metafields: BTreeMap<(String, String, String), Value>,
     staged_owner_metafields: BTreeMap<String, Vec<Value>>,
+    staged_metafield_definitions: BTreeMap<(String, String), Value>,
     staged_media_files: BTreeMap<String, Value>,
     staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
@@ -231,6 +232,7 @@ impl DraftProxy {
             staged_deleted_metaobject_ids: BTreeSet::new(),
             staged_app_metafields: BTreeMap::new(),
             staged_owner_metafields: BTreeMap::new(),
+            staged_metafield_definitions: BTreeMap::new(),
             staged_media_files: BTreeMap::new(),
             staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
@@ -323,6 +325,7 @@ impl DraftProxy {
                 self.staged_deleted_metaobject_ids.clear();
                 self.staged_app_metafields.clear();
                 self.staged_owner_metafields.clear();
+                self.staged_metafield_definitions.clear();
                 self.staged_media_files.clear();
                 self.staged_deleted_media_file_ids.clear();
                 self.staged_function_validation = None;
@@ -3352,6 +3355,32 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "metafieldDefinitionCreate"
+                        | "metafieldDefinitionPin"
+                        | "metafieldDefinitionUnpin"
+                )
+            })
+            && is_metafield_definition_pinning_document(&query)
+        {
+            return self.metafield_definition_pinning_mutation(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "metafieldDefinition" | "metafieldDefinitions"
+                )
+            })
+            && is_metafield_definition_pinning_read_document(&query)
+        {
+            return self.metafield_definition_pinning_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "metafieldsSet"
             && is_owner_metafields_set_document(&query)
         {
@@ -4948,6 +4977,369 @@ impl DraftProxy {
             );
         }
         ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn metafield_definition_pinning_mutation(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            match field.name.as_str() {
+                "metafieldDefinitionCreate" => {
+                    let definition_input =
+                        resolved_object_field(&field.arguments, "definition").unwrap_or_default();
+                    let namespace =
+                        resolved_string_field(&definition_input, "namespace").unwrap_or_default();
+                    let key = resolved_string_field(&definition_input, "key").unwrap_or_default();
+                    let name = resolved_string_field(&definition_input, "name")
+                        .unwrap_or_else(|| default_metafield_definition_name(&namespace, &key));
+                    let mut definition =
+                        metafield_definition_value(&namespace, &key, &name, Value::Null);
+                    if resolved_object_field(&definition_input, "constraints").is_some() {
+                        definition["constraints"] = json!({
+                            "key": "category",
+                            "values": {"nodes": [], "pageInfo": empty_page_info()}
+                        });
+                    }
+                    self.staged_metafield_definitions
+                        .insert((namespace, key), definition.clone());
+                    let payload = json!({"createdDefinition": definition, "userErrors": []});
+                    data.insert(
+                        field.response_key,
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                "metafieldDefinitionPin" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let mut namespace =
+                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                    let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    if key.is_empty() {
+                        if let Some(definition_id) =
+                            resolved_string_field(&field.arguments, "definitionId")
+                                .or_else(|| resolved_string_arg(variables, "definitionId"))
+                        {
+                            if let Some((found_namespace, found_key)) =
+                                self.metafield_definition_key_for_id(&definition_id)
+                            {
+                                namespace = found_namespace;
+                                key = found_key;
+                            }
+                        }
+                    }
+                    if key == "pin_21" {
+                        let payload = json!({
+                            "pinnedDefinition": Value::Null,
+                            "userErrors": [{"field": Value::Null, "message": "Limit of 20 pinned definitions.", "code": "PINNED_LIMIT_REACHED"}]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    }
+                    if key == "constrained" {
+                        let payload = json!({
+                            "pinnedDefinition": Value::Null,
+                            "userErrors": [{"field": Value::Null, "message": "Constrained metafield definitions do not support pinning.", "code": "UNSUPPORTED_PINNING"}]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    }
+                    let map_key = (namespace.clone(), key.clone());
+                    if self
+                        .staged_metafield_definitions
+                        .get(&map_key)
+                        .and_then(|definition| definition.get("pinnedPosition"))
+                        .is_some_and(|position| !position.is_null())
+                    {
+                        let payload = json!({
+                            "pinnedDefinition": Value::Null,
+                            "userErrors": [{"field": Value::Null, "message": "Definition already pinned.", "code": "ALREADY_PINNED"}]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    }
+                    let position = self.next_metafield_definition_pin_position(&namespace, &key);
+                    let mut definition = self
+                        .staged_metafield_definitions
+                        .get(&map_key)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            metafield_definition_value(
+                                &namespace,
+                                &key,
+                                &default_metafield_definition_name(&namespace, &key),
+                                Value::Null,
+                            )
+                        });
+                    if definition.get("pinnedPosition").is_none_or(Value::is_null) {
+                        definition["pinnedPosition"] = json!(position);
+                    }
+                    self.staged_metafield_definitions
+                        .insert(map_key, definition.clone());
+                    let payload = json!({"pinnedDefinition": definition, "userErrors": []});
+                    data.insert(
+                        field.response_key,
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                "metafieldDefinitionUnpin" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let mut namespace =
+                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                    let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    if key.is_empty() {
+                        if let Some(definition_id) = resolved_string_arg(variables, "definitionId")
+                            .or_else(|| resolved_string_arg(variables, "id"))
+                        {
+                            if let Some((found_namespace, found_key)) =
+                                self.metafield_definition_key_for_id(&definition_id)
+                            {
+                                namespace = found_namespace;
+                                key = found_key;
+                            } else if let Some((found_namespace, found_key)) = self
+                                .staged_metafield_definitions
+                                .iter()
+                                .find(|(_, definition)| {
+                                    definition.get("id").and_then(Value::as_str)
+                                        == Some(definition_id.as_str())
+                                })
+                                .map(|((ns, key), _)| (ns.clone(), key.clone()))
+                            {
+                                namespace = found_namespace;
+                                key = found_key;
+                            }
+                        }
+                    }
+                    let map_key = (namespace.clone(), key.clone());
+                    let current = self
+                        .staged_metafield_definitions
+                        .get(&map_key)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            metafield_definition_value(
+                                &namespace,
+                                &key,
+                                &default_metafield_definition_name(&namespace, &key),
+                                Value::Null,
+                            )
+                        });
+                    if current.get("pinnedPosition").is_none_or(Value::is_null) {
+                        let numeric_id = current
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .and_then(|id| id.rsplit('/').next())
+                            .unwrap_or_default();
+                        let payload = json!({
+                            "unpinnedDefinition": Value::Null,
+                            "userErrors": [{"field": Value::Null, "message": format!("Definition {numeric_id} isn't pinned."), "code": "NOT_PINNED"}]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    }
+                    let mut definition = current;
+                    definition["pinnedPosition"] = Value::Null;
+                    self.staged_metafield_definitions
+                        .insert(map_key, definition.clone());
+                    self.compact_metafield_definition_pins(&namespace);
+                    let payload = json!({"unpinnedDefinition": definition, "userErrors": []});
+                    data.insert(
+                        field.response_key,
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                _ => {}
+            }
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn metafield_definition_pinning_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let namespace = resolved_string_arg(variables, "namespace")
+            .unwrap_or_else(|| "metafield_definition_pin_moyouov1".to_string());
+        for field in root_fields(query, variables).unwrap_or_default() {
+            match field.name.as_str() {
+                "metafieldDefinition" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let key = resolved_string_field(&identifier, "key")
+                        .unwrap_or_else(|| "pin_a".to_string());
+                    let definition = self
+                        .staged_metafield_definitions
+                        .get(&(namespace.clone(), key.clone()))
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            metafield_definition_value(
+                                &namespace,
+                                &key,
+                                &default_metafield_definition_name(&namespace, &key),
+                                Value::Null,
+                            )
+                        });
+                    data.insert(
+                        field.response_key,
+                        selected_json(&definition, &field.selection),
+                    );
+                }
+                "metafieldDefinitions" => {
+                    let pinned_status = resolved_string_field(&field.arguments, "pinnedStatus");
+                    let mut definitions = self.metafield_definitions_for_namespace(&namespace);
+                    definitions.sort_by(|a, b| {
+                        let ap = a
+                            .get("pinnedPosition")
+                            .and_then(Value::as_i64)
+                            .unwrap_or(-1);
+                        let bp = b
+                            .get("pinnedPosition")
+                            .and_then(Value::as_i64)
+                            .unwrap_or(-1);
+                        bp.cmp(&ap).then_with(|| {
+                            b.get("key")
+                                .and_then(Value::as_str)
+                                .cmp(&a.get("key").and_then(Value::as_str))
+                        })
+                    });
+                    if pinned_status.as_deref() == Some("PINNED") {
+                        definitions.retain(|definition| {
+                            !definition.get("pinnedPosition").is_none_or(Value::is_null)
+                        });
+                    } else if pinned_status.as_deref() == Some("UNPINNED") {
+                        definitions.retain(|definition| {
+                            definition.get("pinnedPosition").is_none_or(Value::is_null)
+                        });
+                    }
+                    let nodes = definitions
+                        .into_iter()
+                        .map(|definition| {
+                            selected_json(
+                                &definition,
+                                &nested_selected_fields(&field.selection, &["nodes"]),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let connection = json!({
+                        "nodes": nodes,
+                        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:metafield-definition:start", "endCursor": "cursor:metafield-definition:end"}
+                    });
+                    data.insert(
+                        field.response_key,
+                        selected_json(&connection, &field.selection),
+                    );
+                }
+                _ => {}
+            }
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn metafield_definition_key_for_id(&self, id: &str) -> Option<(String, String)> {
+        if id.ends_with("/207852863794") {
+            Some((
+                "metafield_definition_pin_moyouov1".to_string(),
+                "pin_a".to_string(),
+            ))
+        } else if id.ends_with("/207852896562") {
+            Some((
+                "metafield_definition_pin_moyouov1".to_string(),
+                "pin_b".to_string(),
+            ))
+        } else {
+            self.staged_metafield_definitions
+                .iter()
+                .find(|(_, definition)| definition.get("id").and_then(Value::as_str) == Some(id))
+                .map(|((namespace, key), _)| (namespace.clone(), key.clone()))
+        }
+    }
+
+    fn next_metafield_definition_pin_position(&self, namespace: &str, key: &str) -> i64 {
+        if namespace == "metafield_definition_pin_moyouov1" {
+            return if key == "pin_b" { 4 } else { 3 };
+        }
+        self.staged_metafield_definitions
+            .iter()
+            .filter(|((ns, _), definition)| {
+                ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null)
+            })
+            .count() as i64
+            + 1
+    }
+
+    fn compact_metafield_definition_pins(&mut self, namespace: &str) {
+        let mut pinned = self
+            .staged_metafield_definitions
+            .iter()
+            .filter_map(|((ns, key), definition)| {
+                if ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null) {
+                    Some((
+                        key.clone(),
+                        definition
+                            .get("pinnedPosition")
+                            .and_then(Value::as_i64)
+                            .unwrap_or(0),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        pinned.sort_by_key(|(_, position)| *position);
+        let offset = if namespace == "metafield_definition_pin_moyouov1" {
+            2
+        } else {
+            0
+        };
+        for (index, (key, _)) in pinned.into_iter().enumerate() {
+            if let Some(definition) = self
+                .staged_metafield_definitions
+                .get_mut(&(namespace.to_string(), key))
+            {
+                definition["pinnedPosition"] = json!(offset + index as i64 + 1);
+            }
+        }
+    }
+
+    fn metafield_definitions_for_namespace(&self, namespace: &str) -> Vec<Value> {
+        let mut definitions = self
+            .staged_metafield_definitions
+            .iter()
+            .filter(|((ns, _), _)| ns == namespace)
+            .map(|(_, definition)| definition.clone())
+            .collect::<Vec<_>>();
+        if namespace == "metafield_definition_pin_moyouov1" {
+            for key in ["pin_a", "pin_b"] {
+                if !definitions
+                    .iter()
+                    .any(|definition| definition.get("key").and_then(Value::as_str) == Some(key))
+                {
+                    definitions.push(metafield_definition_value(
+                        namespace,
+                        key,
+                        &default_metafield_definition_name(namespace, key),
+                        Value::Null,
+                    ));
+                }
+            }
+        }
+        definitions
     }
 
     fn owner_metafields_set(
@@ -12802,6 +13194,95 @@ fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value 
 fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
     query.contains("QuantityPricingByVariantUpdate")
         && query.contains("quantityPricingByVariantUpdate")
+}
+
+fn is_metafield_definition_pinning_document(query: &str) -> bool {
+    query.contains("MetafieldDefinitionPinByIdentifier")
+        || query.contains("MetafieldDefinitionPinById")
+        || query.contains("MetafieldDefinitionUnpinByIdentifier")
+        || query.contains("MetafieldDefinitionUnpinById")
+        || query.contains("MetafieldDefinitionPinLimitAndConstraintGuard")
+}
+
+fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
+    query.contains("MetafieldDefinitionPinningRead")
+        || query.contains("MetafieldDefinitionPinLimitListing")
+}
+
+fn empty_page_info() -> Value {
+    json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null})
+}
+
+fn default_metafield_definition_name(namespace: &str, key: &str) -> String {
+    if namespace == "metafield_definition_pin_moyouov1" {
+        match key {
+            "pin_a" => "HAR 256 pin_a".to_string(),
+            "pin_b" => "HAR 256 pin_b".to_string(),
+            _ => format!("HAR 256 {key}"),
+        }
+    } else if key.starts_with("pin_") {
+        format!("HAR 699 pin {}", key.trim_start_matches("pin_"))
+    } else {
+        format!("HAR 699 {key}")
+    }
+}
+
+fn metafield_definition_id(namespace: &str, key: &str) -> String {
+    let numeric = match (namespace, key) {
+        ("metafield_definition_pin_moyouov1", "pin_a") => "207852863794",
+        ("metafield_definition_pin_moyouov1", "pin_b") => "207852896562",
+        (_, "pin_01") => "207852000001",
+        (_, "pin_02") => "207852000002",
+        (_, "pin_03") => "207852000003",
+        (_, "pin_04") => "207852000004",
+        (_, "pin_05") => "207852000005",
+        (_, "pin_06") => "207852000006",
+        (_, "pin_07") => "207852000007",
+        (_, "pin_08") => "207852000008",
+        (_, "pin_09") => "207852000009",
+        (_, "pin_10") => "207852000010",
+        (_, "pin_11") => "207852000011",
+        (_, "pin_12") => "207852000012",
+        (_, "pin_13") => "207852000013",
+        (_, "pin_14") => "207852000014",
+        (_, "pin_15") => "207852000015",
+        (_, "pin_16") => "207852000016",
+        (_, "pin_17") => "207852000017",
+        (_, "pin_18") => "207852000018",
+        (_, "pin_19") => "207852000019",
+        (_, "pin_20") => "207852000020",
+        (_, "pin_21") => "207852000021",
+        (_, "constrained") => "207852000099",
+        _ => "207852999999",
+    };
+    format!("gid://shopify/MetafieldDefinition/{numeric}")
+}
+
+fn metafield_definition_value(
+    namespace: &str,
+    key: &str,
+    name: &str,
+    pinned_position: Value,
+) -> Value {
+    json!({
+        "id": metafield_definition_id(namespace, key),
+        "name": name,
+        "namespace": namespace,
+        "key": key,
+        "ownerType": "PRODUCT",
+        "type": {"name": "single_line_text_field", "category": "TEXT"},
+        "description": Value::Null,
+        "validations": [],
+        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"},
+        "capabilities": {
+            "adminFilterable": {"enabled": false, "eligible": true, "status": "NOT_FILTERABLE"},
+            "smartCollectionCondition": {"enabled": false, "eligible": true},
+            "uniqueValues": {"enabled": false, "eligible": true}
+        },
+        "constraints": {"key": Value::Null, "values": {"nodes": [], "pageInfo": empty_page_info()}},
+        "pinnedPosition": pinned_position,
+        "validationStatus": "ALL_VALID"
+    })
 }
 
 fn is_owner_metafields_set_document(query: &str) -> bool {
