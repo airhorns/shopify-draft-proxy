@@ -9354,6 +9354,97 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
 }
 
 #[test]
+fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let product_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionLifecycleMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "boolean", "type": "boolean", "value": "true"},
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "json", "type": "json", "value": "{\"ingredient\":\"flour\",\"amount\":0.3}"},
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "number_decimal", "type": "number_decimal", "value": "10.4"}
+        ]}),
+    ));
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][0]["jsonValue"],
+        json!(true)
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][1]["jsonValue"],
+        json!({"ingredient": "flour", "amount": 0.3})
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][2]["jsonValue"],
+        json!("10.4")
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomDataMetafieldTypeMatrixRead($id: ID!, $namespace: String!) {
+          product(id: $id) { id metafields(first: 100, namespace: $namespace) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/10173071262002", "namespace": "har294_test"}),
+    ));
+    assert_eq!(
+        product_read.body["data"]["product"]["id"],
+        json!("gid://shopify/Product/10173071262002")
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["metafields"]["nodes"][1]["key"],
+        json!("json")
+    );
+
+    let customer_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionNonProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value", "type": "single_line_text_field", "value": "CUSTOMER metafieldsSet value"}]}),
+    ));
+    assert_eq!(
+        customer_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let customer_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionNonProductCustomerMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {
+          customer(id: $id) { id metafield(namespace: $namespace, key: $key) { id namespace key type value } metafields(first: 10, namespace: $namespace) { nodes { id namespace key type value } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value"}),
+    ));
+    assert_eq!(
+        customer_read.body["data"]["customer"]["metafield"]["value"],
+        json!("CUSTOMER metafieldsSet value")
+    );
+    assert_eq!(
+        customer_read.body["data"]["customer"]["metafields"]["nodes"][0]["key"],
+        json!("value")
+    );
+}
+
+#[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
 

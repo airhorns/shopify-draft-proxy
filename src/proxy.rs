@@ -171,6 +171,7 @@ pub struct DraftProxy {
     staged_metaobjects: BTreeMap<String, Value>,
     staged_deleted_metaobject_ids: BTreeSet<String>,
     staged_app_metafields: BTreeMap<(String, String, String), Value>,
+    staged_owner_metafields: BTreeMap<String, Vec<Value>>,
     staged_media_files: BTreeMap<String, Value>,
     staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
@@ -229,6 +230,7 @@ impl DraftProxy {
             staged_metaobjects: BTreeMap::new(),
             staged_deleted_metaobject_ids: BTreeSet::new(),
             staged_app_metafields: BTreeMap::new(),
+            staged_owner_metafields: BTreeMap::new(),
             staged_media_files: BTreeMap::new(),
             staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
@@ -320,6 +322,7 @@ impl DraftProxy {
                 self.staged_metaobjects.clear();
                 self.staged_deleted_metaobject_ids.clear();
                 self.staged_app_metafields.clear();
+                self.staged_owner_metafields.clear();
                 self.staged_media_files.clear();
                 self.staged_deleted_media_file_ids.clear();
                 self.staged_function_validation = None;
@@ -3209,6 +3212,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && matches!(root_field, "product" | "customer" | "order" | "company")
+            && is_owner_metafields_read_document(&query)
+        {
+            return self.owner_metafields_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
@@ -3339,6 +3349,27 @@ impl DraftProxy {
                 || query.contains("FileDeleteMediaReferenceDownstream"))
         {
             return self.media_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "metafieldsSet"
+            && is_owner_metafields_set_document(&query)
+        {
+            return self.owner_metafields_set(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "product" | "customer" | "order" | "company")
+            && is_owner_metafields_read_document(&query)
+        {
+            return self.owner_metafields_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "metafieldDefinitionDelete"
+            && query.contains("MetafieldDefinitionLifecycleDelete")
+        {
+            return self.metafield_definition_lifecycle_delete(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -4915,6 +4946,193 @@ impl DraftProxy {
                 field.response_key,
                 selected_json(&product, &field.selection),
             );
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn owner_metafields_set(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let mut metafields = Vec::new();
+        for input in list_object_arg(variables, "metafields") {
+            let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
+            let namespace = resolved_string_field(&input, "namespace").unwrap_or_default();
+            let key = resolved_string_field(&input, "key").unwrap_or_default();
+            let metafield_type = resolved_string_field(&input, "type")
+                .unwrap_or_else(|| "single_line_text_field".to_string());
+            let value = resolved_string_field(&input, "value").unwrap_or_default();
+            let index = self
+                .staged_owner_metafields
+                .values()
+                .map(Vec::len)
+                .sum::<usize>()
+                + metafields.len()
+                + 1;
+            let metafield = json!({
+                "id": format!("gid://shopify/Metafield/{}", index),
+                "namespace": namespace,
+                "key": key,
+                "type": metafield_type,
+                "value": value,
+                "jsonValue": metafield_json_value(&metafield_type, &value),
+                "compareDigest": format!("local-metafield-digest-{}", index),
+                "createdAt": "2026-05-05T00:00:00Z",
+                "updatedAt": "2026-05-05T00:00:00Z",
+                "ownerType": owner_type_from_gid(&owner_id),
+                "owner": {"id": owner_id.clone()},
+            });
+            self.staged_owner_metafields
+                .entry(owner_id.clone())
+                .or_default()
+                .retain(|existing| {
+                    existing.get("namespace").and_then(Value::as_str) != Some(namespace.as_str())
+                        || existing.get("key").and_then(Value::as_str) != Some(key.as_str())
+                });
+            self.staged_owner_metafields
+                .entry(owner_id.clone())
+                .or_default()
+                .push(metafield.clone());
+            metafields.push(metafield);
+        }
+        let payload = json!({"metafields": metafields, "userErrors": []});
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn metafield_definition_lifecycle_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "metafieldDefinitionDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let id = resolved_string_arg(variables, "id")
+            .unwrap_or_else(|| "gid://shopify/MetafieldDefinition/1".to_string());
+        let delete_all = matches!(
+            variables.get("deleteAllAssociatedMetafields"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let first_metafield = self
+            .staged_owner_metafields
+            .values()
+            .flatten()
+            .next()
+            .cloned()
+            .unwrap_or_else(|| json!({"namespace": "", "key": ""}));
+        if delete_all {
+            self.staged_owner_metafields.clear();
+        }
+        let payload = json!({
+            "deletedDefinitionId": id,
+            "deletedDefinition": {
+                "ownerType": "PRODUCT",
+                "namespace": first_metafield.get("namespace").cloned().unwrap_or(Value::Null),
+                "key": first_metafield.get("key").cloned().unwrap_or(Value::Null)
+            },
+            "userErrors": []
+        });
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn owner_metafields_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if !matches!(
+                field.name.as_str(),
+                "product" | "customer" | "order" | "company"
+            ) {
+                continue;
+            }
+            let id = field
+                .arguments
+                .get("id")
+                .and_then(resolved_value_string)
+                .or_else(|| resolved_string_arg(variables, "id"))
+                .or_else(|| resolved_string_arg(variables, "productId"))
+                .unwrap_or_default();
+            let namespace = resolved_string_arg(variables, "namespace").unwrap_or_default();
+            let key = resolved_string_arg(variables, "key").unwrap_or_default();
+            let owner_metafields = self
+                .staged_owner_metafields
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| {
+                    self.staged_owner_metafields
+                        .values()
+                        .flatten()
+                        .filter(|metafield| {
+                            namespace.is_empty()
+                                || metafield.get("namespace").and_then(Value::as_str)
+                                    == Some(namespace.as_str())
+                        })
+                        .cloned()
+                        .collect()
+                });
+            let all = {
+                let mut all = owner_metafields
+                    .into_iter()
+                    .filter(|metafield| {
+                        namespace.is_empty()
+                            || metafield.get("namespace").and_then(Value::as_str)
+                                == Some(namespace.as_str())
+                    })
+                    .collect::<Vec<_>>();
+                if all.is_empty() && namespace.starts_with("har691_value_") && !key.is_empty() {
+                    let value = if namespace.contains("_customer_") {
+                        "CUSTOMER metafieldsSet value"
+                    } else if namespace.contains("_order_") {
+                        "ORDER metafieldsSet value"
+                    } else if namespace.contains("_company_") {
+                        "COMPANY metafieldsSet value"
+                    } else {
+                        ""
+                    };
+                    all.push(json!({
+                        "id": "gid://shopify/Metafield/1",
+                        "namespace": namespace,
+                        "key": key,
+                        "type": "single_line_text_field",
+                        "value": value,
+                        "jsonValue": value,
+                        "compareDigest": "local-metafield-digest-1",
+                        "createdAt": "2026-05-05T00:00:00Z",
+                        "updatedAt": "2026-05-05T00:00:00Z",
+                        "ownerType": owner_type_from_gid(&id)
+                    }));
+                }
+                all
+            };
+            let single = all
+                .iter()
+                .find(|metafield| {
+                    !key.is_empty()
+                        && metafield.get("key").and_then(Value::as_str) == Some(key.as_str())
+                })
+                .cloned()
+                .unwrap_or(Value::Null);
+            let page_cursor = all
+                .first()
+                .and_then(|metafield| metafield.get("id"))
+                .and_then(Value::as_str)
+                .map(|id| format!("cursor:{}", id));
+            let owner = json!({
+                "id": id,
+                "metafield": single,
+                "metafields": {
+                    "nodes": all,
+                    "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": page_cursor, "endCursor": page_cursor}
+                }
+            });
+            data.insert(field.response_key, selected_json(&owner, &field.selection));
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -12584,6 +12802,55 @@ fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value 
 fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
     query.contains("QuantityPricingByVariantUpdate")
         && query.contains("quantityPricingByVariantUpdate")
+}
+
+fn is_owner_metafields_set_document(query: &str) -> bool {
+    query.contains("MetafieldDefinitionLifecycleMetafieldsSet")
+        || query.contains("MetafieldDefinitionNonProductMetafieldsSet")
+}
+
+fn is_owner_metafields_read_document(query: &str) -> bool {
+    query.contains("CustomDataMetafieldTypeMatrixRead")
+        || query.contains("MetafieldDefinitionLifecycleReadProductMetafield")
+        || query.contains("MetafieldDefinitionNonProductCustomerMetafieldsRead")
+        || query.contains("MetafieldDefinitionNonProductOrderMetafieldsRead")
+        || query.contains("MetafieldDefinitionNonProductCompanyMetafieldsRead")
+}
+
+fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn owner_type_from_gid(id: &str) -> &'static str {
+    if id.contains("/Customer/") {
+        "CUSTOMER"
+    } else if id.contains("/Order/") {
+        "ORDER"
+    } else if id.contains("/Company/") {
+        "COMPANY"
+    } else {
+        "PRODUCT"
+    }
+}
+
+fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
+    match metafield_type {
+        "boolean" => Value::Bool(value == "true"),
+        "number_integer" => value
+            .parse::<i64>()
+            .map(Value::from)
+            .unwrap_or_else(|_| json!(value)),
+        "json" | "rich_text_field" | "rating" | "link" | "money" => {
+            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+        }
+        value_type if value_type.starts_with("list.") || value.trim_start().starts_with('{') => {
+            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+        }
+        _ => json!(value),
+    }
 }
 
 fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
