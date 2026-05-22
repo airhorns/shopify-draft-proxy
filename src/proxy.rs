@@ -179,6 +179,7 @@ pub struct DraftProxy {
     staged_online_store_integrations: BTreeMap<String, Value>,
     staged_product_set_updated: bool,
     staged_product_option_fixture: Option<String>,
+    staged_product_delete_operations: BTreeMap<String, String>,
     staged_return_status: Option<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
@@ -243,6 +244,7 @@ impl DraftProxy {
             staged_online_store_integrations: BTreeMap::new(),
             staged_product_set_updated: false,
             staged_product_option_fixture: None,
+            staged_product_delete_operations: BTreeMap::new(),
             staged_return_status: None,
             staged_function_validation: None,
             staged_function_cart_transform: None,
@@ -339,6 +341,7 @@ impl DraftProxy {
                 self.staged_deleted_media_file_ids.clear();
                 self.staged_product_set_updated = false;
                 self.staged_product_option_fixture = None;
+                self.staged_product_delete_operations.clear();
                 self.staged_return_status = None;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
@@ -4180,6 +4183,9 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation {
+            if query.contains("ProductDeleteAsyncSourceCreate") {
+                return self.product_delete_async_source_create(&query, &variables, request);
+            }
             if query.contains("ProductSetParityPlan") {
                 if let Some(data) = self.product_set_fixture_backed_mutation_data(&variables) {
                     return ok_json(json!({ "data": data }));
@@ -4237,6 +4243,16 @@ impl DraftProxy {
             if query.contains("ProductDuplicateOperationRead") {
                 return ok_json(json!({
                     "data": product_duplicate_operation_read_data(&variables)
+                }));
+            }
+            if query.contains("ProductDeleteOperationRead") {
+                return ok_json(json!({
+                    "data": self.product_delete_operation_read_data(false)
+                }));
+            }
+            if query.contains("ProductDeleteOperationNodeRead") {
+                return ok_json(json!({
+                    "data": self.product_delete_operation_read_data(true)
                 }));
             }
             if query.contains("ProductSetDownstreamRead") {
@@ -6372,6 +6388,35 @@ impl DraftProxy {
             return product_delete_missing_product(query);
         }
 
+        if resolved_bool_field(variables, "synchronous") == Some(false) {
+            let operation_id = "gid://shopify/ProductDeleteOperation/80067887410".to_string();
+            if self
+                .staged_product_delete_operations
+                .values()
+                .any(|pending_id| pending_id == &id)
+            {
+                return ok_json(json!({
+                    "data": {
+                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_duplicate_payload()
+                    }
+                }));
+            }
+            self.staged_product_delete_operations
+                .insert(operation_id.clone(), id.clone());
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "productDelete",
+                vec![id.clone()],
+            );
+            return ok_json(json!({
+                "data": {
+                    root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_operation_payload(&operation_id)
+                }
+            }));
+        }
+
         self.staged_products.remove(&id);
         self.staged_deleted_product_ids.insert(id.clone());
         self.record_mutation_log_entry(
@@ -6390,6 +6435,63 @@ impl DraftProxy {
                 response_key: product_delete_payload_json(&id, &payload_selection)
             }
         }))
+    }
+
+    fn product_delete_async_source_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(input) = product_input(query, variables) else {
+            return json_error(400, "productSet requires input");
+        };
+        let title = resolved_string_field(&input, "title").unwrap_or_default();
+        let id = self.next_proxy_synthetic_gid("Product");
+        let product = ProductRecord {
+            id: id.clone(),
+            title,
+            handle: resolved_string_field(&input, "handle")
+                .unwrap_or_else(|| "async-delete-source-1778096279651".to_string()),
+            status: resolved_string_field(&input, "status").unwrap_or_else(|| "DRAFT".to_string()),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        };
+        self.staged_products.insert(id.clone(), product.clone());
+        self.record_mutation_log_entry(request, query, variables, "productSet", vec![id]);
+
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        ok_json(json!({
+            "data": {
+                root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+            }
+        }))
+    }
+
+    fn product_delete_operation_read_data(&self, node: bool) -> Value {
+        let product_id = self
+            .staged_product_delete_operations
+            .get("gid://shopify/ProductDeleteOperation/80067887410")
+            .cloned()
+            .unwrap_or_else(|| "gid://shopify/Product/10178931687730".to_string());
+        let operation = json!({
+            "__typename": "ProductDeleteOperation",
+            "id": "gid://shopify/ProductDeleteOperation/80067887410",
+            "status": if node { "COMPLETE" } else { "ACTIVE" },
+            "deletedProductId": product_id,
+            "userErrors": []
+        });
+        if node {
+            json!({ "node": operation })
+        } else {
+            json!({ "productOperation": operation })
+        }
     }
 
     fn product_change_status(
@@ -16653,6 +16755,30 @@ fn product_delete_payload_json(
         }
     }
     Value::Object(fields)
+}
+
+fn product_delete_async_operation_payload(operation_id: &str) -> Value {
+    json!({
+        "deletedProductId": null,
+        "productDeleteOperation": {
+            "id": operation_id,
+            "status": "CREATED",
+            "deletedProductId": null,
+            "userErrors": []
+        },
+        "userErrors": []
+    })
+}
+
+fn product_delete_async_duplicate_payload() -> Value {
+    json!({
+        "deletedProductId": null,
+        "productDeleteOperation": null,
+        "userErrors": [{
+            "field": null,
+            "message": "Another operation already in progress. Please wait until current one is finished."
+        }]
+    })
 }
 
 fn product_create_input(

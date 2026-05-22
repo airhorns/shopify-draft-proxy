@@ -11867,3 +11867,121 @@ fn product_duplicate_replays_captured_sync_and_async_readbacks() {
         missing_fixture["operationRead"]["response"]["data"]
     );
 }
+
+#[test]
+fn product_delete_async_operation_preserves_pending_delete_readbacks() {
+    let mut proxy = snapshot_proxy();
+    let fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-delete-async-operation.json"
+    ));
+
+    let source_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-async-source-create.graphql"
+        ),
+        fixture["setup"]["sourceCreate"]["variables"].clone(),
+    ));
+    assert_eq!(source_create.status, 200);
+    let product_id = source_create.body["data"]["productSet"]["product"]["id"].clone();
+    assert!(product_id.as_str().unwrap().contains("/Product/"));
+    assert_eq!(
+        source_create.body["data"]["productSet"]["product"]["title"],
+        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["title"]
+    );
+    assert_eq!(
+        source_create.body["data"]["productSet"]["product"]["status"],
+        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["status"]
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-operation.graphql"),
+        json!({ "input": { "id": product_id.clone() }, "synchronous": false }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["status"],
+        "CREATED"
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["userErrors"],
+        json!([])
+    );
+    let operation_id = delete.body["data"]["productDelete"]["productDeleteOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductDeleteOperation/"));
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-operation.graphql"),
+        json!({ "input": { "id": product_id.clone() }, "synchronous": false }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"],
+        fixture["duplicateMutation"]["response"]["data"]
+    );
+
+    let immediate_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-product-read.graphql"),
+        json!({ "id": product_id.clone() }),
+    ));
+    assert_eq!(immediate_read.status, 200);
+    assert_eq!(immediate_read.body["data"]["product"]["id"], product_id);
+    assert_eq!(
+        immediate_read.body["data"]["product"]["title"],
+        fixture["downstreamRead"]["response"]["data"]["product"]["title"]
+    );
+    assert_eq!(
+        immediate_read.body["data"]["product"]["status"],
+        fixture["downstreamRead"]["response"]["data"]["product"]["status"]
+    );
+
+    let operation_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-operation-read.graphql"),
+        json!({ "id": operation_id.clone() }),
+    ));
+    assert_eq!(operation_read.status, 200);
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["__typename"],
+        "ProductDeleteOperation"
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["id"],
+        operation_id
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["deletedProductId"],
+        product_id
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["userErrors"],
+        json!([])
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-operation-node-read.graphql"
+        ),
+        json!({ "id": operation_id.clone() }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body["data"]["node"]["id"], operation_id);
+    assert_eq!(
+        node_read.body["data"]["node"]["deletedProductId"],
+        product_id
+    );
+    assert_eq!(node_read.body["data"]["node"]["status"], "COMPLETE");
+}
