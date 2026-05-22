@@ -4774,6 +4774,9 @@ impl DraftProxy {
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
             }
+            if let Some(data) = collection_membership_downstream_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
             if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
                 return ok_json(json!({
                     "data": product_bulk_create_strategy_downstream_data(&variables)
@@ -16387,6 +16390,31 @@ fn collections_catalog_read_data() -> Value {
     ))
     .expect("collections catalog fixture must parse");
     fixture["data"].clone()
+}
+
+fn collection_membership_downstream_read_data(query: &str) -> Option<Value> {
+    if query.contains("CollectionAddProductsDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-add-products-parity.json"
+        ))
+        .expect("collection add-products fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("CollectionCreateInitialProductsDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-initial-products-parity.json"
+        ))
+        .expect("collection create initial-products fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("CollectionReorderProductsDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
+        ))
+        .expect("collection reorder-products fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    None
 }
 
 fn product_fixture_data(fixture: &str) -> Value {

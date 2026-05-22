@@ -13118,3 +13118,51 @@ fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
         relationship_fixture["optionDownstreamRead"]["response"]["data"]
     );
 }
+
+#[test]
+fn collection_membership_downstream_reads_replay_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let add_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-add-products-parity.json"
+    ))
+    .unwrap();
+    let add_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/collectionAddProducts-downstream-read.graphql"
+        ),
+        add_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        add_response.body,
+        json!({ "data": add_fixture["downstreamRead"]["data"] })
+    );
+
+    let create_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-initial-products-parity.json"
+    ))
+    .unwrap();
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/collectionCreate-initial-products-downstream-read.graphql"),
+        create_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        create_response.body,
+        json!({ "data": create_fixture["downstreamRead"]["data"] })
+    );
+
+    let reorder_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
+    ))
+    .unwrap();
+    let reorder_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/collectionReorderProducts-downstream-read.graphql"
+        ),
+        reorder_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        reorder_response.body,
+        json!({ "data": reorder_fixture["downstreamRead"]["data"] })
+    );
+}
