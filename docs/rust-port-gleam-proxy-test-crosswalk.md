@@ -5,10 +5,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Scope: `origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test`
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
-  - `implementation_unit_replaced_needs_review`: 123
-  - `needs_manual_review`: 371
+  - `implementation_unit_replaced_needs_review`: 118
+  - `needs_manual_review`: 370
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1664
+  - `represented_by_rust_root_tests`: 1670
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -18,7 +18,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Domains with unresolved/manual-review entries
 
-- `products_mutation`: 45
+- `products_mutation`: 39
 - `b2b`: 36
 - `store_properties`: 33
 - `online_store`: 32
@@ -61,6 +61,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Product media deprecated user-error mirroring and product-variant media guard helper behavior from `products_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers`, covering mirrored `userErrors`/`mediaUserErrors` for create/update/delete/reorder media validation, non-ready media append rejection, and unattached detach rejection.
 - Customer-payment-method update/revoke tail helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam`, covering blank billing-address update errors, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence. This leaves the payments domain fully represented in the crosswalk.
 - Payment-terms create/update guard helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges`, covering paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors.
 - Payment customization create/update/activation/readback helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers` and `tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths`, covering missing/empty/invalid metafields, multiple/missing function identifiers, six enabled creates through captured parity, activation partial toggles and idempotence with `ids`-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream `paymentCustomization` readback.

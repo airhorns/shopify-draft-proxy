@@ -7333,6 +7333,133 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
 }
 
 #[test]
+fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers() {
+    let mut proxy = snapshot_proxy();
+
+    let deprecated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductMediaDeprecatedUserErrors {
+          create: productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          update: productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          delete: productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          reorder: productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(deprecated.status, 200);
+    assert_eq!(
+        deprecated.body["data"]["create"],
+        json!({
+            "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+            "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["update"],
+        json!({
+            "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+            "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["delete"],
+        json!({
+            "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+            "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["reorder"],
+        json!({
+            "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
+            "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
+        })
+    );
+
+    let variant_guards = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductVariantMediaValidationTailHelpers {
+          variantFromOtherProduct: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          mediaFromOtherProduct: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/child"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          processingMedia: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/processing"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          detachUnattached: productVariantDetachMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]
+          ) { productVariants { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(variant_guards.status, 200);
+    assert_eq!(
+        variant_guards.body["data"]["variantFromOtherProduct"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "Variant does not exist on the specified product.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["mediaFromOtherProduct"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Media does not exist on the specified product.",
+                "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["processingMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Non-ready media cannot be attached to variants.",
+                "code": "NON_READY_MEDIA"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["detachUnattached"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "The specified media is not attached to the specified variant.",
+                "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+            }]
+        })
+    );
+}
+
+#[test]
 fn product_reorder_media_replays_captured_job_and_downstream_order() {
     let mut proxy = snapshot_proxy();
 

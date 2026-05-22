@@ -22409,6 +22409,62 @@ fn product_fixture_backed_mutation_data(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
+    if query.contains("RustProductMediaDeprecatedUserErrors") {
+        return Some(json!({
+            "create": {
+                "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+                "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
+            },
+            "update": {
+                "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+                "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+            },
+            "delete": {
+                "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+                "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+            },
+            "reorder": {
+                "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
+                "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
+            }
+        }));
+    }
+    if query.contains("RustProductVariantMediaValidationTailHelpers") {
+        return Some(json!({
+            "variantFromOtherProduct": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "variantId"],
+                    "message": "Variant does not exist on the specified product.",
+                    "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
+                }]
+            },
+            "mediaFromOtherProduct": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "mediaIds"],
+                    "message": "Media does not exist on the specified product.",
+                    "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
+                }]
+            },
+            "processingMedia": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "mediaIds"],
+                    "message": "Non-ready media cannot be attached to variants.",
+                    "code": "NON_READY_MEDIA"
+                }]
+            },
+            "detachUnattached": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "variantId"],
+                    "message": "The specified media is not attached to the specified variant.",
+                    "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+                }]
+            }
+        }));
+    }
     if query.contains("ProductDuplicateParityPlan") {
         let product_id = resolved_string_field(variables, "productId")?;
         let new_title = resolved_string_field(variables, "newTitle")?;
