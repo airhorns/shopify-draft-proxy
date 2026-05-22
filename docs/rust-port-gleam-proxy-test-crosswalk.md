@@ -5,10 +5,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Scope: `origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test`
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
-  - `implementation_unit_replaced_needs_review`: 124
-  - `needs_manual_review`: 374
+  - `implementation_unit_replaced_needs_review`: 123
+  - `needs_manual_review`: 371
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1660
+  - `represented_by_rust_root_tests`: 1664
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -51,7 +51,6 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `capabilities`: 4
 - `draft_proxy`: 4
 - `marketing`: 4
-- `payments`: 4
 - `upstream_query`: 4
 - `gift_cards`: 3
 - `saved_searches`: 3
@@ -62,6 +61,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Customer-payment-method update/revoke tail helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam`, covering blank billing-address update errors, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence. This leaves the payments domain fully represented in the crosswalk.
 - Payment-terms create/update guard helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges`, covering paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors.
 - Payment customization create/update/activation/readback helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers` and `tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths`, covering missing/empty/invalid metafields, multiple/missing function identifiers, six enabled creates through captured parity, activation partial toggles and idempotence with `ids`-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream `paymentCustomization` readback.
 - Localization shop-locale query/update/disable helper behavior from `localization_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam`, covering staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and `shopLocales` readback.

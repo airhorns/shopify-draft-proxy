@@ -1,10 +1,10 @@
 {
   "summary": {
     "coverage_status_counts": {
-      "implementation_unit_replaced_needs_review": 124,
-      "needs_manual_review": 374,
+      "implementation_unit_replaced_needs_review": 123,
+      "needs_manual_review": 371,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1660
+      "represented_by_rust_root_tests": 1664
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -290,7 +290,7 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback. Payment customization create/update/activation/readback helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers and tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths, including missing/empty/invalid metafields, function identifier validation, enabled toggles with ids-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream paymentCustomization readback. Payment-terms create/update guard helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges, including paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback. Payment customization create/update/activation/readback helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers and tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths, including missing/empty/invalid metafields, function identifier validation, enabled toggles with ids-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream paymentCustomization readback. Payment-terms create/update guard helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges, including paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors. Customer-payment-method update/revoke tail helpers from payments_test.gleam are covered by tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam, including blank billing-address update fields, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
@@ -36744,18 +36744,24 @@
     },
     {
       "body_sha1": "ff2fbadb586b726db4accf41746db06f47b72720",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["manual_customer_payment_method_tail_helper_port"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 332,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "credit_card_update_requires_billing_address_fields_test",
       "id": "d74e1afd3aa4",
       "kind": "pure_helper_or_parser",
-      "root_coverage": {},
-      "root_fields": [],
+      "manual_rust_test": "tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam",
+      "root_coverage": {
+        "customerPaymentMethodCreditCardUpdate": {
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["customerPaymentMethodCreditCardUpdate"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "8d8fc9ffc919023575ad8094cd5f0a42e9729290",
@@ -37808,33 +37814,53 @@
     },
     {
       "body_sha1": "0e9e749a7c15827dfcc6700c8fb514cf45a71903",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_customer_payment_method_tail_helper_port"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 2267,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "customer_payment_method_revoke_active_contract_does_not_mutate_test",
       "id": "61c3a5047cb9",
       "kind": "state_or_helper_behavior",
-      "root_coverage": {},
-      "root_fields": [],
+      "manual_rust_test": "tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam",
+      "root_coverage": {
+        "customerPaymentMethod": {
+          "rust_src": true,
+          "rust_test": true
+        },
+        "customerPaymentMethodRevoke": {
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["customerPaymentMethodRevoke", "customerPaymentMethod"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "26f3097f3af5215db57a1b191c491d323e9caf29",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_customer_payment_method_tail_helper_port"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 2296,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "customer_payment_method_revoke_success_stages_revocation_test",
       "id": "41ae34f544d3",
       "kind": "state_or_helper_behavior",
-      "root_coverage": {},
-      "root_fields": [],
+      "manual_rust_test": "tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam",
+      "root_coverage": {
+        "customerPaymentMethod": {
+          "rust_src": true,
+          "rust_test": true
+        },
+        "customerPaymentMethodRevoke": {
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["customerPaymentMethodRevoke", "customerPaymentMethod"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5601b2b01c3f62e9bfa7490541788d91c53208c1",
@@ -37859,18 +37885,28 @@
     },
     {
       "body_sha1": "9a1fe258636b552f85b99e0c07d86394123fc7a1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_customer_payment_method_tail_helper_port"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 2329,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "customer_payment_method_revoke_already_revoked_is_idempotent_test",
       "id": "3da315e1359c",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "manual_rust_test": "tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam",
+      "root_coverage": {
+        "customerPaymentMethod": {
+          "rust_src": true,
+          "rust_test": true
+        },
+        "customerPaymentMethodRevoke": {
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["customerPaymentMethodRevoke", "customerPaymentMethod"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "86e4936c72bfab6bbc06e3e2b1431dd970baa108",

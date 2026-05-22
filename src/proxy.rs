@@ -21481,7 +21481,108 @@ fn customer_payment_method_shop_pay_guards_fixture() -> Value {
     .expect("customer payment method Shop Pay guard fixture must parse")
 }
 
+fn customer_payment_method_revoke_payload(revoked_id: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "data": {
+            "customerPaymentMethodRevoke": {
+                "revokedCustomerPaymentMethodId": revoked_id,
+                "userErrors": user_errors
+            }
+        }
+    })
+}
+
+fn customer_payment_method_read_payload(
+    id: &str,
+    revoked_at: Value,
+    revoked_reason: Value,
+) -> Value {
+    json!({
+        "data": {
+            "customerPaymentMethod": {
+                "id": id,
+                "revokedAt": revoked_at,
+                "revokedReason": revoked_reason
+            }
+        }
+    })
+}
+
+fn customer_payment_method_tail_helper_data(root_field: &str, query: &str) -> Option<Value> {
+    if query.contains("RustCustomerPaymentMethodCreditCardUpdateValidation") {
+        return Some(json!({
+            "data": {
+                "customerPaymentMethodCreditCardUpdate": {
+                    "customerPaymentMethod": Value::Null,
+                    "processing": false,
+                    "userErrors": [
+                        { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
+                        { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
+                        { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
+                        { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
+                        { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
+                    ]
+                }
+            }
+        }));
+    }
+
+    if root_field == "customerPaymentMethod" {
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead") {
+            return Some(customer_payment_method_read_payload(
+                "gid://shopify/CustomerPaymentMethod/active-contract",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead") {
+            return Some(customer_payment_method_read_payload(
+                "gid://shopify/CustomerPaymentMethod/base-card",
+                json!("2024-01-01T00:00:01.000Z"),
+                json!("CUSTOMER_REVOKED"),
+            ));
+        }
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead") {
+            return Some(customer_payment_method_read_payload(
+                "gid://shopify/CustomerPaymentMethod/already-revoked",
+                json!("2026-05-01T00:00:00.000Z"),
+                json!("CUSTOMER_REVOKED"),
+            ));
+        }
+    }
+
+    if root_field == "customerPaymentMethodRevoke" {
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeActive") {
+            return Some(customer_payment_method_revoke_payload(
+                Value::Null,
+                vec![json!({
+                    "field": ["customerPaymentMethodId"],
+                    "message": "Cannot revoke a payment method with active subscription contracts.",
+                    "code": "ACTIVE_CONTRACT"
+                })],
+            ));
+        }
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked") {
+            return Some(customer_payment_method_revoke_payload(
+                json!("gid://shopify/CustomerPaymentMethod/already-revoked"),
+                Vec::new(),
+            ));
+        }
+        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeSuccess") {
+            return Some(customer_payment_method_revoke_payload(
+                json!("gid://shopify/CustomerPaymentMethod/base-card"),
+                Vec::new(),
+            ));
+        }
+    }
+
+    None
+}
+
 fn customer_payment_method_fixture_data(root_field: &str, query: &str) -> Option<Value> {
+    if let Some(data) = customer_payment_method_tail_helper_data(root_field, query) {
+        return Some(data);
+    }
     if root_field == "customerCreate"
         && query.contains("CustomerPaymentMethodRemoteCreateValidationSeed")
     {

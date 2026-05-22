@@ -2114,6 +2114,167 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 }
 
 #[test]
+fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodCreditCardUpdateValidation {
+          customerPaymentMethodCreditCardUpdate(
+            id: "gid://shopify/CustomerPaymentMethod/base-card"
+            sessionId: "sess_valid"
+            billingAddress: { address1: null, city: null, zip: null, country: null, province: null }
+          ) {
+            customerPaymentMethod { id }
+            processing
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerPaymentMethodCreditCardUpdate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": false,
+            "userErrors": [
+                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
+                { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
+                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
+                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
+                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
+            ]
+        })
+    );
+
+    let active_contract = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/active-contract") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_contract.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": Value::Null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "message": "Cannot revoke a payment method with active subscription contracts.",
+                "code": "ACTIVE_CONTRACT"
+            }]
+        })
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/active-contract", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null
+        })
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/base-card",
+            "userErrors": []
+        })
+    );
+
+    let success_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/base-card",
+            "revokedAt": "2024-01-01T00:00:01.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+
+    let already_revoked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/already-revoked") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "userErrors": []
+        })
+    );
+
+    let already_revoked_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/already-revoked", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "revokedAt": "2026-05-01T00:00:00.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+}
+
+#[test]
 fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     let mut proxy = snapshot_proxy();
 
