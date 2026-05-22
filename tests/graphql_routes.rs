@@ -9215,6 +9215,92 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 }
 
 #[test]
+fn metafields_app_namespace_set_delete_stages_product_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let set_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+    ));
+    assert_eq!(
+        set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!("app--347082227713--value_namespace_mowuw5ai")
+    );
+
+    let read_after_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $canonicalNamespace: String!, $defaultNamespace: String!, $key: String!, $defaultKey: String!) {
+          product(id: $productId) {
+            id
+            canonical: metafield(namespace: $canonicalNamespace, key: $key) { id namespace key type value }
+            defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) { id namespace key type value }
+          }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+    ));
+    assert_eq!(
+        read_after_canonical.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10180596236594",
+            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"},
+            "defaulted": null
+        })
+    );
+
+    let set_default = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}]}),
+    ));
+    assert_eq!(
+        set_default.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!("app--347082227713")
+    );
+
+    let delete_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsDeleteAppNamespaceResolution($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
+    ));
+    assert_eq!(
+        delete_canonical.body["data"]["metafieldsDelete"],
+        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier"}], "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $canonicalNamespace: String!, $defaultNamespace: String!, $key: String!, $defaultKey: String!) {
+          product(id: $productId) {
+            id
+            canonical: metafield(namespace: $canonicalNamespace, key: $key) { id namespace key type value }
+            defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) { id namespace key type value }
+          }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10180596236594",
+            "canonical": null,
+            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": "app--347082227713", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
+        })
+    );
+}
+
+#[test]
 fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes() {
     let mut proxy = snapshot_proxy();
 
@@ -9302,6 +9388,59 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         unknown_variant.body["data"]["quantityRulesAdd"]["userErrors"][0],
         json!({"field": ["quantityRules", "0", "variantId"], "code": "PRODUCT_VARIANT_DOES_NOT_EXIST", "message": "Product variant ID does not exist."})
     );
+
+    let invalid_quantity_rule_cases = [
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 0, "maximum": 10, "increment": 1}]),
+            json!([
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be greater than or equal to one.", "code": "GREATER_THAN_OR_EQUAL_TO"},
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "increment"], "message": "Increment must be lower than or equal to the minimum.", "code": "INCREMENT_IS_GREATER_THAN_MINIMUM"}
+            ]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 1, "maximum": 10, "increment": 0}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "increment"], "message": "Increment must be greater than or equal to one.", "code": "GREATER_THAN_OR_EQUAL_TO" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 10, "maximum": 5, "increment": 1}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be lower than or equal to the maximum.", "code": "MINIMUM_IS_GREATER_THAN_MAXIMUM" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 5, "maximum": 12, "increment": 3}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be a multiple of the increment.", "code": "MINIMUM_NOT_MULTIPLE_OF_INCREMENT" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 6, "maximum": 10, "increment": 3}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "maximum"], "message": "Maximum must be a multiple of the increment.", "code": "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT" }]),
+        ),
+        (
+            json!([
+                {"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2},
+                {"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 4, "maximum": 12, "increment": 2}
+            ]),
+            json!([
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "variantId"], "message": "Quantity rule inputs must be unique by variant id.", "code": "DUPLICATE_INPUT_FOR_VARIANT"},
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "1", "variantId"], "message": "Quantity rule inputs must be unique by variant id.", "code": "DUPLICATE_INPUT_FOR_VARIANT"}
+            ]),
+        ),
+    ];
+    for (quantity_rules, user_errors) in invalid_quantity_rule_cases {
+        let invalid = proxy.process_request(json_graphql_request(
+            r#"
+            mutation QuantityRulesAddValidation($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+              quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+                quantityRules { minimum maximum increment productVariant { id } }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({"priceListId": "gid://shopify/PriceList/31575376178", "quantityRules": quantity_rules}),
+        ));
+        assert_eq!(
+            invalid.body["data"]["quantityRulesAdd"],
+            json!({"quantityRules": [], "userErrors": user_errors})
+        );
+    }
 
     let fr_ca = proxy.process_request(json_graphql_request(
         r#"

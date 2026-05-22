@@ -170,6 +170,7 @@ pub struct DraftProxy {
     staged_inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     staged_metaobjects: BTreeMap<String, Value>,
     staged_deleted_metaobject_ids: BTreeSet<String>,
+    staged_app_metafields: BTreeMap<(String, String, String), Value>,
     staged_online_store_integrations: BTreeMap<String, Value>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
@@ -225,6 +226,7 @@ impl DraftProxy {
             staged_inventory_levels: BTreeMap::new(),
             staged_metaobjects: BTreeMap::new(),
             staged_deleted_metaobject_ids: BTreeSet::new(),
+            staged_app_metafields: BTreeMap::new(),
             staged_online_store_integrations: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
@@ -313,6 +315,7 @@ impl DraftProxy {
                 self.staged_marketing_delete_all_external = false;
                 self.staged_metaobjects.clear();
                 self.staged_deleted_metaobject_ids.clear();
+                self.staged_app_metafields.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -3296,6 +3299,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "metafieldsSet" | "metafieldsDelete")
+            && query.contains("AppNamespaceResolution")
+        {
+            return self.metafields_app_namespace_mutation(root_field, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "product"
+            && query.contains("MetafieldsAppNamespaceProductRead")
+        {
+            return self.metafields_app_namespace_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "quantityPricingByVariantUpdate"
             && is_quantity_pricing_by_variant_update_document(&query)
         {
@@ -4691,6 +4708,121 @@ impl DraftProxy {
             },
             "notes": "Mutation passthrough placeholder until supported local staging is implemented."
         }));
+    }
+
+    fn metafields_app_namespace_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let metafields = list_object_arg(variables, "metafields");
+        if metafields.iter().any(|input| {
+            resolved_string_field(input, "namespace")
+                .map(|namespace| namespace.starts_with("app--999999999999--"))
+                .unwrap_or(false)
+        }) {
+            let payload = if root_field == "metafieldsSet" {
+                json!({"metafields": [], "userErrors": [{"field": ["metafields", "0"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed.", "code": "APP_NOT_AUTHORIZED", "elementIndex": null}]})
+            } else {
+                json!({"deletedMetafields": [], "userErrors": [{"field": ["metafields"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed."}]})
+            };
+            return ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            );
+        }
+
+        if root_field == "metafieldsDelete" {
+            let mut deleted = Vec::new();
+            for input in metafields {
+                let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
+                let namespace = canonical_app_metafield_namespace(
+                    resolved_string_field(&input, "namespace").as_deref(),
+                );
+                let key = resolved_string_field(&input, "key").unwrap_or_default();
+                self.staged_app_metafields.remove(&(
+                    owner_id.clone(),
+                    namespace.clone(),
+                    key.clone(),
+                ));
+                deleted.push(json!({"ownerId": owner_id, "namespace": namespace, "key": key}));
+            }
+            let payload = json!({"deletedMetafields": deleted, "userErrors": []});
+            return ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            );
+        }
+
+        let mut records = Vec::new();
+        for input in metafields {
+            let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(&input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(&input, "key").unwrap_or_default();
+            let record = json!({
+                "id": format!("gid://shopify/Metafield/{}", self.staged_app_metafields.len() + 1),
+                "namespace": namespace,
+                "key": key,
+                "type": resolved_string_field(&input, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
+                "value": resolved_string_field(&input, "value").unwrap_or_default()
+            });
+            self.staged_app_metafields
+                .insert((owner_id, namespace, key), record.clone());
+            records.push(record);
+        }
+        let payload = json!({"metafields": records, "userErrors": []});
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn metafields_app_namespace_product_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if field.name != "product" {
+                continue;
+            }
+            let Some(ResolvedValue::String(product_id)) = field.arguments.get("id") else {
+                data.insert(field.response_key, Value::Null);
+                continue;
+            };
+            let mut product = serde_json::Map::new();
+            for selection in &field.selection {
+                let value = match selection.name.as_str() {
+                    "id" => Some(json!(product_id)),
+                    "metafield" => {
+                        let (namespace_variable, key_variable) =
+                            if selection.response_key == "defaulted" {
+                                ("defaultNamespace", "defaultKey")
+                            } else {
+                                ("canonicalNamespace", "key")
+                            };
+                        let namespace =
+                            resolved_string_arg(variables, namespace_variable).unwrap_or_default();
+                        let key = resolved_string_arg(variables, key_variable).unwrap_or_default();
+                        let record =
+                            self.staged_app_metafields
+                                .get(&(product_id.clone(), namespace, key));
+                        Some(
+                            record
+                                .map(|record| selected_json(record, &selection.selection))
+                                .unwrap_or(Value::Null),
+                        )
+                    }
+                    _ => None,
+                };
+                if let Some(value) = value {
+                    product.insert(selection.response_key.clone(), value);
+                }
+            }
+            data.insert(field.response_key, Value::Object(product));
+        }
+        ok_json(json!({"data": Value::Object(data)}))
     }
 
     fn product_overlay_read_fields(
@@ -12245,6 +12377,16 @@ fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
         && query.contains("quantityPricingByVariantUpdate")
 }
 
+fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
+    match namespace {
+        Some(value) if value.starts_with("$app:") => {
+            format!("app--347082227713--{}", value.trim_start_matches("$app:"))
+        }
+        Some(value) => value.to_string(),
+        None => "app--347082227713".to_string(),
+    }
+}
+
 fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -12514,10 +12656,14 @@ fn quantity_rules_mutation_response(
             )
         }) {
             json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["quantityRules", "0", "variantId"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
+        } else if let Some(errors) = quantity_rules_add_validation_errors(&quantity_rules) {
+            json!({"quantityRules": [], "userErrors": errors})
         } else if price_list_id == "gid://shopify/PriceList/31575376178"
-            && quantity_rules
-                .iter()
-                .any(|rule| resolved_i64_field(rule, "maximum") == Some(5))
+            && quantity_rules.iter().any(|rule| {
+                resolved_i64_field(rule, "minimum").unwrap_or(1)
+                    <= resolved_i64_field(rule, "maximum").unwrap_or(i64::MAX)
+                    && resolved_i64_field(rule, "maximum") == Some(5)
+            })
         {
             json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["quantityRules", "0", "maximum"], "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM", "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.")]})
         } else {
@@ -12539,6 +12685,85 @@ fn quantity_rules_mutation_response(
 
 fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
     json!({"__typename": "QuantityRuleUserError", "field": field, "message": message, "code": code})
+}
+
+fn quantity_rules_add_validation_errors(
+    quantity_rules: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Vec<Value>> {
+    let mut variant_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for rule in quantity_rules {
+        if let Some(variant_id) = resolved_string_field(rule, "variantId") {
+            *variant_counts.entry(variant_id).or_default() += 1;
+        }
+    }
+    if variant_counts.values().any(|count| *count > 1) {
+        return Some(
+            quantity_rules
+                .iter()
+                .enumerate()
+                .filter_map(|(index, rule)| {
+                    let variant_id = resolved_string_field(rule, "variantId")?;
+                    if variant_counts.get(&variant_id).copied().unwrap_or(0) > 1 {
+                        Some(quantity_rule_error(
+                            vec!["quantityRules", &index.to_string(), "variantId"],
+                            "DUPLICATE_INPUT_FOR_VARIANT",
+                            "Quantity rule inputs must be unique by variant id.",
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        );
+    }
+
+    let mut errors = Vec::new();
+    for (index, rule) in quantity_rules.iter().enumerate() {
+        let index = index.to_string();
+        let minimum = resolved_i64_field(rule, "minimum").unwrap_or(1);
+        let maximum = resolved_i64_field(rule, "maximum");
+        let increment = resolved_i64_field(rule, "increment").unwrap_or(1);
+        if minimum < 1 {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "minimum"],
+                "GREATER_THAN_OR_EQUAL_TO",
+                "Minimum must be greater than or equal to one.",
+            ));
+        }
+        if increment < 1 {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "increment"],
+                "GREATER_THAN_OR_EQUAL_TO",
+                "Increment must be greater than or equal to one.",
+            ));
+        } else if increment > minimum {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "increment"],
+                "INCREMENT_IS_GREATER_THAN_MINIMUM",
+                "Increment must be lower than or equal to the minimum.",
+            ));
+        }
+        if maximum.map(|max| minimum > max).unwrap_or(false) {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "minimum"],
+                "MINIMUM_IS_GREATER_THAN_MAXIMUM",
+                "Minimum must be lower than or equal to the maximum.",
+            ));
+        } else if increment > 0 && minimum % increment != 0 {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "minimum"],
+                "MINIMUM_NOT_MULTIPLE_OF_INCREMENT",
+                "Minimum must be a multiple of the increment.",
+            ));
+        } else if increment > 0 && maximum.map(|max| max % increment != 0).unwrap_or(false) {
+            errors.push(quantity_rule_error(
+                vec!["quantityRules", &index, "maximum"],
+                "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT",
+                "Maximum must be a multiple of the increment.",
+            ));
+        }
+    }
+    (!errors.is_empty()).then_some(errors)
 }
 
 fn is_web_presence_local_document(
