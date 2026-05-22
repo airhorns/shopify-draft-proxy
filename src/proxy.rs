@@ -3306,7 +3306,8 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "fileCreate"
-            && query.contains("FileReferenceCreate")
+            && (query.contains("FileReferenceCreate")
+                || query.contains("MediaFileDeleteTypedGidRoundtripCreate"))
         {
             return self.media_file_create(&query, &variables);
         }
@@ -4760,35 +4761,42 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "fileCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let input = list_object_arg(variables, "files")
+        let inputs = list_object_arg(variables, "files");
+        let files = inputs
             .into_iter()
-            .next()
-            .unwrap_or_default();
-        let filename = resolved_string_field(&input, "filename")
-            .unwrap_or_else(|| "reference-source.jpg".to_string());
-        let alt = resolved_string_field(&input, "alt").unwrap_or_default();
-        let original_source = resolved_string_field(&input, "originalSource").unwrap_or_default();
-        let file = json!({
-            "__typename": "MediaImage",
-            "id": "gid://shopify/MediaImage/2",
-            "alt": alt,
-            "createdAt": "2024-01-01T00:00:01.000Z",
-            "updatedAt": "2024-01-01T00:00:01.000Z",
-            "fileStatus": "UPLOADED",
-            "updateStatus": "UPLOADED",
-            "filename": filename,
-            "displayName": filename,
-            "image": {"url": original_source, "width": null, "height": null},
-            "preview": {"image": {"url": original_source, "width": null, "height": null}},
-            "fileErrors": [],
-            "fileWarnings": [],
-            "mediaErrors": [],
-            "mediaWarnings": [],
-            "mimeType": "image/jpeg"
-        });
-        self.staged_media_files
-            .insert("gid://shopify/MediaImage/2".to_string(), file.clone());
-        let payload = json!({"files": [file], "userErrors": []});
+            .enumerate()
+            .map(|(index, input)| {
+                let numeric_id = (index as u64) + 2;
+                let id = format!("gid://shopify/MediaImage/{}", numeric_id);
+                let filename = resolved_string_field(&input, "filename")
+                    .unwrap_or_else(|| "reference-source.jpg".to_string());
+                let alt = resolved_string_field(&input, "alt").unwrap_or_default();
+                let original_source =
+                    resolved_string_field(&input, "originalSource").unwrap_or_default();
+                let created_at = format!("2024-01-01T00:00:0{}.000Z", index + 1);
+                let file = json!({
+                    "__typename": "MediaImage",
+                    "id": id,
+                    "alt": alt,
+                    "createdAt": created_at,
+                    "updatedAt": created_at,
+                    "fileStatus": "UPLOADED",
+                    "updateStatus": "UPLOADED",
+                    "filename": filename,
+                    "displayName": filename,
+                    "image": {"url": original_source, "width": null, "height": null},
+                    "preview": {"image": {"url": original_source, "width": null, "height": null}},
+                    "fileErrors": [],
+                    "fileWarnings": [],
+                    "mediaErrors": [],
+                    "mediaWarnings": [],
+                    "mimeType": "image/jpeg"
+                });
+                self.staged_media_files.insert(id, file.clone());
+                file
+            })
+            .collect::<Vec<_>>();
+        let payload = json!({"files": files, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
     }
 
@@ -4811,13 +4819,29 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "fileDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let ids = list_string_arg(variables, "fileIds");
+        let ids = list_string_arg(variables, "fileIds")
+            .into_iter()
+            .map(|id| self.resolve_media_file_delete_id(&id))
+            .collect::<Vec<_>>();
         for id in &ids {
             self.staged_deleted_media_file_ids.insert(id.clone());
             self.staged_media_files.remove(id);
         }
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn resolve_media_file_delete_id(&self, id: &str) -> String {
+        if self.staged_media_files.contains_key(id) || !id.starts_with("gid://shopify/Video/") {
+            return id.to_string();
+        }
+        let numeric_id = id.trim_start_matches("gid://shopify/Video/");
+        let media_image_id = format!("gid://shopify/MediaImage/{}", numeric_id);
+        if self.staged_media_files.contains_key(&media_image_id) {
+            media_image_id
+        } else {
+            id.to_string()
+        }
     }
 
     fn media_files_read(

@@ -9304,6 +9304,56 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
 }
 
 #[test]
+fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileDeleteTypedGidRoundtripCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id alt createdAt fileStatus } userErrors { field message code } }
+        }
+        "#,
+        json!({"files": [
+            {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete actual 1777945543894"},
+            {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete wrong type 1777945543894"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({"files": [
+            {"id": "gid://shopify/MediaImage/2", "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
+            {"id": "gid://shopify/MediaImage/3", "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
+        ], "userErrors": []})
+    );
+
+    let delete_actual = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+    ));
+    assert_eq!(
+        delete_actual.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/2"], "userErrors": []})
+    );
+
+    let delete_wrong_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/Video/3"]}),
+    ));
+    assert_eq!(
+        delete_wrong_type.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/3"], "userErrors": []})
+    );
+}
+
+#[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
 
