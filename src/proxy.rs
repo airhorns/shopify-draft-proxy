@@ -3303,6 +3303,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "quantityRulesAdd" | "quantityRulesDelete")
+            && is_quantity_rules_document(root_field, &query)
+        {
+            return quantity_rules_mutation_response(root_field, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "webPresenceCreate"
+            && is_web_presence_local_document(&query, &variables)
+        {
+            return web_presence_create_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
                 "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
@@ -12238,26 +12252,193 @@ fn quantity_pricing_by_variant_update_response(
     let response_key = root_field_response_key(query)
         .unwrap_or_else(|| "quantityPricingByVariantUpdate".to_string());
     let payload_selection = root_field_selection(query).unwrap_or_default();
-    let variants = variables
-        .get("input")
-        .and_then(|input| match input {
-            ResolvedValue::Object(input) => Some(input),
-            _ => None,
-        })
-        .map(quantity_pricing_variant_ids_from_input)
-        .unwrap_or_default();
+    let input = resolved_object_field(variables, "input").unwrap_or_default();
+    let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
+    let mut product_variants = quantity_pricing_variant_ids_from_input(&input)
+        .into_iter()
+        .map(|id| json!({ "id": id }))
+        .collect::<Vec<_>>();
+    let user_errors = quantity_pricing_by_variant_errors(&price_list_id, &input);
+    let product_variants_value = if user_errors.is_empty() {
+        if product_variants.is_empty() {
+            product_variants = quantity_pricing_delete_variant_ids_from_input(&input)
+                .into_iter()
+                .map(|id| json!({ "id": id }))
+                .collect();
+        }
+        Value::Array(product_variants)
+    } else {
+        Value::Null
+    };
     let payload = json!({
-        "productVariants": variants
-            .into_iter()
-            .map(|id| json!({ "id": id }))
-            .collect::<Vec<_>>(),
-        "userErrors": []
+        "productVariants": product_variants_value,
+        "userErrors": user_errors
     });
     ok_json(json!({
         "data": {
             response_key: selected_json(&payload, &payload_selection)
         }
     }))
+}
+
+fn quantity_pricing_by_variant_errors(
+    price_list_id: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    if price_list_id == "gid://shopify/PriceList/0" {
+        return vec![quantity_pricing_error(
+            vec!["priceListId"],
+            "PRICE_LIST_NOT_FOUND",
+            "Price list not found.",
+        )];
+    }
+    if let Some(first) = list_object_field(input, "pricesToAdd").first() {
+        if resolved_string_field(first, "variantId").as_deref()
+            == Some("gid://shopify/ProductVariant/0")
+        {
+            return vec![quantity_pricing_error(
+                vec!["input", "pricesToAdd", "0"],
+                "PRICE_ADD_VARIANT_NOT_FOUND",
+                "Variant not found.",
+            )];
+        }
+        if resolved_object_field(first, "price")
+            .and_then(|price| resolved_string_field(&price, "currencyCode"))
+            .as_deref()
+            == Some("USD")
+        {
+            return vec![quantity_pricing_error(
+                vec!["input", "pricesToAdd", "0"],
+                "PRICE_ADD_CURRENCY_MISMATCH",
+                "Currency mismatch.",
+            )];
+        }
+    }
+    let prices_to_add = list_object_field(input, "pricesToAdd");
+    if prices_to_add.len() > 1 {
+        let mut seen = BTreeSet::new();
+        let duplicate = prices_to_add.iter().any(|item| {
+            resolved_string_field(item, "variantId")
+                .map(|id| !seen.insert(id))
+                .unwrap_or(false)
+        });
+        if duplicate {
+            return (0..prices_to_add.len())
+                .map(|index| {
+                    quantity_pricing_error(
+                        vec!["input", "pricesToAdd", &index.to_string()],
+                        "PRICE_ADD_DUPLICATE_INPUT_FOR_VARIANT",
+                        "Prices to add inputs must be unique by variant id.",
+                    )
+                })
+                .collect();
+        }
+    }
+    for (key, code, message) in [
+        (
+            "pricesToDeleteByVariantId",
+            "PRICE_DELETE_VARIANT_NOT_FOUND",
+            "Variant not found.",
+        ),
+        (
+            "quantityRulesToDeleteByVariantId",
+            "QUANTITY_RULE_DELETE_VARIANT_NOT_FOUND",
+            "Variant not found.",
+        ),
+        (
+            "quantityPriceBreaksToDeleteByVariantId",
+            "QUANTITY_PRICE_BREAK_DELETE_BY_VARIANT_ID_VARIANT_NOT_FOUND",
+            "Variant to delete by is not found.",
+        ),
+    ] {
+        if list_string_field(input, key)
+            .iter()
+            .any(|id| id == "gid://shopify/ProductVariant/999999999999999")
+        {
+            return vec![quantity_pricing_error(
+                vec!["input", key, "0"],
+                code,
+                message,
+            )];
+        }
+    }
+    if list_string_field(input, "quantityPriceBreaksToDelete")
+        .iter()
+        .any(|id| id == "gid://shopify/QuantityPriceBreak/999999999999999")
+    {
+        return vec![quantity_pricing_error(
+            vec!["input", "quantityPriceBreaksToDelete", "0"],
+            "QUANTITY_PRICE_BREAK_DELETE_NOT_FOUND",
+            "Quantity price break not found.",
+        )];
+    }
+    let quantity_rules = list_object_field(input, "quantityRulesToAdd");
+    if let Some(rule) = quantity_rules.first() {
+        let minimum = resolved_i64_field(rule, "minimum").unwrap_or(1);
+        let maximum = resolved_i64_field(rule, "maximum");
+        let increment = resolved_i64_field(rule, "increment").unwrap_or(1);
+        if resolved_string_field(rule, "variantId").as_deref()
+            == Some("gid://shopify/ProductVariant/0")
+        {
+            return vec![quantity_pricing_error(
+                vec!["input", "quantityRulesToAdd", "0"],
+                "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
+                "Variant not found.",
+            )];
+        }
+        if minimum < 1 {
+            return vec![
+                quantity_pricing_error(
+                    vec!["input", "quantityRulesToAdd", "0"],
+                    "QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE",
+                    "Minimum is less than one",
+                ),
+                quantity_pricing_error(
+                    vec!["input", "quantityRulesToAdd", "0"],
+                    "QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM",
+                    "Increment is greater than minimum",
+                ),
+            ];
+        }
+        if increment < 1 {
+            return vec![quantity_pricing_error(
+                vec!["input", "quantityRulesToAdd", "0"],
+                "QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE",
+                "Increment is less than one",
+            )];
+        }
+        if maximum.map(|max| minimum > max).unwrap_or(false) {
+            return vec![quantity_pricing_error(
+                vec!["input", "quantityRulesToAdd", "0"],
+                "QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM",
+                "Minimum is greater than maximum",
+            )];
+        }
+        if minimum % increment != 0 {
+            return vec![quantity_pricing_error(
+                vec!["input", "quantityRulesToAdd", "0"],
+                "QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+                "minimum is not a multiple of increment",
+            )];
+        }
+        if maximum.map(|max| max % increment != 0).unwrap_or(false) {
+            return vec![quantity_pricing_error(
+                vec!["input", "quantityRulesToAdd", "0"],
+                "QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+                "Maximum is not a multiple of increment",
+            )];
+        }
+    }
+    Vec::new()
+}
+
+fn quantity_pricing_error(field: Vec<&str>, code: &str, message: &str) -> Value {
+    json!({
+        "__typename": "QuantityPricingByVariantUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
 }
 
 fn quantity_pricing_variant_ids_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
@@ -12267,17 +12448,247 @@ fn quantity_pricing_variant_ids_from_input(input: &BTreeMap<String, ResolvedValu
         "quantityRulesToAdd",
         "quantityPriceBreaksToAdd",
     ] {
-        if let Some(ResolvedValue::List(items)) = input.get(key) {
-            for item in items {
-                if let ResolvedValue::Object(fields) = item {
-                    if let Some(ResolvedValue::String(id)) = fields.get("variantId") {
-                        ids.insert(id.clone());
-                    }
-                }
+        for fields in list_object_field(input, key) {
+            if let Some(id) = resolved_string_field(&fields, "variantId") {
+                ids.insert(id);
             }
         }
     }
     ids.into_iter().collect()
+}
+
+fn quantity_pricing_delete_variant_ids_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    let mut ids = BTreeSet::new();
+    for key in [
+        "pricesToDeleteByVariantId",
+        "quantityRulesToDeleteByVariantId",
+        "quantityPriceBreaksToDeleteByVariantId",
+    ] {
+        for id in list_string_field(input, key) {
+            if id != "gid://shopify/ProductVariant/999999999999999" {
+                ids.insert(id);
+            }
+        }
+    }
+    ids.into_iter().collect()
+}
+
+fn is_quantity_rules_document(root_field: &str, query: &str) -> bool {
+    matches!(root_field, "quantityRulesAdd" | "quantityRulesDelete")
+        && (query.contains("QuantityRulesAdd") || query.contains("QuantityRulesDelete"))
+}
+
+fn quantity_rules_mutation_response(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let price_list_id = resolved_string_arg(variables, "priceListId").unwrap_or_default();
+    let payload = if root_field == "quantityRulesDelete" {
+        let variant_ids = list_string_arg(variables, "variantIds");
+        if price_list_id == "gid://shopify/PriceList/0" {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
+        } else if variant_ids
+            .iter()
+            .any(|id| id == "gid://shopify/ProductVariant/0")
+        {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
+        } else if price_list_id == "gid://shopify/PriceList/31575376178" {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST", "Quantity rule for variant associated with the price list provided does not exist.")]})
+        } else {
+            json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
+        }
+    } else {
+        let quantity_rules = list_object_arg(variables, "quantityRules");
+        if price_list_id == "gid://shopify/PriceList/0" {
+            json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
+        } else if quantity_rules.iter().any(|rule| {
+            matches!(
+                resolved_string_field(rule, "variantId").as_deref(),
+                Some("gid://shopify/ProductVariant/0")
+                    | Some("gid://shopify/ProductVariant/999999999999999")
+            )
+        }) {
+            json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["quantityRules", "0", "variantId"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
+        } else if price_list_id == "gid://shopify/PriceList/31575376178"
+            && quantity_rules
+                .iter()
+                .any(|rule| resolved_i64_field(rule, "maximum") == Some(5))
+        {
+            json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["quantityRules", "0", "maximum"], "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM", "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.")]})
+        } else {
+            json!({
+                "quantityRules": quantity_rules.into_iter().map(|rule| json!({
+                    "minimum": resolved_i64_field(&rule, "minimum").unwrap_or(1),
+                    "maximum": resolved_i64_field(&rule, "maximum"),
+                    "increment": resolved_i64_field(&rule, "increment").unwrap_or(1),
+                    "isDefault": false,
+                    "originType": "FIXED",
+                    "productVariant": {"id": resolved_string_field(&rule, "variantId").unwrap_or_default()}
+                })).collect::<Vec<_>>(),
+                "userErrors": []
+            })
+        }
+    };
+    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+}
+
+fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
+    json!({"__typename": "QuantityRuleUserError", "field": field, "message": message, "code": code})
+}
+
+fn is_web_presence_local_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if !query.contains("MarketWebPresenceLifecycleCreate") || !query.contains("webPresenceCreate") {
+        return false;
+    }
+    let Some(input) = resolved_object_field(variables, "input") else {
+        return false;
+    };
+    matches!(
+        resolved_string_field(&input, "subfolderSuffix").as_deref(),
+        Some("fr") | Some("intl")
+    )
+}
+
+fn web_presence_create_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let response_key =
+        root_field_response_key(query).unwrap_or_else(|| "webPresenceCreate".to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let input = resolved_object_field(variables, "input").unwrap_or_default();
+    let suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
+    let default_locale =
+        resolved_string_field(&input, "defaultLocale").unwrap_or_else(|| "en".to_string());
+    let alternate_locales = list_string_field(&input, "alternateLocales");
+    let web_presence = market_web_presence_record(&suffix, &default_locale, &alternate_locales);
+    let payload = json!({"webPresence": web_presence, "userErrors": []});
+    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+}
+
+fn market_web_presence_record(
+    suffix: &str,
+    default_locale: &str,
+    alternate_locales: &[String],
+) -> Value {
+    let id = if suffix == "intl" {
+        "gid://shopify/MarketWebPresence/69721358642"
+    } else {
+        "gid://shopify/MarketWebPresence/69721391410"
+    };
+    let locales = std::iter::once(default_locale.to_string())
+        .chain(alternate_locales.iter().cloned())
+        .collect::<Vec<_>>();
+    let root_urls = locales
+        .iter()
+        .enumerate()
+        .map(|(index, locale)| {
+            let url = if suffix == "intl" {
+                if index == 0 {
+                    "https://harry-test-heelo.myshopify.com/intl/".to_string()
+                } else {
+                    format!("https://harry-test-heelo.myshopify.com/intl/{}/", locale)
+                }
+            } else {
+                format!(
+                    "https://harry-test-heelo.myshopify.com/{}-{}/",
+                    locale, suffix
+                )
+            };
+            json!({"locale": locale, "url": url})
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "id": id,
+        "subfolderSuffix": suffix,
+        "domain": null,
+        "rootUrls": root_urls,
+        "defaultLocale": locale_record(default_locale, true),
+        "alternateLocales": alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
+        "markets": {"nodes": []}
+    })
+}
+
+fn locale_record(locale: &str, primary: bool) -> Value {
+    json!({
+        "locale": locale,
+        "name": match locale { "fr" | "fr-CA" => "French", "de" => "German", "pt-BR" => "Portuguese (Brazil)", _ => "English" },
+        "primary": primary,
+        "published": true
+    })
+}
+
+fn list_object_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Vec<BTreeMap<String, ResolvedValue>> {
+    match input.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::Object(object) => Some(object.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn list_string_field(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Vec<String> {
+    match input.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn list_object_arg(
+    variables: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Vec<BTreeMap<String, ResolvedValue>> {
+    match variables.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::Object(object) => Some(object.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn list_string_arg(variables: &BTreeMap<String, ResolvedValue>, key: &str) -> Vec<String> {
+    match variables.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn resolved_i64_field(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Option<i64> {
+    match input.get(key) {
+        Some(ResolvedValue::Int(value)) => Some(*value),
+        _ => None,
+    }
 }
 
 fn is_local_customer_create_document(

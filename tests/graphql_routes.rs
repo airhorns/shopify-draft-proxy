@@ -9213,3 +9213,127 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
         json!("HAR-240 title 1777156845370")
     );
 }
+
+#[test]
+fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/0",
+            "input": {
+                "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "price": {"amount": "12.00", "currencyCode": "CAD"}}],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_price_list.body["data"]["quantityPricingByVariantUpdate"]["productVariants"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_price_list.body["data"]["quantityPricingByVariantUpdate"]["userErrors"][0],
+        json!({"__typename": "QuantityPricingByVariantUserError", "field": ["priceListId"], "code": "PRICE_LIST_NOT_FOUND", "message": "Price list not found."})
+    );
+
+    let duplicate_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) { productVariants { id } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/31575376178",
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": ["gid://shopify/ProductVariant/49875425296690", "gid://shopify/ProductVariant/49875425296690"],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        duplicate_delete.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let cleanup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) { deletedQuantityRulesVariantIds userErrors { field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "variantIds": ["gid://shopify/ProductVariant/49875425296690"]}),
+    ));
+    assert_eq!(
+        cleanup.body["data"]["quantityRulesDelete"],
+        json!({"deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"], "userErrors": []})
+    );
+
+    let unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/0", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        unknown_variant.body["data"]["quantityRulesAdd"]["quantityRules"],
+        json!([])
+    );
+    assert_eq!(
+        unknown_variant.body["data"]["quantityRulesAdd"]["userErrors"][0],
+        json!({"field": ["quantityRules", "0", "variantId"], "code": "PRODUCT_VARIANT_DOES_NOT_EXIST", "message": "Product variant ID does not exist."})
+    );
+
+    let fr_ca = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id subfolderSuffix rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "fr-CA", "alternateLocales": [], "subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        fr_ca.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"]["locale"],
+        json!("fr-CA")
+    );
+    assert_eq!(
+        fr_ca.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+
+    let multi = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
+    ));
+    assert_eq!(
+        multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/intl/"},
+            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/intl/fr/"},
+            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/intl/de/"}
+        ])
+    );
+}
