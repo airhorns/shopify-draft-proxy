@@ -47,6 +47,91 @@ fn product_fixture(path: &str) -> Value {
 }
 
 #[test]
+fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let missing_mandate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "idempotencyKey": "missing-mandate"
+        }),
+    ));
+    assert_eq!(
+        missing_mandate.body,
+        fixture["mandateFlow"]["expected"]["missingMandate"]
+    );
+
+    let first_mandate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        first_mandate.body,
+        fixture["mandateFlow"]["expected"]["mandate"]
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        repeat.body,
+        fixture["mandateFlow"]["expected"]["repeatMandate"]
+    );
+
+    let auth_only = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-848-auth-only",
+            "autoCapture": false,
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        auth_only.body,
+        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_replay_shop_pay_guard_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql"
+        ),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, fixture["expected"]["primary"]);
+}
+
+#[test]
 fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     let lifecycle: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"

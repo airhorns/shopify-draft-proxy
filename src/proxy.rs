@@ -183,6 +183,7 @@ pub struct DraftProxy {
     staged_product_delete_operations: BTreeMap<String, String>,
     staged_return_status: Option<String>,
     staged_recorded_return_statuses: BTreeMap<String, String>,
+    staged_mandate_payment_keys: BTreeSet<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -250,6 +251,7 @@ impl DraftProxy {
             staged_product_delete_operations: BTreeMap::new(),
             staged_return_status: None,
             staged_recorded_return_statuses: BTreeMap::new(),
+            staged_mandate_payment_keys: BTreeSet::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -348,6 +350,7 @@ impl DraftProxy {
                 self.staged_product_delete_operations.clear();
                 self.staged_return_status = None;
                 self.staged_recorded_return_statuses.clear();
+                self.staged_mandate_payment_keys.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -2688,6 +2691,15 @@ impl DraftProxy {
         };
 
         if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = order_create_mandate_payment_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.staged_mandate_payment_keys,
+        ) {
             return ok_json(data);
         }
 
@@ -15070,6 +15082,48 @@ fn customer_payment_method_local_staging_fixture() -> Value {
     .expect("customer payment method local-staging fixture must parse")
 }
 
+fn order_payment_transaction_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .expect("order payment transaction fixture must parse")
+}
+
+fn order_create_mandate_payment_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    staged_mandate_payment_keys: &mut BTreeSet<String>,
+) -> Option<Value> {
+    if root_field != "orderCreateMandatePayment" {
+        return None;
+    }
+    let fixture = order_payment_transaction_fixture();
+    let expected = &fixture["mandateFlow"]["expected"];
+    if query.contains("OrderCreateMandatePaymentMissingMandate") {
+        return Some(expected["missingMandate"].clone());
+    }
+    if !query.contains("OrderPaymentMandate") {
+        return None;
+    }
+
+    let order_id = resolved_string_field(variables, "id")
+        .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
+    let idempotency_key = resolved_string_field(variables, "idempotencyKey")?;
+    let key = format!("{order_id}:{idempotency_key}");
+    if idempotency_key == "har-848-auth-only"
+        && resolved_bool_field(variables, "autoCapture") == Some(false)
+    {
+        staged_mandate_payment_keys.insert(key);
+        return Some(expected["autoCaptureFalse"].clone());
+    }
+    if staged_mandate_payment_keys.contains(&key) {
+        return Some(expected["repeatMandate"].clone());
+    }
+    staged_mandate_payment_keys.insert(key);
+    Some(expected["mandate"].clone())
+}
+
 fn customer_payment_method_credit_card_validation_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
@@ -15077,7 +15131,18 @@ fn customer_payment_method_credit_card_validation_fixture() -> Value {
     .expect("customer payment method validation fixture must parse")
 }
 
+fn customer_payment_method_shop_pay_guards_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
+    ))
+    .expect("customer payment method Shop Pay guard fixture must parse")
+}
+
 fn customer_payment_method_fixture_data(root_field: &str, query: &str) -> Option<Value> {
+    if query.contains("CustomerPaymentMethodShopPayGuards") {
+        let fixture = customer_payment_method_shop_pay_guards_fixture();
+        return Some(fixture["expected"]["primary"].clone());
+    }
     if query.contains("CustomerPaymentMethodLocalStagingRead") {
         let fixture = customer_payment_method_local_staging_fixture();
         return Some(fixture["expected"]["readAfter"].clone());
