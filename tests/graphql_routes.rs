@@ -9102,3 +9102,114 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         json!("INVALID")
     );
 }
+
+#[test]
+fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let seeded = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } } nodes { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Metaobject/185593102642",
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        seeded.body["data"]["catalog"]["nodes"][0]["id"],
+        json!("gid://shopify/Metaobject/185593102642")
+    );
+    assert_eq!(
+        seeded.body["data"]["detail"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+    assert_eq!(
+        seeded.body["data"]["byHandle"]["titleField"]["value"],
+        json!("HAR-240 title 1777156845370")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Metaobject/185593102642"}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": "gid://shopify/Metaobject/185593102642", "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Metaobject/185593102642",
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalog"],
+        json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"metaobject": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370", "capabilities": {"publishable": {"status": "ACTIVE"}}, "fields": [{"key": "title", "value": "HAR-240 title 1777156845370"}, {"key": "body", "value": "HAR-240 body 1777156845370"}]}}),
+    ));
+    let created_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(created_id.starts_with("gid://shopify/Metaobject/"));
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+
+    let after_create = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt } } nodes { id handle type displayName updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id handle type displayName updatedAt }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt }
+        }
+        "#,
+        json!({
+            "id": created_id,
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        after_create.body["data"]["catalog"]["nodes"][0]["id"],
+        created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+    );
+    assert_eq!(
+        after_create.body["data"]["byHandle"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+}
