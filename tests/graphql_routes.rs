@@ -11779,3 +11779,91 @@ fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
         assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
     }
 }
+
+#[test]
+fn product_duplicate_replays_captured_sync_and_async_readbacks() {
+    let mut proxy = snapshot_proxy();
+
+    let sync_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
+    ));
+    let duplicate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-parity-plan.graphql"),
+        sync_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"],
+        sync_fixture["mutation"]["response"]["data"]
+    );
+    let duplicate_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-downstream-read.graphql"),
+        json!({ "id": duplicate.body["data"]["productDuplicate"]["newProduct"]["id"].clone() }),
+    ));
+    assert_eq!(duplicate_read.status, 200);
+    assert_eq!(
+        duplicate_read.body["data"],
+        sync_fixture["downstreamRead"]["data"]
+    );
+
+    let mut async_proxy = snapshot_proxy();
+    let async_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
+    ));
+    let async_duplicate = async_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-async.graphql"),
+        async_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(async_duplicate.status, 200);
+    assert_eq!(
+        async_duplicate.body["data"],
+        async_fixture["mutation"]["response"]["data"]
+    );
+    let operation = async_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-operation-read.graphql"),
+        json!({
+            "id": async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
+        }),
+    ));
+    assert_eq!(operation.status, 200);
+    assert_eq!(
+        operation.body["data"],
+        async_fixture["operationRead"]["response"]["data"]
+    );
+    let async_read = async_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDuplicate-async-product-read.graphql"
+        ),
+        json!({ "id": operation.body["data"]["productOperation"]["newProduct"]["id"].clone() }),
+    ));
+    assert_eq!(async_read.status, 200);
+    assert_eq!(
+        async_read.body["data"],
+        async_fixture["downstreamRead"]["response"]["data"]
+    );
+
+    let mut missing_proxy = snapshot_proxy();
+    let missing_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
+    ));
+    let missing_duplicate = missing_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-async.graphql"),
+        missing_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(missing_duplicate.status, 200);
+    assert_eq!(
+        missing_duplicate.body["data"],
+        missing_fixture["mutation"]["response"]["data"]
+    );
+    let missing_operation = missing_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-operation-read.graphql"),
+        json!({
+            "id": missing_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
+        }),
+    ));
+    assert_eq!(missing_operation.status, 200);
+    assert_eq!(
+        missing_operation.body["data"],
+        missing_fixture["operationRead"]["response"]["data"]
+    );
+}

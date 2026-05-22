@@ -4234,6 +4234,11 @@ impl DraftProxy {
                     "data": self.product_option_lifecycle_downstream_data(&variables)
                 }));
             }
+            if query.contains("ProductDuplicateOperationRead") {
+                return ok_json(json!({
+                    "data": product_duplicate_operation_read_data(&variables)
+                }));
+            }
             if query.contains("ProductSetDownstreamRead") {
                 return ok_json(json!({ "data": self.product_set_downstream_read_data() }));
             }
@@ -15145,6 +15150,29 @@ fn product_fixture_backed_mutation_data(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
+    if query.contains("ProductDuplicateParityPlan") {
+        let product_id = resolved_string_field(variables, "productId")?;
+        let new_title = resolved_string_field(variables, "newTitle")?;
+        if product_id != "gid://shopify/Product/9257219817705"
+            || new_title != "Hermes Product Graph Copy 1776550889941"
+        {
+            return None;
+        }
+        let fixture = product_duplicate_fixture("sync");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductDuplicateAsync") {
+        let product_id = resolved_string_field(variables, "productId")?;
+        if product_id == "gid://shopify/Product/10172162900274" {
+            let fixture = product_duplicate_fixture("async-success");
+            return Some(fixture["mutation"]["response"]["data"].clone());
+        }
+        if product_id == "gid://shopify/Product/999999999999999999" {
+            let fixture = product_duplicate_fixture("async-missing");
+            return Some(fixture["mutation"]["response"]["data"].clone());
+        }
+        return None;
+    }
     if query.contains("ProductCreateWithOptionsParity")
         || query.contains("ProductCreateInventoryReadParity")
         || query.contains("ProductCreateCategoryParity")
@@ -15277,6 +15305,32 @@ fn product_fixture_backed_mutation_data(
         return Some(fixture["mutation"]["response"]["data"].clone());
     }
     None
+}
+
+fn product_duplicate_fixture(name: &str) -> Value {
+    let source = match name {
+        "sync" => include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
+        ),
+        "async-success" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
+        ),
+        "async-missing" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
+        ),
+        _ => unreachable!("unknown product duplicate fixture"),
+    };
+    serde_json::from_str(source).expect("product duplicate fixture must parse")
+}
+
+fn product_duplicate_operation_read_data(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let id = resolved_string_field(variables, "id").unwrap_or_default();
+    let fixture_name = if id == "gid://shopify/ProductDuplicateOperation/78699200818" {
+        "async-missing"
+    } else {
+        "async-success"
+    };
+    product_duplicate_fixture(fixture_name)["operationRead"]["response"]["data"].clone()
 }
 
 fn product_option_fixture(name: &str) -> Value {
@@ -15446,6 +15500,15 @@ fn product_catalog_search_read_data(
         return Some(product_create_rich_fixture_downstream_data(
             query, variables,
         ));
+    }
+    if query.contains("ProductDuplicateDownstreamRead") {
+        return Some(product_duplicate_fixture("sync")["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductDuplicateAsyncProductRead") {
+        return Some(
+            product_duplicate_fixture("async-success")["downstreamRead"]["response"]["data"]
+                .clone(),
+        );
     }
     if query.contains("ProductsCatalogRead") {
         return Some(product_fixture_data(include_str!(
