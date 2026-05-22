@@ -9936,3 +9936,88 @@ fn collections_catalog_read_replays_captured_catalog_branches() {
         json!("vans")
     );
 }
+
+fn assert_product_fixture_backed_read_matches_capture(
+    query: &str,
+    variables: Value,
+    fixture: &str,
+) {
+    let mut proxy = snapshot_proxy();
+    let expected: Value = serde_json::from_str(fixture).expect("product read fixture must parse");
+    let expected_data = expected
+        .get("data")
+        .or_else(|| {
+            expected
+                .get("response")
+                .and_then(|response| response.get("data"))
+        })
+        .cloned()
+        .unwrap_or(Value::Null);
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"], expected_data);
+}
+
+#[test]
+fn product_catalog_and_search_reads_replay_captured_fixture_data() {
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-catalog-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-catalog-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-sort-keys-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-sort-keys-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-sort-keys.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-pagination-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-pagination-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-pagination.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-advanced-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-advanced-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-advanced-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-or-precedence-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-or-precedence-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-or-precedence.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-relevance-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-relevance-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-relevance-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-grammar-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-grammar-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-grammar.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-variant-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-variant-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-variant-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/product-detail-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/product-detail-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-detail.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/product-metafields-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/product-metafields-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/collection-detail-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/collection-detail-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"),
+    );
+}

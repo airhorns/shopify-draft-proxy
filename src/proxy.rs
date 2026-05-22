@@ -4140,6 +4140,9 @@ impl DraftProxy {
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
             }
+            if let Some(data) = product_catalog_search_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
         }
 
         let capability =
@@ -14113,6 +14116,93 @@ fn collections_catalog_read_data() -> Value {
     ))
     .expect("collections catalog fixture must parse");
     fixture["data"].clone()
+}
+
+fn product_fixture_data(fixture: &str) -> Value {
+    let fixture: Value = serde_json::from_str(fixture).expect("product fixture must parse");
+    fixture
+        .get("data")
+        .or_else(|| {
+            fixture
+                .get("response")
+                .and_then(|response| response.get("data"))
+        })
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+fn product_catalog_search_read_data(query: &str) -> Option<Value> {
+    if query.contains("ProductsCatalogRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json"
+        )));
+    }
+    if query.contains("ProductsSortKeysRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-sort-keys.json"
+        )));
+    }
+    if query.contains("ProductsSearchRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search.json"
+        )));
+    }
+    if query.contains("ProductsSearchPaginationRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-pagination.json"
+        )));
+    }
+    if query.contains("ProductsAdvancedSearchRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-advanced-search.json"
+        )));
+    }
+    if query.contains("ProductsOrPrecedenceRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-or-precedence.json"
+        )));
+    }
+    if query.contains("ProductsRelevanceSearchRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-relevance-search.json"
+        )));
+    }
+    if query.contains("ProductsSearchGrammarRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-grammar.json"
+        )));
+    }
+    if query.contains("ProductsVariantSearchRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-variant-search.json"
+        )));
+    }
+    if query.contains("ProductDetailRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-detail.json"
+        )));
+    }
+    if query.contains("ProductMetafieldsReadNext") {
+        let fixture = product_fixture_data(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"
+        ));
+        return Some(json!({
+            "product": {
+                "metafields": fixture["product"]["nextMetafields"].clone()
+            }
+        }));
+    }
+    if query.contains("ProductMetafieldsRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"
+        )));
+    }
+    if query.contains("CollectionDetailRead") {
+        return Some(product_fixture_data(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"
+        )));
+    }
+    None
 }
 
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
