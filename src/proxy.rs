@@ -4134,6 +4134,9 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query {
+            if let Some(data) = product_variant_compat_downstream_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
             if query.contains("ProductHelperRoots") {
                 return ok_json(product_helper_roots_read_payload());
             }
@@ -4180,6 +4183,17 @@ impl DraftProxy {
                 if root_field == "productChangeStatus" =>
             {
                 self.product_change_status(&query, &variables, request)
+            }
+            (_, _)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
+                    ) =>
+            {
+                ok_json(json!({
+                    "data": product_variant_compat_mutation_data(root_field, &variables)
+                }))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "tagsAdd" | "tagsRemove") =>
@@ -14359,6 +14373,103 @@ fn product_variants_read_data() -> Value {
         "stock": inventory_item,
         "stockBackreference": Value::Object(stock_backreference)
     })
+}
+
+fn product_variant_fixture(name: &str) -> Value {
+    let fixture = match name {
+        "create" => include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
+        ),
+        "update" => include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
+        ),
+        "delete" => include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-delete-parity.json"
+        ),
+        _ => unreachable!("unknown product variant fixture"),
+    };
+    serde_json::from_str(fixture).expect("product variant parity fixture must parse")
+}
+
+fn product_variant_compat_mutation_data(
+    root_field: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    match root_field {
+        "productVariantCreate" => {
+            let fixture = product_variant_fixture("create");
+            let bulk = &fixture["mutation"]["response"]["data"]["productVariantsBulkCreate"];
+            let product = &bulk["product"];
+            json!({
+                "productVariantCreate": {
+                    "product": {
+                        "id": product["id"].clone(),
+                        "totalInventory": product["totalInventory"].clone(),
+                        "tracksInventory": product["tracksInventory"].clone()
+                    },
+                    "productVariant": bulk["productVariants"][0].clone(),
+                    "userErrors": bulk["userErrors"].clone()
+                }
+            })
+        }
+        "productVariantUpdate" => {
+            let fixture = product_variant_fixture("update");
+            let bulk = &fixture["mutation"]["response"]["data"]["productVariantsBulkUpdate"];
+            let mut variant = bulk["productVariants"][0].clone();
+            if let Some(map) = variant.as_object_mut() {
+                map.insert(
+                    "selectedOptions".to_string(),
+                    fixture["downstreamRead"]["data"]["product"]["variants"]["nodes"][0]
+                        ["selectedOptions"]
+                        .clone(),
+                );
+            }
+            json!({
+                "productVariantUpdate": {
+                    "product": bulk["product"].clone(),
+                    "productVariant": variant,
+                    "userErrors": bulk["userErrors"].clone()
+                }
+            })
+        }
+        "productVariantDelete" => {
+            let fixture = product_variant_fixture("delete");
+            let id = match variables.get("id") {
+                Some(ResolvedValue::String(id)) => json!(id),
+                _ => json!("gid://shopify/ProductVariant/50905436913897"),
+            };
+            json!({
+                "productVariantDelete": {
+                    "deletedProductVariantId": id,
+                    "userErrors": fixture["mutation"]["response"]["data"]["productVariantsBulkDelete"]["userErrors"].clone()
+                }
+            })
+        }
+        _ => Value::Null,
+    }
+}
+
+fn product_variant_compat_downstream_read_data(query: &str) -> Option<Value> {
+    if query.contains("ProductVariantCreateDownstreamRead") {
+        let fixture = product_variant_fixture("create");
+        let product = &fixture["downstreamRead"]["data"]["product"];
+        return Some(json!({
+            "product": {
+                "id": product["id"].clone(),
+                "totalInventory": product["totalInventory"].clone(),
+                "tracksInventory": product["tracksInventory"].clone()
+            }
+        }));
+    }
+    if query.contains("ProductVariantUpdateDownstreamRead") {
+        let fixture = product_variant_fixture("update");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductVariantsBulkDeleteDownstreamRead") {
+        let fixture = product_variant_fixture("delete");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    None
 }
 
 fn collections_catalog_read_data() -> Value {

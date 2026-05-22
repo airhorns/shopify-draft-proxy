@@ -10315,3 +10315,152 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
         })
     );
 }
+
+#[test]
+fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantCreate-parity-plan.graphql"),
+        json!({
+            "input": {
+                "productId": "gid://shopify/Product/9259552407785",
+                "title": "Blue",
+                "sku": "HERMES-BULK-810153-BLUE",
+                "barcode": "2222222222222",
+                "price": "26.00",
+                "inventoryQuantity": 0,
+                "selectedOptions": [{ "name": "Color", "value": "Blue" }],
+                "inventoryItem": { "tracked": true, "requiresShipping": false }
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9259552407785",
+            "totalInventory": 0,
+            "tracksInventory": true
+        })
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
+        json!("HERMES-BULK-810153-BLUE")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"],
+        json!({
+            "id": "gid://shopify/InventoryItem/53053417259241",
+            "tracked": true,
+            "requiresShipping": false
+        })
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productVariantCreate-downstream-read.graphql"
+        ),
+        json!({ "id": "gid://shopify/Product/9259552407785" }),
+    ));
+    assert_eq!(
+        create_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9259552407785",
+            "totalInventory": 0,
+            "tracksInventory": true
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantUpdate-parity-plan.graphql"),
+        json!({
+            "input": {
+                "id": "gid://shopify/ProductVariant/50905436913897",
+                "title": "Red",
+                "sku": "HERMES-BULK-810153-RED",
+                "barcode": "1111111111111",
+                "price": "24.00",
+                "compareAtPrice": "30.00",
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [{ "name": "Color", "value": "Red" }],
+                "inventoryItem": { "tracked": true, "requiresShipping": true }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"],
+        json!({
+            "id": "gid://shopify/ProductVariant/50905436913897",
+            "title": "Red",
+            "sku": "HERMES-BULK-810153-RED",
+            "barcode": "1111111111111",
+            "price": "24.00",
+            "compareAtPrice": "30.00",
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [{ "name": "Color", "value": "Red" }],
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53053417160937",
+                "tracked": true,
+                "requiresShipping": true
+            }
+        })
+    );
+
+    let update_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantUpdate-downstream-read.graphql"),
+        json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
+    ));
+    assert_eq!(
+        update_read.body["data"]["product"]["variants"]["nodes"][0]["id"],
+        json!("gid://shopify/ProductVariant/50905436913897")
+    );
+    assert_eq!(update_read.body["data"]["products"], json!({ "nodes": [] }));
+    assert_eq!(
+        update_read.body["data"]["skuCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantDelete-parity-plan.graphql"),
+        json!({ "id": "gid://shopify/ProductVariant/50905436913897" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"],
+        json!({
+            "deletedProductVariantId": "gid://shopify/ProductVariant/50905436913897",
+            "userErrors": []
+        })
+    );
+
+    let delete_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantsBulkDelete-downstream-read.graphql"),
+        json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
+    ));
+    assert_eq!(
+        delete_read.body["data"]["product"]["variants"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductVariant/50905437012201",
+            "title": "Blue",
+            "sku": "HERMES-BULK-810153-BLUE",
+            "barcode": "2222222222222",
+            "price": "26.00",
+            "compareAtPrice": "30.00",
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }],
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53053417259241",
+                "tracked": true,
+                "requiresShipping": false
+            }
+        }])
+    );
+}

@@ -3013,27 +3013,27 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productVariantCreate", "ProductVariantCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/graphql_routes.rs"]
   },
   {
     "name": "productVariantUpdate",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productVariantUpdate", "ProductVariantUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/graphql_routes.rs"]
   },
   {
     "name": "productVariantDelete",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productVariantDelete", "ProductVariantDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/graphql_routes.rs"]
   },
   {
     "name": "productCreateMedia",
