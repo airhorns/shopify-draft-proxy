@@ -12913,6 +12913,215 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
 }
 
 #[test]
+fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
+    // required/invalid status, required context/market IDs, unsupported country contexts,
+    // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
+    // and catalogContextUpdate add/remove validation/readback.
+    let create_query = r#"
+        mutation RustCatalogLocalRuntimeCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let validation_cases = [
+        (
+            json!({"title": "EU Catalog", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "status"], "message": "Status is required", "code": "REQUIRED"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "DISABLED", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "status"], "message": "Status is invalid", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Context is required", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds", "0"], "message": "Market does not exist", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": []}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": []}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "countryCodes"], "message": "Country codes can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "driverType"], "message": "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/missing"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "title"], "message": "Title can't be blank", "code": "BLANK"}),
+        ),
+    ];
+    for (input, error) in validation_cases {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [error]})
+        );
+    }
+
+    let mut proxy = snapshot_proxy();
+    let market_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    assert_eq!(
+        market_create.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+
+    let unknown_price_list = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/9999999999"}}),
+    ));
+    assert_eq!(
+        unknown_price_list.body["data"]["catalogCreate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list not found.", "code": "PRICE_LIST_NOT_FOUND"}]})
+    );
+    let unknown_publication = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "publicationId": "gid://shopify/Publication/9999999999"}}),
+    ));
+    assert_eq!(
+        unknown_publication.body["data"]["catalogCreate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication not found.", "code": "PUBLICATION_NOT_FOUND"}]})
+    );
+
+    let catalog_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    assert_eq!(
+        catalog_create.body["data"]["catalogCreate"],
+        json!({
+            "catalog": {"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}},
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCatalogLocalRuntimeRead($id: ID!) {
+          catalog(id: $id) { id title status markets(first: 5) { nodes { id } } }
+          catalogs(first: 5, type: MARKET) { nodes { id title status markets(first: 5) { nodes { id } } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/MarketCatalog/3"}),
+    ));
+    assert_eq!(
+        read.body["data"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}})
+    );
+    assert_eq!(
+        read.body["data"]["catalogs"]["nodes"],
+        json!([{"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}}])
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/MarketCatalog/missing"}),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["catalogDelete"],
+        json!({"deletedId": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["id"], "message": "Catalog does not exist", "code": "CATALOG_NOT_FOUND"}]})
+    );
+
+    let unknown_context_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/404", "add": {"marketIds": ["gid://shopify/Market/404"]}}),
+    ));
+    assert_eq!(
+        unknown_context_catalog.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["catalogId"], "message": "Catalog does not exist", "code": "CATALOG_NOT_FOUND"}]})
+    );
+
+    let missing_contexts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!) {
+          catalogContextUpdate(catalogId: $catalogId) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3"}),
+    ));
+    assert_eq!(
+        missing_contexts.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["contextsToAdd"], "message": "Must have `contexts_to_add` or `contexts_to_remove` argument.", "code": "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE"}]})
+    );
+
+    let missing_market_contexts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!, $remove: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": ["gid://shopify/Market/404"]}, "remove": {"marketIds": ["gid://shopify/Market/405"]}}),
+    ));
+    assert_eq!(
+        missing_market_contexts.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [
+            {"__typename": "CatalogUserError", "field": ["contextsToAdd", "marketIds", "0"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"},
+            {"__typename": "CatalogUserError", "field": ["contextsToRemove", "marketIds", "0"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}
+        ]})
+    );
+
+    let second_market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "North America", "regions": [{"countryCode": "US"}]}}),
+    ));
+    let second_market_id = second_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let context_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!, $remove: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog { id markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": [second_market_id]}, "remove": {"marketIds": ["gid://shopify/Market/1"]}}),
+    ));
+    assert_eq!(
+        context_update.body["data"]["catalogContextUpdate"],
+        json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
+    );
+}
+
+#[test]
 fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test

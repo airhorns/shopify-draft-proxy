@@ -165,6 +165,7 @@ pub struct DraftProxy {
     staged_timestamp_discounts: BTreeMap<String, Value>,
     staged_gift_cards: BTreeMap<String, Value>,
     staged_markets: BTreeMap<String, Value>,
+    staged_catalogs: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
@@ -247,6 +248,7 @@ impl DraftProxy {
             staged_timestamp_discounts: BTreeMap::new(),
             staged_gift_cards: BTreeMap::new(),
             staged_markets: BTreeMap::new(),
+            staged_catalogs: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
@@ -363,6 +365,7 @@ impl DraftProxy {
                 self.staged_timestamp_discounts.clear();
                 self.staged_gift_cards.clear();
                 self.staged_markets.clear();
+                self.staged_catalogs.clear();
                 self.staged_localization_translations.clear();
                 self.staged_marketing_activities.clear();
                 self.staged_deleted_marketing_activity_ids.clear();
@@ -1102,6 +1105,267 @@ impl DraftProxy {
                 .as_array()
                 .is_some_and(|codes| codes.iter().any(|code| code.as_str() == Some(country_code)))
         })
+    }
+
+    fn market_exists(&self, market_id: &str) -> bool {
+        self.staged_markets.contains_key(market_id)
+    }
+
+    fn catalog_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "catalog" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_catalogs
+                        .get(&id)
+                        .map(|catalog| selected_json(catalog, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "catalogs" => {
+                    let nodes = self.staged_catalogs.values().cloned().collect::<Vec<_>>();
+                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn catalog_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        let mut touched_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "catalogCreate" => self.catalog_create_response(field),
+                "catalogDelete" => self.catalog_delete_response(field),
+                "catalogContextUpdate" => self.catalog_context_update_response(field),
+                _ => Value::Null,
+            };
+            if let Some(id) = value["catalog"]["id"]
+                .as_str()
+                .or_else(|| value["deletedId"].as_str())
+            {
+                touched_ids.push(id.to_string());
+            }
+            data.insert(field.response_key.clone(), value);
+        }
+        if !touched_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
+        }
+        Value::Object(data)
+    }
+
+    fn catalog_create_response(&mut self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
+            return selected_json(
+                &catalog_payload_error(vec!["input", "title"], "Title can't be blank", "BLANK"),
+                &field.selection,
+            );
+        }
+        let Some(status) = resolved_string_field(&input, "status") else {
+            return selected_json(
+                &catalog_payload_error(vec!["input", "status"], "Status is required", "REQUIRED"),
+                &field.selection,
+            );
+        };
+        if !matches!(status.as_str(), "ACTIVE" | "DRAFT") {
+            return selected_json(
+                &catalog_payload_error(vec!["input", "status"], "Status is invalid", "INVALID"),
+                &field.selection,
+            );
+        }
+        let Some(context) = resolved_object_field(&input, "context") else {
+            return selected_json(
+                &catalog_payload_error(vec!["input", "context"], "Context is required", "INVALID"),
+                &field.selection,
+            );
+        };
+        let driver_type =
+            resolved_string_field(&context, "driverType").unwrap_or_else(|| "MARKET".to_string());
+        if driver_type == "COUNTRY" {
+            let country_codes = list_string_field(&context, "countryCodes");
+            if country_codes.is_empty() {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "context", "countryCodes"],
+                        "Country codes can't be blank",
+                        "INVALID",
+                    ),
+                    &field.selection,
+                );
+            }
+            return selected_json(
+                &catalog_payload_error(vec!["input", "context", "driverType"], "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "INVALID"),
+                &field.selection,
+            );
+        }
+        if driver_type != "MARKET" {
+            return selected_json(
+                &catalog_payload_error(vec!["input", "context", "driverType"], &format!("Catalog context driverType {driver_type} is not supported by the local MarketCatalog model"), "INVALID"),
+                &field.selection,
+            );
+        }
+        let market_ids = list_string_field(&context, "marketIds");
+        if market_ids.is_empty() {
+            return selected_json(
+                &catalog_payload_error(
+                    vec!["input", "context", "marketIds"],
+                    "Market ids can't be blank",
+                    "INVALID",
+                ),
+                &field.selection,
+            );
+        }
+        for (index, market_id) in market_ids.iter().enumerate() {
+            if !self.market_exists(market_id) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "context", "marketIds", &index.to_string()],
+                        "Market does not exist",
+                        "INVALID",
+                    ),
+                    &field.selection,
+                );
+            }
+        }
+        if resolved_string_field(&input, "priceListId").is_some_and(|id| id.contains("9999999999"))
+        {
+            return selected_json(
+                &catalog_payload_error(
+                    vec!["input", "priceListId"],
+                    "Price list not found.",
+                    "PRICE_LIST_NOT_FOUND",
+                ),
+                &field.selection,
+            );
+        }
+        if resolved_string_field(&input, "publicationId")
+            .is_some_and(|id| id.contains("9999999999"))
+        {
+            return selected_json(
+                &catalog_payload_error(
+                    vec!["input", "publicationId"],
+                    "Publication not found.",
+                    "PUBLICATION_NOT_FOUND",
+                ),
+                &field.selection,
+            );
+        }
+
+        let id = self.next_catalog_id();
+        let title = resolved_string_field(&input, "title").unwrap_or_default();
+        let catalog = catalog_record(&id, &title, &status, &market_ids);
+        self.staged_catalogs.insert(id, catalog.clone());
+        selected_json(
+            &json!({"catalog": catalog, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn catalog_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let payload = if self.staged_catalogs.remove(&id).is_some() {
+            json!({"deletedId": id, "userErrors": []})
+        } else {
+            json!({"deletedId": null, "userErrors": [catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND")]})
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn catalog_context_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let catalog_id = resolved_string_arg(&field.arguments, "catalogId").unwrap_or_default();
+        let Some(existing_catalog) = self.staged_catalogs.get(&catalog_id).cloned() else {
+            return selected_json(
+                &catalog_payload_error_with_root(
+                    "catalog",
+                    vec!["catalogId"],
+                    "Catalog does not exist",
+                    "CATALOG_NOT_FOUND",
+                ),
+                &field.selection,
+            );
+        };
+        let contexts_to_add = resolved_object_field(&field.arguments, "contextsToAdd");
+        let contexts_to_remove = resolved_object_field(&field.arguments, "contextsToRemove");
+        if contexts_to_add.is_none() && contexts_to_remove.is_none() {
+            return selected_json(
+                &catalog_payload_error_with_root(
+                    "catalog",
+                    vec!["contextsToAdd"],
+                    "Must have `contexts_to_add` or `contexts_to_remove` argument.",
+                    "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
+                ),
+                &field.selection,
+            );
+        }
+
+        let mut errors = Vec::new();
+        for (field_prefix, context) in [
+            ("contextsToAdd", contexts_to_add.as_ref()),
+            ("contextsToRemove", contexts_to_remove.as_ref()),
+        ] {
+            if let Some(context) = context {
+                for (index, market_id) in list_string_field(context, "marketIds").iter().enumerate()
+                {
+                    if !self.market_exists(market_id) {
+                        errors.push(catalog_user_error(
+                            vec![field_prefix, "marketIds", &index.to_string()],
+                            "Market does not exist",
+                            "MARKET_NOT_FOUND",
+                        ));
+                    }
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"catalog": null, "userErrors": errors}),
+                &field.selection,
+            );
+        }
+
+        let mut market_ids = catalog_market_ids(&existing_catalog);
+        if let Some(context) = contexts_to_remove.as_ref() {
+            let remove = list_string_field(context, "marketIds")
+                .into_iter()
+                .collect::<BTreeSet<_>>();
+            market_ids.retain(|id| !remove.contains(id));
+        }
+        if let Some(context) = contexts_to_add.as_ref() {
+            for market_id in list_string_field(context, "marketIds") {
+                if !market_ids.contains(&market_id) {
+                    market_ids.push(market_id);
+                }
+            }
+        }
+        let mut updated_catalog = existing_catalog;
+        if let Some(object) = updated_catalog.as_object_mut() {
+            object.insert("marketIds".to_string(), json!(market_ids.clone()));
+            object.insert(
+                "markets".to_string(),
+                catalog_markets_connection(&market_ids),
+            );
+        }
+        self.staged_catalogs
+            .insert(catalog_id.clone(), updated_catalog.clone());
+        selected_json(
+            &json!({"catalog": updated_catalog, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn next_catalog_id(&self) -> String {
+        let numeric_id = (self.staged_markets.len() * 2) + (self.staged_catalogs.len() * 2) + 1;
+        format!("gid://shopify/MarketCatalog/{numeric_id}")
     }
 
     fn market_localization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -4518,6 +4782,33 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.market_create_mutation_data(&fields, request, &query, &variables);
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "catalog" | "catalogs"))
+            && is_ported_catalog_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.catalog_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "catalogCreate" | "catalogDelete" | "catalogContextUpdate"
+                )
+            })
+            && is_ported_catalog_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.catalog_mutation_data(&fields, request, &query, &variables);
                 return ok_json(json!({ "data": data }));
             }
         }
@@ -15051,6 +15342,69 @@ fn is_ported_localization_document(query: &str) -> bool {
 
 fn is_ported_market_create_document(query: &str) -> bool {
     query.contains("RustMarketCreateLocalRuntime")
+}
+
+fn is_ported_catalog_document(query: &str) -> bool {
+    query.contains("RustCatalogLocalRuntime")
+}
+
+fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "__typename": "CatalogUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn catalog_payload_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    catalog_payload_error_with_root("catalog", field, message, code)
+}
+
+fn catalog_payload_error_with_root(
+    root_key: &str,
+    field: Vec<&str>,
+    message: &str,
+    code: &str,
+) -> Value {
+    json!({
+        root_key: null,
+        "userErrors": [catalog_user_error(field, message, code)]
+    })
+}
+
+fn catalog_markets_connection(market_ids: &[String]) -> Value {
+    json!({
+        "nodes": market_ids
+            .iter()
+            .map(|id| json!({"id": id}))
+            .collect::<Vec<_>>()
+    })
+}
+
+fn catalog_record(id: &str, title: &str, status: &str, market_ids: &[String]) -> Value {
+    json!({
+        "__typename": "MarketCatalog",
+        "id": id,
+        "title": title,
+        "status": status,
+        "marketIds": market_ids,
+        "markets": catalog_markets_connection(market_ids),
+        "operations": [],
+        "priceList": null,
+        "publication": null
+    })
+}
+
+fn catalog_market_ids(catalog: &Value) -> Vec<String> {
+    catalog["marketIds"]
+        .as_array()
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|id| id.as_str().map(ToString::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn market_status_enabled_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {

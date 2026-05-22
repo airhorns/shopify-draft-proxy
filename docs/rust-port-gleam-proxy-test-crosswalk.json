@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 160,
-      "needs_manual_review": 468,
+      "needs_manual_review": 456,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1530
+      "represented_by_rust_root_tests": 1542
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -281,7 +281,7 @@
         "test_count": 106
       }
     ],
-    "generated_at_utc": "2026-05-22T19:36:11Z",
+    "generated_at_utc": "2026-05-22T20:04:27Z",
     "gleam_main_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-gleam-main",
     "kind_counts": {
       "domain_processor_behavior": 275,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
       "implementation_unit_replaced_needs_review": 160,
-      "needs_manual_review": 468,
+      "needs_manual_review": 456,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1530
+      "represented_by_rust_root_tests": 1542
     },
     "test_count": 2162
   },
@@ -23967,78 +23967,93 @@
     },
     {
       "body_sha1": "9b9c722b683b5eb3cc084de8a91849fdb7f00e39",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3076,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_requires_status_test",
       "id": "5791609027d3",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "53f98621ee9074f86e09e3803a816f261c026071",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3087,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_rejects_invalid_status_test",
       "id": "18c1bb72f6db",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a6fc68ff8284785eec11cfa27b8b540d9cb460f9",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3098,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_requires_context_test",
       "id": "b0d9f9aab142",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "e5656bae70e978e523f68d74f9d50b7091b7fde5",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3109,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_requires_market_ids_for_empty_context_test",
       "id": "05440d725b2a",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a4c31289ee79995be59f2ef4111df8804cb66b42",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3120,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_validates_market_context_ids_test",
       "id": "95401eada6d2",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c8fbab6a676ecf05fe0ed697e75adcd95ac06fd6",
@@ -24068,22 +24083,25 @@
     },
     {
       "body_sha1": "e08cf6f33c788e388f681ab662523cf1ccadbf1a",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3171,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_validates_country_context_test",
       "id": "afcff26b657d",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c6f6a3c4c45f9b9e8b25cc3fa9c934269b212928",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_catalog_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3189,
@@ -24091,6 +24109,9 @@
       "gleam_test": "catalog_create_stages_market_context_test",
       "id": "8eaac94104b5",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24110,7 +24131,7 @@
       },
       "root_fields": ["marketCreate", "markets", "nodes"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1e38576f900aa224c71b20edb5a4cba8ea888ee4",
@@ -24165,33 +24186,39 @@
     },
     {
       "body_sha1": "a47c613fc19521ee0d4ded2b8ad179dbd7713a3b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3282,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_delete_unknown_id_includes_catalog_user_error_typename_test",
       "id": "6db5b5714ef0",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c7dfe44572f7d504f471444e41651fa845ff2836",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3293,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_validation_includes_catalog_user_error_typename_test",
       "id": "e6b6950a2d82",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "78bd096d7475a01d84c9b4ae8ea4cc784df3caf8",
@@ -24324,14 +24351,17 @@
     },
     {
       "body_sha1": "878e8c7d54a1ed10ef950c3a4571952bc83359eb",
-      "coverage_reasons": [],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3656,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_rejects_unknown_price_list_id_test",
       "id": "3d88b5f8ff93",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24341,7 +24371,7 @@
       },
       "root_fields": ["marketCreate"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "701fd51ced2036d94fb913ab9c67ec4bb7ce376b",
@@ -24360,14 +24390,17 @@
     },
     {
       "body_sha1": "c20eceb722283997f2ce9c42b35c604bdb6c3071",
-      "coverage_reasons": [],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3688,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_create_rejects_unknown_publication_id_test",
       "id": "a733377dbaf3",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24377,7 +24410,7 @@
       },
       "root_fields": ["marketCreate"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "93ac9d0ce8495df4ab5eae1c1c6525befb804a25",
@@ -24426,14 +24459,17 @@
     },
     {
       "body_sha1": "2c90948fd0d262b26f080115f3f85688261af49c",
-      "coverage_reasons": [],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3762,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_context_update_requires_add_or_remove_contexts_test",
       "id": "be1f50a2c4bd",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24443,11 +24479,11 @@
       },
       "root_fields": ["marketCreate"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "2f97ea6f57dcd25d3c67aababae0db2434a4d83e",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_catalog_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3783,
@@ -24455,6 +24491,9 @@
       "gleam_test": "catalog_context_update_removes_market_contexts_test",
       "id": "9ac90755323b",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24474,18 +24513,21 @@
       },
       "root_fields": ["marketCreate", "markets", "nodes"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "18f2381030ff8f857097b1b46b2d2945d0bba645",
-      "coverage_reasons": [],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["manual_rust_port_catalog_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3817,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "catalog_context_update_validates_missing_market_context_ids_test",
       "id": "c238f27481da",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -24495,7 +24537,7 @@
       },
       "root_fields": ["marketCreate"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "81f934d9c0137adf07fbeb6121e08223684076bb",
@@ -24530,7 +24572,7 @@
     },
     {
       "body_sha1": "cdc6a295a396f3ef9e6998d46fb74aa282d49f95",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_catalog_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 3877,
@@ -24538,6 +24580,9 @@
       "gleam_test": "catalog_context_update_unknown_catalog_returns_typed_user_error_test",
       "id": "46a3cb0ebd46",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "markets": {
           "parity_spec": true,
@@ -24552,7 +24597,7 @@
       },
       "root_fields": ["markets", "nodes"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "819865d0fd48c0328503b09cc3f9db0f8be82d7f",
