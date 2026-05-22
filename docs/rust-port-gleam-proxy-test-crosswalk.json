@@ -1,10 +1,10 @@
 {
   "summary": {
     "coverage_status_counts": {
-      "implementation_unit_replaced_needs_review": 173,
-      "needs_manual_review": 522,
+      "implementation_unit_replaced_needs_review": 171,
+      "needs_manual_review": 516,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1463
+      "represented_by_rust_root_tests": 1471
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
-      "implementation_unit_replaced_needs_review": 192,
-      "needs_manual_review": 522,
+      "implementation_unit_replaced_needs_review": 171,
+      "needs_manual_review": 516,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1444
+      "represented_by_rust_root_tests": 1471
     },
     "test_count": 2162
   },
@@ -14872,8 +14872,10 @@
     },
     {
       "body_sha1": "baf66f7fb3dd7fe5b6a0da1d98def1b751e67bfd",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2433,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14883,7 +14885,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c0f2189ba3eff735b06d4f6be1483ae10ec6d52d",
@@ -14917,8 +14919,10 @@
     },
     {
       "body_sha1": "279df59be0a96006d7f7b568be1a4836741785be",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2477,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14928,12 +14932,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6598dc2d38924c77740c146ee053fd0986626197",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2489,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14943,12 +14949,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "636d14869ef61f212a5c9f0730439558b4eb2b01",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2498,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14958,12 +14966,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "891bfc89ddd52fdcba9634ce54f4418c7ea5114b",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2510,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14973,12 +14983,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a62103011ca8a2919f2bbcbb26dc1a0e66c3dc2f",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2525,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14988,12 +15000,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1419d597191f5adc1a92c418f0a1457a902a4f90",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2536,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -15003,12 +15017,14 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "af1222795a4c741685fc459a8aceb7a1da26671b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2547,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -15018,7 +15034,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6f598ba1142c110a70cfabc00a37341fdd152b1c",

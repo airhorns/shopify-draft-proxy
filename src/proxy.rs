@@ -498,6 +498,35 @@ impl DraftProxy {
         let Some(state) = dump.get("state") else {
             return json_error(400, "Rust state dump is missing state");
         };
+        if !state.is_object() {
+            return json_error(400, "Rust state dump is missing state");
+        }
+        for path in [
+            "state.baseState",
+            "state.baseState.products",
+            "state.baseState.savedSearches",
+            "state.stagedState",
+            "state.stagedState.products",
+            "state.stagedState.deletedProductIds",
+            "state.stagedState.savedSearches",
+            "state.stagedState.shippingPackages",
+            "state.stagedState.deletedShippingPackageIds",
+            "state.stagedState.delegatedAccessTokens",
+            "state.stagedState.customers",
+            "state.stagedState.deletedCustomerIds",
+            "state.stagedState.customerOrders",
+            "log.entries",
+        ] {
+            if !rust_state_dump_path_exists(&dump, path) {
+                return json_error(400, &format!("Rust state dump is missing {path}"));
+            }
+        }
+        let Some(next_synthetic_id) = dump.get("nextSyntheticId").and_then(Value::as_u64) else {
+            return json_error(400, "Invalid Rust synthetic identity");
+        };
+        if next_synthetic_id == 0 {
+            return json_error(400, "Invalid Rust synthetic identity");
+        }
 
         self.base_products = product_state_map_from_json(&state["baseState"]["products"]);
         self.staged_products = product_state_map_from_json(&state["stagedState"]["products"]);
@@ -553,10 +582,7 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        self.next_synthetic_id = dump
-            .get("nextSyntheticId")
-            .and_then(Value::as_u64)
-            .unwrap_or_else(|| next_synthetic_id_after_state(self));
+        self.next_synthetic_id = next_synthetic_id;
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }
@@ -18910,26 +18936,10 @@ fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
     })
 }
 
-fn next_synthetic_id_after_state(proxy: &DraftProxy) -> u64 {
-    proxy
-        .base_products
-        .keys()
-        .chain(proxy.staged_products.keys())
-        .chain(proxy.staged_saved_searches.keys())
-        .filter_map(|id| synthetic_gid_tail(id))
-        .max()
-        .unwrap_or(0)
-        + 1
-}
-
-fn synthetic_gid_tail(id: &str) -> Option<u64> {
-    if !id.contains("shopify-draft-proxy=synthetic") {
-        return None;
-    }
-    id.split('?')
-        .next()
-        .and_then(|without_query| without_query.rsplit('/').next())
-        .and_then(|tail| tail.parse::<u64>().ok())
+fn rust_state_dump_path_exists(dump: &Value, path: &str) -> bool {
+    path.split('.')
+        .try_fold(dump, |current, segment| current.get(segment))
+        .is_some()
 }
 
 fn saved_search_state_json(record: &SavedSearchRecord) -> Value {

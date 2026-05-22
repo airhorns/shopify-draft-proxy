@@ -447,6 +447,121 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
 }
 
 #[test]
+fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-05-21T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+
+    fn reject_restore(body: String, expected_message: &str) {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(request_with_body("POST", "/__meta/restore", &body));
+        assert_eq!(
+            response.status, 400,
+            "restore body should be rejected: {body}; response={}",
+            response.body
+        );
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(expected_message)
+        );
+    }
+
+    reject_restore("not-json".to_string(), "Invalid Rust state dump JSON");
+
+    let mut missing_schema = dump.body.clone();
+    missing_schema.as_object_mut().unwrap().remove("schema");
+    reject_restore(
+        missing_schema.to_string(),
+        "Unsupported Rust state dump schema",
+    );
+
+    let mut wrong_schema = dump.body.clone();
+    wrong_schema["schema"] = json!("some/other/schema");
+    reject_restore(
+        wrong_schema.to_string(),
+        "Unsupported Rust state dump schema",
+    );
+
+    let mut missing_state = dump.body.clone();
+    missing_state.as_object_mut().unwrap().remove("state");
+    reject_restore(
+        missing_state.to_string(),
+        "Rust state dump is missing state",
+    );
+
+    let mut missing_base_state = dump.body.clone();
+    missing_base_state["state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("baseState");
+    reject_restore(
+        missing_base_state.to_string(),
+        "Rust state dump is missing state.baseState",
+    );
+
+    let mut missing_base_products = dump.body.clone();
+    missing_base_products["state"]["baseState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("products");
+    reject_restore(
+        missing_base_products.to_string(),
+        "Rust state dump is missing state.baseState.products",
+    );
+
+    let mut missing_staged_state = dump.body.clone();
+    missing_staged_state["state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("stagedState");
+    reject_restore(
+        missing_staged_state.to_string(),
+        "Rust state dump is missing state.stagedState",
+    );
+
+    let mut missing_staged_products = dump.body.clone();
+    missing_staged_products["state"]["stagedState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("products");
+    reject_restore(
+        missing_staged_products.to_string(),
+        "Rust state dump is missing state.stagedState.products",
+    );
+
+    let mut missing_staged_deleted_ids = dump.body.clone();
+    missing_staged_deleted_ids["state"]["stagedState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("deletedProductIds");
+    reject_restore(
+        missing_staged_deleted_ids.to_string(),
+        "Rust state dump is missing state.stagedState.deletedProductIds",
+    );
+
+    let mut missing_log_entries = dump.body.clone();
+    missing_log_entries["log"]
+        .as_object_mut()
+        .unwrap()
+        .remove("entries");
+    reject_restore(
+        missing_log_entries.to_string(),
+        "Rust state dump is missing log.entries",
+    );
+
+    let mut zero_synthetic_id = dump.body.clone();
+    zero_synthetic_id["nextSyntheticId"] = json!(0);
+    reject_restore(
+        zero_synthetic_id.to_string(),
+        "Invalid Rust synthetic identity",
+    );
+}
+
+#[test]
 fn meta_reset_clears_log_and_staged_product_overlay() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
