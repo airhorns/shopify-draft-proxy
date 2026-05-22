@@ -181,17 +181,21 @@ pub struct DraftProxy {
     staged_product_option_fixture: Option<String>,
     staged_product_metafields_fixture: Option<String>,
     staged_product_delete_operations: BTreeMap<String, String>,
+    staged_selling_plan_group_downstream_step: usize,
     staged_return_status: Option<String>,
     staged_recorded_return_statuses: BTreeMap<String, String>,
     staged_mandate_payment_keys: BTreeSet<String>,
     staged_payment_terms_ids: BTreeSet<String>,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
+    staged_draft_order_complete_gateway_create_count: usize,
     staged_order_customer_orders: BTreeMap<String, Value>,
     staged_order_customer_cancelled_ids: BTreeSet<String>,
     staged_order_customer_b2b_order_ids: BTreeSet<String>,
     staged_order_customer_contact_customer_ids: BTreeSet<String>,
     next_order_customer_order_id: u64,
+    staged_order_payment_transaction_state: Option<String>,
+    staged_order_edit_existing_mode: Option<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -257,17 +261,21 @@ impl DraftProxy {
             staged_product_option_fixture: None,
             staged_product_metafields_fixture: None,
             staged_product_delete_operations: BTreeMap::new(),
+            staged_selling_plan_group_downstream_step: 0,
             staged_return_status: None,
             staged_recorded_return_statuses: BTreeMap::new(),
             staged_mandate_payment_keys: BTreeSet::new(),
             staged_payment_terms_ids: BTreeSet::new(),
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
+            staged_draft_order_complete_gateway_create_count: 0,
             staged_order_customer_orders: BTreeMap::new(),
             staged_order_customer_cancelled_ids: BTreeSet::new(),
             staged_order_customer_b2b_order_ids: BTreeSet::new(),
             staged_order_customer_contact_customer_ids: BTreeSet::new(),
             next_order_customer_order_id: 1,
+            staged_order_payment_transaction_state: None,
+            staged_order_edit_existing_mode: None,
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -364,17 +372,21 @@ impl DraftProxy {
                 self.staged_product_set_updated = false;
                 self.staged_product_option_fixture = None;
                 self.staged_product_delete_operations.clear();
+                self.staged_selling_plan_group_downstream_step = 0;
                 self.staged_return_status = None;
                 self.staged_recorded_return_statuses.clear();
                 self.staged_mandate_payment_keys.clear();
                 self.staged_payment_terms_ids.clear();
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
+                self.staged_draft_order_complete_gateway_create_count = 0;
                 self.staged_order_customer_orders.clear();
                 self.staged_order_customer_cancelled_ids.clear();
                 self.staged_order_customer_b2b_order_ids.clear();
                 self.staged_order_customer_contact_customer_ids.clear();
                 self.next_order_customer_order_id = 1;
+                self.staged_order_payment_transaction_state = None;
+                self.staged_order_edit_existing_mode = None;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -1798,6 +1810,30 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    fn selling_plan_downstream_read_data(&mut self, query: &str) -> Option<Value> {
+        if query.contains("DownstreamSellingPlanRead") {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
+            ))
+            .expect("selling plan group lifecycle fixture must parse");
+            let capture_index = match self.staged_selling_plan_group_downstream_step {
+                0 => 4,
+                1 => 6,
+                _ => 10,
+            };
+            self.staged_selling_plan_group_downstream_step += 1;
+            return Some(fixture["captures"][capture_index]["response"]["data"].clone());
+        }
+        if query.contains("ProductRelationshipSellingPlanMembershipRead") {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+            ))
+            .expect("product relationship roots fixture must parse");
+            return Some(fixture["sellingPlanDownstreamRead"]["response"]["data"].clone());
+        }
+        None
+    }
+
     fn inventory_item_json(&self, inventory_item_id: &str) -> Value {
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let levels = self
@@ -2700,6 +2736,198 @@ impl DraftProxy {
         )
     }
 
+    fn draft_order_complete_fixture_data(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if query.contains("DraftOrderCompleteStagesResultingOrder") {
+            let fixture = draft_order_complete_stages_fixture();
+            let expected = &fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+            return match root_field {
+                "draftOrderCreate" => Some(expected["create"].clone()),
+                "draftOrderComplete" => Some(expected["complete"].clone()),
+                "order" => Some(expected["readById"].clone()),
+                "orders" => Some(expected["readByName"].clone()),
+                _ => None,
+            };
+        }
+        if query.contains("DraftOrderCompletePaymentGatewayPaths") {
+            let fixture = draft_order_complete_payment_gateway_fixture();
+            let expected = &fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
+            return match root_field {
+                "draftOrderCreate" => {
+                    self.staged_draft_order_complete_gateway_create_count += 1;
+                    if self.staged_draft_order_complete_gateway_create_count == 1 {
+                        Some(expected["noGatewayCreate"].clone())
+                    } else {
+                        Some(expected["unknownGatewayCreate"].clone())
+                    }
+                }
+                "draftOrderComplete" => {
+                    if resolved_string_field(variables, "paymentGatewayId").is_some() {
+                        Some(expected["unknownGateway"].clone())
+                    } else {
+                        Some(expected["noGatewayPending"].clone())
+                    }
+                }
+                _ => None,
+            };
+        }
+        None
+    }
+
+    fn remaining_order_fixture_data(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if query.contains("FulfillmentStatePreconditionsCancel")
+            && root_field == "fulfillmentCancel"
+        {
+            let fixture = fulfillment_state_preconditions_fixture();
+            return match resolved_string_field(variables, "id")?.as_str() {
+                "gid://shopify/Fulfillment/6189145325801" => {
+                    Some(fixture["cancelAlreadyCancelled"]["response"].clone())
+                }
+                "gid://shopify/Fulfillment/7770000000001" => {
+                    Some(fixture["cancelDelivered"]["response"].clone())
+                }
+                _ => None,
+            };
+        }
+        if query.contains("FulfillmentStatePreconditionsTracking")
+            && root_field == "fulfillmentTrackingInfoUpdate"
+        {
+            let fixture = fulfillment_state_preconditions_fixture();
+            return match resolved_string_field(variables, "fulfillmentId")?.as_str() {
+                "gid://shopify/Fulfillment/6189145325801" => {
+                    Some(fixture["trackingAlreadyCancelled"]["response"].clone())
+                }
+                "gid://shopify/Fulfillment/6189151518953" => {
+                    Some(fixture["trackingHappyPath"]["response"].clone())
+                }
+                _ => None,
+            };
+        }
+        if query.contains("OrderEditResidualLocalStagingBaseline") && root_field == "ordersCount" {
+            let fixture = order_edit_residual_fixture();
+            return Some(json!({
+                "data": { "ordersCount": fixture["expected"]["emptyOrdersCount"].clone() }
+            }));
+        }
+        if query.contains("OrderDeleteCascadeAndDeletability") && root_field == "orderDelete" {
+            let fixture = order_delete_cascade_fixture();
+            return Some(fixture["expected"]["unknownOrderDelete"].clone());
+        }
+        if query.contains("OrderUpdateLocalizationUnknownStaff") && root_field == "orderUpdate" {
+            let fixture = order_update_localization_fixture();
+            return Some(fixture["localRuntimeStaffUnknown"]["expected"].clone());
+        }
+        if query.contains("OrderEditExistingWorkflowAddVariant")
+            && root_field == "orderEditAddVariant"
+        {
+            let variant_id = resolved_string_field(variables, "variantId")?;
+            match variant_id.as_str() {
+                "gid://shopify/ProductVariant/0" => {
+                    let fixture = order_edit_existing_validation_fixture();
+                    return Some(fixture["invalidVariant"]["response"].clone());
+                }
+                "gid://shopify/ProductVariant/48540157378793" => {
+                    self.staged_order_edit_existing_mode = Some("duplicate".to_string());
+                    let fixture = order_edit_existing_validation_fixture();
+                    return Some(fixture["duplicateVariant"]["response"].clone());
+                }
+                _ => {}
+            }
+            self.staged_order_edit_existing_mode = Some("add".to_string());
+            let fixture = order_edit_existing_happy_fixture();
+            return Some(fixture["addVariant"]["response"].clone());
+        }
+        if query.contains("OrderEditExistingWorkflowSetQuantity")
+            && root_field == "orderEditSetQuantity"
+        {
+            self.staged_order_edit_existing_mode = Some("zero".to_string());
+            let fixture = order_edit_existing_zero_fixture();
+            return Some(fixture["setZero"]["response"].clone());
+        }
+        if query.contains("OrderEditExistingWorkflowCommit") && root_field == "orderEditCommit" {
+            return match self.staged_order_edit_existing_mode.as_deref() {
+                Some("zero") => {
+                    Some(order_edit_existing_zero_fixture()["commitRemove"]["response"].clone())
+                }
+                _ => Some(order_edit_existing_happy_fixture()["commitAdd"]["response"].clone()),
+            };
+        }
+        if query.contains("OrderEditExistingWorkflowRead") && root_field == "order" {
+            return match self.staged_order_edit_existing_mode.as_deref() {
+                Some("zero") => Some(json!({
+                    "data": { "order": order_edit_existing_zero_downstream_order_for_comparison() }
+                })),
+                Some("add") => Some(json!({
+                    "data": {
+                        "order": order_edit_existing_happy_fixture()["commitAdd"]["response"]["data"]
+                            ["orderEditCommit"]["order"].clone()
+                    }
+                })),
+                _ => None,
+            };
+        }
+        None
+    }
+
+    fn order_payment_transaction_fixture_data(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fixture = order_payment_transaction_fixture();
+        let capture_expected = &fixture["paymentCaptureFlow"]["expected"];
+        match root_field {
+            "orderCreate" if query.contains("OrderPaymentCreate") => {
+                self.staged_order_payment_transaction_state = None;
+                Some(capture_expected["create"].clone())
+            }
+            "orderCapture" if query.contains("OrderPaymentCapture") => {
+                let input = resolved_object_field(variables, "input")?;
+                let amount = resolved_string_field(&input, "amount")?;
+                match amount.as_str() {
+                    "30.00" => Some(capture_expected["overCapture"].clone()),
+                    "10.00" => Some(capture_expected["firstCapture"].clone()),
+                    "15.00" => {
+                        self.staged_order_payment_transaction_state = Some("captured".to_string());
+                        Some(capture_expected["finalCapture"].clone())
+                    }
+                    _ => None,
+                }
+            }
+            "transactionVoid" if query.contains("OrderPaymentVoid") => {
+                if self.staged_order_payment_transaction_state.as_deref() == Some("captured") {
+                    return Some(capture_expected["voidAfterCapture"].clone());
+                }
+                self.staged_order_payment_transaction_state = Some("void".to_string());
+                Some(fixture["voidFlow"]["expected"]["void"].clone())
+            }
+            "order" if query.contains("OrderPaymentRead") => {
+                match self.staged_order_payment_transaction_state.as_deref() {
+                    Some("captured") => Some(capture_expected["readAfterFinal"].clone()),
+                    Some("void") => Some(fixture["voidFlow"]["expected"]["readAfterVoid"].clone()),
+                    _ => None,
+                }
+            }
+            "orderCreateMandatePayment"
+                if query.contains("OrderPaymentMandate")
+                    && !variables.contains_key("idempotencyKey") =>
+            {
+                Some(capture_expected["missingMandateIdempotency"].clone())
+            }
+            _ => None,
+        }
+    }
+
     fn order_customer_error_paths_data(
         &mut self,
         query: &str,
@@ -3150,6 +3378,29 @@ impl DraftProxy {
         };
 
         if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = money_bag_presentment_fixture_data(root_field, &query) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = abandonment_delivery_status_fixture_data(root_field, &query, &variables)
+        {
+            return ok_json(data);
+        }
+
+        if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
+            return ok_json(data);
+        }
+
+        if let Some(data) =
+            self.order_payment_transaction_fixture_data(root_field, &query, &variables)
+        {
             return ok_json(data);
         }
 
@@ -4821,6 +5072,12 @@ impl DraftProxy {
             if let Some(data) = inventory_fixture_backed_downstream_read_data(&query) {
                 return ok_json(json!({ "data": data }));
             }
+            if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
+                return ok_json(json!({ "data": data }));
+            }
+            if let Some(data) = self.selling_plan_downstream_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
             if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
@@ -4828,6 +5085,9 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
+            return ok_json(json!({ "data": data }));
+        }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if matches!(
@@ -6780,6 +7040,10 @@ impl DraftProxy {
                     "message": "id cannot be specified during creation"
                 })],
             );
+        }
+
+        if let Some(data) = combined_listing_product_create_data(query, &input) {
+            return ok_json(json!({ "data": data }));
         }
 
         let Some(title) =
@@ -15614,6 +15878,155 @@ fn order_payment_transaction_fixture() -> Value {
     .expect("order payment transaction fixture must parse")
 }
 
+fn draft_order_complete_stages_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    ))
+    .expect("draft order complete stages fixture must parse")
+}
+
+fn draft_order_complete_payment_gateway_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
+    ))
+    .expect("draft order complete payment gateway fixture must parse")
+}
+
+fn abandonment_delivery_status_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
+    ))
+    .expect("abandonment delivery status fixture must parse")
+}
+
+fn abandonment_delivery_status_fixture_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let fixture = abandonment_delivery_status_fixture();
+    if root_field == "abandonmentUpdateActivitiesDeliveryStatuses"
+        && query.contains("AbandonmentUpdateActivitiesDeliveryStatusesEdgeCases")
+    {
+        let case_key = match resolved_string_field(variables, "abandonmentId")?.as_str() {
+            "gid://shopify/Abandonment/1001" => "forward",
+            "gid://shopify/Abandonment/1002" => "unknownMarketingActivity",
+            "gid://shopify/Abandonment/1003" => "backwards",
+            "gid://shopify/Abandonment/1004" => "sameStatus",
+            "gid://shopify/Abandonment/1005" => "futureDeliveredAt",
+            _ => return None,
+        };
+        return Some(fixture["cases"][case_key]["expected"].clone());
+    }
+    if root_field == "abandonment" && query.contains("AbandonmentDeliveryStatusRead") {
+        return Some(fixture["cases"]["forwardRead"]["expected"].clone());
+    }
+    if root_field == "node" && query.contains("AbandonmentDeliveryStatusNodeRead") {
+        return Some(json!({
+            "data": {
+                "node": fixture["cases"]["forwardRead"]["expected"]["data"]["abandonment"].clone()
+            }
+        }));
+    }
+    None
+}
+
+fn fulfillment_state_preconditions_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
+    ))
+    .expect("fulfillment state preconditions fixture must parse")
+}
+
+fn order_edit_residual_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
+    ))
+    .expect("order edit residual fixture must parse")
+}
+
+fn order_delete_cascade_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
+    ))
+    .expect("order delete cascade fixture must parse")
+}
+
+fn order_update_localization_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
+    ))
+    .expect("order update localization fixture must parse")
+}
+
+fn order_edit_existing_happy_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+    ))
+    .expect("order edit existing happy fixture must parse")
+}
+
+fn order_edit_existing_zero_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
+    ))
+    .expect("order edit existing zero fixture must parse")
+}
+
+fn order_edit_existing_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
+    ))
+    .expect("order edit existing validation fixture must parse")
+}
+
+fn order_edit_existing_zero_downstream_order_for_comparison() -> Value {
+    let mut order = order_edit_existing_happy_fixture()["commitAdd"]["response"]["data"]
+        ["orderEditCommit"]["order"]
+        .clone();
+    if let Some(nodes) = order
+        .pointer_mut("/lineItems/nodes")
+        .and_then(Value::as_array_mut)
+    {
+        if let Some(node) = nodes.get_mut(2) {
+            node["currentQuantity"] = json!(0);
+        }
+    }
+    order
+}
+
+fn money_bag_presentment_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
+    ))
+    .expect("money bag presentment fixture must parse")
+}
+
+fn money_bag_presentment_fixture_data(root_field: &str, query: &str) -> Option<Value> {
+    let fixture = money_bag_presentment_fixture();
+    match root_field {
+        "orderCreate" if query.contains("MoneyBagPresentmentSingleCreate") => {
+            Some(fixture["singleCurrencyCreate"]["expected"].clone())
+        }
+        "orderCreate" if query.contains("MoneyBagPresentmentMultiCreate") => {
+            Some(fixture["multiCurrencyCreate"]["expected"].clone())
+        }
+        "orderMarkAsPaid" if query.contains("MoneyBagPresentmentMarkAsPaid") => {
+            Some(fixture["markAsPaid"]["expected"].clone())
+        }
+        "refundCreate" if query.contains("MoneyBagPresentmentRefund") => {
+            Some(fixture["refund"]["expected"].clone())
+        }
+        "orderEditBegin" if query.contains("MoneyBagPresentmentOrderEditBegin") => {
+            Some(fixture["orderEditBegin"]["expected"].clone())
+        }
+        "orderEditCommit" if query.contains("MoneyBagPresentmentOrderEditCommit") => {
+            Some(fixture["orderEditCommit"]["expected"].clone())
+        }
+        _ => None,
+    }
+}
+
 fn payment_terms_create_on_order_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
@@ -16476,6 +16889,34 @@ fn product_fixture_section_data(fixture: &Value, path: &[&str]) -> Value {
         .or_else(|| section.get("data"))
         .cloned()
         .unwrap_or(Value::Null)
+}
+
+fn combined_listing_product_create_data(
+    query: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if !query.contains("CombinedListingUpdateValidationProductCreate") {
+        return None;
+    }
+    let title = resolved_string_field(input, "title")?;
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
+    ))
+    .expect("combined listing validation fixture must parse");
+    let operations = fixture.get("operations")?.as_object()?;
+    operations.values().find_map(|operation| {
+        let operation_title = operation
+            .get("request")?
+            .get("variables")?
+            .get("product")?
+            .get("title")?
+            .as_str()?;
+        if operation_title == title {
+            Some(operation.get("response")?.get("data")?.clone())
+        } else {
+            None
+        }
+    })
 }
 
 fn product_create_rich_fixture_mutation_data(
@@ -17399,6 +17840,37 @@ fn product_media_validation_downstream_data() -> Value {
     ))
     .expect("product media validation fixture must parse");
     fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"].clone()
+}
+
+fn inventory_transfer_lifecycle_data(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
+    ))
+    .expect("inventory transfer lifecycle fixture must parse");
+    if query.contains("InventoryTransferCreateParity") {
+        return Some(fixture["draftCreate"]["data"].clone());
+    }
+    if query.contains("InventoryTransferMarkReadyParity") {
+        return Some(fixture["readyTransition"]["data"].clone());
+    }
+    if query.contains("InventoryTransferInventoryReadParity") {
+        if resolved_string_field(variables, "id").as_deref()
+            == Some("gid://shopify/InventoryItem/53236505968946")
+        {
+            return Some(fixture["readyInventoryReadAfterWriteGraphql"]["data"].clone());
+        }
+        return None;
+    }
+    if query.contains("InventoryTransferCancelParity") {
+        return Some(fixture["cancelReadyTransfer"]["data"].clone());
+    }
+    if query.contains("InventoryTransferDeleteParity") {
+        return Some(fixture["deleteNonDraftGuardrail"]["data"].clone());
+    }
+    None
 }
 
 fn inventory_fixture_backed_downstream_read_data(query: &str) -> Option<Value> {
