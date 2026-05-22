@@ -4137,6 +4137,9 @@ impl DraftProxy {
             if query.contains("ProductVariantsRead") {
                 return ok_json(json!({ "data": product_variants_read_data() }));
             }
+            if query.contains("CollectionsCatalogRead") {
+                return ok_json(json!({ "data": collections_catalog_read_data() }));
+            }
         }
 
         let capability =
@@ -14102,6 +14105,14 @@ fn product_variants_read_data() -> Value {
         "stock": inventory_item,
         "stockBackreference": Value::Object(stock_backreference)
     })
+}
+
+fn collections_catalog_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json"
+    ))
+    .expect("collections catalog fixture must parse");
+    fixture["data"].clone()
 }
 
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {

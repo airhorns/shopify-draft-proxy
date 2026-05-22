@@ -9883,3 +9883,56 @@ fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
         })
     );
 }
+
+#[test]
+fn collections_catalog_read_replays_captured_catalog_branches() {
+    let mut proxy = snapshot_proxy();
+    let query = include_str!("../config/parity-requests/products/collections-catalog-read.graphql");
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "catalogFirst": 20,
+            "first": 3,
+            "titleWildcardQuery": "title:VAN*",
+            "customTypeQuery": "collection_type:custom",
+            "smartTypeQuery": "collection_type:smart",
+            "updatedSortQuery": "collection_type:smart",
+            "emptyQuery": "title:No collection should match this 157*",
+            "productMembershipQuery": "product_id:8397255672041"
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    let first_collection = &response.body["data"]["collections"]["edges"][0]["node"];
+    assert_eq!(
+        first_collection["id"],
+        json!("gid://shopify/Collection/402476531945")
+    );
+    assert_eq!(first_collection["legacyResourceId"], json!("402476531945"));
+    assert_eq!(first_collection["title"], json!("Home page"));
+    assert_eq!(first_collection["handle"], json!("frontpage"));
+    assert_eq!(
+        first_collection["products"]["edges"][0]["node"],
+        json!({
+            "id": "gid://shopify/Product/8397254426857",
+            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+            "handle": "vans-authentic-lo-pro-burgandy-white",
+            "vendor": "VANS"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["emptyUnmatched"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["titleWildcard"]["edges"][0]["node"]["handle"],
+        json!("vans")
+    );
+}
