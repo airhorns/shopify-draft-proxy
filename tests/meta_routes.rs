@@ -157,6 +157,99 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
 }
 
 #[test]
+fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
+    let cases = [
+        (
+            "admin_platform",
+            "backupRegionUpdate",
+            "mutation { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { message } } }",
+        ),
+        (
+            "apps",
+            "appUninstall",
+            "mutation { appUninstall { app { id } userErrors { message } } }",
+        ),
+        (
+            "bulk_operations",
+            "bulkOperationRunQuery",
+            "mutation BulkOperationRunQueryParity { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\", groupObjects: false) { bulkOperation { id } userErrors { message } } }",
+        ),
+        (
+            "functions",
+            "taxAppConfigure",
+            "mutation { taxAppConfigure(ready: true) { taxAppConfiguration { id } userErrors { message } } }",
+        ),
+        (
+            "gift_cards",
+            "giftCardCreate",
+            "mutation GiftCardCreateNotify { giftCardCreate(input: { initialValue: { amount: \"5.00\", currencyCode: CAD } }) { giftCard { id } userErrors { message } } }",
+        ),
+        (
+            "localization",
+            "shopLocaleEnable",
+            "# RustLogDraftEnforcement\nmutation { shopLocaleEnable(locale: \"fr\") { shopLocale { locale } userErrors { message } } }",
+        ),
+        (
+            "marketing",
+            "marketingActivityCreateExternal",
+            "# RustLogDraftEnforcement\nmutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", remoteUrl: \"https://example.com/launch\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { message } } }",
+        ),
+        (
+            "metafield_definitions",
+            "standardMetafieldDefinitionEnable",
+            "# RustLogDraftEnforcement\nmutation { standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: \"gid://shopify/StandardMetafieldDefinitionTemplate/missing\") { createdDefinition { id } userErrors { message } } }",
+        ),
+        (
+            "saved_searches",
+            "savedSearchCreate",
+            "mutation { savedSearchCreate(input: { resourceType: ORDER, name: \"X\", query: \"tag:x\" }) { savedSearch { id } userErrors { message } } }",
+        ),
+        (
+            "segments",
+            "segmentCreate",
+            "mutation SegmentCreateQueryGrammar { segmentCreate(name: \"VIPs\", query: \"number_of_orders >= 5\") { segment { id name } userErrors { field } } }",
+        ),
+        (
+            "webhooks",
+            "webhookSubscriptionCreate",
+            "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id } userErrors { message } } }",
+        ),
+    ];
+
+    for (domain, root, query) in cases {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
+        assert_eq!(
+            response.status, 200,
+            "ported Gleam log-draft enforcement case {domain} should return HTTP 200; body={}",
+            response.body
+        );
+
+        let log = proxy.get_log_snapshot();
+        let entries = log["entries"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{domain} log entries should be an array: {log}"));
+        assert!(
+            !entries.is_empty(),
+            "ported Gleam log-draft enforcement case {domain}/{root} should record at least one log entry; response body={}",
+            response.body
+        );
+        let last = entries.last().unwrap();
+        assert_eq!(
+            last["status"],
+            json!("staged"),
+            "{domain}/{root} should record a staged mutation log entry"
+        );
+        assert_eq!(
+            last["interpreted"]["primaryRootField"],
+            json!(root),
+            "{domain}/{root} should keep the staged root field in log metadata"
+        );
+    }
+}
+
+#[test]
 fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
