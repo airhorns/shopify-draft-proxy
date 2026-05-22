@@ -3953,6 +3953,200 @@ fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
 }
 
 #[test]
+fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let bulk_create = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkCreateDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10180320788786",
+            "query": "sku:HERMES-BULK-962361-BLUE"
+        }),
+    ));
+    assert_eq!(bulk_create.status, 200);
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["id"],
+        json!("gid://shopify/InventoryItem/53240636637490")
+    );
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]
+            ["requiresShipping"],
+        json!(false)
+    );
+    assert_eq!(bulk_create.body["data"]["skuCount"]["count"], json!(0));
+
+    let inventory_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkCreateInventoryReadDownstream($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
+          variant: productVariant(id: $variantId) { id title sku inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory } }
+          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping variant { id title sku inventoryQuantity product { id title handle status totalInventory tracksInventory } } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9263919988969",
+            "variantId": "gid://shopify/ProductVariant/50933258911977",
+            "inventoryItemId": "gid://shopify/InventoryItem/53081336283369"
+        }),
+    ));
+    assert_eq!(inventory_read.status, 200);
+    assert_eq!(
+        inventory_read.body["data"]["product"]["id"],
+        json!("gid://shopify/Product/9263919988969")
+    );
+    assert_eq!(
+        inventory_read.body["data"]["variant"]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        inventory_read.body["data"]["stock"]["variant"]["id"],
+        json!("gid://shopify/ProductVariant/50933258911977")
+    );
+
+    let bulk_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkUpdateDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku metafield(namespace: "specs", key: "bulkUpdateTier") { value ownerType } inventoryItem { id tracked requiresShipping } } } }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10180320788786",
+            "query": "sku:HERMES-BULK-962361-RED"
+        }),
+    ));
+    assert_eq!(bulk_update.status, 200);
+    assert_eq!(
+        bulk_update.body["data"]["product"]["variants"]["nodes"][0]["metafield"],
+        json!({ "value": "premium", "ownerType": "PRODUCTVARIANT" })
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkReorderDownstreamRead($productId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id title selectedOptions { name value } } } }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/10170568114482" }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["product"]["variants"]["nodes"][0],
+        json!({
+            "id": "gid://shopify/ProductVariant/51098748059954",
+            "title": "Blue",
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
+        })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantNodeRead($id: ID!) {
+          node(id: $id) { ... on ProductVariant { id title selectedOptions { name value } } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductVariant/51098748059954" }),
+    ));
+    assert_eq!(node.status, 200);
+    assert_eq!(
+        node.body["data"]["node"],
+        reorder.body["data"]["product"]["variants"]["nodes"][0]
+    );
+}
+
+#[test]
+fn product_update_media_replays_captured_mutation_and_downstream_product_media() {
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateMediaParityPlan($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media {
+              id
+              alt
+              mediaContentType
+              status
+              preview { image { url } }
+              ... on MediaImage { image { url } }
+            }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "media": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view"
+            }]
+        }),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"]["productUpdateMedia"],
+        json!({
+            "media": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
+                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
+            }],
+            "mediaUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductUpdateMediaDownstreamRead($productId: ID!) {
+          product(id: $productId) {
+            id
+            media(first: 10) {
+              nodes {
+                id
+                alt
+                mediaContentType
+                status
+                preview { image { url } }
+                ... on MediaImage { image { url } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9257219162345",
+            "media": { "nodes": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
+                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
+            }] }
+        })
+    );
+}
+
+#[test]
 fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

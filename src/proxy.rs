@@ -3179,6 +3179,9 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
+            if query.contains("ProductVariantNodeRead") {
+                return ok_json(json!({ "data": product_variant_node_read_data(&variables) }));
+            }
             if let Some(fields) = root_fields(&query, &variables) {
                 if is_segment_query_grammar_document(&query) {
                     if let Some(data) = self.segment_node_read_data(&fields) {
@@ -14747,6 +14750,26 @@ fn product_fixture_backed_mutation_data(
         .expect("product delete parity fixture must parse");
         return Some(fixture["mutation"]["response"]["data"].clone());
     }
+    if query.contains("ProductUpdateMediaParityPlan") {
+        if resolved_string_field(variables, "productId").as_deref()
+            != Some("gid://shopify/Product/9257219162345")
+        {
+            return None;
+        }
+        let first_media = resolved_object_list_field(variables, "media")
+            .into_iter()
+            .next()?;
+        if resolved_string_field(&first_media, "id").as_deref()
+            != Some("gid://shopify/MediaImage/39467722375401")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-media-parity.json"
+        ))
+        .expect("product update media parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
     None
 }
 
@@ -14821,7 +14844,60 @@ fn product_catalog_search_read_data(query: &str) -> Option<Value> {
             "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"
         )));
     }
+    if query.contains("ProductUpdateMediaDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-media-parity.json"
+        ))
+        .expect("product update media parity fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductVariantsBulkCreateInventoryReadDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-inventory-read-parity.json"
+        ))
+        .expect("product variants bulk create inventory read fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductVariantsBulkCreateDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
+        ))
+        .expect("product variants bulk create fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductVariantsBulkUpdateDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
+        ))
+        .expect("product variants bulk update fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductVariantsBulkReorderDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-reorder-parity.json"
+        ))
+        .expect("product variants bulk reorder fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
     None
+}
+
+fn product_variant_node_read_data(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-reorder-parity.json"
+    ))
+    .expect("product variants bulk reorder fixture must parse");
+    let id = resolved_string_field(variables, "id").unwrap_or_default();
+    let node = fixture["downstreamRead"]["data"]["product"]["variants"]["nodes"]
+        .as_array()
+        .and_then(|nodes| {
+            nodes
+                .iter()
+                .find(|node| node["id"].as_str() == Some(id.as_str()))
+        })
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({ "node": node })
 }
 
 fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
