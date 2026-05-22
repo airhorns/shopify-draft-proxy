@@ -5,10 +5,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Scope: `origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test`
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
-  - `implementation_unit_replaced_needs_review`: 160
+  - `implementation_unit_replaced_needs_review`: 153
   - `needs_manual_review`: 449
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1549
+  - `represented_by_rust_root_tests`: 1556
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -21,10 +21,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `online_store`: 52
 - `payments`: 49
 - `products_mutation`: 45
-- `markets_mutation`: 37
 - `b2b`: 36
 - `localization_mutation`: 35
 - `store_properties`: 33
+- `markets_mutation`: 30
 - `metaobject_definitions`: 26
 - `mutation_helpers`: 22
 - `commit`: 20
@@ -63,6 +63,8 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Price-list update helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate`, covering update name uniqueness/preservation, catalog/currency mismatch tolerance, invalid parent-adjustment revalidation, staged readback, catalog attachment, and null-catalog detachment for locally created price lists.
+- Quantity-rule add helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes`, covering numeric validation, duplicate variant IDs, unknown price lists, and valid rule staging/read payloads.
 - Price-list helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate`, covering create validation, parent adjustment bounds, typed `PriceListUserError` / `QuantityRuleUserError` / `MarketUserError` shapes, exact staged create/readback, catalog attachment, and null-catalog detachment for locally created price lists.
 - Catalog create/delete/context helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate`, covering required/invalid status, required context and market IDs, country-context validation, typed `CatalogUserError` shapes, market-context staging/readback, unknown price-list/publication guards, missing-catalog delete, and `catalogContextUpdate` add/remove validation/readback.
 - Market create validation/staging helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests`, covering the old status/enabled guards, partial-input defaults, price-inclusion projection and location-condition rejection, currency settings validation/read-after-write, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors.

@@ -12586,6 +12586,32 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         json!({"field": ["quantityRules", "0", "variantId"], "code": "PRODUCT_VARIANT_DOES_NOT_EXIST", "message": "Product variant ID does not exist."})
     );
 
+    let unknown_quantity_rules_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/999", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        unknown_quantity_rules_price_list.body["data"]["quantityRulesAdd"],
+        json!({"quantityRules": [], "userErrors": [{"__typename": "QuantityRuleUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_DOES_NOT_EXIST"}]})
+    );
+
+    let valid_quantity_rules_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        valid_quantity_rules_add.body["data"]["quantityRulesAdd"],
+        json!({"quantityRules": [{"minimum": 2, "maximum": 10, "increment": 2, "productVariant": {"id": "gid://shopify/ProductVariant/49875425296690"}}], "userErrors": []})
+    );
+
     let invalid_quantity_rule_cases = [
         (
             json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 0, "maximum": 10, "increment": 1}]),
@@ -13134,6 +13160,14 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
           }
         }
     "#;
+    let update_query = r#"
+        mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList { id name currency parent { adjustment { type value } } catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
 
     let validation_cases = [
         (
@@ -13205,6 +13239,43 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"}]})
     );
 
+    let unique_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Unique A"}}),
+    ));
+    assert_eq!(
+        unique_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": []})
+    );
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Denmark"}}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["priceListUpdate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"}]})
+    );
+    let invalid_parent_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}}),
+    ));
+    assert_eq!(
+        invalid_parent_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}]})
+    );
+    let read_after_failed_update = proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead($id: ID!) {
+          priceList(id: $id) { id name currency parent { adjustment { type value } } catalog { id } }
+        }
+        "#,
+        json!({"id": "gid://shopify/PriceList/2"}),
+    ));
+    assert_eq!(
+        read_after_failed_update.body["data"]["priceList"],
+        json!({"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null})
+    );
+
     let typed_errors = proxy.process_request(json_graphql_request(
         r#"
         mutation RustPriceListLocalRuntimeTypedErrors {
@@ -13273,6 +13344,14 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
         attached.body["data"]["priceListCreate"]["priceList"]["catalog"],
         json!({"id": "gid://shopify/MarketCatalog/3"})
     );
+    let currency_mismatch_update = attached_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/5", "input": {"currency": "USD"}}),
+    ));
+    assert_eq!(
+        currency_mismatch_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": {"id": "gid://shopify/MarketCatalog/3"}}, "userErrors": []})
+    );
     let detached = attached_proxy.process_request(json_graphql_request(
         r#"
         mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
@@ -13305,7 +13384,7 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
     );
     assert_eq!(
         readback.body["data"]["priceLists"]["nodes"][0],
-        json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "DKK"})
+        json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD"})
     );
 }
 

@@ -1555,10 +1555,80 @@ impl DraftProxy {
             );
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(name) = resolved_string_field(&input, "name") {
+            if name.trim().is_empty() {
+                return selected_json(
+                    &price_list_payload_error(
+                        "priceList",
+                        vec!["input", "name"],
+                        "Name can't be blank",
+                        "BLANK",
+                    ),
+                    &field.selection,
+                );
+            }
+            if self
+                .staged_price_lists
+                .iter()
+                .any(|(existing_id, price_list)| {
+                    existing_id != &id && price_list["name"].as_str() == Some(name.as_str())
+                })
+            {
+                return selected_json(
+                    &price_list_payload_error(
+                        "priceList",
+                        vec!["input", "name"],
+                        "Name has already been taken",
+                        "TAKEN",
+                    ),
+                    &field.selection,
+                );
+            }
+        }
+        let parent_update = resolved_object_field(&input, "parent");
+        if let Some(parent) = parent_update.as_ref() {
+            let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
+            let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
+            if !matches!(
+                adjustment_type.as_str(),
+                "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
+            ) {
+                return selected_json(
+                    &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "type"], "Type is invalid", "INVALID")]}),
+                    &field.selection,
+                );
+            }
+            let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
+            let invalid_adjustment = adjustment_value < 0.0
+                || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
+                || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
+            if invalid_adjustment {
+                return selected_json(
+                    &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "value"], PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE, "INVALID_ADJUSTMENT_VALUE")]}),
+                    &field.selection,
+                );
+            }
+        }
+
         let mut updated = existing;
         if let Some(name) = resolved_string_field(&input, "name") {
             if let Some(object) = updated.as_object_mut() {
                 object.insert("name".to_string(), json!(name));
+            }
+        }
+        if let Some(currency) = resolved_string_field(&input, "currency") {
+            if let Some(object) = updated.as_object_mut() {
+                object.insert("currency".to_string(), json!(currency));
+            }
+        }
+        if let Some(parent) = parent_update.as_ref() {
+            let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
+            let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
+            if let Some(object) = updated.as_object_mut() {
+                object.insert(
+                    "parent".to_string(),
+                    json!({"adjustment": {"type": adjustment_type, "value": price_list_adjustment_value_json(&adjustment)}}),
+                );
             }
         }
         if input.get("catalogId") == Some(&ResolvedValue::Null) {
@@ -17500,7 +17570,9 @@ fn quantity_rules_mutation_response(
         }
     } else {
         let quantity_rules = list_object_arg(variables, "quantityRules");
-        if price_list_id == "gid://shopify/PriceList/0" {
+        if price_list_id == "gid://shopify/PriceList/0"
+            || price_list_id == "gid://shopify/PriceList/999"
+        {
             json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
         } else if quantity_rules.iter().any(|rule| {
             matches!(
