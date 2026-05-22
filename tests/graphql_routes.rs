@@ -8717,3 +8717,162 @@ fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error
         json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
     );
 }
+
+#[test]
+fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsEmptyRead {
+          inventoryItems(first: 1, query: "id:0") { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty.body["data"]["inventoryItems"],
+        json!({"nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+
+    let properties = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryPropertiesRead { inventoryProperties { quantityNames { name displayName isInUse belongsTo comprises } } }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        properties.body["data"]["inventoryProperties"]["quantityNames"][0],
+        json!({"name": "available", "displayName": "Available", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []})
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/1777251367654", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7},
+            {"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318463282", "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
+        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
+            ["name"],
+        json!("on_hand")
+    );
+
+    let read_after_set = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "productId": "gid://shopify/Product/10171266400562"}),
+    ));
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(9)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["quantity"],
+        json!(7)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][1]["quantities"]
+            [1]["quantity"],
+        json!(2)
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) {
+          inventoryMoveQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/1777251367654", "changes": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "quantity": 3, "from": {"locationId": "gid://shopify/Location/106318430514", "name": "available"}, "to": {"locationId": "gid://shopify/Location/106318430514", "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654"}}]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][0]["delta"],
+        json!(-3)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][1]["delta"],
+        json!(3)
+    );
+
+    let read_after_move = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "productId": "gid://shopify/Product/10171266400562"}),
+    ));
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(6)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["quantity"],
+        json!(4)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["quantity"],
+        json!(3)
+    );
+
+    let blocked_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) { inventorySetQuantities(input: $input) { userErrors { field message } } }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7}]}}),
+    ));
+    assert_eq!(
+        blocked_set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([{"field": ["input", "ignoreCompareQuantity"], "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."}])
+    );
+
+    let blocked_move = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) { inventoryMoveQuantities(input: $input) { userErrors { field message } } }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/blocked", "changes": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "quantity": 1, "from": {"locationId": "gid://shopify/Location/106318430514", "name": "available"}, "to": {"locationId": "gid://shopify/Location/106318463282", "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/blocked"}}]}}),
+    ));
+    assert_eq!(
+        blocked_move.body["data"]["inventoryMoveQuantities"]["userErrors"],
+        json!([{"field": ["input", "changes", "0"], "message": "The quantities can't be moved between different locations."}])
+    );
+}

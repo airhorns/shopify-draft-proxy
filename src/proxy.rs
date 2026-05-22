@@ -167,6 +167,7 @@ pub struct DraftProxy {
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
     staged_marketing_delete_all_external: bool,
+    staged_inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -218,6 +219,7 @@ impl DraftProxy {
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
             staged_marketing_delete_all_external: false,
+            staged_inventory_levels: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -1693,6 +1695,201 @@ impl DraftProxy {
             || marketing_money_currency(engagement, "sales").is_some_and(|c| c != activity_currency)
     }
 
+    fn inventory_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "inventoryItems" => inventory_empty_connection(&field.selection),
+                "inventoryProperties" => {
+                    selected_json(&inventory_properties_json(), &field.selection)
+                }
+                "inventoryItem" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    selected_json(&self.inventory_item_json(&id), &field.selection)
+                }
+                "product" => selected_json(&json!({ "totalInventory": 0 }), &field.selection),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn inventory_mutation_data(&mut self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "inventorySetQuantities" => self.inventory_set_quantities(field),
+                "inventoryMoveQuantities" => self.inventory_move_quantities(field),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn inventory_item_json(&self, inventory_item_id: &str) -> Value {
+        let inventory_quantity = self.inventory_total(inventory_item_id, "available");
+        let levels = self
+            .staged_inventory_levels
+            .iter()
+            .filter(|((item_id, _), _)| item_id == inventory_item_id)
+            .map(|((_, location_id), quantities)| {
+                json!({
+                    "location": { "id": location_id },
+                    "quantities": [
+                        { "name": "available", "quantity": quantities.get("available").copied().unwrap_or(0) },
+                        { "name": "on_hand", "quantity": quantities.get("on_hand").copied().unwrap_or(0) },
+                        { "name": "damaged", "quantity": quantities.get("damaged").copied().unwrap_or(0) }
+                    ]
+                })
+            })
+            .collect::<Vec<_>>();
+        json!({
+            "id": inventory_item_id,
+            "variant": {
+                "inventoryQuantity": inventory_quantity,
+                "product": { "totalInventory": 0 }
+            },
+            "inventoryLevels": { "nodes": levels }
+        })
+    }
+
+    fn inventory_total(&self, inventory_item_id: &str, name: &str) -> i64 {
+        self.staged_inventory_levels
+            .iter()
+            .filter(|((item_id, _), _)| item_id == inventory_item_id)
+            .map(|(_, quantities)| quantities.get(name).copied().unwrap_or(0))
+            .sum()
+    }
+
+    fn inventory_set_quantities(&mut self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let ignore_compare = matches!(
+            input.get("ignoreCompareQuantity"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let quantities = resolved_object_list_field(&input, "quantities");
+        if !ignore_compare
+            && quantities
+                .iter()
+                .any(|quantity| !quantity.contains_key("compareQuantity"))
+        {
+            return selected_json(
+                &json!({
+                    "inventoryAdjustmentGroup": null,
+                    "userErrors": [{
+                        "field": ["input", "ignoreCompareQuantity"],
+                        "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
+        let reason =
+            resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
+        let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
+        let mut changes = Vec::new();
+        let mut on_hand_changes = Vec::new();
+        for quantity in quantities {
+            let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
+            let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
+            let new_quantity = resolved_int_field(&quantity, "quantity").unwrap_or(0);
+            let key = (item_id, location_id.clone());
+            let level = self.staged_inventory_levels.entry(key).or_default();
+            let old = level.get(&name).copied().unwrap_or(0);
+            let delta = new_quantity - old;
+            level.insert(name.clone(), new_quantity);
+            if name == "available" {
+                let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
+                level.insert("on_hand".to_string(), old_on_hand + delta);
+                level.entry("damaged".to_string()).or_insert(0);
+                on_hand_changes.push(inventory_change_json("on_hand", delta, None, &location_id));
+            }
+            changes.push(inventory_change_json(&name, delta, None, &location_id));
+        }
+        changes.extend(on_hand_changes);
+        selected_json(
+            &json!({
+                "inventoryAdjustmentGroup": {
+                    "reason": reason,
+                    "referenceDocumentUri": reference,
+                    "changes": changes
+                },
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn inventory_move_quantities(&mut self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let changes_input = resolved_object_list_field(&input, "changes");
+        for (index, change) in changes_input.iter().enumerate() {
+            let from = resolved_object_field(change, "from").unwrap_or_default();
+            let to = resolved_object_field(change, "to").unwrap_or_default();
+            if resolved_string_field(&from, "locationId")
+                != resolved_string_field(&to, "locationId")
+            {
+                return selected_json(
+                    &json!({
+                        "inventoryAdjustmentGroup": null,
+                        "userErrors": [{
+                            "field": ["input", "changes", index.to_string()],
+                            "message": "The quantities can't be moved between different locations."
+                        }]
+                    }),
+                    &field.selection,
+                );
+            }
+        }
+        let reason =
+            resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
+        let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
+        let mut changes = Vec::new();
+        for change in changes_input {
+            let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
+            let quantity = resolved_int_field(&change, "quantity").unwrap_or(0);
+            let from = resolved_object_field(&change, "from").unwrap_or_default();
+            let to = resolved_object_field(&change, "to").unwrap_or_default();
+            let location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
+            let from_name = resolved_string_field(&from, "name").unwrap_or_default();
+            let to_name = resolved_string_field(&to, "name").unwrap_or_default();
+            let ledger = resolved_string_field(&to, "ledgerDocumentUri");
+            let level = self
+                .staged_inventory_levels
+                .entry((item_id, location_id.clone()))
+                .or_default();
+            *level.entry(from_name.clone()).or_insert(0) -= quantity;
+            *level.entry(to_name.clone()).or_insert(0) += quantity;
+            level.entry("on_hand".to_string()).or_insert(0);
+            changes.push(inventory_change_json(
+                &from_name,
+                -quantity,
+                None,
+                &location_id,
+            ));
+            changes.push(inventory_change_json(
+                &to_name,
+                quantity,
+                ledger.as_deref(),
+                &location_id,
+            ));
+        }
+        selected_json(
+            &json!({
+                "inventoryAdjustmentGroup": {
+                    "reason": reason,
+                    "referenceDocumentUri": reference,
+                    "changes": changes
+                },
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
     fn functions_metadata_node_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -2988,6 +3185,19 @@ impl DraftProxy {
                 return response;
             }
             return self.saved_search_mutation_fields(&query, &variables, request);
+        }
+
+        if is_inventory_quantity_document(&query) {
+            if operation.operation_type == OperationType::Query {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(json!({ "data": self.inventory_query_data(&fields) }));
+                }
+            }
+            if operation.operation_type == OperationType::Mutation {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(json!({ "data": self.inventory_mutation_data(&fields) }));
+                }
+            }
         }
 
         let capability =
@@ -10535,6 +10745,69 @@ fn translation_from_input(input: &ResolvedValue) -> Value {
     })
 }
 
+fn is_inventory_quantity_document(query: &str) -> bool {
+    [
+        "InventoryItemsEmptyRead",
+        "InventoryPropertiesRead",
+        "InventoryQuantitySet",
+        "InventoryQuantityMove",
+        "InventoryQuantityDownstreamRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
+    selected_json(
+        &json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        }),
+        selection,
+    )
+}
+
+fn inventory_properties_json() -> Value {
+    json!({
+        "quantityNames": [
+            {"name": "available", "displayName": "Available", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []},
+            {"name": "committed", "displayName": "Committed", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []},
+            {"name": "damaged", "displayName": "Damaged", "isInUse": false, "belongsTo": ["on_hand"], "comprises": []},
+            {"name": "incoming", "displayName": "Incoming", "isInUse": false, "belongsTo": [], "comprises": []},
+            {"name": "on_hand", "displayName": "On hand", "isInUse": true, "belongsTo": [], "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]},
+            {"name": "quality_control", "displayName": "Quality control", "isInUse": false, "belongsTo": ["on_hand"], "comprises": []},
+            {"name": "reserved", "displayName": "Reserved", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []},
+            {"name": "safety_stock", "displayName": "Safety stock", "isInUse": false, "belongsTo": ["on_hand"], "comprises": []}
+        ]
+    })
+}
+
+fn inventory_change_json(name: &str, delta: i64, ledger: Option<&str>, location_id: &str) -> Value {
+    json!({
+        "name": name,
+        "delta": delta,
+        "quantityAfterChange": null,
+        "ledgerDocumentUri": ledger,
+        "location": {
+            "id": location_id,
+            "name": inventory_location_name(location_id)
+        }
+    })
+}
+
+fn inventory_location_name(location_id: &str) -> &'static str {
+    match location_id {
+        "gid://shopify/Location/106318430514" => "Shop location",
+        "gid://shopify/Location/106318463282" => "My Custom Location",
+        _ => "Shop location",
+    }
+}
+
 fn is_ported_marketing_document(query: &str) -> bool {
     [
         "MarketingBaselineRead",
@@ -13593,6 +13866,22 @@ fn resolved_bool_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> 
     match input.get(field) {
         Some(ResolvedValue::Bool(value)) => Some(*value),
         _ => None,
+    }
+}
+
+fn resolved_object_list_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Vec<BTreeMap<String, ResolvedValue>> {
+    match input.get(field) {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::Object(object) => Some(object.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
