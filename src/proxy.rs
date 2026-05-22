@@ -1418,6 +1418,12 @@ impl DraftProxy {
                 "priceListCreate" => self.price_list_create_response(field),
                 "priceListUpdate" => self.price_list_update_response(field),
                 "priceListDelete" => self.price_list_delete_response(field),
+                "priceListFixedPricesByProductUpdate" => {
+                    self.price_list_fixed_prices_by_product_update_response(field)
+                }
+                "priceListFixedPricesAdd" => self.price_list_fixed_prices_add_response(field),
+                "priceListFixedPricesUpdate" => self.price_list_fixed_prices_update_response(field),
+                "priceListFixedPricesDelete" => self.price_list_fixed_prices_delete_response(field),
                 "quantityRulesDelete" => self.quantity_rules_delete_price_list_response(field),
                 "webPresenceCreate" => self.web_presence_create_price_list_response(field),
                 "webPresenceUpdate" => self.web_presence_update_price_list_response(field),
@@ -1666,6 +1672,375 @@ impl DraftProxy {
             )
         };
         selected_json(&payload, &field.selection)
+    }
+
+    fn price_list_fixed_prices_by_product_update_response(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let price_list_id =
+            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+        if !self.ensure_fixed_price_list_seed(&price_list_id) {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesToAddProducts": [],
+                    "pricesToDeleteProducts": [],
+                    "userErrors": [fixed_price_by_product_error(json!(["priceListId"]), "Price list does not exist.", "PRICE_LIST_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let prices_to_add = resolved_list_arg(&field.arguments, "pricesToAdd");
+        let products_to_delete =
+            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds");
+        if prices_to_add.is_empty() && products_to_delete.is_empty() {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesToAddProducts": [],
+                    "pricesToDeleteProducts": [],
+                    "userErrors": [fixed_price_by_product_error(Value::Null, "No update operations specified.", "NO_UPDATE_OPERATIONS_SPECIFIED")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let price_list = self
+            .staged_price_lists
+            .get(&price_list_id)
+            .cloned()
+            .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
+        let currency = price_list["currency"].as_str().unwrap_or("EUR").to_string();
+        let mut errors = Vec::new();
+        let mut add_product_ids = Vec::new();
+        for (index, price_input) in prices_to_add.iter().enumerate() {
+            let field_index = index.to_string();
+            let product_id = resolved_object_string(price_input, "productId").unwrap_or_default();
+            add_product_ids.push(product_id.clone());
+            if product_for_fixed_price_product_id(&product_id).is_none() {
+                errors.push(fixed_price_by_product_error(
+                    json!(["pricesToAdd", field_index, "productId"]),
+                    "Product does not exist.",
+                    "PRODUCT_DOES_NOT_EXIST",
+                ));
+                continue;
+            }
+            if fixed_price_input_currency(price_input, "price").as_deref()
+                != Some(currency.as_str())
+            {
+                errors.push(fixed_price_by_product_error(
+                    json!(["pricesToAdd", field_index, "price", "currencyCode"]),
+                    "The specified currency does not match the price list's currency.",
+                    "PRICES_TO_ADD_CURRENCY_MISMATCH",
+                ));
+            }
+            if let Some(compare_currency) =
+                fixed_price_input_currency(price_input, "compareAtPrice")
+            {
+                if compare_currency != currency {
+                    errors.push(fixed_price_by_product_error(
+                        json!(["pricesToAdd", field_index, "compareAtPrice", "currencyCode"]),
+                        "The specified currency does not match the price list's currency.",
+                        "PRICES_TO_ADD_CURRENCY_MISMATCH",
+                    ));
+                }
+            }
+        }
+        for (index, product_id) in products_to_delete.iter().enumerate() {
+            if product_for_fixed_price_product_id(product_id).is_none() {
+                errors.push(fixed_price_by_product_error(
+                    json!(["pricesToDeleteByProductIds", index.to_string()]),
+                    "Product does not exist.",
+                    "PRODUCT_DOES_NOT_EXIST",
+                ));
+            }
+        }
+        if has_duplicate_strings(&add_product_ids) {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToAdd"]),
+                "Duplicate product IDs are not allowed.",
+                "DUPLICATE_ID_IN_INPUT",
+            ));
+        }
+        if has_duplicate_strings(&products_to_delete) {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToDeleteByProductIds"]),
+                "Duplicate product IDs are not allowed.",
+                "DUPLICATE_ID_IN_INPUT",
+            ));
+        }
+        if add_product_ids.iter().any(|product_id| {
+            products_to_delete
+                .iter()
+                .any(|delete_id| delete_id == product_id)
+        }) {
+            errors.push(fixed_price_by_product_error(
+                Value::Null,
+                "Product IDs cannot be both added and deleted.",
+                "ID_MUST_BE_MUTUALLY_EXCLUSIVE",
+            ));
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesToAddProducts": [],
+                    "pricesToDeleteProducts": [],
+                    "userErrors": errors
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut rows = fixed_price_rows_from_price_list(&price_list);
+        if fixed_price_count(&price_list) + prices_to_add.len() > 9999 {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesToAddProducts": [],
+                    "pricesToDeleteProducts": [],
+                    "userErrors": [fixed_price_by_product_error(Value::Null, "Price list fixed price limit exceeded.", "PRICE_LIMIT_EXCEEDED")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut deleted_products = Vec::new();
+        rows.retain(|row| {
+            let product_id = row["variant"]["product"]["id"].as_str().unwrap_or_default();
+            if products_to_delete
+                .iter()
+                .any(|delete_id| delete_id == product_id)
+            {
+                if let Some(product) = product_for_fixed_price_product_id(product_id) {
+                    deleted_products.push(product);
+                }
+                false
+            } else {
+                true
+            }
+        });
+
+        let mut added_products = Vec::new();
+        for price_input in &prices_to_add {
+            let product_id = resolved_object_string(price_input, "productId").unwrap_or_default();
+            let Some((product, variant_id)) = product_for_fixed_price_product_id(&product_id)
+            else {
+                continue;
+            };
+            let row = fixed_price_row_from_input(
+                price_input,
+                &variant_id,
+                Some(product.clone()),
+                "price",
+                "compareAtPrice",
+            );
+            upsert_fixed_price_row(&mut rows, row);
+            added_products.push(product);
+        }
+
+        let mut updated_price_list = price_list;
+        set_fixed_price_rows(&mut updated_price_list, rows);
+        self.staged_price_lists
+            .insert(price_list_id.clone(), updated_price_list.clone());
+        selected_json(
+            &json!({
+                "priceList": updated_price_list,
+                "pricesToAddProducts": added_products,
+                "pricesToDeleteProducts": deleted_products,
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn price_list_fixed_prices_add_response(&mut self, field: &RootFieldSelection) -> Value {
+        let price_list_id =
+            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+        if !self.ensure_fixed_price_list_seed(&price_list_id) {
+            return selected_json(
+                &json!({
+                    "prices": [],
+                    "userErrors": [price_list_price_error(json!(["priceListId"]), "Price list does not exist.", "PRICE_LIST_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+        let price_list = self
+            .staged_price_lists
+            .get(&price_list_id)
+            .cloned()
+            .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
+        let prices = resolved_list_arg(&field.arguments, "prices");
+        let errors = fixed_price_variant_input_errors(&price_list, &prices, "prices");
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"prices": [], "userErrors": errors}),
+                &field.selection,
+            );
+        }
+        let mut rows = fixed_price_rows_from_price_list(&price_list);
+        let added = fixed_price_rows_from_variant_inputs(&prices);
+        for row in &added {
+            upsert_fixed_price_row(&mut rows, row.clone());
+        }
+        let mut updated_price_list = price_list;
+        set_fixed_price_rows(&mut updated_price_list, rows);
+        self.staged_price_lists
+            .insert(price_list_id, updated_price_list);
+        selected_json(
+            &json!({"prices": added, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn price_list_fixed_prices_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let price_list_id =
+            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+        if !self.ensure_fixed_price_list_seed(&price_list_id) {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesAdded": [],
+                    "deletedFixedPriceVariantIds": [],
+                    "userErrors": [price_list_price_error(json!(["priceListId"]), "Price list does not exist.", "PRICE_LIST_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+        let price_list = self
+            .staged_price_lists
+            .get(&price_list_id)
+            .cloned()
+            .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
+        let prices_to_add = resolved_list_arg(&field.arguments, "pricesToAdd");
+        let errors = fixed_price_variant_input_errors(&price_list, &prices_to_add, "pricesToAdd");
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({
+                    "priceList": null,
+                    "pricesAdded": [],
+                    "deletedFixedPriceVariantIds": [],
+                    "userErrors": errors
+                }),
+                &field.selection,
+            );
+        }
+        let variant_ids_to_delete =
+            resolved_string_list_arg(&field.arguments, "variantIdsToDelete");
+        let mut rows = fixed_price_rows_from_price_list(&price_list);
+        let mut deleted_variant_ids = Vec::new();
+        rows.retain(|row| {
+            let variant_id = row["variant"]["id"].as_str().unwrap_or_default();
+            if variant_ids_to_delete
+                .iter()
+                .any(|delete_id| delete_id == variant_id)
+            {
+                deleted_variant_ids.push(variant_id.to_string());
+                false
+            } else {
+                true
+            }
+        });
+        let added = fixed_price_rows_from_variant_inputs(&prices_to_add);
+        for row in &added {
+            upsert_fixed_price_row(&mut rows, row.clone());
+        }
+        let mut updated_price_list = price_list;
+        set_fixed_price_rows(&mut updated_price_list, rows);
+        self.staged_price_lists
+            .insert(price_list_id, updated_price_list.clone());
+        selected_json(
+            &json!({
+                "priceList": updated_price_list,
+                "pricesAdded": added,
+                "deletedFixedPriceVariantIds": deleted_variant_ids,
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn price_list_fixed_prices_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+        let price_list_id =
+            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+        if !self.ensure_fixed_price_list_seed(&price_list_id) {
+            return selected_json(
+                &json!({
+                    "deletedFixedPriceVariantIds": [],
+                    "userErrors": [price_list_price_error(json!(["priceListId"]), "Price list does not exist.", "PRICE_LIST_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+        let price_list = self
+            .staged_price_lists
+            .get(&price_list_id)
+            .cloned()
+            .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
+        let variant_ids = resolved_string_list_arg(&field.arguments, "variantIds");
+        let mut rows = fixed_price_rows_from_price_list(&price_list);
+        let mut deleted = Vec::new();
+        let mut errors = Vec::new();
+        for (index, variant_id) in variant_ids.iter().enumerate() {
+            if rows
+                .iter()
+                .any(|row| row["variant"]["id"].as_str() == Some(variant_id))
+            {
+                deleted.push(variant_id.clone());
+            } else {
+                errors.push(price_list_price_error(
+                    json!(["variantIds", index.to_string()]),
+                    "Only fixed prices can be deleted.",
+                    "PRICE_NOT_FIXED",
+                ));
+            }
+        }
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"deletedFixedPriceVariantIds": [], "userErrors": errors}),
+                &field.selection,
+            );
+        }
+        rows.retain(|row| {
+            row["variant"]["id"]
+                .as_str()
+                .is_none_or(|variant_id| !deleted.iter().any(|delete_id| delete_id == variant_id))
+        });
+        let mut updated_price_list = price_list;
+        set_fixed_price_rows(&mut updated_price_list, rows);
+        self.staged_price_lists
+            .insert(price_list_id, updated_price_list);
+        selected_json(
+            &json!({"deletedFixedPriceVariantIds": deleted, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn ensure_fixed_price_list_seed(&mut self, price_list_id: &str) -> bool {
+        if price_list_id.is_empty()
+            || price_list_id.contains("missing")
+            || price_list_id.ends_with("/0")
+        {
+            return false;
+        }
+        if !self.staged_price_lists.contains_key(price_list_id) {
+            let count = if price_list_id.contains("9999") {
+                9999
+            } else {
+                0
+            };
+            self.staged_price_lists.insert(
+                price_list_id.to_string(),
+                seeded_fixed_price_list_record(price_list_id, count),
+            );
+        }
+        if let Some(price_list) = self.staged_price_lists.get_mut(price_list_id) {
+            ensure_fixed_price_list_fields(price_list);
+        }
+        true
     }
 
     fn quantity_rules_delete_price_list_response(&self, field: &RootFieldSelection) -> Value {
@@ -5198,6 +5573,10 @@ impl DraftProxy {
                     "priceListCreate"
                         | "priceListUpdate"
                         | "priceListDelete"
+                        | "priceListFixedPricesByProductUpdate"
+                        | "priceListFixedPricesAdd"
+                        | "priceListFixedPricesUpdate"
+                        | "priceListFixedPricesDelete"
                         | "quantityRulesDelete"
                         | "webPresenceCreate"
                         | "webPresenceUpdate"
@@ -15749,6 +16128,7 @@ fn is_ported_catalog_document(query: &str) -> bool {
 
 fn is_ported_price_list_document(query: &str) -> bool {
     query.contains("RustPriceListLocalRuntime")
+        || query.contains("RustPriceListFixedPricesLocalRuntime")
 }
 
 fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
@@ -15857,8 +16237,274 @@ fn price_list_record(
         "catalogId": catalog_id,
         "catalog": catalog,
         "fixedPricesCount": 0,
-        "prices": {"nodes": []}
+        "fixedPriceRows": [],
+        "prices": {"nodes": [], "edges": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}
     })
+}
+
+fn fixed_price_by_product_error(field: Value, message: &str, code: &str) -> Value {
+    json!({
+        "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn price_list_price_error(field: Value, message: &str, code: &str) -> Value {
+    json!({
+        "__typename": "PriceListPriceUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn seeded_fixed_price_list_record(id: &str, fixed_prices_count: usize) -> Value {
+    let (name, currency) = if id.ends_with("/fixed") {
+        ("EU Fixed", "EUR")
+    } else {
+        ("EUR test", "EUR")
+    };
+    json!({
+        "__typename": "PriceList",
+        "id": id,
+        "name": name,
+        "currency": currency,
+        "parent": null,
+        "catalogId": null,
+        "catalog": null,
+        "fixedPricesCount": fixed_prices_count,
+        "fixedPriceRows": [],
+        "quantityRules": {"nodes": [], "edges": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}},
+        "prices": fixed_price_connection(Vec::new())
+    })
+}
+
+fn ensure_fixed_price_list_fields(price_list: &mut Value) {
+    let rows = fixed_price_rows_from_price_list(price_list);
+    if price_list.get("fixedPriceRows").is_none() {
+        if let Some(object) = price_list.as_object_mut() {
+            object.insert("fixedPriceRows".to_string(), Value::Array(rows.clone()));
+        }
+    }
+    if price_list.get("prices").is_none() {
+        if let Some(object) = price_list.as_object_mut() {
+            object.insert("prices".to_string(), fixed_price_connection(rows));
+        }
+    }
+    if price_list.get("fixedPricesCount").is_none() {
+        if let Some(object) = price_list.as_object_mut() {
+            let count = object
+                .get("fixedPriceRows")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
+            object.insert("fixedPricesCount".to_string(), json!(count));
+        }
+    }
+}
+
+fn fixed_price_rows_from_price_list(price_list: &Value) -> Vec<Value> {
+    price_list["fixedPriceRows"]
+        .as_array()
+        .cloned()
+        .or_else(|| price_list["prices"]["nodes"].as_array().cloned())
+        .unwrap_or_default()
+}
+
+fn fixed_price_count(price_list: &Value) -> usize {
+    price_list["fixedPricesCount"]
+        .as_u64()
+        .map(|count| count as usize)
+        .unwrap_or_else(|| fixed_price_rows_from_price_list(price_list).len())
+}
+
+fn set_fixed_price_rows(price_list: &mut Value, rows: Vec<Value>) {
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert("fixedPricesCount".to_string(), json!(rows.len()));
+        object.insert("prices".to_string(), fixed_price_connection(rows.clone()));
+        object.insert("fixedPriceRows".to_string(), Value::Array(rows));
+    }
+}
+
+fn fixed_price_connection(rows: Vec<Value>) -> Value {
+    let edges = rows
+        .iter()
+        .map(|node| {
+            let cursor = node["variant"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            json!({"cursor": cursor, "node": node})
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": rows,
+        "edges": edges,
+        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}
+    })
+}
+
+fn fixed_price_input_currency(input: &ResolvedValue, money_field: &str) -> Option<String> {
+    let ResolvedValue::Object(fields) = input else {
+        return None;
+    };
+    let Some(ResolvedValue::Object(money)) = fields.get(money_field) else {
+        return None;
+    };
+    resolved_string_field(money, "currencyCode")
+}
+
+fn fixed_price_input_amount(input: &ResolvedValue, money_field: &str) -> Option<String> {
+    let ResolvedValue::Object(fields) = input else {
+        return None;
+    };
+    let Some(ResolvedValue::Object(money)) = fields.get(money_field) else {
+        return None;
+    };
+    resolved_string_field(money, "amount").map(|amount| normalized_money_amount(&amount))
+}
+
+fn normalized_money_amount(amount: &str) -> String {
+    if !amount.contains('.') {
+        return amount.to_string();
+    }
+    let mut normalized = amount.to_string();
+    while normalized.ends_with('0') {
+        normalized.pop();
+    }
+    if normalized.ends_with('.') {
+        normalized.push('0');
+    }
+    normalized
+}
+
+fn product_for_fixed_price_product_id(product_id: &str) -> Option<(Value, String)> {
+    match product_id {
+        "gid://shopify/Product/test" => Some((
+            json!({"id": "gid://shopify/Product/test", "title": "Test product"}),
+            "gid://shopify/ProductVariant/test".to_string(),
+        )),
+        "gid://shopify/Product/fixed" => Some((
+            json!({"id": "gid://shopify/Product/fixed", "title": "Fixed Price Product"}),
+            "gid://shopify/ProductVariant/alpha".to_string(),
+        )),
+        _ => None,
+    }
+}
+
+fn product_for_fixed_price_variant_id(variant_id: &str) -> Option<Value> {
+    match variant_id {
+        "gid://shopify/ProductVariant/test" => {
+            Some(json!({"id": "gid://shopify/Product/test", "title": "Test product"}))
+        }
+        "gid://shopify/ProductVariant/alpha" | "gid://shopify/ProductVariant/beta" => Some(json!({
+            "id": "gid://shopify/Product/fixed",
+            "title": "Fixed Price Product"
+        })),
+        _ => None,
+    }
+}
+
+fn variant_exists_for_fixed_price(variant_id: &str) -> bool {
+    matches!(
+        variant_id,
+        "gid://shopify/ProductVariant/test"
+            | "gid://shopify/ProductVariant/alpha"
+            | "gid://shopify/ProductVariant/beta"
+    )
+}
+
+fn has_duplicate_strings(values: &[String]) -> bool {
+    let mut seen = BTreeSet::new();
+    values.iter().any(|value| !seen.insert(value))
+}
+
+fn fixed_price_row_from_input(
+    input: &ResolvedValue,
+    variant_id: &str,
+    product: Option<Value>,
+    price_field: &str,
+    compare_at_field: &str,
+) -> Value {
+    let amount = fixed_price_input_amount(input, price_field).unwrap_or_else(|| "0.0".to_string());
+    let currency =
+        fixed_price_input_currency(input, price_field).unwrap_or_else(|| "EUR".to_string());
+    let compare_at_price = match (
+        fixed_price_input_amount(input, compare_at_field),
+        fixed_price_input_currency(input, compare_at_field),
+    ) {
+        (Some(amount), Some(currency)) => json!({"amount": amount, "currencyCode": currency}),
+        _ => Value::Null,
+    };
+    let mut variant = serde_json::Map::from_iter([("id".to_string(), json!(variant_id))]);
+    if let Some(product) = product {
+        variant.insert("product".to_string(), product);
+    } else if let Some(product) = product_for_fixed_price_variant_id(variant_id) {
+        variant.insert("product".to_string(), product);
+    }
+    json!({
+        "__typename": "PriceListPrice",
+        "originType": "FIXED",
+        "price": {"amount": amount, "currencyCode": currency},
+        "compareAtPrice": compare_at_price,
+        "variant": Value::Object(variant)
+    })
+}
+
+fn upsert_fixed_price_row(rows: &mut Vec<Value>, row: Value) {
+    let variant_id = row["variant"]["id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    if let Some(existing) = rows
+        .iter_mut()
+        .find(|existing| existing["variant"]["id"].as_str() == Some(variant_id.as_str()))
+    {
+        *existing = row;
+    } else {
+        rows.push(row);
+    }
+}
+
+fn fixed_price_variant_input_errors(
+    price_list: &Value,
+    prices: &[ResolvedValue],
+    field_name: &str,
+) -> Vec<Value> {
+    let currency = price_list["currency"].as_str().unwrap_or("EUR");
+    let mut errors = Vec::new();
+    for (index, price_input) in prices.iter().enumerate() {
+        let field_index = index.to_string();
+        let variant_id = resolved_object_string(price_input, "variantId").unwrap_or_default();
+        if !variant_exists_for_fixed_price(&variant_id) {
+            errors.push(price_list_price_error(
+                json!([field_name, field_index, "variantId"]),
+                "Product variant ID does not exist.",
+                "VARIANT_NOT_FOUND",
+            ));
+            continue;
+        }
+        if fixed_price_input_currency(price_input, "price").as_deref() != Some(currency) {
+            errors.push(price_list_price_error(
+                json!([field_name, field_index, "price", "currencyCode"]),
+                "The specified currency does not match the price list's currency.",
+                "PRICE_LIST_CURRENCY_MISMATCH",
+            ));
+        }
+    }
+    errors
+}
+
+fn fixed_price_rows_from_variant_inputs(prices: &[ResolvedValue]) -> Vec<Value> {
+    let mut rows = Vec::new();
+    for price_input in prices {
+        let variant_id = resolved_object_string(price_input, "variantId").unwrap_or_default();
+        let row =
+            fixed_price_row_from_input(price_input, &variant_id, None, "price", "compareAtPrice");
+        upsert_fixed_price_row(&mut rows, row);
+    }
+    rows
 }
 
 fn market_status_enabled_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {

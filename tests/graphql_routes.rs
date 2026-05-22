@@ -13148,6 +13148,321 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn price_list_fixed_prices_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam fixed-price helper behavior from markets_mutation_test.gleam:
+    // by-product bulk validation/staging, fixed price add/update/delete lifecycle,
+    // duplicate variant last-wins semantics, price-list/variant/currency guards,
+    // missing fixed-price deletion errors, and downstream selected price-list readback.
+    let read_query = r#"
+        query RustPriceListFixedPricesLocalRuntimeRead($id: ID!) {
+          priceList(id: $id) {
+            id
+            fixedPricesCount
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  originType
+                  price { amount currencyCode }
+                  compareAtPrice { amount currencyCode }
+                  variant { id product { id title } }
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let by_product_update_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeByProductUpdate($priceListId: ID!, $pricesToAdd: [PriceListFixedPriceByProductInput!]!, $pricesToDeleteByProductIds: [ID!]!) {
+          priceListFixedPricesByProductUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, pricesToDeleteByProductIds: $pricesToDeleteByProductIds) {
+            priceList { id fixedPricesCount }
+            pricesToAddProducts { id title }
+            pricesToDeleteProducts { id title }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let mut noop_proxy = snapshot_proxy();
+    let noop = noop_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(noop.status, 200);
+    assert_eq!(
+        noop.body["data"]["priceListFixedPricesByProductUpdate"],
+        json!({
+            "priceList": null,
+            "pricesToAddProducts": [],
+            "pricesToDeleteProducts": [],
+            "userErrors": [{"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "No update operations specified.", "code": "NO_UPDATE_OPERATIONS_SPECIFIED"}]
+        })
+    );
+    let noop_read = noop_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    assert_eq!(
+        noop_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+
+    let mut invalid_bulk_proxy = snapshot_proxy();
+    let invalid_bulk = invalid_bulk_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({
+            "priceListId": "gid://shopify/PriceList/test",
+            "pricesToAdd": [
+                {"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "USD"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "GBP"}},
+                {"productId": "gid://shopify/Product/test", "price": {"amount": "13.00", "currencyCode": "EUR"}}
+            ],
+            "pricesToDeleteByProductIds": ["gid://shopify/Product/test", "gid://shopify/Product/test"]
+        }),
+    ));
+    let invalid_bulk_errors = invalid_bulk.body["data"]["priceListFixedPricesByProductUpdate"]
+        ["userErrors"]
+        .as_array()
+        .unwrap();
+    for expected_error in [
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "Product IDs cannot be both added and deleted.", "code": "ID_MUST_BE_MUTUALLY_EXCLUSIVE"}),
+    ] {
+        assert!(
+            invalid_bulk_errors.contains(&expected_error),
+            "missing fixed-price by-product validation error: {expected_error:?}\nbody={:?}",
+            invalid_bulk.body
+        );
+    }
+    let invalid_bulk_read = invalid_bulk_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    assert_eq!(
+        invalid_bulk_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+
+    let missing_products = snapshot_proxy().process_request(json_graphql_request(
+        by_product_update_query,
+        json!({
+            "priceListId": "gid://shopify/PriceList/test",
+            "pricesToAdd": [{"productId": "gid://shopify/Product/missing", "price": {"amount": "12.00", "currencyCode": "EUR"}}],
+            "pricesToDeleteByProductIds": ["gid://shopify/Product/missing-delete"]
+        }),
+    ));
+    let missing_product_errors = missing_products.body["data"]
+        ["priceListFixedPricesByProductUpdate"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "productId"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
+    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds", "0"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
+
+    let mut limit_proxy = snapshot_proxy();
+    let limit = limit_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test-9999", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(
+        limit.body["data"]["priceListFixedPricesByProductUpdate"]["userErrors"][0]["code"],
+        json!("PRICE_LIMIT_EXCEEDED")
+    );
+    let limit_read = limit_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test-9999"}),
+    ));
+    assert_eq!(
+        limit_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(9999)
+    );
+
+    let mut by_product_proxy = snapshot_proxy();
+    let valid_bulk = by_product_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(
+        valid_bulk.body["data"]["priceListFixedPricesByProductUpdate"],
+        json!({
+            "priceList": {"id": "gid://shopify/PriceList/test", "fixedPricesCount": 1},
+            "pricesToAddProducts": [{"id": "gid://shopify/Product/test", "title": "Test product"}],
+            "pricesToDeleteProducts": [],
+            "userErrors": []
+        })
+    );
+    let valid_bulk_read = by_product_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    let fixed_price_node = &valid_bulk_read.body["data"]["priceList"]["prices"]["edges"][0]["node"];
+    assert_eq!(
+        fixed_price_node["price"],
+        json!({"amount": "12.0", "currencyCode": "EUR"})
+    );
+    assert_eq!(
+        fixed_price_node["compareAtPrice"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+    assert_eq!(
+        fixed_price_node["variant"]["product"],
+        json!({"id": "gid://shopify/Product/test", "title": "Test product"})
+    );
+
+    let add_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeAdd($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { originType price { amount currencyCode } variant { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeUpdate($priceListId: ID!, $pricesToAdd: [PriceListPriceInput!]!, $variantIdsToDelete: [ID!]!) {
+          priceListFixedPricesUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, variantIdsToDelete: $variantIdsToDelete) {
+            priceList { id fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { price { amount currencyCode } variant { id } } } } }
+            pricesAdded { price { amount currencyCode } variant { id } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          priceListFixedPricesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let missing_price_list = snapshot_proxy().process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/missing", "prices": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}}]}),
+    ));
+    assert_eq!(
+        missing_price_list.body["data"]["priceListFixedPricesAdd"],
+        json!({"prices": [], "userErrors": [{"__typename": "PriceListPriceUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"}]})
+    );
+
+    let validation = snapshot_proxy().process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/missing", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "10.00", "currencyCode": "USD"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "11.00", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    let validation_errors = validation.body["data"]["priceListFixedPricesAdd"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "0", "variantId"], "message": "Product variant ID does not exist.", "code": "VARIANT_NOT_FOUND"})));
+    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "1", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"})));
+    assert_eq!(
+        validation.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+
+    let mut duplicate_proxy = snapshot_proxy();
+    let duplicate_add = duplicate_proxy.process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "13.75", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    assert_eq!(
+        duplicate_add.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([{"originType": "FIXED", "price": {"amount": "13.75", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
+    );
+    let duplicate_update = duplicate_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "14.00", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}
+        ], "variantIdsToDelete": []}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([{"price": {"amount": "15.0", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
+    );
+    assert_eq!(
+        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let mut lifecycle_proxy = snapshot_proxy();
+    let add = lifecycle_proxy.process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/beta", "price": {"amount": "20.00", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    assert_eq!(add.status, 200);
+    let update = lifecycle_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": ["gid://shopify/ProductVariant/beta"]}),
+    ));
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!(["gid://shopify/ProductVariant/beta"])
+    );
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["fixedPricesCount"],
+        json!(1)
+    );
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["prices"]["edges"][0]
+            ["node"]["price"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+    let delete = lifecycle_proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["priceListFixedPricesDelete"],
+        json!({"deletedFixedPriceVariantIds": ["gid://shopify/ProductVariant/alpha"], "userErrors": []})
+    );
+    let lifecycle_read = lifecycle_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/fixed"}),
+    ));
+    assert_eq!(
+        lifecycle_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+    assert_eq!(
+        lifecycle_read.body["data"]["priceList"]["prices"]["edges"],
+        json!([])
+    );
+
+    let update_adds_missing = snapshot_proxy().process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": []}),
+    ));
+    assert_eq!(
+        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["priceList"]
+            ["fixedPricesCount"],
+        json!(1)
+    );
+    assert_eq!(
+        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"][0]["price"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+
+    let missing_fixed_delete = snapshot_proxy().process_request(json_graphql_request(
+        delete_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
+    ));
+    assert_eq!(
+        missing_fixed_delete.body["data"]["priceListFixedPricesDelete"]["userErrors"][0],
+        json!({"__typename": "PriceListPriceUserError", "field": ["variantIds", "0"], "message": "Only fixed prices can be deleted.", "code": "PRICE_NOT_FIXED"})
+    );
+}
+
+#[test]
 fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,

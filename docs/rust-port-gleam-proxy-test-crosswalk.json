@@ -1,10 +1,10 @@
 {
   "summary": {
     "coverage_status_counts": {
-      "implementation_unit_replaced_needs_review": 153,
+      "implementation_unit_replaced_needs_review": 145,
       "needs_manual_review": 449,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1556
+      "represented_by_rust_root_tests": 1564
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -22651,67 +22651,71 @@
     },
     {
       "body_sha1": "300c8a5cfd975956d44a4c0c6a9bf8841facdecb",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 574,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_by_product_update_rejects_noop_test",
       "id": "f757146bcc65",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "71d6098a381835eea4346407b2bcbe24ec85ac9f",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 602,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_by_product_update_validates_input_sets_test",
       "id": "d1d1220b92c4",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6ec843807610d5eefa5970c978e20379be3a0284",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 646,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_by_product_update_types_missing_product_errors_test",
       "id": "83350674ebfc",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "0197919770722abeb0031c06dc1ba702cb9c27e8",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 665,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_by_product_update_enforces_price_limit_test",
       "id": "c8cfc4ab2863",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "93e9d3dd5f36ee1fd248602e71f33800b4a90b46",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_fixed_price_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 687,
@@ -22719,6 +22723,7 @@
       "gleam_test": "price_list_fixed_prices_by_product_update_stages_valid_prices_test",
       "id": "fa9e92e76917",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {
         "node": {
           "parity_spec": true,
@@ -22733,11 +22738,11 @@
       },
       "root_fields": ["node", "product"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "97410e2a910746c77fb3bf6cfa2b629ccb774284",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_fixed_price_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 724,
@@ -22745,6 +22750,7 @@
       "gleam_test": "price_list_fixed_prices_add_stages_variant_prices_test",
       "id": "485818bc0c9e",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {
         "node": {
           "parity_spec": true,
@@ -22754,11 +22760,11 @@
       },
       "root_fields": ["node"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6b204ff3a18f766a784e5b23ebd2d31b801024e3",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests", "manual_rust_port_fixed_price_helpers"],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 761,
@@ -22766,6 +22772,7 @@
       "gleam_test": "price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test",
       "id": "aa8443624643",
       "kind": "state_or_helper_behavior",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {
         "node": {
           "parity_spec": true,
@@ -22775,67 +22782,71 @@
       },
       "root_fields": ["node"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1a27c33443919f565aca1274a993e0647db940e8",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 820,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_validates_target_variant_and_currency_test",
       "id": "3704d164541d",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "8c38958510e50bfff784a7297c0ddc2a7fdf06a0",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 856,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_add_and_update_duplicate_variant_last_wins_test",
       "id": "d1f2ef41a270",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "fcdbe0cc6b7f598c2cdaa524011980e4a5e47b17",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 886,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_update_adds_missing_fixed_price_test",
       "id": "93f58095410e",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5247f963f8943ffffe6ba774ff759b633ad527d8",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": ["old_test_appears_helper_or_parser_level", "manual_rust_port_fixed_price_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 903,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_fixed_prices_delete_rejects_missing_fixed_price_test",
       "id": "1c90682709b2",
       "kind": "pure_helper_or_parser",
+      "manual_rust_tests": ["tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate"],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "385d629d2caae05ddfc09cf07cb4ffab525b6d74",
