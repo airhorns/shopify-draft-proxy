@@ -184,6 +184,7 @@ pub struct DraftProxy {
     staged_return_status: Option<String>,
     staged_recorded_return_statuses: BTreeMap<String, String>,
     staged_mandate_payment_keys: BTreeSet<String>,
+    staged_payment_terms_ids: BTreeSet<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -252,6 +253,7 @@ impl DraftProxy {
             staged_return_status: None,
             staged_recorded_return_statuses: BTreeMap::new(),
             staged_mandate_payment_keys: BTreeSet::new(),
+            staged_payment_terms_ids: BTreeSet::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -351,6 +353,7 @@ impl DraftProxy {
                 self.staged_return_status = None;
                 self.staged_recorded_return_statuses.clear();
                 self.staged_mandate_payment_keys.clear();
+                self.staged_payment_terms_ids.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -2699,6 +2702,15 @@ impl DraftProxy {
             &query,
             &variables,
             &mut self.staged_mandate_payment_keys,
+        ) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = payment_terms_fixture_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.staged_payment_terms_ids,
         ) {
             return ok_json(data);
         }
@@ -15087,6 +15099,108 @@ fn order_payment_transaction_fixture() -> Value {
         "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
     ))
     .expect("order payment transaction fixture must parse")
+}
+
+fn payment_terms_create_on_order_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
+    ))
+    .expect("payment terms create-on-order fixture must parse")
+}
+
+fn payment_terms_delete_owner_cascade_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
+    ))
+    .expect("payment terms delete owner cascade fixture must parse")
+}
+
+fn payment_terms_create_on_order_attrs_match(variables: &BTreeMap<String, ResolvedValue>) -> bool {
+    let attrs = resolved_object_field(variables, "attrs").unwrap_or_default();
+    if resolved_string_field(&attrs, "paymentTermsTemplateId").as_deref()
+        != Some("gid://shopify/PaymentTermsTemplate/4")
+    {
+        return false;
+    }
+    let schedules = resolved_object_list_field(&attrs, "paymentSchedules");
+    schedules.len() == 1
+        && resolved_string_field(&schedules[0], "issuedAt").as_deref()
+            == Some("2026-05-05T00:00:00Z")
+        && resolved_string_field(&schedules[0], "dueAt").is_none()
+}
+
+fn payment_terms_fixture_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    staged_payment_terms_ids: &mut BTreeSet<String>,
+) -> Option<Value> {
+    let create_fixture = payment_terms_create_on_order_fixture();
+    let cascade_fixture = payment_terms_delete_owner_cascade_fixture();
+    match root_field {
+        "orderCreate" if query.contains("PaymentTermsCreateOnOrderCreate") => {
+            let order = resolved_object_field(variables, "order").unwrap_or_default();
+            let email = resolved_string_field(&order, "email").unwrap_or_default();
+            if email == "payment-terms-delete-cascade-order@example.com" {
+                Some(cascade_fixture["order"]["expected"]["orderCreate"].clone())
+            } else {
+                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"].clone())
+            }
+        }
+        "paymentTermsCreate" if query.contains("PaymentTermsCreateOnOrderMultiple") => {
+            Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"].clone())
+        }
+        "paymentTermsCreate" if query.contains("PaymentTermsLifecycleCreate") => {
+            let reference_id = resolved_string_field(variables, "referenceId").unwrap_or_default();
+            if reference_id == "gid://shopify/DraftOrder/payment-terms-delete-cascade" {
+                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/1".to_string());
+                Some(cascade_fixture["draft"]["expected"]["create"].clone())
+            } else if reference_id == "gid://shopify/Order/5" {
+                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/8".to_string());
+                Some(cascade_fixture["order"]["expected"]["create"].clone())
+            } else if reference_id == "gid://shopify/Order/1"
+                && payment_terms_create_on_order_attrs_match(variables)
+            {
+                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/4".to_string());
+                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"].clone())
+            } else {
+                None
+            }
+        }
+        "paymentTermsUpdate" if query.contains("PaymentTermsLifecycleUpdate") => {
+            let input = resolved_object_field(variables, "input").unwrap_or_default();
+            let payment_terms_id =
+                resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+            if payment_terms_id == "gid://shopify/PaymentTerms/999999" {
+                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"].clone())
+            } else {
+                None
+            }
+        }
+        "paymentTermsDelete" if query.contains("PaymentTermsLifecycleDelete") => {
+            let input = resolved_object_field(variables, "input").unwrap_or_default();
+            let payment_terms_id =
+                resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+            if payment_terms_id == "gid://shopify/PaymentTerms/1" {
+                staged_payment_terms_ids.remove(&payment_terms_id);
+                Some(cascade_fixture["draft"]["expected"]["delete"].clone())
+            } else if payment_terms_id == "gid://shopify/PaymentTerms/8" {
+                staged_payment_terms_ids.remove(&payment_terms_id);
+                Some(cascade_fixture["order"]["expected"]["delete"].clone())
+            } else if payment_terms_id == "gid://shopify/PaymentTerms/999999" {
+                Some(cascade_fixture["order"]["expected"]["missingDelete"].clone())
+            } else {
+                None
+            }
+        }
+        "draftOrder" if query.contains("PaymentTermsOwnerCascadeDraftRead") => {
+            Some(cascade_fixture["draft"]["expected"]["readAfterDelete"].clone())
+        }
+        "order" if query.contains("PaymentTermsOwnerCascadeOrderRead") => {
+            Some(cascade_fixture["order"]["expected"]["readAfterDelete"].clone())
+        }
+        _ => None,
+    }
 }
 
 fn order_create_mandate_payment_data(

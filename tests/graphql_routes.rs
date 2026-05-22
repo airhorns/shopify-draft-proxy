@@ -47,6 +47,151 @@ fn product_fixture(path: &str) -> Value {
 }
 
 #[test]
+fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
+    let create_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
+    ))
+    .unwrap();
+    let cascade_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        create_fixture["paymentTermsCreateOnOrder"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        order_create.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"]
+    );
+
+    let create_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        create_terms.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"]
+    );
+
+    let multiple = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["multipleSchedules"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        multiple.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-update.graphql"),
+        create_fixture["paymentTermsCreateOnOrder"]["missingUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_update.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"]
+    );
+
+    let draft_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": cascade_fixture["draft"]["owner"]["id"].clone(),
+            "attrs": cascade_fixture["draft"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        draft_terms.body,
+        cascade_fixture["draft"]["expected"]["create"]
+    );
+
+    let draft_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        draft_delete.body,
+        cascade_fixture["draft"]["expected"]["delete"]
+    );
+
+    let draft_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql"
+        ),
+        json!({ "id": cascade_fixture["draft"]["owner"]["id"].clone() }),
+    ));
+    assert_eq!(
+        draft_read.body,
+        cascade_fixture["draft"]["expected"]["readAfterDelete"]
+    );
+
+    let cascade_order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        cascade_fixture["order"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cascade_order_create.body,
+        cascade_fixture["order"]["expected"]["orderCreate"]
+    );
+
+    let cascade_order_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": cascade_fixture["order"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        cascade_order_terms.body,
+        cascade_fixture["order"]["expected"]["create"]
+    );
+
+    let cascade_order_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        cascade_order_delete.body,
+        cascade_fixture["order"]["expected"]["delete"]
+    );
+
+    let cascade_order_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql"
+        ),
+        json!({ "id": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone() }),
+    ));
+    assert_eq!(
+        cascade_order_read.body,
+        cascade_fixture["order"]["expected"]["readAfterDelete"]
+    );
+
+    let missing_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        cascade_fixture["order"]["missingDelete"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_delete.body,
+        cascade_fixture["order"]["expected"]["missingDelete"]
+    );
+}
+
+#[test]
 fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
