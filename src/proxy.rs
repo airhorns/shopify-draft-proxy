@@ -164,6 +164,7 @@ pub struct DraftProxy {
     staged_bulk_operations: BTreeMap<String, Value>,
     staged_timestamp_discounts: BTreeMap<String, Value>,
     staged_gift_cards: BTreeMap<String, Value>,
+    staged_markets: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
@@ -245,6 +246,7 @@ impl DraftProxy {
             staged_bulk_operations: BTreeMap::new(),
             staged_timestamp_discounts: BTreeMap::new(),
             staged_gift_cards: BTreeMap::new(),
+            staged_markets: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
@@ -360,6 +362,7 @@ impl DraftProxy {
                 self.staged_bulk_operations.clear();
                 self.staged_timestamp_discounts.clear();
                 self.staged_gift_cards.clear();
+                self.staged_markets.clear();
                 self.staged_localization_translations.clear();
                 self.staged_marketing_activities.clear();
                 self.staged_deleted_marketing_activity_ids.clear();
@@ -923,6 +926,182 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    fn market_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "market" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_markets
+                        .get(&id)
+                        .map(|market| selected_json(market, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn market_create_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "marketCreate" => self.market_create_response(field),
+                _ => Value::Null,
+            };
+            if let Some(id) = value["market"]["id"].as_str() {
+                staged_ids.push(id.to_string());
+            }
+            data.insert(field.response_key.clone(), value);
+        }
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, "marketCreate", staged_ids);
+        }
+        Value::Object(data)
+    }
+
+    fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if market_status_enabled_mismatch(&input) {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input"], "Invalid status and enabled combination.", json!("INVALID_STATUS_AND_ENABLED_COMBINATION"))]
+                }),
+                &field.selection,
+            );
+        }
+        if market_has_location_price_inclusion_conflict(&input) {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "priceInclusions"], "Inclusive pricing cannot be added to a market with the specified condition types.", json!("INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"))]
+                }),
+                &field.selection,
+            );
+        }
+        if matches!(
+            market_currency_settings(&input)
+                .and_then(|settings| resolved_string_field(&settings, "baseCurrency"))
+                .as_deref(),
+            Some("XXX") | Some("XAF")
+        ) {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "currencySettings", "baseCurrency"], "Base currency is invalid", json!("INVALID"))]
+                }),
+                &field.selection,
+            );
+        }
+        if market_currency_settings(&input)
+            .and_then(|settings| resolved_number_field(&settings, "baseCurrencyManualRate"))
+            .is_some_and(|rate| rate <= 0.0)
+        {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "currencySettings", "baseCurrencyManualRate"], "Enter a rate above 0.", Value::Null)]
+                }),
+                &field.selection,
+            );
+        }
+        let region_codes = market_region_country_codes(&input);
+        if let Some((index, country_code)) = region_codes
+            .iter()
+            .enumerate()
+            .find(|(_, country_code)| country_code.as_str() == "CU")
+        {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "regions", &index.to_string(), "countryCode"], &format!("{country_code} is not a supported country or region code."), json!("UNSUPPORTED_COUNTRY_REGION"))]
+                }),
+                &field.selection,
+            );
+        }
+        if let Some((index, _country_code)) = region_codes
+            .iter()
+            .enumerate()
+            .find(|(_, country_code)| self.market_region_code_exists(country_code))
+        {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "regions", &index.to_string(), "countryCode"], "Code has already been taken", json!("TAKEN"))]
+                }),
+                &field.selection,
+            );
+        }
+
+        let name = resolved_string_field(&input, "name").unwrap_or_default();
+        if !name.is_empty()
+            && self
+                .staged_markets
+                .values()
+                .any(|market| market["name"].as_str() == Some(name.as_str()))
+        {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "name"], "Name has already been taken", json!("TAKEN"))]
+                }),
+                &field.selection,
+            );
+        }
+
+        let explicit_handle = resolved_string_field(&input, "handle");
+        let mut handle = normalize_localized_handle(explicit_handle.as_deref().unwrap_or(&name));
+        let existing_handles = self
+            .staged_markets
+            .values()
+            .filter_map(|market| market["handle"].as_str())
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
+        if explicit_handle.is_some() && existing_handles.contains(&handle) {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["input", "handle"], "Generated handle has already been taken", json!("GENERATED_DUPLICATED_HANDLE"))]
+                }),
+                &field.selection,
+            );
+        }
+        if explicit_handle.is_none() {
+            let base_handle = handle.clone();
+            let mut suffix = 1;
+            while existing_handles.contains(&handle) {
+                handle = format!("{base_handle}-{suffix}");
+                suffix += 1;
+            }
+        }
+
+        let id = format!("gid://shopify/Market/{}", self.staged_markets.len() + 1);
+        let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
+        self.staged_markets.insert(id, market.clone());
+        selected_json(
+            &json!({ "market": market, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn market_region_code_exists(&self, country_code: &str) -> bool {
+        self.staged_markets.values().any(|market| {
+            market["regionCodes"]
+                .as_array()
+                .is_some_and(|codes| codes.iter().any(|code| code.as_str() == Some(country_code)))
+        })
     }
 
     fn market_localization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -4314,6 +4493,31 @@ impl DraftProxy {
                         .map(|field| field.response_key.clone())
                         .collect(),
                 );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "market"))
+            && is_ported_market_create_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.market_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "marketCreate"))
+            && is_ported_market_create_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.market_create_mutation_data(&fields, request, &query, &variables);
                 return ok_json(json!({ "data": data }));
             }
         }
@@ -14845,6 +15049,142 @@ fn is_ported_localization_document(query: &str) -> bool {
     .any(|marker| query.contains(marker))
 }
 
+fn is_ported_market_create_document(query: &str) -> bool {
+    query.contains("RustMarketCreateLocalRuntime")
+}
+
+fn market_status_enabled_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    matches!(
+        (
+            resolved_string_field(input, "status").as_deref(),
+            resolved_bool_field(input, "enabled")
+        ),
+        (Some("DRAFT"), Some(true)) | (Some("ACTIVE"), Some(false))
+    )
+}
+
+fn market_has_location_price_inclusion_conflict(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    let Some(conditions) = resolved_object_field(input, "conditions") else {
+        return false;
+    };
+    if resolved_object_field(&conditions, "locationsCondition").is_none() {
+        return false;
+    }
+    let Some(price_inclusions) = resolved_object_field(input, "priceInclusions") else {
+        return false;
+    };
+    matches!(
+        (
+            resolved_string_field(&price_inclusions, "taxPricingStrategy").as_deref(),
+            resolved_string_field(&price_inclusions, "dutiesPricingStrategy").as_deref()
+        ),
+        (Some("INCLUDES_TAXES_IN_PRICE"), _) | (_, Some("INCLUDE_DUTIES_IN_PRICE"))
+    )
+}
+
+fn market_currency_settings(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    resolved_object_field(input, "currencySettings")
+}
+
+fn market_region_country_codes(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut codes = region_country_codes_from_value(input.get("regions"));
+    if let Some(conditions) = resolved_object_field(input, "conditions") {
+        if let Some(regions_condition) = resolved_object_field(&conditions, "regionsCondition") {
+            codes.extend(region_country_codes_from_value(
+                regions_condition.get("regions"),
+            ));
+        }
+    }
+    codes
+}
+
+fn region_country_codes_from_value(value: Option<&ResolvedValue>) -> Vec<String> {
+    match value {
+        Some(ResolvedValue::List(regions)) => regions
+            .iter()
+            .filter_map(|region| resolved_object_string(region, "countryCode"))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn market_record_from_input(
+    id: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+    handle: &str,
+    region_codes: &[String],
+) -> Value {
+    let status = resolved_string_field(input, "status").unwrap_or_else(|| "ACTIVE".to_string());
+    let enabled = resolved_bool_field(input, "enabled").unwrap_or(status == "ACTIVE");
+    let region_nodes = region_codes
+        .iter()
+        .map(|code| json!({"code": code}))
+        .collect::<Vec<_>>();
+    json!({
+        "id": id,
+        "name": name,
+        "handle": handle,
+        "status": status,
+        "enabled": enabled,
+        "priceInclusions": market_price_inclusions(input),
+        "currencySettings": market_currency_settings_json(input),
+        "regionCodes": region_codes,
+        "conditions": {
+            "regionsCondition": {
+                "regions": {
+                    "nodes": region_nodes
+                }
+            }
+        }
+    })
+}
+
+fn market_price_inclusions(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(price_inclusions) = resolved_object_field(input, "priceInclusions") else {
+        return Value::Null;
+    };
+    json!({
+        "inclusiveDutiesPricingStrategy": resolved_string_field(&price_inclusions, "dutiesPricingStrategy").unwrap_or_else(|| "NOT_INCLUDED".to_string()),
+        "inclusiveTaxPricingStrategy": resolved_string_field(&price_inclusions, "taxPricingStrategy").unwrap_or_else(|| "ADD_TAXES_AT_CHECKOUT".to_string())
+    })
+}
+
+fn market_currency_settings_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(currency_settings) = resolved_object_field(input, "currencySettings") else {
+        return Value::Null;
+    };
+    let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
+        .unwrap_or_else(|| "USD".to_string());
+    json!({
+        "baseCurrency": {
+            "currencyCode": currency_code,
+            "currencyName": market_currency_name(&currency_code)
+        },
+        "localCurrencies": resolved_bool_field(&currency_settings, "localCurrencies").unwrap_or(false),
+        "roundingEnabled": resolved_bool_field(&currency_settings, "roundingEnabled").unwrap_or(false)
+    })
+}
+
+fn market_currency_name(code: &str) -> &str {
+    match code {
+        "USD" => "US Dollar",
+        "DKK" => "Danish Krone",
+        _ => code,
+    }
+}
+
+fn market_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
+    json!({
+        "__typename": "MarketUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
 fn is_ported_market_localization_document(query: &str) -> bool {
     query.contains("RustMarketLocalizationsLocalRuntime")
 }
@@ -16688,6 +17028,14 @@ fn list_string_arg(variables: &BTreeMap<String, ResolvedValue>, key: &str) -> Ve
 fn resolved_i64_field(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Option<i64> {
     match input.get(key) {
         Some(ResolvedValue::Int(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+fn resolved_number_field(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Option<f64> {
+    match input.get(key) {
+        Some(ResolvedValue::Int(value)) => Some(*value as f64),
+        Some(ResolvedValue::Float(value)) => Some(*value),
         _ => None,
     }
 }

@@ -12675,6 +12675,244 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
 }
 
 #[test]
+fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
+    // Ports old Gleam proxy tests around marketCreate validation/staging:
+    // - status/enabled mismatch and partial-input defaults
+    // - price-inclusion projection and location-condition rejection
+    // - currency settings flags/read-after-write, invalid base currency, manual FX rate
+    // - duplicate/unsupported country-region guards without staging rejected records
+    // - generated handle slugification/deduplication and explicit duplicate handle/name errors
+    let create_query = r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id name handle status enabled
+              priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy }
+              currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketCreateLocalRuntimeRead($id: ID!) {
+          market(id: $id) {
+            id name handle status enabled
+            priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy }
+            currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled }
+          }
+        }
+    "#;
+
+    let mut mismatch_proxy = snapshot_proxy();
+    for input in [
+        json!({"name": "Mismatch", "status": "DRAFT", "enabled": true, "regions": [{"countryCode": "US"}]}),
+        json!({"name": "Mismatch", "status": "ACTIVE", "enabled": false, "regions": [{"countryCode": "US"}]}),
+    ] {
+        let response = mismatch_proxy
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["marketCreate"],
+            json!({
+                "market": null,
+                "userErrors": [{"__typename": "MarketUserError", "field": ["input"], "message": "Invalid status and enabled combination.", "code": "INVALID_STATUS_AND_ENABLED_COMBINATION"}]
+            })
+        );
+    }
+
+    let mut partial_proxy = snapshot_proxy();
+    let enabled_only = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Enabled Only", "enabled": true, "regions": [{"countryCode": "US"}]}}),
+    ));
+    assert_eq!(
+        enabled_only.body["data"]["marketCreate"]["market"],
+        json!({
+            "id": "gid://shopify/Market/1",
+            "name": "Enabled Only",
+            "handle": "enabled-only",
+            "status": "ACTIVE",
+            "enabled": true,
+            "priceInclusions": null,
+            "currencySettings": null
+        })
+    );
+    let draft = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Draft", "status": "DRAFT", "enabled": false}}),
+    ));
+    assert_eq!(
+        draft.body["data"]["marketCreate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        draft.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(false)
+    );
+
+    let mut price_proxy = snapshot_proxy();
+    let price_create = price_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Pricing",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
+            "priceInclusions": {"taxPricingStrategy": "ADD_TAXES_AT_CHECKOUT", "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"}
+        }}),
+    ));
+    assert_eq!(
+        price_create.body["data"]["marketCreate"]["market"]["priceInclusions"],
+        json!({"inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE", "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"})
+    );
+    let price_read = price_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(
+        price_read.body["data"]["market"]["priceInclusions"],
+        json!({"inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE", "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"})
+    );
+
+    let location_price_error = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Location Pricing",
+            "conditions": {"locationsCondition": {"locationIds": ["gid://shopify/Location/1"]}},
+            "priceInclusions": {"taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE", "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"}
+        }}),
+    ));
+    assert_eq!(
+        location_price_error.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "priceInclusions"], "message": "Inclusive pricing cannot be added to a market with the specified condition types.", "code": "INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"}]
+        })
+    );
+
+    let mut currency_proxy = snapshot_proxy();
+    let currency_create = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Currency Flags", "status": "ACTIVE", "enabled": true, "currencySettings": {"baseCurrency": "USD", "localCurrencies": true, "roundingEnabled": true}}}),
+    ));
+    assert_eq!(
+        currency_create.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "USD", "currencyName": "US Dollar"}, "localCurrencies": true, "roundingEnabled": true})
+    );
+    let currency_read = currency_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(
+        currency_read.body["data"]["market"]["currencySettings"],
+        currency_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+
+    for input in [
+        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
+        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XAF"}}),
+    ] {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"][0],
+            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrency"], "message": "Base currency is invalid", "code": "INVALID"})
+        );
+    }
+    for input in [
+        json!({"name": "Manual Rate", "currencySettings": {"baseCurrency": "USD", "baseCurrencyManualRate": 0}}),
+        json!({"name": "Manual Rate", "currencySettings": {"baseCurrency": "USD", "baseCurrencyManualRate": -1.5}}),
+    ] {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"][0],
+            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrencyManualRate"], "message": "Enter a rate above 0.", "code": null})
+        );
+    }
+
+    let mut region_proxy = snapshot_proxy();
+    let first_ca = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Local", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        first_ca.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+    let duplicate_ca = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Duplicate", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        duplicate_ca.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "Code has already been taken", "code": "TAKEN"})
+    );
+    let unsupported = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Unsupported", "regions": [{"countryCode": "US"}, {"countryCode": "CU"}]}}),
+    ));
+    assert_eq!(
+        unsupported.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "CU is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"})
+    );
+    assert!(!region_proxy
+        .get_state_snapshot()
+        .to_string()
+        .contains("Unsupported"));
+
+    let mut handle_proxy = snapshot_proxy();
+    for (name, expected_handle) in [
+        ("Europe", "europe"),
+        ("Europe!", "europe-1"),
+        ("Europe?", "europe-2"),
+    ] {
+        let response = handle_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": name}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["handle"],
+            json!(expected_handle)
+        );
+    }
+    let slug = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "  North & South / EU!  "}}),
+    ));
+    assert_eq!(
+        slug.body["data"]["marketCreate"]["market"]["handle"],
+        json!("north-south-eu")
+    );
+
+    let mut duplicate_name_proxy = snapshot_proxy();
+    let _ = duplicate_name_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    let duplicate_name = duplicate_name_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    assert_eq!(
+        duplicate_name.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
+    );
+    let mut duplicate_handle_proxy = snapshot_proxy();
+    let _ = duplicate_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    let duplicate_handle = duplicate_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Other", "handle": "Europe"}}),
+    ));
+    assert_eq!(
+        duplicate_handle.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "handle"], "message": "Generated handle has already been taken", "code": "GENERATED_DUPLICATED_HANDLE"})
+    );
+}
+
+#[test]
 fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test
