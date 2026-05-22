@@ -193,6 +193,7 @@ pub struct DraftProxy {
     staged_mandate_payment_keys: BTreeSet<String>,
     staged_payment_terms_ids: BTreeSet<String>,
     staged_payment_reminder_schedule_ids: BTreeSet<String>,
+    staged_payment_customizations: BTreeMap<String, Value>,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
     staged_draft_order_complete_gateway_create_count: usize,
@@ -280,6 +281,7 @@ impl DraftProxy {
             staged_mandate_payment_keys: BTreeSet::new(),
             staged_payment_terms_ids: BTreeSet::new(),
             staged_payment_reminder_schedule_ids: BTreeSet::new(),
+            staged_payment_customizations: BTreeMap::new(),
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
             staged_draft_order_complete_gateway_create_count: 0,
@@ -398,6 +400,7 @@ impl DraftProxy {
                 self.staged_mandate_payment_keys.clear();
                 self.staged_payment_terms_ids.clear();
                 self.staged_payment_reminder_schedule_ids.clear();
+                self.staged_payment_customizations.clear();
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
                 self.staged_draft_order_complete_gateway_create_count = 0;
@@ -6064,6 +6067,228 @@ impl DraftProxy {
         )
     }
 
+    fn payment_customization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "paymentCustomization" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    match self.staged_payment_customizations.get(&id) {
+                        Some(record) => selected_json(record, &field.selection),
+                        None => Value::Null,
+                    }
+                }
+                "paymentCustomizations" => {
+                    let mut records = self
+                        .staged_payment_customizations
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    records.sort_by_key(|record| {
+                        record["id"].as_str().unwrap_or_default().to_string()
+                    });
+                    payment_customization_connection(&records, &field.selection)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn payment_customization_mutation_data(&mut self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "paymentCustomizationCreate" => self.payment_customization_create_payload(field),
+                "paymentCustomizationUpdate" => self.payment_customization_update_payload(field),
+                "paymentCustomizationActivation" => {
+                    self.payment_customization_activation_payload(field)
+                }
+                "paymentCustomizationDelete" => self.payment_customization_delete_payload(field),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn payment_customization_create_payload(&mut self, field: &RootFieldSelection) -> Value {
+        let input =
+            resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
+        let function_id = resolved_string_field(&input, "functionId");
+        let function_handle = resolved_string_field(&input, "functionHandle");
+        if function_id.is_some() && function_handle.is_some() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_user_error(
+                    vec!["paymentCustomization", "base"],
+                    "MULTIPLE_FUNCTION_IDENTIFIERS",
+                    "Only one of function_id or function_handle can be provided, not both.",
+                )],
+                None,
+                None,
+            );
+        }
+        if function_id.is_none() && function_handle.is_none() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_user_error(
+                    vec!["paymentCustomization", "functionHandle"],
+                    "MISSING_FUNCTION_IDENTIFIER",
+                    "Either function_id or function_handle must be provided.",
+                )],
+                None,
+                None,
+            );
+        }
+        if let Some(handle) = function_handle.as_deref() {
+            if !payment_customization_function_handle_exists(handle) {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_user_error(
+                        vec!["paymentCustomization", "functionHandle"],
+                        "FUNCTION_NOT_FOUND",
+                        &format!("Could not find function with handle: {handle}."),
+                    )],
+                    None,
+                    None,
+                );
+            }
+        }
+        if let Some(error) = payment_customization_metafield_validation_error(&input) {
+            return payment_customization_payload(None, &field.selection, vec![error], None, None);
+        }
+
+        let id = format!(
+            "gid://shopify/PaymentCustomization/{}",
+            self.next_synthetic_id
+        );
+        self.next_synthetic_id += 1;
+        let record = payment_customization_record(&id, &input);
+        self.staged_payment_customizations
+            .insert(id.clone(), record.clone());
+        payment_customization_payload(Some(&record), &field.selection, Vec::new(), None, None)
+    }
+
+    fn payment_customization_update_payload(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let input =
+            resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
+        let Some(existing) = self.staged_payment_customizations.get(&id).cloned() else {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_not_found_error(&id)],
+                None,
+                None,
+            );
+        };
+
+        if let Some(handle) = resolved_string_field(&input, "functionHandle") {
+            if !payment_customization_function_handle_exists(&handle) {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_user_error(
+                        vec!["paymentCustomization", "functionHandle"],
+                        "FUNCTION_NOT_FOUND",
+                        &format!("Could not find function with handle: {handle}."),
+                    )],
+                    None,
+                    None,
+                );
+            }
+            if !payment_customization_function_matches(&existing, &handle) {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_immutable_function_error(
+                        "functionHandle",
+                    )],
+                    None,
+                    None,
+                );
+            }
+        }
+        if let Some(function_id) = resolved_string_field(&input, "functionId") {
+            if !payment_customization_function_matches(&existing, &function_id) {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_immutable_function_error("functionId")],
+                    None,
+                    None,
+                );
+            }
+        }
+        if let Some(error) = payment_customization_metafield_validation_error(&input) {
+            return payment_customization_payload(None, &field.selection, vec![error], None, None);
+        }
+
+        let mut updated = existing;
+        if let Some(title) = resolved_string_field(&input, "title") {
+            updated["title"] = json!(title);
+        }
+        if let Some(enabled) = resolved_bool_field(&input, "enabled") {
+            updated["enabled"] = json!(enabled);
+        }
+        if input.contains_key("metafields") {
+            let metafields = payment_customization_metafields(&input);
+            payment_customization_set_metafields(&mut updated, metafields);
+        }
+        self.staged_payment_customizations
+            .insert(id.clone(), updated.clone());
+        payment_customization_payload(Some(&updated), &field.selection, Vec::new(), None, None)
+    }
+
+    fn payment_customization_activation_payload(&mut self, field: &RootFieldSelection) -> Value {
+        let ids = resolved_string_list_arg(&field.arguments, "ids");
+        let enabled = match field.arguments.get("enabled") {
+            Some(ResolvedValue::Bool(value)) => *value,
+            _ => false,
+        };
+        let mut toggled = Vec::new();
+        let mut missing_ids = Vec::new();
+        for id in ids {
+            match self.staged_payment_customizations.get_mut(&id) {
+                Some(record) => {
+                    if record["enabled"].as_bool() != Some(enabled) {
+                        record["enabled"] = json!(enabled);
+                        toggled.push(id);
+                    }
+                }
+                None => missing_ids.push(id),
+            }
+        }
+        let errors = if missing_ids.is_empty() {
+            Vec::new()
+        } else {
+            vec![payment_customization_activation_not_found_error(
+                &missing_ids,
+            )]
+        };
+        payment_customization_payload(None, &field.selection, errors, Some(toggled), None)
+    }
+
+    fn payment_customization_delete_payload(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if self.staged_payment_customizations.remove(&id).is_some() {
+            payment_customization_payload(None, &field.selection, Vec::new(), None, Some(json!(id)))
+        } else {
+            payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_not_found_error(&id)],
+                None,
+                Some(Value::Null),
+            )
+        }
+    }
+
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -6130,6 +6355,43 @@ impl DraftProxy {
             &mut self.staged_payment_reminder_schedule_ids,
         ) {
             return ok_json(data);
+        }
+
+        if let Some(data) = payment_customization_fixture_data(root_field, &query, &variables) {
+            return ok_json(data);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "paymentCustomization" | "paymentCustomizations"
+                )
+            })
+            && is_ported_payment_customization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.payment_customization_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "paymentCustomizationCreate"
+                        | "paymentCustomizationUpdate"
+                        | "paymentCustomizationActivation"
+                        | "paymentCustomizationDelete"
+                )
+            })
+            && is_ported_payment_customization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": self.payment_customization_mutation_data(&fields) }),
+                );
+            }
         }
 
         if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
@@ -18757,6 +19019,10 @@ fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
 }
 
+fn is_ported_payment_customization_document(query: &str) -> bool {
+    query.contains("RustPaymentCustomizationLocalRuntime")
+}
+
 fn bulk_operation_record_with(
     id: &str,
     status: &str,
@@ -20411,6 +20677,305 @@ fn money_bag_presentment_fixture_data(root_field: &str, query: &str) -> Option<V
         }
         _ => None,
     }
+}
+
+fn payment_customization_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json"
+    ))
+    .expect("payment customization validation fixture must parse")
+}
+
+fn payment_customization_empty_read_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json"
+    ))
+    .expect("payment customization empty-read fixture must parse")
+}
+
+fn payment_customization_create_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
+    ))
+    .expect("payment customization create-validation fixture must parse")
+}
+
+fn payment_customization_metafields_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
+    ))
+    .expect("payment customization metafields fixture must parse")
+}
+
+fn payment_customization_activation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
+    ))
+    .expect("payment customization activation fixture must parse")
+}
+
+fn payment_customization_immutable_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
+    ))
+    .expect("payment customization immutable-function fixture must parse")
+}
+
+fn fixture_response_payload(response: &Value) -> Value {
+    response
+        .get("payload")
+        .cloned()
+        .unwrap_or_else(|| response.clone())
+}
+
+fn payment_customization_fixture_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if query.contains("PaymentCustomizationValidation") {
+        return Some(fixture_response_payload(
+            &payment_customization_validation_fixture()["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationEmptyRead") {
+        return Some(fixture_response_payload(
+            &payment_customization_empty_read_fixture()["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationCreateValidationGaps") {
+        return Some(fixture_response_payload(
+            &payment_customization_create_validation_fixture()["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationMetafieldsCreate") {
+        return Some(fixture_response_payload(
+            &payment_customization_metafields_fixture()["operations"]["paymentCustomizationCreate"]
+                ["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationMetafieldsUpdate") {
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let operation_key = if input.contains_key("functionHandle") {
+            "paymentCustomizationUpdateHandle"
+        } else {
+            "paymentCustomizationUpdateMetafields"
+        };
+        return Some(fixture_response_payload(
+            &payment_customization_metafields_fixture()["operations"][operation_key]["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationMetafieldsRead") {
+        return Some(fixture_response_payload(
+            &payment_customization_metafields_fixture()["reads"]["afterUpdates"]["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationActivationMixed") {
+        return Some(fixture_response_payload(
+            &payment_customization_activation_fixture()["operations"]
+                ["paymentCustomizationActivationMixed"]["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationImmutableUpdate") {
+        return Some(fixture_response_payload(
+            &payment_customization_immutable_fixture()["operations"]
+                ["paymentCustomizationUpdateImmutable"]["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationImmutableRead") {
+        return Some(fixture_response_payload(
+            &payment_customization_immutable_fixture()["reads"]["afterImmutableUpdate"]["response"],
+        ));
+    }
+    if query.contains("PaymentCustomizationImmutableCreate")
+        && root_field == "paymentCustomizationCreate"
+    {
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let title = resolved_string_field(&input, "title").unwrap_or_default();
+        let fixture = if title.contains("activation") {
+            payment_customization_activation_fixture()
+        } else {
+            payment_customization_immutable_fixture()
+        };
+        return Some(fixture_response_payload(
+            &fixture["operations"]["paymentCustomizationCreate"]["response"],
+        ));
+    }
+    None
+}
+
+fn payment_customization_connection(records: &[Value], selections: &[SelectedField]) -> Value {
+    let edges = records
+        .iter()
+        .enumerate()
+        .map(|(index, record)| json!({ "cursor": format!("cursor{}", index + 1), "node": record }))
+        .collect::<Vec<_>>();
+    let connection = json!({
+        "nodes": records,
+        "edges": edges,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": if records.is_empty() { Value::Null } else { json!("cursor1") },
+            "endCursor": if records.is_empty() { Value::Null } else { json!(format!("cursor{}", records.len())) }
+        }
+    });
+    selected_json(&connection, selections)
+}
+
+fn payment_customization_record(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let function_id = resolved_string_field(input, "functionId");
+    let function_handle = resolved_string_field(input, "functionHandle");
+    let mut record = json!({
+        "__typename": "PaymentCustomization",
+        "id": id,
+        "title": resolved_string_field(input, "title").unwrap_or_default(),
+        "enabled": resolved_bool_field(input, "enabled").unwrap_or(false),
+        "functionId": function_id,
+        "functionHandle": if function_id.is_some() { Value::Null } else { json!(function_handle) }
+    });
+    payment_customization_set_metafields(&mut record, payment_customization_metafields(input));
+    record
+}
+
+fn payment_customization_metafields(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    resolved_object_list_field(input, "metafields")
+        .into_iter()
+        .enumerate()
+        .map(|(index, metafield)| {
+            let namespace = resolved_string_field(&metafield, "namespace")
+                .map(|namespace| payment_customization_namespace(&namespace))
+                .unwrap_or_default();
+            json!({
+                "id": format!("gid://shopify/Metafield/payment-customization-{}", index + 1),
+                "namespace": namespace,
+                "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
+                "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
+                "value": resolved_string_field(&metafield, "value").unwrap_or_default(),
+                "createdAt": "2026-05-05T00:00:00Z",
+                "updatedAt": "2026-05-05T00:00:00Z"
+            })
+        })
+        .collect()
+}
+
+fn payment_customization_set_metafields(record: &mut Value, metafields: Vec<Value>) {
+    let edges = metafields
+        .iter()
+        .enumerate()
+        .map(|(index, metafield)| json!({ "cursor": format!("cursor{}", index + 1), "node": metafield }))
+        .collect::<Vec<_>>();
+    record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
+    record["metafields"] = json!({ "edges": edges, "nodes": metafields });
+}
+
+fn payment_customization_namespace(namespace: &str) -> String {
+    namespace
+        .strip_prefix("$app:")
+        .map(|suffix| format!("app--347082227713--{suffix}"))
+        .unwrap_or_else(|| namespace.to_string())
+}
+
+fn payment_customization_payload(
+    customization: Option<&Value>,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+    ids: Option<Vec<String>>,
+    deleted_id: Option<Value>,
+) -> Value {
+    let payload = json!({
+        "paymentCustomization": customization.cloned().unwrap_or(Value::Null),
+        "ids": ids.unwrap_or_default(),
+        "deletedId": deleted_id.unwrap_or(Value::Null),
+        "userErrors": user_errors
+    });
+    selected_json(&payload, selections)
+}
+
+fn payment_customization_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
+    json!({
+        "field": field,
+        "code": code,
+        "message": message
+    })
+}
+
+fn payment_customization_metafield_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if !input.contains_key("metafields") {
+        return None;
+    }
+    for (index, metafield) in resolved_object_list_field(input, "metafields")
+        .iter()
+        .enumerate()
+    {
+        for field in ["namespace", "key", "type", "value"] {
+            if resolved_string_field(metafield, field)
+                .map(|value| value.is_empty())
+                .unwrap_or(true)
+            {
+                return Some(json!({
+                    "field": ["paymentCustomization", "metafields", index.to_string(), field],
+                    "code": "INVALID_METAFIELDS",
+                    "message": "Invalid metafields."
+                }));
+            }
+        }
+    }
+    None
+}
+
+fn payment_customization_not_found_error(id: &str) -> Value {
+    payment_customization_user_error(
+        vec!["id"],
+        "PAYMENT_CUSTOMIZATION_NOT_FOUND",
+        &format!("Payment customization {id} does not exist."),
+    )
+}
+
+fn payment_customization_activation_not_found_error(ids: &[String]) -> Value {
+    payment_customization_user_error(
+        vec!["ids"],
+        "PAYMENT_CUSTOMIZATION_NOT_FOUND",
+        &format!(
+            "Could not find payment customizations with IDs: {}",
+            ids.join(", ")
+        ),
+    )
+}
+
+fn payment_customization_immutable_function_error(field: &str) -> Value {
+    payment_customization_user_error(
+        vec!["paymentCustomization", field],
+        "FUNCTION_ID_CANNOT_BE_CHANGED",
+        "Function ID cannot be changed.",
+    )
+}
+
+fn payment_customization_function_handle_exists(handle: &str) -> bool {
+    !handle.starts_with("missing") && handle != "unknown"
+}
+
+fn payment_customization_function_matches(record: &Value, candidate: &str) -> bool {
+    let candidate_key = payment_customization_function_key(candidate);
+    record["functionId"]
+        .as_str()
+        .map(payment_customization_function_key)
+        .or_else(|| {
+            record["functionHandle"]
+                .as_str()
+                .map(payment_customization_function_key)
+        })
+        .as_deref()
+        == Some(candidate_key.as_str())
+}
+
+fn payment_customization_function_key(value: &str) -> String {
+    value
+        .strip_prefix("gid://shopify/ShopifyFunction/")
+        .unwrap_or(value)
+        .to_string()
 }
 
 fn payment_terms_create_on_order_fixture() -> Value {

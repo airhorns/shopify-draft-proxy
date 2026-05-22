@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 124,
-      "needs_manual_review": 401,
+      "needs_manual_review": 389,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1633
+      "represented_by_rust_root_tests": 1645
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -281,7 +281,7 @@
         "test_count": 106
       }
     ],
-    "generated_at_utc": "2026-05-22T20:26:35Z",
+    "generated_at_utc": "2026-05-22T22:57:56Z",
     "gleam_main_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-gleam-main",
     "kind_counts": {
       "domain_processor_behavior": 275,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback. Payment customization create/update/activation/readback helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers and tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths, including missing/empty/invalid metafields, function identifier validation, enabled toggles with ids-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream paymentCustomization readback.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
-      "implementation_unit_replaced_needs_review": 153,
-      "needs_manual_review": 449,
+      "implementation_unit_replaced_needs_review": 124,
+      "needs_manual_review": 389,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1556
+      "represented_by_rust_root_tests": 1645
     },
     "test_count": 2162
   },
@@ -37061,8 +37061,12 @@
     },
     {
       "body_sha1": "97fcbb619909d7a251d93f8f1c87a5975fa6277b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1037,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37072,12 +37076,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "aa006c7230d6c53707f961d7a1e222b8c577fcea",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1050,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37087,12 +37099,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "d506b0842a3c4f586cc661d2443e2c75e556e326",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1069,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37102,12 +37122,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "d335afb29db5431954d0fc93cba28b0cd9d752b2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1088,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37117,12 +37145,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "342bf973771a75916dfbcacf607a095a85fd6b10",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1101,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37132,12 +37168,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "9e7dd726e484aff02ea8773f62fe0d3e23bfd306",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1117,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37147,12 +37191,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "d80666ba75f2de5ec097757824acf629d3c855a5",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1154,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37162,12 +37214,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "7f26f9720c913f427ec8670e846b7b69fa1510b1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1178,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37177,12 +37237,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "a8db52e03eef22d38948e368dfb5a57e515f089b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1224,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37192,12 +37260,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "2439d7e6d4f515b0be3bfafefb73fd6ea41ccc6d",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1248,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37207,12 +37283,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "96216457b68a2db040afab5734ff7495148394f7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1267,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37222,12 +37306,20 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "1c6b0bfec97d0cc3bf2aa24a2a3208f7e7e99c07",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_payment_customization_local_runtime",
+        "old_gleam_payment_customization_helper_ports"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 1303,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37237,7 +37329,11 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true,
+      "rust_tests": [
+        "tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers",
+        "tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths"
+      ]
     },
     {
       "body_sha1": "c30d979f412a014e1d9870e213507ff21ab072e0",

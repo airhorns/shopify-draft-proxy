@@ -550,6 +550,457 @@ fn payment_reminder_error(message: &str) -> Value {
 }
 
 #[test]
+fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    let missing_metafields = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing metafields", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_metafields.status, 200);
+    let missing_metafields_payload = &missing_metafields.body["data"]["paymentCustomizationCreate"];
+    assert_eq!(missing_metafields_payload["userErrors"], json!([]));
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["id"],
+        json!("gid://shopify/PaymentCustomization/1")
+    );
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["metafields"]["edges"],
+        json!([])
+    );
+
+    let both_identifiers = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Both identifiers", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "functionHandle": "payment-a", "metafields": [] } }),
+    ));
+    assert_eq!(both_identifiers.status, 200);
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+    );
+
+    let missing_identifier = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing identifier", "enabled": true, "metafields": [] } }),
+    ));
+    assert_eq!(missing_identifier.status, 200);
+    assert_eq!(
+        missing_identifier.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MISSING_FUNCTION_IDENTIFIER")
+    );
+
+    let invalid_metafield = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Invalid metafield", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "metafields": [{ "namespace": "$app:foo", "key": "bar", "value": "baz" }] } }),
+    ));
+    assert_eq!(invalid_metafield.status, 200);
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "type"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let before = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Before",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "baz" }]
+            }
+        }),
+    ));
+    assert_eq!(before.status, 200);
+    let customization_id = before.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(customization_id, "gid://shopify/PaymentCustomization/2");
+    assert_eq!(
+        before.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["metafields"]
+            ["edges"][0]["node"],
+        json!({
+            "namespace": "app--347082227713--foo",
+            "key": "bar",
+            "type": "single_line_text_field",
+            "value": "baz"
+        })
+    );
+
+    let update_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($id: ID!, $input: PaymentCustomizationInput!) {
+        paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let rejected_function_change = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "functionId": "gid://shopify/ShopifyFunction/payment-b" } }),
+    ));
+    assert_eq!(rejected_function_change.status, 200);
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["userErrors"][0]
+            ["code"],
+        json!("FUNCTION_ID_CANNOT_BE_CHANGED")
+    );
+
+    let read_query = r#"
+      query RustPaymentCustomizationLocalRuntime($id: ID!) {
+        paymentCustomization(id: $id) {
+          id
+          title
+          enabled
+          functionId
+          functionHandle
+          metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+          metafields(first: 5) { edges { node { namespace key type value } } }
+        }
+      }
+    "#;
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_update.status, 200);
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["title"],
+        json!("Before")
+    );
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/payment-a")
+    );
+
+    let rejected_metafield_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "metafields": [{ "key": "bar", "type": "single_line_text_field", "value": "qux" }] } }),
+    ));
+    assert_eq!(rejected_metafield_update.status, 200);
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "namespace"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let accepted_equivalent_handle = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": "After",
+                "functionHandle": "payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "qux" }]
+            }
+        }),
+    ));
+    assert_eq!(accepted_equivalent_handle.status, 200);
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["title"],
+        json!("After")
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["functionHandle"],
+        Value::Null
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["metafield"]["value"],
+        json!("qux")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Payment customization 3", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-c", "metafields": [] } }),
+    ));
+    let second_id = second.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let activation_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($ids: [ID!]!, $enabled: Boolean!) {
+        paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+          ids
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": [customization_id, second_id, "gid://shopify/PaymentCustomization/999"], "enabled": false }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["ids"],
+        json!([
+            "gid://shopify/PaymentCustomization/2",
+            "gid://shopify/PaymentCustomization/3"
+        ])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["code"],
+        json!("PAYMENT_CUSTOMIZATION_NOT_FOUND")
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["field"],
+        json!(["ids"])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["message"],
+        json!("Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999")
+    );
+
+    let repeated_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "enabled": false }),
+    ));
+    assert_eq!(repeated_activation.status, 200);
+    assert_eq!(
+        repeated_activation.body["data"]["paymentCustomizationActivation"],
+        json!({ "ids": [], "userErrors": [] })
+    );
+
+    let all_invalid_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/999"], "enabled": true }),
+    ));
+    assert_eq!(all_invalid_activation.status, 200);
+    assert_eq!(
+        all_invalid_activation.body["data"]["paymentCustomizationActivation"],
+        json!({
+            "ids": [],
+            "userErrors": [{
+                "field": ["ids"],
+                "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND",
+                "message": "Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999"
+            }]
+        })
+    );
+}
+
+#[test]
+fn payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths(
+) {
+    let validation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json"
+    ))
+    .unwrap();
+    let create_validation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
+    ))
+    .unwrap();
+    let empty_read_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json"
+    ))
+    .unwrap();
+    let metafields_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
+    ))
+    .unwrap();
+    let activation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
+    ))
+    .unwrap();
+    let immutable_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let validation = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-customization-validation.graphql"),
+        validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(validation.status, 200);
+    assert_eq!(validation.body, validation_fixture["response"]["payload"]);
+
+    let create_validation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-create-validation-gaps.graphql"
+        ),
+        create_validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(create_validation.status, 200);
+    assert_eq!(
+        create_validation.body,
+        create_validation_fixture["response"]["payload"]
+    );
+
+    let empty_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-customization-empty-read.graphql"),
+        empty_read_fixture["variables"].clone(),
+    ));
+    assert_eq!(empty_read.status, 200);
+    assert_eq!(empty_read.body, empty_read_fixture["response"]);
+
+    let metafields_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-create.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_create.status, 200);
+    assert_eq!(
+        metafields_create.body,
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let metafields_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(metafields_update.status, 200);
+    assert_eq!(
+        metafields_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["response"]
+    );
+
+    let handle_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["variables"].clone(),
+    ));
+    assert_eq!(handle_update.status, 200);
+    assert_eq!(
+        handle_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["response"]
+    );
+
+    let metafields_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-read.graphql"
+        ),
+        metafields_fixture["reads"]["afterUpdates"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_read.status, 200);
+    assert_eq!(
+        metafields_read.body,
+        metafields_fixture["reads"]["afterUpdates"]["response"]
+    );
+
+    let activation_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(activation_create.status, 200);
+    assert_eq!(
+        activation_create.body,
+        activation_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-activation-mixed.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body,
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["response"]
+    );
+
+    let immutable_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_create.status, 200);
+    assert_eq!(
+        immutable_create.body,
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let immutable_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-update.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_update.status, 200);
+    assert_eq!(
+        immutable_update.body,
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["response"]
+    );
+
+    let immutable_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-read.graphql"
+        ),
+        immutable_fixture["reads"]["afterImmutableUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_read.status, 200);
+    assert_eq!(
+        immutable_read.body,
+        immutable_fixture["reads"]["afterImmutableUpdate"]["response"]
+    );
+}
+
+#[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
