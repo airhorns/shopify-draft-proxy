@@ -12701,6 +12701,339 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
 }
 
 #[test]
+fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
+    // root URL construction for subfolder/domain routing, Shopify locale normalization,
+    // aggregate locale errors, subfolder validation ordering, create/update readback,
+    // unknown-domain create guards, and taken-suffix/no-op update behavior.
+    let create_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+          webPresenceUpdate(id: $id, input: $input) {
+            webPresence {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketWebPresenceHelperLocalRuntimeRead {
+          webPresences(first: 10) {
+            nodes {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+          }
+        }
+    "#;
+
+    let mut proxy = snapshot_proxy();
+    let subfolder = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
+    ));
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        Value::Null
+    );
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://acme.myshopify.com/intl/"},
+            {"locale": "fr", "url": "https://acme.myshopify.com/intl/fr/"},
+            {"locale": "de", "url": "https://acme.myshopify.com/intl/de/"}
+        ])
+    );
+
+    let domain = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/1000"}}),
+    ));
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        json!({"id": "gid://shopify/Domain/1000", "host": "acme.myshopify.com", "url": "https://acme.myshopify.com", "sslEnabled": true})
+    );
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://acme.myshopify.com/"},
+            {"locale": "fr", "url": "https://acme.myshopify.com/fr/"}
+        ])
+    );
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["subfolderSuffix"],
+        Value::Null
+    );
+
+    let mut locale_proxy = snapshot_proxy();
+    let normalized = locale_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "EN-us", "alternateLocales": ["ZH-hant-tw", "pt-br"], "subfolderSuffix": "us"}}),
+    ));
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "en-US", "primary": true})
+    );
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([
+            {"locale": "zh-Hant-TW", "primary": false},
+            {"locale": "pt-BR", "primary": false}
+        ])
+    );
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en-US", "url": "https://acme.myshopify.com/us/"},
+            {"locale": "zh-Hant-TW", "url": "https://acme.myshopify.com/us/zh-Hant-TW/"},
+            {"locale": "pt-BR", "url": "https://acme.myshopify.com/us/pt-BR/"}
+        ])
+    );
+
+    let invalid_locales = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "fr-CA", "alternateLocales": ["fr", "zz", "pt-BR", "yy"], "subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        invalid_locales.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_locales.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "alternateLocales"], "message": "Invalid locale codes: zz, and yy", "code": "INVALID"}])
+    );
+
+    let validation_cases = [
+        (
+            json!({"defaultLocale": "en", "domainId": "gid://shopify/Domain/1000", "subfolderSuffix": "fr"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Cannot have both a subfolder suffix and a domain.", "code": "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN" }]),
+        ),
+        (
+            json!({"defaultLocale": "en"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Requires a domain or subfolder suffix.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "x"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "Latn"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix cannot be a script code", "code": "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "us2"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "1"}),
+            json!([
+                { "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS" },
+                { "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }
+            ]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "Latn1"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "domainId": "gid://shopify/Domain/9999"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "domainId"], "message": "Domain does not exist", "code": "DOMAIN_NOT_FOUND" }]),
+        ),
+    ];
+    for (input, expected_errors) in validation_cases {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["webPresenceCreate"]["webPresence"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceCreate"]["userErrors"],
+            expected_errors
+        );
+    }
+
+    let mut duplicate_proxy = snapshot_proxy();
+    let deduped = duplicate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "fr"], "subfolderSuffix": "dup"}}),
+    ));
+    assert_eq!(
+        deduped.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "fr", "primary": false }])
+    );
+    let taken = duplicate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "dup"}}),
+    ));
+    assert_eq!(
+        taken.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        taken.body["data"]["webPresenceCreate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    let deduped_read = duplicate_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        deduped_read.body["data"]["webPresences"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let mut update_proxy = snapshot_proxy();
+    let create = update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["es"], "subfolderSuffix": "intl"}}),
+    ));
+    let id = create.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update_default = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"defaultLocale": "fr"}}),
+    ));
+    assert_eq!(
+        update_default.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "fr", "primary": true})
+    );
+    assert_eq!(
+        update_default.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "es", "primary": false }])
+    );
+    let update_alternates = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"alternateLocales": ["de"]}}),
+    ));
+    assert_eq!(
+        update_alternates.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "fr", "primary": true})
+    );
+    assert_eq!(
+        update_alternates.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "de", "primary": false }])
+    );
+    let empty_noop = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {}}),
+    ));
+    assert_eq!(
+        empty_noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
+        json!("intl")
+    );
+    let ignored_domain = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"domainId": "gid://shopify/Domain/9999"}}),
+    ));
+    assert_eq!(
+        ignored_domain.body["data"]["webPresenceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        ignored_domain.body["data"]["webPresenceUpdate"]["webPresence"]["id"],
+        json!(id)
+    );
+
+    for (input, expected) in [
+        (
+            json!({"defaultLocale": ""}),
+            json!({"field": ["input", "defaultLocale"], "message": "Default locale can't be blank", "code": "CANNOT_SET_DEFAULT_LOCALE_TO_NULL"}),
+        ),
+        (
+            json!({"defaultLocale": "bogus"}),
+            json!({"field": ["input", "defaultLocale"], "message": "Invalid locale codes: bogus", "code": "INVALID"}),
+        ),
+        (
+            json!({"subfolderSuffix": "en1"}),
+            json!({"field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"}),
+        ),
+    ] {
+        let response = update_proxy.process_request(json_graphql_request(
+            update_query,
+            json!({"id": id, "input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["webPresence"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["field"],
+            expected["field"]
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["message"],
+            expected["message"]
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["code"],
+            expected["code"]
+        );
+    }
+
+    let mut taken_update_proxy = snapshot_proxy();
+    let first = taken_update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "fr"}}),
+    ));
+    let first_id = first.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _second = taken_update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "de"}}),
+    ));
+    let conflict = taken_update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_id, "input": {"subfolderSuffix": "de"}}),
+    ));
+    assert_eq!(
+        conflict.body["data"]["webPresenceUpdate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        conflict.body["data"]["webPresenceUpdate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    let noop = taken_update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_id, "input": {"subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
+        json!("fr")
+    );
+}
+
+#[test]
 fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
     // Ports old Gleam proxy tests around marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults

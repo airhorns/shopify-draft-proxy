@@ -167,6 +167,7 @@ pub struct DraftProxy {
     staged_markets: BTreeMap<String, Value>,
     staged_catalogs: BTreeMap<String, Value>,
     staged_price_lists: BTreeMap<String, Value>,
+    staged_web_presences: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
@@ -251,6 +252,7 @@ impl DraftProxy {
             staged_markets: BTreeMap::new(),
             staged_catalogs: BTreeMap::new(),
             staged_price_lists: BTreeMap::new(),
+            staged_web_presences: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
@@ -369,6 +371,7 @@ impl DraftProxy {
                 self.staged_markets.clear();
                 self.staged_catalogs.clear();
                 self.staged_price_lists.clear();
+                self.staged_web_presences.clear();
                 self.staged_localization_translations.clear();
                 self.staged_marketing_activities.clear();
                 self.staged_deleted_marketing_activity_ids.clear();
@@ -2077,6 +2080,132 @@ impl DraftProxy {
             &json!({"deletedId": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]}),
             &field.selection,
         )
+    }
+
+    fn web_presence_helper_query(&self, query: &str) -> Response {
+        let fields = root_fields(query, &BTreeMap::new()).unwrap_or_default();
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "webPresences" {
+                let nodes = self
+                    .staged_web_presences
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let connection = json!({
+                    "nodes": nodes,
+                    "edges": [],
+                    "pageInfo": empty_page_info()
+                });
+                data.insert(
+                    field.response_key,
+                    selected_json(&connection, &field.selection),
+                );
+            }
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn web_presence_helper_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let payload = match root_field {
+            "webPresenceCreate" => {
+                let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+                self.web_presence_helper_create_payload(&input, request, query, variables)
+            }
+            "webPresenceUpdate" => {
+                let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+                self.web_presence_helper_update_payload(&id, &input, request, query, variables)
+            }
+            "webPresenceDelete" => {
+                let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                let deleted_id = if self.staged_web_presences.remove(&id).is_some() {
+                    json!(id)
+                } else {
+                    Value::Null
+                };
+                json!({"deletedId": deleted_id, "userErrors": []})
+            }
+            _ => Value::Null,
+        };
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn web_presence_helper_create_payload(
+        &mut self,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut errors = Vec::new();
+        let mut draft = web_presence_draft_from_input(input, None, &mut errors, true);
+        web_presence_validate_routing_and_uniqueness(
+            &draft,
+            input,
+            &self.staged_web_presences,
+            None,
+            true,
+            &mut errors,
+        );
+        if !errors.is_empty() {
+            return json!({"webPresence": null, "userErrors": errors});
+        }
+        let id = format!(
+            "gid://shopify/MarketWebPresence/{}",
+            self.staged_web_presences.len() + 1
+        );
+        draft.id = id.clone();
+        let record = market_web_presence_helper_record(&draft);
+        self.staged_web_presences.insert(id.clone(), record.clone());
+        self.record_mutation_log_entry(request, query, variables, "webPresenceCreate", vec![id]);
+        json!({"webPresence": record, "userErrors": []})
+    }
+
+    fn web_presence_helper_update_payload(
+        &mut self,
+        id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let Some(existing) = self.staged_web_presences.get(id).cloned() else {
+            return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
+        };
+        let mut errors = Vec::new();
+        let draft = web_presence_draft_from_input(input, Some(&existing), &mut errors, false);
+        web_presence_validate_routing_and_uniqueness(
+            &draft,
+            input,
+            &self.staged_web_presences,
+            Some(id),
+            false,
+            &mut errors,
+        );
+        if !errors.is_empty() {
+            return json!({"webPresence": null, "userErrors": errors});
+        }
+        let record = market_web_presence_helper_record(&draft);
+        self.staged_web_presences
+            .insert(id.to_string(), record.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "webPresenceUpdate",
+            vec![id.to_string()],
+        );
+        json!({"webPresence": record, "userErrors": []})
     }
 
     fn next_price_list_id(&self) -> String {
@@ -6344,6 +6473,23 @@ impl DraftProxy {
             && is_quantity_rules_document(root_field, &query)
         {
             return quantity_rules_mutation_response(root_field, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
+            )
+            && is_market_web_presence_helper_document(&query)
+        {
+            return self.web_presence_helper_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "webPresences"
+            && is_market_web_presence_helper_document(&query)
+        {
+            return self.web_presence_helper_query(&query);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -18336,6 +18482,307 @@ fn quantity_rules_add_validation_errors(
         }
     }
     (!errors.is_empty()).then_some(errors)
+}
+
+#[derive(Clone)]
+struct WebPresenceDraft {
+    id: String,
+    default_locale: String,
+    alternate_locales: Vec<String>,
+    subfolder_suffix: Option<String>,
+    domain_id: Option<String>,
+}
+
+fn is_market_web_presence_helper_document(query: &str) -> bool {
+    query.contains("RustMarketWebPresenceHelperLocalRuntime")
+}
+
+fn web_presence_draft_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    errors: &mut Vec<Value>,
+    is_create: bool,
+) -> WebPresenceDraft {
+    let mut draft = existing
+        .map(web_presence_draft_from_record)
+        .unwrap_or_else(|| WebPresenceDraft {
+            id: String::new(),
+            default_locale: "en".to_string(),
+            alternate_locales: Vec::new(),
+            subfolder_suffix: None,
+            domain_id: None,
+        });
+
+    if is_create || input.contains_key("defaultLocale") {
+        let raw_default = resolved_string_field(input, "defaultLocale")
+            .unwrap_or_else(|| draft.default_locale.clone());
+        if raw_default.is_empty() {
+            errors.push(market_user_error(
+                vec!["input", "defaultLocale"],
+                "Default locale can't be blank",
+                json!("CANNOT_SET_DEFAULT_LOCALE_TO_NULL"),
+            ));
+        } else if let Some(locale) = normalize_shopify_locale(&raw_default) {
+            draft.default_locale = locale;
+        } else {
+            errors.push(market_user_error(
+                vec!["input", "defaultLocale"],
+                &invalid_locale_message(&[raw_default]),
+                json!("INVALID"),
+            ));
+        }
+    }
+
+    if is_create || input.contains_key("alternateLocales") {
+        let raw_alternate_locales = list_string_field(input, "alternateLocales");
+        let mut normalized_alternate_locales = Vec::new();
+        let mut invalid_locales = Vec::new();
+        for raw_locale in raw_alternate_locales {
+            if let Some(locale) = normalize_shopify_locale(&raw_locale) {
+                if !normalized_alternate_locales.contains(&locale) {
+                    normalized_alternate_locales.push(locale);
+                }
+            } else {
+                invalid_locales.push(raw_locale);
+            }
+        }
+        if invalid_locales.is_empty() {
+            draft.alternate_locales = normalized_alternate_locales;
+        } else {
+            errors.push(market_user_error(
+                vec!["input", "alternateLocales"],
+                &invalid_locale_message(&invalid_locales),
+                json!("INVALID"),
+            ));
+        }
+    }
+
+    if is_create || input.contains_key("subfolderSuffix") {
+        draft.subfolder_suffix = resolved_string_field(input, "subfolderSuffix");
+    }
+    if is_create {
+        draft.domain_id = resolved_string_field(input, "domainId");
+    }
+
+    draft
+}
+
+fn web_presence_draft_from_record(record: &Value) -> WebPresenceDraft {
+    WebPresenceDraft {
+        id: record["id"].as_str().unwrap_or_default().to_string(),
+        default_locale: record["defaultLocale"]["locale"]
+            .as_str()
+            .unwrap_or("en")
+            .to_string(),
+        alternate_locales: record["alternateLocales"]
+            .as_array()
+            .map(|locales| {
+                locales
+                    .iter()
+                    .filter_map(|locale| locale["locale"].as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        subfolder_suffix: record["subfolderSuffix"].as_str().map(str::to_string),
+        domain_id: record["domain"]["id"].as_str().map(str::to_string),
+    }
+}
+
+fn web_presence_validate_routing_and_uniqueness(
+    draft: &WebPresenceDraft,
+    input: &BTreeMap<String, ResolvedValue>,
+    existing_records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
+    is_create: bool,
+    errors: &mut Vec<Value>,
+) {
+    let has_domain = draft.domain_id.is_some();
+    let has_subfolder = draft.subfolder_suffix.is_some();
+    if (is_create || input.contains_key("domainId") || input.contains_key("subfolderSuffix"))
+        && has_domain
+        && has_subfolder
+    {
+        errors.push(market_user_error(
+            vec!["input"],
+            "Cannot have both a subfolder suffix and a domain.",
+            json!("CANNOT_HAVE_SUBFOLDER_AND_DOMAIN"),
+        ));
+    }
+    if is_create && !has_domain && !has_subfolder {
+        errors.push(market_user_error(
+            vec!["input"],
+            "Requires a domain or subfolder suffix.",
+            json!("REQUIRES_DOMAIN_OR_SUBFOLDER"),
+        ));
+    }
+    if is_create
+        && draft.domain_id.as_deref().is_some()
+        && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000")
+    {
+        errors.push(market_user_error(
+            vec!["input", "domainId"],
+            "Domain does not exist",
+            json!("DOMAIN_NOT_FOUND"),
+        ));
+    }
+    if let Some(suffix) = draft.subfolder_suffix.as_deref() {
+        if is_create || input.contains_key("subfolderSuffix") {
+            errors.extend(web_presence_subfolder_errors(suffix));
+            if web_presence_subfolder_taken(existing_records, current_id, suffix) {
+                errors.push(market_user_error(
+                    vec!["input", "subfolderSuffix"],
+                    "Subfolder suffix has already been taken",
+                    json!("TAKEN"),
+                ));
+            }
+        }
+    }
+    if draft
+        .alternate_locales
+        .iter()
+        .any(|locale| locale == &draft.default_locale)
+    {
+        if is_create || input.contains_key("defaultLocale") {
+            errors.push(market_user_error(
+                vec!["input", "defaultLocale"],
+                &format!(
+                    "Default locale The alternate languages already include {}.",
+                    draft.default_locale
+                ),
+                json!("DUPLICATE_LANGUAGES"),
+            ));
+        }
+        if input.contains_key("alternateLocales") {
+            errors.push(market_user_error(
+                vec!["input", "alternateLocales"],
+                &format!(
+                    "Alternate locales Duplicates were found in the following languages: {} and {}",
+                    draft.default_locale, draft.default_locale
+                ),
+                json!("DUPLICATE_LANGUAGES"),
+            ));
+        }
+    }
+}
+
+fn web_presence_subfolder_errors(suffix: &str) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if suffix.len() < 2 {
+        errors.push(market_user_error(
+            vec!["input", "subfolderSuffix"],
+            "Subfolder suffix must be at least 2 letters",
+            json!("SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS"),
+        ));
+    }
+    if suffix == "Latn" {
+        errors.push(market_user_error(
+            vec!["input", "subfolderSuffix"],
+            "Subfolder suffix cannot be a script code",
+            json!("SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE"),
+        ));
+    } else if !suffix.chars().all(char::is_alphabetic) {
+        errors.push(market_user_error(
+            vec!["input", "subfolderSuffix"],
+            "Subfolder suffix must contain only letters",
+            json!("SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"),
+        ));
+    }
+    errors
+}
+
+fn web_presence_subfolder_taken(
+    existing_records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
+    suffix: &str,
+) -> bool {
+    existing_records.iter().any(|(id, record)| {
+        current_id != Some(id.as_str()) && record["subfolderSuffix"].as_str() == Some(suffix)
+    })
+}
+
+fn normalize_shopify_locale(raw_locale: &str) -> Option<String> {
+    let mut parts = raw_locale.split('-');
+    let language = parts.next()?.to_ascii_lowercase();
+    if !matches!(language.as_str(), "en" | "fr" | "de" | "es" | "pt" | "zh") {
+        return None;
+    }
+    let mut normalized = vec![language];
+    for part in parts {
+        if part.len() == 4 && part.chars().all(char::is_alphabetic) {
+            let mut chars = part.chars();
+            let first = chars.next()?.to_uppercase().collect::<String>();
+            normalized.push(format!("{}{}", first, chars.as_str().to_ascii_lowercase()));
+        } else if part.len() == 2 && part.chars().all(char::is_alphabetic) {
+            normalized.push(part.to_ascii_uppercase());
+        } else if part.len() == 3 && part.chars().all(|ch| ch.is_ascii_digit()) {
+            normalized.push(part.to_string());
+        } else {
+            return None;
+        }
+    }
+    Some(normalized.join("-"))
+}
+
+fn invalid_locale_message(invalid_locales: &[String]) -> String {
+    match invalid_locales {
+        [] => "Invalid locale codes".to_string(),
+        [locale] => format!("Invalid locale codes: {locale}"),
+        [first, second] => format!("Invalid locale codes: {first}, and {second}"),
+        _ => {
+            let mut locales = invalid_locales.to_vec();
+            let last = locales.pop().unwrap_or_default();
+            format!("Invalid locale codes: {}, and {last}", locales.join(", "))
+        }
+    }
+}
+
+fn market_web_presence_helper_record(draft: &WebPresenceDraft) -> Value {
+    let domain = draft
+        .domain_id
+        .as_deref()
+        .filter(|domain_id| *domain_id == "gid://shopify/Domain/1000")
+        .map(|domain_id| {
+            json!({
+                "id": domain_id,
+                "host": "acme.myshopify.com",
+                "url": "https://acme.myshopify.com",
+                "sslEnabled": true
+            })
+        })
+        .unwrap_or(Value::Null);
+    let locales = std::iter::once(draft.default_locale.clone())
+        .chain(draft.alternate_locales.iter().cloned())
+        .collect::<Vec<_>>();
+    let root_urls = locales
+        .iter()
+        .enumerate()
+        .map(|(index, locale)| {
+            let url = if draft.domain_id.is_some() {
+                if index == 0 {
+                    "https://acme.myshopify.com/".to_string()
+                } else {
+                    format!("https://acme.myshopify.com/{locale}/")
+                }
+            } else {
+                let suffix = draft.subfolder_suffix.as_deref().unwrap_or_default();
+                if index == 0 {
+                    format!("https://acme.myshopify.com/{suffix}/")
+                } else {
+                    format!("https://acme.myshopify.com/{suffix}/{locale}/")
+                }
+            };
+            json!({"locale": locale, "url": url})
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "id": draft.id,
+        "subfolderSuffix": draft.subfolder_suffix,
+        "domain": domain,
+        "rootUrls": root_urls,
+        "defaultLocale": locale_record(&draft.default_locale, true),
+        "alternateLocales": draft.alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
+        "markets": {"nodes": []}
+    })
 }
 
 fn is_web_presence_local_document(
