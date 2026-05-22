@@ -17350,6 +17350,7 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "vendor" => Some(json!(product.vendor)),
             "productType" => Some(json!(product.product_type)),
             "tags" => Some(json!(product.tags)),
+            "totalInventory" => Some(json!(0)),
             "templateSuffix" => Some(json!(product.template_suffix)),
             "seo" => Some(product_seo_json(product, &selection.selection)),
             _ => None,

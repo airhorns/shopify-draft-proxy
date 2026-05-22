@@ -13188,3 +13188,33 @@ fn product_contextual_pricing_price_list_read_replays_captured_shape() {
 
     assert_eq!(response.body, json!({ "data": fixture["data"] }));
 }
+
+#[test]
+fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
+    ))
+    .unwrap();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-then-bulkCreate-derived-create.graphql"
+        ),
+        fixture["create"]["variables"].clone(),
+    ));
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+    assert!(product_id.is_string());
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql"
+        ),
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(
+        downstream.body["data"]["product"]["totalInventory"],
+        json!(0)
+    );
+}
