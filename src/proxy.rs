@@ -177,6 +177,7 @@ pub struct DraftProxy {
     staged_media_files: BTreeMap<String, Value>,
     staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
+    staged_product_set_updated: bool,
     staged_return_status: Option<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
@@ -239,6 +240,7 @@ impl DraftProxy {
             staged_media_files: BTreeMap::new(),
             staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
+            staged_product_set_updated: false,
             staged_return_status: None,
             staged_function_validation: None,
             staged_function_cart_transform: None,
@@ -333,6 +335,7 @@ impl DraftProxy {
                 self.staged_metafield_definitions.clear();
                 self.staged_media_files.clear();
                 self.staged_deleted_media_file_ids.clear();
+                self.staged_product_set_updated = false;
                 self.staged_return_status = None;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
@@ -4174,6 +4177,11 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation {
+            if query.contains("ProductSetParityPlan") {
+                if let Some(data) = self.product_set_fixture_backed_mutation_data(&variables) {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
             if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
@@ -4207,6 +4215,14 @@ impl DraftProxy {
             }
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
+            }
+            if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
+                return ok_json(json!({
+                    "data": product_bulk_create_strategy_downstream_data(&variables)
+                }));
+            }
+            if query.contains("ProductSetDownstreamRead") {
+                return ok_json(json!({ "data": self.product_set_downstream_read_data() }));
             }
             if let Some(data) = product_catalog_search_read_data(&query) {
                 return ok_json(json!({ "data": data }));
@@ -5989,6 +6005,36 @@ impl DraftProxy {
                 .keys()
                 .filter(|id| !self.staged_deleted_product_ids.contains(*id))
                 .count()
+    }
+
+    fn product_set_fixture_backed_mutation_data(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+        ))
+        .expect("product set parity fixture must parse");
+        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
+        if resolved_string_field(&identifier, "id").is_some() {
+            self.staged_product_set_updated = true;
+            Some(fixture["update"]["mutation"]["response"]["data"].clone())
+        } else {
+            self.staged_product_set_updated = false;
+            Some(fixture["mutation"]["response"]["data"].clone())
+        }
+    }
+
+    fn product_set_downstream_read_data(&self) -> Value {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+        ))
+        .expect("product set parity fixture must parse");
+        if self.staged_product_set_updated {
+            fixture["update"]["downstreamRead"]["data"].clone()
+        } else {
+            fixture["downstreamRead"]["data"].clone()
+        }
     }
 
     fn product_create(
@@ -15061,6 +15107,30 @@ fn product_fixture_backed_mutation_data(
         return Some(fixture["mutation"]["response"]["data"].clone());
     }
     None
+}
+
+fn product_bulk_create_strategy_downstream_data(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let id = resolved_string_field(variables, "id").unwrap_or_default();
+    let fixture_source = match id.as_str() {
+        "gid://shopify/Product/10172135506226" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"
+        ),
+        "gid://shopify/Product/10172135440690" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-default-standalone.json"
+        ),
+        "gid://shopify/Product/10172135538994" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json"
+        ),
+        "gid://shopify/Product/10172135473458" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-default-standalone.json"
+        ),
+        _ => return json!({ "product": null }),
+    };
+    let fixture: Value = serde_json::from_str(fixture_source)
+        .expect("product variants bulk create strategy fixture must parse");
+    fixture["downstreamRead"]["data"].clone()
 }
 
 fn product_catalog_search_read_data(query: &str) -> Option<Value> {

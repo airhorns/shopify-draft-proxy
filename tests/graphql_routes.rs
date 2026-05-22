@@ -10668,6 +10668,127 @@ fn product_catalog_and_search_reads_replay_captured_fixture_data() {
 }
 
 #[test]
+fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_shapes() {
+    let query = include_str!(
+        "../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"
+    );
+    for (product_id, fixture_source, expected_sku) in [
+        (
+            "gid://shopify/Product/10172135506226",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"),
+            "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+        ),
+        (
+            "gid://shopify/Product/10172135440690",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-default-standalone.json"),
+            "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+        ),
+        (
+            "gid://shopify/Product/10172135538994",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json"),
+            "HERMES-1777346728237-BULK-REMOVE-CUSTOM",
+        ),
+        (
+            "gid://shopify/Product/10172135473458",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-default-standalone.json"),
+            "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+        ),
+    ] {
+        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"], fixture["downstreamRead"]["data"]);
+        assert_eq!(
+            response.body["data"]["product"]["variants"]["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|variant| variant["sku"] == json!(expected_sku)),
+            true
+        );
+    }
+}
+
+#[test]
+fn product_set_fixture_replay_preserves_mutation_and_downstream_product_graphs() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/productSet-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/productSet-downstream-read.graphql");
+
+    let create = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"], fixture["mutation"]["response"]["data"]);
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+            ["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 2, "updatedAt": "2026-04-25T23:03:30Z"},
+            {"name": "on_hand", "quantity": 2, "updatedAt": null},
+            {"name": "incoming", "quantity": 0, "updatedAt": null}
+        ])
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(create_read.status, 200);
+    assert_eq!(create_read.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        create_read.body["data"]["variantOne"]["id"],
+        create_read.body["data"]["product"]["variants"]["nodes"][0]["id"]
+    );
+    assert_eq!(
+        create_read.body["data"]["variantOne"]["inventoryItem"],
+        create_read.body["data"]["stockOne"]
+            .as_object()
+            .map(|stock| {
+                let mut item = stock.clone();
+                item.remove("variant");
+                Value::Object(item)
+            })
+            .unwrap()
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["update"]["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"],
+        fixture["update"]["mutation"]["response"]["data"]
+    );
+
+    let update_read = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["update"]["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(update_read.status, 200);
+    assert_eq!(
+        update_read.body["data"],
+        fixture["update"]["downstreamRead"]["data"]
+    );
+    assert_eq!(
+        update_read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("GRAPH-BLUE-UPDATED-1777158209644")
+    );
+}
+
+#[test]
 fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
