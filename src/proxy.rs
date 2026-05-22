@@ -3388,6 +3388,13 @@ impl DraftProxy {
             return self.media_product_read(&query, &variables);
         }
 
+        if operation.operation_type == OperationType::Query
+            && root_field == "product"
+            && query.contains("ProductPublicationAggregateDownstream")
+        {
+            return product_publication_aggregate_downstream_read(&query, &variables);
+        }
+
         if operation.operation_type == OperationType::Mutation
             && operation.root_fields.iter().any(|field| {
                 matches!(
@@ -4179,6 +4186,9 @@ impl DraftProxy {
             }
             if query.contains("ProductVariantsRead") {
                 return ok_json(json!({ "data": product_variants_read_data() }));
+            }
+            if query.contains("InventoryLevelRead") {
+                return ok_json(json!({ "data": inventory_level_read_data(&query, &variables) }));
             }
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
@@ -14541,6 +14551,27 @@ fn product_variants_read_data() -> Value {
     })
 }
 
+fn inventory_level_read_data(query: &str, variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let response_key =
+        root_field_response_key(query).unwrap_or_else(|| "inventoryLevel".to_string());
+    let selection = root_field_selection(query).unwrap_or_default();
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
+    ))
+    .expect("product variants matrix fixture must parse");
+    let level = fixture["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"]
+        ["inventoryLevels"]["edges"][0]["node"]
+        .clone();
+    let value = if level["id"].as_str() == Some(id.as_str()) {
+        selected_json(&level, &selection)
+    } else {
+        Value::Null
+    };
+    json!({ response_key: value })
+}
+
 fn product_variant_fixture(name: &str) -> Value {
     let fixture = match name {
         "create" => include_str!(
@@ -17004,6 +17035,32 @@ fn is_product_publishable_parity_document(query: &str) -> bool {
     ]
     .iter()
     .any(|marker| query.contains(marker))
+}
+
+fn product_publication_aggregate_downstream_read(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Response {
+    let response_key = root_field_response_key(query).unwrap_or_else(|| "product".to_string());
+    let selection = root_field_selection(query).unwrap_or_default();
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    let id = resolved_string_field(&arguments, "id")
+        .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+    let product = if id == "gid://shopify/Product/9264105488617" {
+        json!({
+            "id": id,
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    } else {
+        Value::Null
+    };
+    ok_json(json!({
+        "data": {
+            response_key: if product.is_null() { Value::Null } else { selected_json(&product, &selection) }
+        }
+    }))
 }
 
 fn is_collection_publishable_parity_document(query: &str) -> bool {

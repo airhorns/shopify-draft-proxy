@@ -3920,6 +3920,68 @@ fn collection_publishable_mutations_stage_publication_state_for_downstream_reads
 }
 
 #[test]
+fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryLevelRead($inventoryLevelId: ID!) {
+          inventoryLevel(id: $inventoryLevelId) {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["inventoryLevel"],
+        json!({
+            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+            "location": { "id": "gid://shopify/Location/68509171945", "name": "103 ossington" },
+            "quantities": [
+                { "name": "available", "quantity": 0, "updatedAt": "2025-07-01T23:57:25Z" },
+                { "name": "on_hand", "quantity": 0, "updatedAt": null },
+                { "name": "incoming", "quantity": 0, "updatedAt": null }
+            ]
+        })
+    );
+}
+
+#[test]
+fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductPublicationAggregateDownstream($id: ID!) {
+          product(id: $id) {
+            id
+            publishedOnCurrentPublication
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/9264105488617" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9264105488617",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+}
+
+#[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
     let mut proxy = snapshot_proxy();
     for (root, query) in [
