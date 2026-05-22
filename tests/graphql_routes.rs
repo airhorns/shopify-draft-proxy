@@ -10074,3 +10074,159 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
         assert_eq!(actual_nodes[0]["ownerType"], expected_nodes[0]["ownerType"]);
     }
 }
+
+#[test]
+fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
+    let mut proxy = snapshot_proxy();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsAddParityPlan($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { id tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["existing", "hermes-summer-1777416213315", "hermes-sale-1777416213315"]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["tagsAdd"],
+        json!({
+            "node": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let add_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsAddDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id tags }
+          products(first: 10, query: $query) { nodes { id tags } }
+          productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "query": "tag:hermes-sale-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        add_read.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+
+    let mut proxy = snapshot_proxy();
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsRemoveParityPlan($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { id tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["hermes-sale-1777416213315", "missing"]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["tagsRemove"],
+        json!({
+            "node": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let remove_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsRemoveDownstreamRead($id: ID!, $remainingQuery: String!, $removedQuery: String!) {
+          product(id: $id) { id tags }
+          remaining: products(first: 10, query: $remainingQuery) { nodes { id tags } }
+          removed: products(first: 10, query: $removedQuery) { nodes { id tags } }
+          remainingCount: productsCount(query: $remainingQuery) { count precision }
+          removedCount: productsCount(query: $removedQuery) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "remainingQuery": "tag:hermes-summer-1777416213315",
+            "removedQuery": "tag:hermes-sale-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        remove_read.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "remaining": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "removed": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "remainingCount": { "count": 1, "precision": "EXACT" },
+            "removedCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let mut proxy = snapshot_proxy();
+    let multi = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { __typename ... on Product { id title tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10178790424882",
+            "tags": ["hermes-tags-added-1778091014318"]
+        }),
+    ));
+    assert_eq!(
+        multi.body["data"]["tagsAdd"],
+        json!({
+            "node": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178790424882",
+                "title": "Hermes Tags Product 1778091014318",
+                "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let multi_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsMultiResourceProductRead($productId: ID!) {
+          product(id: $productId) { id title tags }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/10178790424882" }),
+    ));
+    assert_eq!(
+        multi_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10178790424882",
+            "title": "Hermes Tags Product 1778091014318",
+            "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        })
+    );
+}

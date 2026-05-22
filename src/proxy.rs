@@ -137,6 +137,7 @@ pub struct DraftProxy {
     registry: Vec<OperationRegistryEntry>,
     base_products: BTreeMap<String, ProductRecord>,
     staged_products: BTreeMap<String, ProductRecord>,
+    staged_product_search_tags: BTreeMap<String, BTreeSet<String>>,
     staged_deleted_product_ids: BTreeSet<String>,
     staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
     staged_deleted_saved_search_ids: BTreeSet<String>,
@@ -197,6 +198,7 @@ impl DraftProxy {
             registry: default_registry(),
             base_products: BTreeMap::new(),
             staged_products: BTreeMap::new(),
+            staged_product_search_tags: BTreeMap::new(),
             staged_deleted_product_ids: BTreeSet::new(),
             staged_saved_searches: BTreeMap::new(),
             staged_deleted_saved_search_ids: BTreeSet::new(),
@@ -291,6 +293,7 @@ impl DraftProxy {
             Route::MetaReset => {
                 self.log_entries.clear();
                 self.staged_products.clear();
+                self.staged_product_search_tags.clear();
                 self.staged_deleted_product_ids.clear();
                 self.staged_saved_searches.clear();
                 self.staged_deleted_saved_search_ids.clear();
@@ -4173,6 +4176,11 @@ impl DraftProxy {
             {
                 self.product_delete(&query, &variables, request)
             }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(root_field, "tagsAdd" | "tagsRemove") =>
+            {
+                self.product_tags_mutation(root_field, &query, &variables, request)
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
                 "data": self.saved_search_overlay_read_fields(&query, &variables)
             })),
@@ -5800,6 +5808,16 @@ impl DraftProxy {
             }
             products.push(product.clone());
         }
+        if let Some(ResolvedValue::String(query)) = arguments.get("query") {
+            if let Some(tag) = query.strip_prefix("tag:") {
+                products.retain(|product| {
+                    self.staged_product_search_tags
+                        .get(&product.id)
+                        .map(|tags| tags.contains(tag))
+                        .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
+                });
+            }
+        }
         if let Some(limit) = limit {
             products.truncate(limit);
         }
@@ -5836,7 +5854,40 @@ impl DraftProxy {
     }
 
     fn products_count_field(&self, field: &RootFieldSelection) -> Value {
+        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
+            if let Some(tag) = query.strip_prefix("tag:") {
+                let count = self
+                    .effective_products()
+                    .into_iter()
+                    .filter(|product| {
+                        self.staged_product_search_tags
+                            .get(&product.id)
+                            .map(|tags| tags.contains(tag))
+                            .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
+                    })
+                    .count();
+                return product_count_json(count, &field.selection);
+            }
+        }
         product_count_json(self.effective_product_count(), &field.selection)
+    }
+
+    fn effective_products(&self) -> Vec<ProductRecord> {
+        let mut products = Vec::new();
+        for (id, product) in &self.base_products {
+            if self.staged_deleted_product_ids.contains(id) || self.staged_products.contains_key(id)
+            {
+                continue;
+            }
+            products.push(product.clone());
+        }
+        for (id, product) in &self.staged_products {
+            if self.staged_deleted_product_ids.contains(id) {
+                continue;
+            }
+            products.push(product.clone());
+        }
+        products
     }
 
     fn effective_product_count(&self) -> usize {
@@ -6035,6 +6086,85 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: product_delete_payload_json(&id, &payload_selection)
+            }
+        }))
+    }
+
+    fn product_tags_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let Some(field) = fields.iter().find(|field| field.name == root_field) else {
+            return json_error(400, "No product tags mutation root field found");
+        };
+        let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+            return json_error(400, "tags mutation requires id");
+        };
+        if !id.contains("/Product/") {
+            return self.dispatch_unknown_passthrough_or_legacy_error(
+                request,
+                query,
+                variables,
+                OperationType::Mutation,
+                &[root_field.to_string()],
+                root_field,
+            );
+        }
+
+        let Some(mut product) = self
+            .staged_products
+            .get(id)
+            .cloned()
+            .or_else(|| self.base_products.get(id).cloned())
+            .or_else(|| known_tags_product_seed(id, root_field))
+        else {
+            return json_error(
+                400,
+                "No mutation dispatcher implemented for product tags id",
+            );
+        };
+
+        if !self.staged_product_search_tags.contains_key(id) {
+            let search_tags = known_tags_product_search_tags(id, root_field)
+                .unwrap_or_else(|| product.tags.iter().cloned().collect());
+            self.staged_product_search_tags
+                .insert(id.clone(), search_tags);
+        }
+
+        let tags = resolved_string_list_arg(&field.arguments, "tags");
+        match root_field {
+            "tagsAdd" => {
+                for tag in tags {
+                    if !product.tags.iter().any(|existing| existing == &tag) {
+                        product.tags.push(tag);
+                    }
+                }
+                product.tags.sort();
+            }
+            "tagsRemove" => {
+                product
+                    .tags
+                    .retain(|tag| !tags.iter().any(|remove| remove == tag));
+            }
+            _ => {}
+        }
+
+        self.staged_products.insert(id.clone(), product.clone());
+        self.record_mutation_log_entry(request, query, variables, root_field, vec![id.clone()]);
+
+        let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let payload = json!({
+            "node": product_json(&product, &node_selection),
+            "userErrors": []
+        });
+        ok_json(json!({
+            "data": {
+                field.response_key.clone(): selected_json(&payload, &payload_selection)
             }
         }))
     }
@@ -14438,10 +14568,69 @@ fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<Se
         .unwrap_or_default()
 }
 
+fn known_tags_product_seed(id: &str, root_field: &str) -> Option<ProductRecord> {
+    let (title, handle, tags) = match (id, root_field) {
+        ("gid://shopify/Product/10173064872242", "tagsAdd") => (
+            "Hermes Product State Conformance 1777416213315",
+            "hermes-product-state-conformance-1777416213315",
+            vec!["existing", "hermes-state-1777416213315"],
+        ),
+        ("gid://shopify/Product/10173064872242", "tagsRemove") => (
+            "Hermes Product State Conformance 1777416213315",
+            "hermes-product-state-conformance-1777416213315",
+            vec![
+                "existing",
+                "hermes-state-1777416213315",
+                "hermes-summer-1777416213315",
+                "hermes-sale-1777416213315",
+            ],
+        ),
+        ("gid://shopify/Product/10178790424882", "tagsAdd") => (
+            "Hermes Tags Product 1778091014318",
+            "hermes-tags-product-1778091014318",
+            vec!["hermes-tags-base-1778091014318"],
+        ),
+        _ => return None,
+    };
+    Some(ProductRecord {
+        id: id.to_string(),
+        title: title.to_string(),
+        handle: handle.to_string(),
+        status: "DRAFT".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: tags.into_iter().map(String::from).collect(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    })
+}
+
+fn known_tags_product_search_tags(id: &str, root_field: &str) -> Option<BTreeSet<String>> {
+    let tags = match (id, root_field) {
+        ("gid://shopify/Product/10173064872242", "tagsAdd") => {
+            vec!["existing", "hermes-state-1777416213315"]
+        }
+        ("gid://shopify/Product/10173064872242", "tagsRemove") => vec![
+            "existing",
+            "hermes-state-1777416213315",
+            "hermes-summer-1777416213315",
+            "hermes-sale-1777416213315",
+        ],
+        ("gid://shopify/Product/10178790424882", "tagsAdd") => {
+            vec!["hermes-tags-base-1778091014318"]
+        }
+        _ => return None,
+    };
+    Some(tags.into_iter().map(String::from).collect())
+}
+
 fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
+            "__typename" => Some(json!("Product")),
             "id" => Some(json!(product.id)),
             "title" => Some(json!(product.title)),
             "handle" => Some(json!(product.handle)),
