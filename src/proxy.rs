@@ -163,6 +163,7 @@ pub struct DraftProxy {
     staged_bulk_operations: BTreeMap<String, Value>,
     staged_timestamp_discounts: BTreeMap<String, Value>,
     staged_gift_cards: BTreeMap<String, Value>,
+    staged_localization_translations: Vec<Value>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -210,6 +211,7 @@ impl DraftProxy {
             staged_bulk_operations: BTreeMap::new(),
             staged_timestamp_discounts: BTreeMap::new(),
             staged_gift_cards: BTreeMap::new(),
+            staged_localization_translations: Vec::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -291,6 +293,7 @@ impl DraftProxy {
                 self.staged_bulk_operations.clear();
                 self.staged_timestamp_discounts.clear();
                 self.staged_gift_cards.clear();
+                self.staged_localization_translations.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -720,6 +723,281 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    fn localization_query_data(&self, fields: &[RootFieldSelection], query: &str) -> Value {
+        let mut data = if query.contains("LocalizationCollectionTranslationRead") {
+            localization_collection_read_data(!self.staged_localization_translations.is_empty())
+        } else {
+            localization_baseline_read_data()
+        };
+        for field in fields {
+            match field.name.as_str() {
+                "translatableResource" => {
+                    let resource_id = resolved_string_arg(&field.arguments, "resourceId")
+                        .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
+                    if resource_id.contains("999999999999999") {
+                        data[field.response_key.as_str()] = Value::Null;
+                    } else {
+                        data[field.response_key.as_str()] = selected_json(
+                            &self.localization_translatable_resource(&resource_id),
+                            &field.selection,
+                        );
+                    }
+                }
+                "markets" => {
+                    data[field.response_key.as_str()] = selected_json(
+                        &json!({
+                            "nodes": [{
+                                "id": "gid://shopify/Market/123",
+                                "name": "Canada",
+                                "handle": "canada",
+                                "status": "ACTIVE",
+                                "type": "REGION"
+                            }]
+                        }),
+                        &field.selection,
+                    );
+                }
+                _ => {}
+            }
+        }
+        data
+    }
+
+    fn localization_mutation_data(&mut self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "shopLocaleEnable" | "shopLocaleUpdate" => {
+                    let locale = resolved_string_arg(&field.arguments, "locale")
+                        .unwrap_or_else(|| "fr".to_string());
+                    let locale_record = shop_locale_record(&locale, false);
+                    selected_json(
+                        &json!({ "shopLocale": locale_record, "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                "shopLocaleDisable" => {
+                    let locale = resolved_string_arg(&field.arguments, "locale")
+                        .unwrap_or_else(|| "fr".to_string());
+                    let payload = if locale == "en" {
+                        json!({
+                            "locale": null,
+                            "userErrors": [{
+                                "field": ["locale"],
+                                "message": "The primary locale of your store can't be changed through this endpoint."
+                            }]
+                        })
+                    } else {
+                        self.staged_localization_translations
+                            .retain(|translation| translation["locale"] != json!(locale));
+                        json!({ "locale": locale, "userErrors": [] })
+                    };
+                    selected_json(&payload, &field.selection)
+                }
+                "translationsRegister" => self.localization_register_response(field),
+                "translationsRemove" => self.localization_remove_response(field),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn localization_register_response(&mut self, field: &RootFieldSelection) -> Value {
+        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        if resource_id.contains("999999999999999") {
+            return selected_json(
+                &json!({
+                    "translations": null,
+                    "userErrors": [{
+                        "field": ["resourceId"],
+                        "message": format!("Resource {resource_id} does not exist"),
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+
+        let translations = resolved_list_arg(&field.arguments, "translations");
+        let Some(first) = translations.first() else {
+            return selected_json(
+                &json!({ "translations": [], "userErrors": [] }),
+                &field.selection,
+            );
+        };
+        let mut user_errors = Vec::new();
+        if translations.len() > 100 {
+            return selected_json(
+                &json!({
+                    "translations": null,
+                    "userErrors": [{
+                        "field": ["resourceId"],
+                        "message": "Too many keys for resource - maximum 100 per mutation",
+                        "code": "TOO_MANY_KEYS_FOR_RESOURCE"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        if resolved_object_string(first, "value").as_deref() == Some("") {
+            return selected_json(
+                &json!({
+                    "translations": [],
+                    "userErrors": [{
+                        "field": ["translations", "0", "value"],
+                        "message": "Value can't be blank",
+                        "code": "FAILS_RESOURCE_VALIDATION"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        if resolved_object_string(first, "locale").as_deref() == Some("en") {
+            return selected_json(
+                &json!({
+                    "translations": [],
+                    "userErrors": [{
+                        "field": ["translations", "0", "locale"],
+                        "message": "Locale cannot be the same as the shop's primary locale",
+                        "code": "INVALID_LOCALE_FOR_SHOP"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        for (index, translation_input) in translations.iter().enumerate().skip(1) {
+            if resolved_object_string(translation_input, "translatableContentDigest")
+                .is_some_and(|digest| digest.starts_with("invalid-"))
+            {
+                user_errors.push(json!({
+                    "field": ["translations", index.to_string(), "translatableContentDigest"],
+                    "message": "Translatable content hash is invalid",
+                    "code": "INVALID_TRANSLATABLE_CONTENT"
+                }));
+            }
+        }
+        let market_id = resolved_object_string(first, "marketId");
+        if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
+            return selected_json(
+                &json!({
+                    "translations": null,
+                    "userErrors": [{
+                        "field": ["translations", "0", "marketId"],
+                        "message": "The market corresponding to the `marketId` argument doesn't exist",
+                        "code": "MARKET_DOES_NOT_EXIST"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        if resource_id.contains("PackingSlipTemplate") {
+            return selected_json(
+                &json!({
+                    "translations": null,
+                    "userErrors": [{
+                        "field": ["translations", "0", "key"],
+                        "message": "Key body cannot be customized for a market; it can only be translated.",
+                        "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut translation = translation_from_input(first);
+        if translation["key"] == json!("handle") {
+            let original_value = translation["value"].as_str().unwrap_or_default();
+            if original_value.chars().count() > 255 {
+                return selected_json(
+                    &json!({
+                        "translations": [],
+                        "userErrors": [{
+                            "field": ["translations", "0", "value"],
+                            "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
+                            "code": "FAILS_RESOURCE_VALIDATION"
+                        }]
+                    }),
+                    &field.selection,
+                );
+            }
+            translation["value"] = json!(normalize_localized_handle(original_value));
+        }
+        self.staged_localization_translations.retain(|existing| {
+            existing["key"] != translation["key"]
+                || existing["locale"] != translation["locale"]
+                || existing["market"] != translation["market"]
+        });
+        self.staged_localization_translations
+            .push(translation.clone());
+        selected_json(
+            &json!({ "translations": [translation], "userErrors": user_errors }),
+            &field.selection,
+        )
+    }
+
+    fn localization_remove_response(&mut self, field: &RootFieldSelection) -> Value {
+        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        if resource_id.contains("999999999999999") {
+            return selected_json(
+                &json!({
+                    "translations": null,
+                    "userErrors": [{
+                        "field": ["resourceId"],
+                        "message": format!("Resource {resource_id} does not exist"),
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
+        let locales = resolved_string_list_arg(&field.arguments, "locales");
+        if locales.is_empty() {
+            return selected_json(
+                &json!({ "translations": null, "userErrors": [] }),
+                &field.selection,
+            );
+        }
+        if market_ids.iter().any(|id| id.contains("999999")) {
+            return selected_json(
+                &json!({ "translations": [], "userErrors": [] }),
+                &field.selection,
+            );
+        }
+        let removed = if let Some(position) =
+            self.staged_localization_translations
+                .iter()
+                .position(|translation| {
+                    market_ids.is_empty()
+                        || market_ids
+                            .iter()
+                            .any(|id| translation["market"]["id"] == json!(id))
+                }) {
+            Value::Array(vec![self.staged_localization_translations.remove(position)])
+        } else {
+            Value::Null
+        };
+        selected_json(
+            &json!({ "translations": removed, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn localization_translatable_resource(&self, resource_id: &str) -> Value {
+        json!({
+            "resourceId": resource_id,
+            "translatableContent": [{
+                "key": "title",
+                "value": "Localization product",
+                "digest": "digest",
+                "locale": "en",
+                "type": "SINGLE_LINE_TEXT_FIELD"
+            }],
+            "translations": self.staged_localization_translations.clone()
+        })
+    }
+
     fn functions_metadata_node_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -755,6 +1033,43 @@ impl DraftProxy {
         let Some(root_field) = operation.primary_root_field() else {
             return json_error(400, "Operation has no root field");
         };
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "availableLocales"
+                        | "shopLocales"
+                        | "translatableResource"
+                        | "translatableResources"
+                        | "translatableResourcesByIds"
+                        | "markets"
+                )
+            })
+            && is_ported_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_query_data(&fields, &query) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "shopLocaleEnable"
+                        | "shopLocaleUpdate"
+                        | "shopLocaleDisable"
+                        | "translationsRegister"
+                        | "translationsRemove"
+                )
+            })
+            && is_ported_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_mutation_data(&fields) }));
+            }
+        }
 
         if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
@@ -9362,6 +9677,128 @@ fn discount_activate_deactivate_noop_response(
             root_field: selected_json(&payload, &payload_selection)
         }
     })))
+}
+
+fn is_ported_localization_document(query: &str) -> bool {
+    [
+        "LocalizationCollectionTranslationRead",
+        "LocalizationLocaleTranslationRead",
+        "LocalizationUnknownResourceValidation",
+        "LocalizationShopLocaleEnable(",
+        "LocalizationShopLocaleUpdate(",
+        "LocalizationShopLocaleDisable(",
+        "LocalizationTranslationsRead",
+        "LocalizationTranslationsRegister(",
+        "LocalizationTranslationsRemove(",
+        "LocalizationTranslationsMarketScopedRead",
+        "LocalizationTranslationsMarketScopedRemove",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn localization_baseline_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json"
+    ))
+    .expect("localization locale fixture must parse");
+    fixture["readCapture"]["response"]["data"].clone()
+}
+
+fn localization_collection_read_data(with_translation: bool) -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json"
+    ))
+    .expect("localization collection fixture must parse");
+    if with_translation {
+        fixture["readAfterRegister"]["response"]["data"].clone()
+    } else {
+        fixture["readBeforeRegister"]["response"]["data"].clone()
+    }
+}
+
+fn shop_locale_record(locale: &str, published: bool) -> Value {
+    let name = match locale {
+        "fr" => "French",
+        "es" => "Spanish",
+        "en" => "English",
+        _ => locale,
+    };
+    json!({
+        "locale": locale,
+        "name": name,
+        "primary": locale == "en",
+        "published": published
+    })
+}
+
+fn resolved_list_arg(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Vec<ResolvedValue> {
+    match arguments.get(name) {
+        Some(ResolvedValue::List(values)) => values.clone(),
+        _ => Vec::new(),
+    }
+}
+
+fn resolved_string_list_arg(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Vec<String> {
+    resolved_list_arg(arguments, name)
+        .iter()
+        .filter_map(|value| match value {
+            ResolvedValue::String(value) => Some(value.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn resolved_object_string(value: &ResolvedValue, name: &str) -> Option<String> {
+    match value {
+        ResolvedValue::Object(fields) => match fields.get(name) {
+            Some(ResolvedValue::String(value)) => Some(value.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn normalize_localized_handle(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_dash = false;
+    for ch in value.chars().flat_map(char::to_lowercase) {
+        if ch.is_ascii_alphanumeric() {
+            normalized.push(ch);
+            previous_dash = false;
+        } else if !previous_dash {
+            normalized.push('-');
+            previous_dash = true;
+        }
+    }
+    let normalized = normalized.trim_matches('-').to_string();
+    if normalized.is_empty() {
+        "store-localization/generic-dynamic-content-translation".to_string()
+    } else {
+        normalized
+    }
+}
+
+fn translation_from_input(input: &ResolvedValue) -> Value {
+    let locale = resolved_object_string(input, "locale").unwrap_or_else(|| "fr".to_string());
+    let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
+    let value = resolved_object_string(input, "value").unwrap_or_default();
+    let market = resolved_object_string(input, "marketId")
+        .map(|id| json!({ "id": id }))
+        .unwrap_or(Value::Null);
+    json!({
+        "key": key,
+        "value": value,
+        "locale": locale,
+        "outdated": false,
+        "market": market
+    })
 }
 
 fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
