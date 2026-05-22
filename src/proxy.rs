@@ -166,6 +166,7 @@ pub struct DraftProxy {
     staged_gift_cards: BTreeMap<String, Value>,
     staged_markets: BTreeMap<String, Value>,
     staged_catalogs: BTreeMap<String, Value>,
+    staged_price_lists: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
     staged_marketing_activities: BTreeMap<String, Value>,
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
@@ -249,6 +250,7 @@ impl DraftProxy {
             staged_gift_cards: BTreeMap::new(),
             staged_markets: BTreeMap::new(),
             staged_catalogs: BTreeMap::new(),
+            staged_price_lists: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
             staged_marketing_activities: BTreeMap::new(),
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
@@ -366,6 +368,7 @@ impl DraftProxy {
                 self.staged_gift_cards.clear();
                 self.staged_markets.clear();
                 self.staged_catalogs.clear();
+                self.staged_price_lists.clear();
                 self.staged_localization_translations.clear();
                 self.staged_marketing_activities.clear();
                 self.staged_deleted_marketing_activity_ids.clear();
@@ -1366,6 +1369,297 @@ impl DraftProxy {
     fn next_catalog_id(&self) -> String {
         let numeric_id = (self.staged_markets.len() * 2) + (self.staged_catalogs.len() * 2) + 1;
         format!("gid://shopify/MarketCatalog/{numeric_id}")
+    }
+
+    fn price_list_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "catalog" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_catalogs
+                        .get(&id)
+                        .map(|catalog| selected_json(catalog, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "priceList" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_price_lists
+                        .get(&id)
+                        .map(|price_list| selected_json(price_list, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "priceLists" => {
+                    let nodes = self
+                        .staged_price_lists
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn price_list_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        let mut touched_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "priceListCreate" => self.price_list_create_response(field),
+                "priceListUpdate" => self.price_list_update_response(field),
+                "priceListDelete" => self.price_list_delete_response(field),
+                "quantityRulesDelete" => self.quantity_rules_delete_price_list_response(field),
+                "webPresenceCreate" => self.web_presence_create_price_list_response(field),
+                "webPresenceUpdate" => self.web_presence_update_price_list_response(field),
+                "webPresenceDelete" => self.web_presence_delete_price_list_response(field),
+                _ => Value::Null,
+            };
+            if let Some(id) = value["priceList"]["id"]
+                .as_str()
+                .or_else(|| value["deletedId"].as_str())
+            {
+                touched_ids.push(id.to_string());
+            }
+            data.insert(field.response_key.clone(), value);
+        }
+        if !touched_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
+        }
+        Value::Object(data)
+    }
+
+    fn price_list_create_response(&mut self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let name = resolved_string_field(&input, "name").unwrap_or_default();
+        if name.trim().is_empty() {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "name"],
+                    "Name can't be blank",
+                    "BLANK",
+                ),
+                &field.selection,
+            );
+        }
+        if self
+            .staged_price_lists
+            .values()
+            .any(|price_list| price_list["name"].as_str() == Some(name.as_str()))
+        {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "name"],
+                    "Name has already been taken",
+                    "TAKEN",
+                ),
+                &field.selection,
+            );
+        }
+        let Some(currency) = resolved_string_field(&input, "currency") else {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "currency"],
+                    "Currency can't be blank",
+                    "BLANK",
+                ),
+                &field.selection,
+            );
+        };
+        let Some(parent) = resolved_object_field(&input, "parent") else {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "parent"],
+                    "Parent must exist",
+                    "REQUIRED",
+                ),
+                &field.selection,
+            );
+        };
+        let adjustment = resolved_object_field(&parent, "adjustment").unwrap_or_default();
+        let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
+        if !matches!(
+            adjustment_type.as_str(),
+            "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
+        ) {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "parent", "adjustment", "type"],
+                    "Type is invalid",
+                    "INVALID",
+                ),
+                &field.selection,
+            );
+        }
+        let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
+        let invalid_adjustment = adjustment_value < 0.0
+            || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
+            || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
+        if invalid_adjustment {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "parent", "adjustment", "value"],
+                    PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE,
+                    "INVALID_ADJUSTMENT_VALUE",
+                ),
+                &field.selection,
+            );
+        }
+
+        let id = self.next_price_list_id();
+        let catalog_id = resolved_string_field(&input, "catalogId");
+        let price_list = price_list_record(
+            &id,
+            &name,
+            &currency,
+            &adjustment_type,
+            price_list_adjustment_value_json(&adjustment),
+            catalog_id.as_deref(),
+        );
+        if let Some(catalog_id) = catalog_id.as_deref() {
+            self.attach_price_list_to_catalog(catalog_id, &id);
+        }
+        self.staged_price_lists.insert(id, price_list.clone());
+        selected_json(
+            &json!({"priceList": price_list, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn price_list_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.staged_price_lists.get(&id).cloned() else {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["id"],
+                    "Price list does not exist.",
+                    "PRICE_LIST_NOT_FOUND",
+                ),
+                &field.selection,
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let mut updated = existing;
+        if let Some(name) = resolved_string_field(&input, "name") {
+            if let Some(object) = updated.as_object_mut() {
+                object.insert("name".to_string(), json!(name));
+            }
+        }
+        if input.get("catalogId") == Some(&ResolvedValue::Null) {
+            self.detach_price_list_from_catalogs(&id);
+            if let Some(object) = updated.as_object_mut() {
+                object.insert("catalogId".to_string(), Value::Null);
+                object.insert("catalog".to_string(), Value::Null);
+            }
+        } else if let Some(catalog_id) = resolved_string_field(&input, "catalogId") {
+            self.detach_price_list_from_catalogs(&id);
+            self.attach_price_list_to_catalog(&catalog_id, &id);
+            if let Some(object) = updated.as_object_mut() {
+                object.insert("catalogId".to_string(), json!(catalog_id));
+                object.insert("catalog".to_string(), json!({"id": catalog_id}));
+            }
+        }
+        self.staged_price_lists.insert(id, updated.clone());
+        selected_json(
+            &json!({"priceList": updated, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn price_list_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let payload = if self.staged_price_lists.remove(&id).is_some() {
+            self.detach_price_list_from_catalogs(&id);
+            json!({"deletedId": id, "userErrors": []})
+        } else {
+            price_list_payload_error(
+                "deletedId",
+                vec!["id"],
+                "Price list does not exist.",
+                "PRICE_LIST_NOT_FOUND",
+            )
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn quantity_rules_delete_price_list_response(&self, field: &RootFieldSelection) -> Value {
+        let price_list_id =
+            resolved_string_arg(&field.arguments, "priceListId").unwrap_or_default();
+        let payload = if price_list_id == "gid://shopify/PriceList/0" {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
+        } else {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": []})
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn web_presence_create_price_list_response(&self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let subfolder_suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
+        let payload = if subfolder_suffix.len() < 2 {
+            json!({"webPresence": null, "userErrors": [market_user_error(vec!["input", "subfolderSuffix"], "Subfolder suffix must be at least 2 letters", json!("SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS"))]})
+        } else {
+            json!({"webPresence": {"id": "gid://shopify/MarketWebPresence/1"}, "userErrors": []})
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn web_presence_update_price_list_response(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]}),
+            &field.selection,
+        )
+    }
+
+    fn web_presence_delete_price_list_response(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({"deletedId": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]}),
+            &field.selection,
+        )
+    }
+
+    fn next_price_list_id(&self) -> String {
+        let numeric_id = (self.staged_markets.len() * 2)
+            + (self.staged_catalogs.len() * 2)
+            + self.staged_price_lists.len()
+            + 1;
+        format!("gid://shopify/PriceList/{numeric_id}")
+    }
+
+    fn attach_price_list_to_catalog(&mut self, catalog_id: &str, price_list_id: &str) {
+        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+            if let Some(object) = catalog.as_object_mut() {
+                object.insert("priceListId".to_string(), json!(price_list_id));
+                object.insert("priceList".to_string(), json!({"id": price_list_id}));
+            }
+        }
+    }
+
+    fn detach_price_list_from_catalogs(&mut self, price_list_id: &str) {
+        for catalog in self.staged_catalogs.values_mut() {
+            if catalog["priceListId"].as_str() == Some(price_list_id) {
+                if let Some(object) = catalog.as_object_mut() {
+                    object.insert("priceListId".to_string(), Value::Null);
+                    object.insert("priceList".to_string(), Value::Null);
+                }
+            }
+        }
     }
 
     fn market_localization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -4809,6 +5103,41 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.catalog_mutation_data(&fields, request, &query, &variables);
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "catalog" | "catalogs" | "priceList" | "priceLists"
+                )
+            })
+            && is_ported_price_list_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.price_list_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "priceListCreate"
+                        | "priceListUpdate"
+                        | "priceListDelete"
+                        | "quantityRulesDelete"
+                        | "webPresenceCreate"
+                        | "webPresenceUpdate"
+                        | "webPresenceDelete"
+                )
+            })
+            && is_ported_price_list_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.price_list_mutation_data(&fields, request, &query, &variables);
                 return ok_json(json!({ "data": data }));
             }
         }
@@ -15348,6 +15677,10 @@ fn is_ported_catalog_document(query: &str) -> bool {
     query.contains("RustCatalogLocalRuntime")
 }
 
+fn is_ported_price_list_document(query: &str) -> bool {
+    query.contains("RustPriceListLocalRuntime")
+}
+
 fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -15405,6 +15738,57 @@ fn catalog_market_ids(catalog: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+const PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE: &str = "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.";
+
+fn price_list_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "__typename": "PriceListUserError",
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn price_list_payload_error(root_key: &str, field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        root_key: null,
+        "userErrors": [price_list_user_error(field, message, code)]
+    })
+}
+
+fn price_list_adjustment_value_json(adjustment: &BTreeMap<String, ResolvedValue>) -> Value {
+    match adjustment.get("value") {
+        Some(ResolvedValue::Int(value)) => json!(value),
+        Some(ResolvedValue::Float(value)) if value.fract() == 0.0 => json!(*value as i64),
+        Some(ResolvedValue::Float(value)) => json!(value),
+        _ => json!(0),
+    }
+}
+
+fn price_list_record(
+    id: &str,
+    name: &str,
+    currency: &str,
+    adjustment_type: &str,
+    adjustment_value: Value,
+    catalog_id: Option<&str>,
+) -> Value {
+    let catalog = catalog_id
+        .map(|id| json!({"id": id}))
+        .unwrap_or(Value::Null);
+    json!({
+        "__typename": "PriceList",
+        "id": id,
+        "name": name,
+        "currency": currency,
+        "parent": {"adjustment": {"type": adjustment_type, "value": adjustment_value}},
+        "catalogId": catalog_id,
+        "catalog": catalog,
+        "fixedPricesCount": 0,
+        "prices": {"nodes": []}
+    })
 }
 
 fn market_status_enabled_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {

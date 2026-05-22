@@ -13122,6 +13122,194 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
+    // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
+    // staged reads, catalog attachment, and null-catalog detachment.
+    let create_query = r#"
+        mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency parent { adjustment { type value } } catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let validation_cases = [
+        (
+            json!({"name": "EUR", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "currency"], "message": "Currency can't be blank", "code": "BLANK"}),
+        ),
+        (
+            json!({"name": "EUR", "currency": "EUR"}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent"], "message": "Parent must exist", "code": "REQUIRED"}),
+        ),
+        (
+            json!({"name": "EUR", "currency": "EUR", "parent": {"adjustment": {"type": "FIXED", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "type"], "message": "Type is invalid", "code": "INVALID"}),
+        ),
+        (
+            json!({"name": "", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name can't be blank", "code": "BLANK"}),
+        ),
+        (
+            json!({"name": "Negative", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": -10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+        (
+            json!({"name": "Too Low", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+        (
+            json!({"name": "Too High", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_INCREASE", "value": 5000}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+    ];
+    for (input, error) in validation_cases {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["priceListCreate"],
+            json!({"priceList": null, "userErrors": [error]})
+        );
+    }
+
+    let mut proxy = snapshot_proxy();
+    let dkk = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(dkk.status, 200);
+    assert_eq!(
+        dkk.body["data"]["priceListCreate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": null}, "userErrors": []})
+    );
+
+    let zero_adjustment = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Zero", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}}}),
+    ));
+    assert_eq!(
+        zero_adjustment.body["data"]["priceListCreate"]["priceList"]["id"],
+        json!("gid://shopify/PriceList/2")
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Denmark", "currency": "CAD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"}]})
+    );
+
+    let typed_errors = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustPriceListLocalRuntimeTypedErrors {
+          priceListCreate(input: { name: "", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { __typename field message code } }
+          priceListUpdate(id: "gid://shopify/PriceList/0", input: { name: "Missing" }) { priceList { id } userErrors { __typename field message code } }
+          priceListDelete(id: "gid://shopify/PriceList/0") { deletedId userErrors { __typename field message code } }
+          quantityRulesDelete(priceListId: "gid://shopify/PriceList/0", variantIds: ["gid://shopify/ProductVariant/0"]) { deletedQuantityRulesVariantIds userErrors { __typename field message code } }
+          webPresenceCreate(input: { defaultLocale: "en", subfolderSuffix: "x" }) { webPresence { id } userErrors { __typename field message code } }
+          webPresenceUpdate(id: "gid://shopify/MarketWebPresence/0", input: { defaultLocale: "en" }) { webPresence { id } userErrors { __typename field message code } }
+          webPresenceDelete(id: "gid://shopify/MarketWebPresence/0") { deletedId userErrors { __typename field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        typed_errors.body["data"]["priceListCreate"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name can't be blank", "code": "BLANK"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["priceListUpdate"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["id"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["priceListDelete"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["id"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["quantityRulesDelete"]["userErrors"][0],
+        json!({"__typename": "QuantityRuleUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_DOES_NOT_EXIST"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceUpdate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["id"], "message": "The market web presence wasn't found.", "code": "WEB_PRESENCE_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceDelete"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["id"], "message": "The market web presence wasn't found.", "code": "WEB_PRESENCE_NOT_FOUND"})
+    );
+
+    let mut attached_proxy = snapshot_proxy();
+    attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let attached = attached_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "DKK", "catalogId": "gid://shopify/MarketCatalog/3", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        attached.body["data"]["priceListCreate"]["priceList"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3"})
+    );
+    let detached = attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) { priceList { id catalog { id } } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/PriceList/5", "input": {"catalogId": null}}),
+    ));
+    assert_eq!(
+        detached.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/5", "catalog": null}, "userErrors": []})
+    );
+    let readback = attached_proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead($catalogId: ID!, $priceListId: ID!) {
+          catalog(id: $catalogId) { id priceList { id } }
+          priceList(id: $priceListId) { id catalog { id } }
+          priceLists(first: 10) { nodes { id name currency } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "priceListId": "gid://shopify/PriceList/5"}),
+    ));
+    assert_eq!(
+        readback.body["data"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3", "priceList": null})
+    );
+    assert_eq!(
+        readback.body["data"]["priceList"],
+        json!({"id": "gid://shopify/PriceList/5", "catalog": null})
+    );
+    assert_eq!(
+        readback.body["data"]["priceLists"]["nodes"][0],
+        json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "DKK"})
+    );
+}
+
+#[test]
 fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test

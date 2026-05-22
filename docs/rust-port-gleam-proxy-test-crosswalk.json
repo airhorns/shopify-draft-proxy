@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 160,
-      "needs_manual_review": 456,
+      "needs_manual_review": 449,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1542
+      "represented_by_rust_root_tests": 1549
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -281,7 +281,7 @@
         "test_count": 106
       }
     ],
-    "generated_at_utc": "2026-05-22T20:04:27Z",
+    "generated_at_utc": "2026-05-22T20:15:00Z",
     "gleam_main_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-gleam-main",
     "kind_counts": {
       "domain_processor_behavior": 275,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
       "implementation_unit_replaced_needs_review": 160,
-      "needs_manual_review": 456,
+      "needs_manual_review": 449,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1542
+      "represented_by_rust_root_tests": 1549
     },
     "test_count": 2162
   },
@@ -22203,93 +22203,135 @@
     },
     {
       "body_sha1": "44c7f90aaa83df893b14315ec82d8b2102e40130",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 54,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_create_accepts_dkk_with_parent_adjustment_test",
       "id": "8f6509571a9e",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c3628443913ef6276540e43a3d10a82595328c3f",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 65,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_create_requires_currency_test",
       "id": "7eb2c38912fb",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "90cc27f917dd251e5c3dda8f765f3fd972dc18b7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 76,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_create_requires_parent_test",
       "id": "ea337768ea22",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a22017fd66bd8fd302738db2a19877085b5ecf5b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 87,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_create_rejects_invalid_parent_adjustment_type_test",
       "id": "e30348c70d41",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "45cafd59a99dca099523e153301a7a7aa40ffca9",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 98,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "markets_typed_mutation_user_errors_include_typename_test",
       "id": "034c23da45c1",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "0000362402a3d2b4b1451a2a7e75146764f4f44b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 109,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_create_matches_parent_adjustment_value_bounds_test",
       "id": "983496315bd2",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "f48ba66647b62a3822f84d964fdb6111d8162f39",
@@ -22374,14 +22416,20 @@
     },
     {
       "body_sha1": "757e46497e3bf82813042d66fdee5ca9fbc086b3",
-      "coverage_reasons": [],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_price_list_helpers",
+        "covered_by_tests_graphql_routes_price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "markets_mutation",
       "gleam_line": 284,
       "gleam_path": "test/shopify_draft_proxy/proxy/markets_mutation_test.gleam",
       "gleam_test": "price_list_update_null_catalog_id_detaches_locally_created_price_list_test",
       "id": "a0018b107a05",
       "kind": "proxy_integration_helper",
+      "manual_rust_tests": [
+        "tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate"
+      ],
       "root_coverage": {
         "marketCreate": {
           "parity_spec": true,
@@ -22391,7 +22439,7 @@
       },
       "root_fields": ["marketCreate"],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5aff2a04c7433a3b27a7af37ee6f8cc56ba7a001",
