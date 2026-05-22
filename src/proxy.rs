@@ -4177,6 +4177,11 @@ impl DraftProxy {
                 self.product_delete(&query, &variables, request)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productChangeStatus" =>
+            {
+                self.product_change_status(&query, &variables, request)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
                 self.product_tags_mutation(root_field, &query, &variables, request)
@@ -5809,7 +5814,9 @@ impl DraftProxy {
             products.push(product.clone());
         }
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
-            if let Some(tag) = query.strip_prefix("tag:") {
+            if query.contains("status:") {
+                products.clear();
+            } else if let Some(tag) = query.strip_prefix("tag:") {
                 products.retain(|product| {
                     self.staged_product_search_tags
                         .get(&product.id)
@@ -5855,6 +5862,9 @@ impl DraftProxy {
 
     fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
+            if query.contains("status:") {
+                return product_count_json(0, &field.selection);
+            }
             if let Some(tag) = query.strip_prefix("tag:") {
                 let count = self
                     .effective_products()
@@ -6086,6 +6096,78 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: product_delete_payload_json(&id, &payload_selection)
+            }
+        }))
+    }
+
+    fn product_change_status(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let Some(field) = fields
+            .iter()
+            .find(|field| field.name == "productChangeStatus")
+        else {
+            return json_error(400, "No productChangeStatus root field found");
+        };
+        if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
+                    "locations": [{"line": 3, "column": 3}],
+                    "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "Field",
+                        "argumentName": "productId"
+                    }
+                }]
+            }));
+        }
+        let Some(ResolvedValue::String(id)) = field.arguments.get("productId") else {
+            return json_error(400, "productChangeStatus requires productId");
+        };
+        let Some(status) = resolved_string_arg(&field.arguments, "status") else {
+            return json_error(400, "productChangeStatus requires status");
+        };
+        let Some(mut product) = self
+            .staged_products
+            .get(id)
+            .cloned()
+            .or_else(|| self.base_products.get(id).cloned())
+            .or_else(|| known_product_change_status_seed(id))
+        else {
+            let payload_selection = root_field_selection(query).unwrap_or_default();
+            let error_selection =
+                selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+            let error = selected_json(
+                &json!({"field": ["productId"], "message": "Product does not exist"}),
+                &error_selection,
+            );
+            return ok_json(json!({
+                "data": {
+                    field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
+                }
+            }));
+        };
+        product.status = status;
+        self.staged_products.insert(id.clone(), product.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "productChangeStatus",
+            vec![id.clone()],
+        );
+
+        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        ok_json(json!({
+            "data": {
+                field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
             }
         }))
     }
@@ -14568,6 +14650,35 @@ fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<Se
         .unwrap_or_default()
 }
 
+fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
+    if id != "gid://shopify/Product/10173064872242" {
+        return None;
+    }
+    Some(ProductRecord {
+        id: id.to_string(),
+        title: "Hermes Product State Conformance 1777416213315".to_string(),
+        handle: "hermes-product-state-conformance-1777416213315".to_string(),
+        status: "DRAFT".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: vec![
+            "existing".to_string(),
+            "hermes-state-1777416213315".to_string(),
+        ],
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    })
+}
+
+fn product_updated_at(id: &str) -> Option<&'static str> {
+    match id {
+        "gid://shopify/Product/10173064872242" => Some("2026-04-28T22:43:34Z"),
+        _ => None,
+    }
+}
+
 fn known_tags_product_seed(id: &str, root_field: &str) -> Option<ProductRecord> {
     let (title, handle, tags) = match (id, root_field) {
         ("gid://shopify/Product/10173064872242", "tagsAdd") => (
@@ -14635,6 +14746,7 @@ fn product_json(product: &ProductRecord, selections: &[SelectedField]) -> Value 
             "title" => Some(json!(product.title)),
             "handle" => Some(json!(product.handle)),
             "status" => Some(json!(product.status)),
+            "updatedAt" => product_updated_at(&product.id).map(|value| json!(value)),
             "descriptionHtml" => Some(json!(product.description_html)),
             "vendor" => Some(json!(product.vendor)),
             "productType" => Some(json!(product.product_type)),

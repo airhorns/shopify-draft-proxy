@@ -10230,3 +10230,88 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
         })
     );
 }
+
+#[test]
+fn product_change_status_stages_archived_status_and_downstream_read_lag() {
+    let mut proxy = snapshot_proxy();
+
+    let changed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusParityPlan($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/10173064872242",
+            "status": "ARCHIVED"
+        }),
+    ));
+    assert_eq!(
+        changed.body["data"]["productChangeStatus"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED",
+                "updatedAt": "2026-04-28T22:43:34Z"
+            },
+            "userErrors": []
+        })
+    );
+
+    let null_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusNullLiteralConformance {
+          productChangeStatus(productId: null, status: ARCHIVED) {
+            product { id status updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        null_id.body["errors"][0]["message"],
+        json!("Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.")
+    );
+    assert_eq!(
+        null_id.body["errors"][0]["path"],
+        json!([
+            "mutation ProductChangeStatusNullLiteralConformance",
+            "productChangeStatus",
+            "productId"
+        ])
+    );
+    assert_eq!(
+        null_id.body["errors"][0]["extensions"],
+        json!({"code": "argumentLiteralsIncompatible", "typeName": "Field", "argumentName": "productId"})
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductChangeStatusDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id status updatedAt }
+          products(first: 10, query: $query) { nodes { id status } }
+          productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "query": "status:archived tag:hermes-state-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED",
+                "updatedAt": "2026-04-28T22:43:34Z"
+            },
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+}

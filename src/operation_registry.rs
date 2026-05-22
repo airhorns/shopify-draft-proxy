@@ -129,6 +129,16 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             support_notes: None,
         },
         OperationRegistryEntry {
+            name: "productChangeStatus".to_string(),
+            operation_type: OperationType::Mutation,
+            domain: CapabilityDomain::Products,
+            execution: CapabilityExecution::StageLocally,
+            implemented: true,
+            match_names: strings(&["productChangeStatus", "ProductChangeStatus"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
+            support_notes: None,
+        },
+        OperationRegistryEntry {
             name: "tagsAdd".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Products,
