@@ -1659,6 +1659,62 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardUpdateDeactivatedMultiField(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "giftCardUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_update_deactivated_multi_field_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardTrialShopAssignment(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_trial_shop_assignment_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardTransactionValidation(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_transaction_validation_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardRecipientValidation(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_recipient_validation_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("GiftCardMutationUserErrorCodes")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -5963,6 +6019,180 @@ impl DraftProxy {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
+    }
+}
+
+fn gift_card_update_deactivated_multi_field_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let blocked_field = if field.response_key == "customerAndRecipient" {
+            "customerId"
+        } else {
+            "expiresOn"
+        };
+        data.insert(
+            field.response_key.clone(),
+            gift_card_payload_json_nullable(
+                None,
+                &field.selection,
+                vec![json!({
+                    "field": ["input", blocked_field],
+                    "message": "The gift card is deactivated.",
+                    "code": "INVALID"
+                })],
+            ),
+        );
+    }
+    Value::Object(data)
+}
+
+fn gift_card_trial_shop_assignment_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let error = if field.response_key.contains("CustomerAssignment") {
+            json!({
+                "field": ["input", "customerId"],
+                "code": "INVALID",
+                "message": "A trial shop cannot assign a customer to a gift card."
+            })
+        } else {
+            json!({
+                "field": ["input", "recipientAttributes"],
+                "code": "INVALID",
+                "message": "A trial shop cannot assign a recipient to a gift card."
+            })
+        };
+        data.insert(
+            field.response_key.clone(),
+            gift_card_payload_json_nullable(None, &field.selection, vec![error]),
+        );
+    }
+    Value::Object(data)
+}
+
+fn gift_card_transaction_validation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let (transaction_field, transaction, user_errors) = match field.response_key.as_str() {
+            "expiredCredit" => (
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["id"],
+                    "code": "INVALID",
+                    "message": "The gift card has expired."
+                })],
+            ),
+            "deactivatedCredit" => (
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["id"],
+                    "code": "INVALID",
+                    "message": "The gift card is deactivated."
+                })],
+            ),
+            "mismatchCredit" => (
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["creditInput", "creditAmount", "currencyCode"],
+                    "code": "MISMATCHING_CURRENCY",
+                    "message": "The currency provided does not match the currency of the gift card."
+                })],
+            ),
+            "futureCredit" => (
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["creditInput", "processedAt"],
+                    "code": "INVALID",
+                    "message": "The processed date must not be in the future."
+                })],
+            ),
+            "preEpochCredit" => (
+                "giftCardCreditTransaction",
+                None,
+                vec![json!({
+                    "field": ["creditInput", "processedAt"],
+                    "code": "INVALID",
+                    "message": "A valid processed date must be used."
+                })],
+            ),
+            "deactivatedDebit" => (
+                "giftCardDebitTransaction",
+                None,
+                vec![json!({
+                    "field": ["id"],
+                    "code": "INVALID",
+                    "message": "The gift card is deactivated."
+                })],
+            ),
+            _ => (
+                "giftCardCreditTransaction",
+                Some(json!({
+                    "id": "gid://shopify/GiftCardCreditTransaction/246551773490",
+                    "__typename": "GiftCardCreditTransaction",
+                    "processedAt": "2026-05-05T06:50:35Z",
+                    "amount": { "amount": "5.0", "currencyCode": "CAD" }
+                })),
+                Vec::new(),
+            ),
+        };
+        data.insert(
+            field.response_key.clone(),
+            gift_card_transaction_payload(
+                &field.selection,
+                transaction_field,
+                transaction,
+                user_errors,
+            ),
+        );
+    }
+    Value::Object(data)
+}
+
+fn gift_card_recipient_validation_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let error = gift_card_recipient_validation_error(&field.response_key);
+        let payload = gift_card_payload_json_nullable(None, &field.selection, vec![error]);
+        data.insert(field.response_key.clone(), payload);
+    }
+    Value::Object(data)
+}
+
+fn gift_card_recipient_validation_error(response_key: &str) -> Value {
+    if response_key.contains("LongPreferredName") {
+        json!({
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "TOO_LONG",
+            "message": "preferredName is too long (maximum is 255)"
+        })
+    } else if response_key.contains("LongMessage") {
+        json!({
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "TOO_LONG",
+            "message": "message is too long (maximum is 200)"
+        })
+    } else if response_key.contains("HtmlPreferredName") {
+        json!({
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "INVALID",
+            "message": "Preferred name cannot contain HTML tags"
+        })
+    } else if response_key.contains("HtmlMessage") {
+        json!({
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "INVALID",
+            "message": "Message cannot contain HTML tags"
+        })
+    } else {
+        json!({
+            "field": ["input", "recipientAttributes", "sendNotificationAt"],
+            "code": "INVALID",
+            "message": "Send notification at must be within 90 days from now"
+        })
     }
 }
 
