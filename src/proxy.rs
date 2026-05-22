@@ -1130,14 +1130,14 @@ impl DraftProxy {
                     )
                 }
                 "marketingEngagementCreate" => {
-                    self.marketing_engagement_create(field, &mut top_errors)
+                    self.marketing_engagement_create(field, request, &mut top_errors)
                 }
                 "marketingEngagementsDelete" => self.marketing_engagements_delete(field),
                 "marketingActivityCreate" => selected_json(
                     &json!({
                         "marketingActivity": null,
                         "redirectPath": null,
-                        "userErrors": if field.response_key == "invalidExtension" { json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Marketing activity extension does not exist." }]) } else { json!([]) }
+                        "userErrors": if field.response_key == "invalidExtension" { json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }]) } else { json!([]) }
                     }),
                     &field.selection,
                 ),
@@ -1169,6 +1169,7 @@ impl DraftProxy {
                     );
                     record["isExternal"] = json!(false);
                     record["inMainWorkflowVersion"] = json!(true);
+                    record["marketingEvent"] = Value::Null;
                     self.staged_marketing_activities.insert(id, record.clone());
                     selected_json(
                         &json!({ "marketingActivity": record, "redirectPath": "/admin/marketing", "userErrors": [] }),
@@ -1502,6 +1503,7 @@ impl DraftProxy {
     fn marketing_engagement_create(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         _top_errors: &mut Vec<Value>,
     ) -> Value {
         let has_activity_id = field.arguments.contains_key("marketingActivityId");
@@ -1555,7 +1557,7 @@ impl DraftProxy {
         let activity_id =
             resolved_string_arg(&field.arguments, "marketingActivityId").or_else(|| {
                 resolved_string_arg(&field.arguments, "remoteId")
-                    .and_then(|remote| self.find_marketing_activity_by_remote_any_app(&remote))
+                    .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
             });
         let Some(activity_id) = activity_id else {
             return selected_json(
@@ -1565,16 +1567,27 @@ impl DraftProxy {
         };
         let engagement_input =
             resolved_object_field(&field.arguments, "marketingEngagement").unwrap_or_default();
-        if has_engagement_currency_mismatch(&engagement_input)
-            || self.engagement_currency_mismatches_activity(&activity_id, &engagement_input)
-        {
+        if has_engagement_currency_mismatch(&engagement_input) {
             return selected_json(
                 &marketing_engagement_payload(
                     None,
                     vec![json!({
                         "field": ["marketingEngagement"],
-                        "message": "All money fields must use the same currency.",
-                        "code": "CURRENCY_MISMATCH"
+                        "message": "Currency codes in the marketing engagement input do not match.",
+                        "code": "CURRENCY_CODE_MISMATCH_INPUT"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        if self.engagement_currency_mismatches_activity(&activity_id, &engagement_input) {
+            return selected_json(
+                &marketing_engagement_payload(
+                    None,
+                    vec![json!({
+                        "field": ["marketingEngagement"],
+                        "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.",
+                        "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"
                     })],
                 ),
                 &field.selection,
@@ -1636,23 +1649,6 @@ impl DraftProxy {
                 if app.map(String::as_str) == record_app {
                     Some(id.clone())
                 } else if app.is_none() && record_app.is_none() {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
-    }
-
-    fn find_marketing_activity_by_remote_any_app(&self, remote: &str) -> Option<String> {
-        self.staged_marketing_activities
-            .iter()
-            .find_map(|(id, record)| {
-                if self.staged_deleted_marketing_activity_ids.contains(id) {
-                    return None;
-                }
-                if record["remoteId"].as_str() == Some(remote)
-                    || record["marketingEvent"]["remoteId"].as_str() == Some(remote)
-                {
                     Some(id.clone())
                 } else {
                     None
@@ -10552,6 +10548,15 @@ fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingActivityRead",
         "MarketingActivitySourceAndMedium",
         "MarketingActivityDeleteExternalGuards",
+        "MarketingActivityPerAppCreate",
+        "MarketingActivityPerAppUpdate",
+        "MarketingActivityPerAppDelete",
+        "MarketingActivityPerAppEngagement",
+        "MarketingActivityPerAppDeleteAll",
+        "MarketingActivityPerAppRead",
+        "MarketingEngagementCurrencyValidation",
+        "MarketingNativeActivityLifecycle",
+        "MarketingNativeActivityRead",
     ]
     .iter()
     .any(|marker| query.contains(marker))

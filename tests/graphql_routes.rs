@@ -8518,3 +8518,202 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
         json!("remote-1")
     );
 }
+
+#[test]
+fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
+    let mut proxy = snapshot_proxy();
+    let mut create = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppCreate {
+          createExternal: marketingActivityCreateExternal(input: { title: "Per App Campaign", remoteId: "campaign-1", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, remoteUrl: "https://example.com/per-app", budget: { budgetType: DAILY, total: { amount: "100.00", currencyCode: USD } }, urlParameterValue: "utm_campaign=per-app-a", utm: { campaign: "per-app-a", source: "newsletter", medium: "email" } }) {
+            marketingActivity { id title remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let create = proxy.process_request(create);
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["title"],
+        json!("Per App Campaign")
+    );
+
+    let mut app_b_update = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppUpdate {
+          updateExternal: marketingActivityUpdateExternal(remoteId: "campaign-1", input: { title: "App B Attempted Update" }) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_update.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_update = proxy.process_request(app_b_update);
+    assert_eq!(
+        app_b_update.body["data"]["updateExternal"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
+    let mut app_b_engagement = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppEngagement {
+          engagementCreate: marketingEngagementCreate(remoteId: "campaign-1", marketingEngagement: { occurredOn: "2026-05-06", utcOffset: "+00:00", isCumulative: false, adSpend: { amount: "10.00", currencyCode: EUR } }) {
+            marketingEngagement { occurredOn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_engagement.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_engagement = proxy.process_request(app_b_engagement);
+    assert_eq!(
+        app_b_engagement.body["data"]["engagementCreate"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
+    let mut app_b_delete_all = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppDeleteAll {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal { job { done } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_delete_all.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_delete_all = proxy.process_request(app_b_delete_all);
+    assert_eq!(
+        app_b_delete_all.body["data"]["deleteAllExternal"],
+        json!({"job": {"done": false}, "userErrors": []})
+    );
+
+    let mut app_a_read = json_graphql_request(
+        r#"
+        query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        "#,
+        json!({"activityId": activity_id}),
+    );
+    app_a_read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_read = proxy.process_request(app_a_read);
+    assert_eq!(
+        app_a_read.body["data"]["marketingActivity"],
+        json!({"title": "Per App Campaign", "remoteId": "campaign-1"})
+    );
+}
+
+#[test]
+fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCurrencyValidation($activityInput: MarketingActivityCreateExternalInput!, $remoteId: String!, $activityId: ID!, $mismatchedInputEngagement: MarketingEngagementInput!, $activityCurrencyMismatchEngagement: MarketingEngagementInput!, $remoteActivityCurrencyMismatchEngagement: MarketingEngagementInput!) {
+          createActivity: marketingActivityCreateExternal(input: $activityInput) { marketingActivity { id } userErrors { field message code } }
+          inputMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $mismatchedInputEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          activityMismatchById: marketingEngagementCreate(marketingActivityId: $activityId, marketingEngagement: $activityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          activityMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $remoteActivityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"title": "HAR-684 Currency Validation Campaign", "remoteId": "har-684-currency-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/har-684-currency-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "budget": {"budgetType": "DAILY", "total": {"amount": "100.00", "currencyCode": "USD"}}, "utm": {"campaign": "har-684-currency-validation", "source": "newsletter", "medium": "email"}},
+            "remoteId": "har-684-currency-validation",
+            "activityId": "gid://shopify/MarketingActivity/1",
+            "mismatchedInputEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "USD"}, "sales": {"amount": "30.00", "currencyCode": "EUR"}},
+            "activityCurrencyMismatchEngagement": {"occurredOn": "2026-04-02", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "EUR"}},
+            "remoteActivityCurrencyMismatchEngagement": {"occurredOn": "2026-04-03", "isCumulative": false, "utcOffset": "+00:00", "sales": {"amount": "30.00", "currencyCode": "EUR"}}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["inputMismatchByRemoteId"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT" }])
+    );
+    assert_eq!(
+        response.body["data"]["inputMismatchByRemoteId"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchById"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.", "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH" }])
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchById"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchByRemoteId"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.", "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH" }])
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchByRemoteId"]["marketingEngagement"],
+        json!(null)
+    );
+}
+
+#[test]
+fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingNativeActivityLifecycle($createInput: MarketingActivityCreateInput!, $updateInput: MarketingActivityUpdateInput!, $invalidExtensionInput: MarketingActivityCreateInput!) {
+          createNative: marketingActivityCreate(input: $createInput) { userErrors { field message } }
+          updateNative: marketingActivityUpdate(input: $updateInput) { marketingActivity { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } redirectPath userErrors { field message } }
+          invalidExtension: marketingActivityCreate(input: $invalidExtensionInput) { userErrors { field message } }
+        }
+        "#,
+        json!({
+            "createInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/har-373-local-extension", "status": "DRAFT"},
+            "updateInput": {"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE"},
+            "invalidExtensionInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000", "status": "DRAFT"}
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["createNative"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["updateNative"]["marketingActivity"],
+        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+    );
+    assert_eq!(
+        response.body["data"]["invalidExtension"]["userErrors"],
+        json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingNativeActivityRead($activityId: ID!) { marketingActivity(id: $activityId) { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } }
+        "#,
+        json!({"activityId": "gid://shopify/MarketingActivity/1"}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivity"],
+        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+    );
+}
