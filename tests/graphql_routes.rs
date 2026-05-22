@@ -13258,3 +13258,24 @@ fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
         );
     }
 }
+
+#[test]
+fn product_media_validation_downstream_read_preserves_seed_and_mixed_create_media() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json"
+    ))
+    .unwrap();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-media-validation-downstream-read.graphql"
+        ),
+        json!({ "productId": "gid://shopify/Product/10170577518898" }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"]
+    );
+}

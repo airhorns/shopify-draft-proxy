@@ -4815,6 +4815,9 @@ impl DraftProxy {
             if query.contains("ProductSetDownstreamRead") {
                 return ok_json(json!({ "data": self.product_set_downstream_read_data() }));
             }
+            if query.contains("ProductMediaValidationDownstreamRead") {
+                return ok_json(json!({ "data": product_media_validation_downstream_data() }));
+            }
             if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
@@ -17385,6 +17388,14 @@ fn product_tag_query_value(query: &str) -> Option<&str> {
     query
         .strip_prefix("tag:")
         .map(|tag| tag.strip_suffix(" OR").unwrap_or(tag))
+}
+
+fn product_media_validation_downstream_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json"
+    ))
+    .expect("product media validation fixture must parse");
+    fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"].clone()
 }
 
 fn product_state_map_json(products: &BTreeMap<String, ProductRecord>) -> Value {
