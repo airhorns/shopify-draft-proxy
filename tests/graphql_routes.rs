@@ -10667,6 +10667,116 @@ fn product_catalog_and_search_reads_replay_captured_fixture_data() {
     );
 }
 
+fn captured_payload_data(fixture: &Value, path: &[&str]) -> Value {
+    let mut value = fixture;
+    for key in path {
+        value = &value[*key];
+    }
+    value
+        .get("response")
+        .and_then(|response| response.get("payload"))
+        .or_else(|| value.get("response"))
+        .and_then(|response| response.get("data"))
+        .or_else(|| value.get("data"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+#[test]
+fn product_create_rich_fixture_readbacks_preserve_captured_product_shapes() {
+    let create_cases = [
+        (
+            include_str!("../config/parity-requests/products/productCreate-with-options-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"),
+            &[][..],
+            "options",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-with-options-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"),
+            &[][..],
+            "options",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-inventory-read-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-inventory-read-downstream.graphql"),
+            include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"),
+            &[][..],
+            "inventory",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-category-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-category-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"),
+            &[][..],
+            "category",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-collections-to-join-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-collections-to-join-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"),
+            &[][..],
+            "collections",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-requires-selling-plan-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-requires-selling-plan-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"),
+            &[][..],
+            "requiresSellingPlan",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-dropped-inputs-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-dropped-inputs-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"),
+            &["giftCardAndMetafields"][..],
+            "giftCard",
+        ),
+    ];
+
+    for (mutation_query, downstream_query, fixture_source, section_path, kind) in create_cases {
+        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
+        let mut proxy = snapshot_proxy();
+        let mutation_section = if section_path.is_empty() {
+            &fixture["mutation"]
+        } else {
+            &fixture[section_path[0]]["mutation"]
+        };
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            mutation_section["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200, "{kind} mutation status");
+        assert_eq!(
+            mutation.body["data"],
+            captured_payload_data(&fixture, &[section_path, &["mutation"]].concat()),
+            "{kind} mutation data"
+        );
+
+        let product_id = mutation.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap();
+        let downstream_variables = match kind {
+            "inventory" => json!({
+                "productId": product_id,
+                "variantId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"],
+                "inventoryItemId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
+            }),
+            _ => json!({ "id": product_id }),
+        };
+        let downstream =
+            proxy.process_request(json_graphql_request(downstream_query, downstream_variables));
+        assert_eq!(downstream.status, 200, "{kind} downstream status");
+        assert_eq!(
+            downstream.body["data"],
+            captured_payload_data(&fixture, &[section_path, &["downstreamRead"]].concat()),
+            "{kind} downstream data"
+        );
+    }
+}
+
 #[test]
 fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_shapes() {
     let query = include_str!(

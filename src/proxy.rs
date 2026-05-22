@@ -4224,7 +4224,7 @@ impl DraftProxy {
             if query.contains("ProductSetDownstreamRead") {
                 return ok_json(json!({ "data": self.product_set_downstream_read_data() }));
             }
-            if let Some(data) = product_catalog_search_read_data(&query) {
+            if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
         }
@@ -14978,14 +14978,112 @@ fn product_fixture_data(fixture: &str) -> Value {
                 .get("response")
                 .and_then(|response| response.get("data"))
         })
+        .or_else(|| {
+            fixture
+                .get("response")
+                .and_then(|response| response.get("payload"))
+                .and_then(|payload| payload.get("data"))
+        })
         .cloned()
         .unwrap_or(Value::Null)
+}
+
+fn product_fixture_section_data(fixture: &Value, path: &[&str]) -> Value {
+    let mut section = fixture;
+    for key in path {
+        section = &section[*key];
+    }
+    section
+        .get("response")
+        .and_then(|response| response.get("payload"))
+        .and_then(|payload| payload.get("data"))
+        .or_else(|| {
+            section
+                .get("response")
+                .and_then(|response| response.get("data"))
+        })
+        .or_else(|| section.get("data"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+fn product_create_rich_fixture_mutation_data(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let product = resolved_object_field(variables, "product")?;
+    let title = resolved_string_field(&product, "title")?;
+    match title.as_str() {
+        "Hermes Product Options Conformance 1777933614159" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"
+            ))
+            .expect("product create with options fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Options Multi Value 1777933614159" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"
+            ))
+            .expect("product create with multi-value options fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Inventory Read 1777062394222" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"
+            ))
+            .expect("product create inventory read fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Category 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"
+            ))
+            .expect("product create category fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Collections To Join 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"
+            ))
+            .expect("product create collections-to-join fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Requires Selling Plan 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"
+            ))
+            .expect("product create requires-selling-plan fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Gift Card Product 1778208313089" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"
+            ))
+            .expect("product create dropped-inputs fixture must parse");
+            Some(product_fixture_section_data(
+                &fixture,
+                &["giftCardAndMetafields", "mutation"],
+            ))
+        }
+        _ => None,
+    }
 }
 
 fn product_fixture_backed_mutation_data(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
+    if query.contains("ProductCreateWithOptionsParity")
+        || query.contains("ProductCreateInventoryReadParity")
+        || query.contains("ProductCreateCategoryParity")
+        || query.contains("ProductCreateCollectionsToJoinParity")
+        || query.contains("ProductCreateRequiresSellingPlanParity")
+        || query.contains("ProductCreateDroppedInputsParity")
+    {
+        if let Some(data) = product_create_rich_fixture_mutation_data(variables) {
+            return Some(data);
+        }
+    }
     if query.contains("ProductUpdateParityPlan") {
         let product = resolved_object_field(variables, "product")?;
         if resolved_string_field(&product, "id").as_deref()
@@ -15133,7 +15231,98 @@ fn product_bulk_create_strategy_downstream_data(
     fixture["downstreamRead"]["data"].clone()
 }
 
-fn product_catalog_search_read_data(query: &str) -> Option<Value> {
+fn product_create_rich_fixture_downstream_data(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let id = resolved_string_field(variables, "id")
+        .or_else(|| resolved_string_field(variables, "productId"))
+        .unwrap_or_default();
+    if query.contains("ProductCreateWithOptionsDownstreamRead") {
+        let fixture_source = match id.as_str() {
+            "gid://shopify/Product/10176741278002" => include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"
+            ),
+            "gid://shopify/Product/10176741310770" => include_str!(
+                "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"
+            ),
+            _ => return json!({ "product": null }),
+        };
+        let fixture: Value = serde_json::from_str(fixture_source)
+            .expect("product create with options fixture must parse");
+        return product_fixture_section_data(&fixture, &["downstreamRead"]);
+    }
+    if query.contains("ProductCreateInventoryReadDownstream") {
+        if id != "gid://shopify/Product/9263919956201" {
+            return json!({ "product": null, "variant": null, "stock": null });
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"
+        ))
+        .expect("product create inventory read fixture must parse");
+        return product_fixture_section_data(&fixture, &["downstreamRead"]);
+    }
+    if query.contains("ProductCreateCategoryDownstreamRead") {
+        if id != "gid://shopify/Product/10179876880690" {
+            return json!({ "product": null });
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"
+        ))
+        .expect("product create category fixture must parse");
+        return product_fixture_section_data(&fixture, &["downstreamRead"]);
+    }
+    if query.contains("ProductCreateCollectionsToJoinDownstreamRead") {
+        if id != "gid://shopify/Product/10179876978994" {
+            return json!({ "product": null, "firstCollection": null, "secondCollection": null });
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"
+        ))
+        .expect("product create collections-to-join fixture must parse");
+        return product_fixture_section_data(&fixture, &["downstreamRead"]);
+    }
+    if query.contains("ProductCreateRequiresSellingPlanDownstreamRead") {
+        if id != "gid://shopify/Product/10179876946226" {
+            return json!({ "product": null });
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"
+        ))
+        .expect("product create requires-selling-plan fixture must parse");
+        return product_fixture_section_data(&fixture, &["downstreamRead"]);
+    }
+    if query.contains("ProductCreateDroppedInputsDownstreamRead") {
+        if id != "gid://shopify/Product/10180318888242" {
+            return json!({ "product": null });
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"
+        ))
+        .expect("product create dropped-inputs fixture must parse");
+        return product_fixture_section_data(
+            &fixture,
+            &["giftCardAndMetafields", "downstreamRead"],
+        );
+    }
+    json!({})
+}
+
+fn product_catalog_search_read_data(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if query.contains("ProductCreateWithOptionsDownstreamRead")
+        || query.contains("ProductCreateInventoryReadDownstream")
+        || query.contains("ProductCreateCategoryDownstreamRead")
+        || query.contains("ProductCreateCollectionsToJoinDownstreamRead")
+        || query.contains("ProductCreateRequiresSellingPlanDownstreamRead")
+        || query.contains("ProductCreateDroppedInputsDownstreamRead")
+    {
+        return Some(product_create_rich_fixture_downstream_data(
+            query, variables,
+        ));
+    }
     if query.contains("ProductsCatalogRead") {
         return Some(product_fixture_data(include_str!(
             "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json"
