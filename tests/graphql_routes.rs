@@ -9215,6 +9215,95 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 }
 
 #[test]
+fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_delete() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Reference source", "contentType": "IMAGE", "filename": "reference-source.jpg", "originalSource": "https://cdn.example.com/reference-source.jpg"}]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
+            "userErrors": []
+        })
+    );
+
+    let attach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceAttach($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"files": [{"id": "gid://shopify/MediaImage/2", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
+    ));
+    assert_eq!(
+        attach.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{"field": ["files"], "message": "Non-ready files cannot be updated.", "code": "NON_READY_STATE"}]})
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceProductRead($productId: ID!) {
+          product(id: $productId) { id title media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/429001"}),
+    ));
+    assert_eq!(
+        product_read.body["data"]["product"],
+        json!({"id": "gid://shopify/Product/429001", "title": "File reference target", "media": {"nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}})
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead {
+          files(first: 10) { nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"],
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/39516006482153"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/39516006482153"], "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FileDeleteMediaReferenceDownstream($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/9264121479401"}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"],
+        json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
+    );
+}
+
+#[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
 

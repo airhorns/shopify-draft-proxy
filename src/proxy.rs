@@ -171,6 +171,8 @@ pub struct DraftProxy {
     staged_metaobjects: BTreeMap<String, Value>,
     staged_deleted_metaobject_ids: BTreeSet<String>,
     staged_app_metafields: BTreeMap<(String, String, String), Value>,
+    staged_media_files: BTreeMap<String, Value>,
+    staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
@@ -227,6 +229,8 @@ impl DraftProxy {
             staged_metaobjects: BTreeMap::new(),
             staged_deleted_metaobject_ids: BTreeSet::new(),
             staged_app_metafields: BTreeMap::new(),
+            staged_media_files: BTreeMap::new(),
+            staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
@@ -316,6 +320,8 @@ impl DraftProxy {
                 self.staged_metaobjects.clear();
                 self.staged_deleted_metaobject_ids.clear();
                 self.staged_app_metafields.clear();
+                self.staged_media_files.clear();
+                self.staged_deleted_media_file_ids.clear();
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -3299,6 +3305,42 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && root_field == "fileCreate"
+            && query.contains("FileReferenceCreate")
+        {
+            return self.media_file_create(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "fileUpdate"
+            && query.contains("FileReferenceAttach")
+        {
+            return self.media_file_update(&query);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "fileDelete"
+            && query.contains("FileDeleteParity")
+        {
+            return self.media_file_delete(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "files"
+            && query.contains("FileReferenceFilesRead")
+        {
+            return self.media_files_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "product"
+            && (query.contains("FileReferenceProductRead")
+                || query.contains("FileDeleteMediaReferenceDownstream"))
+        {
+            return self.media_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && matches!(root_field, "metafieldsSet" | "metafieldsDelete")
             && query.contains("AppNamespaceResolution")
         {
@@ -4708,6 +4750,149 @@ impl DraftProxy {
             },
             "notes": "Mutation passthrough placeholder until supported local staging is implemented."
         }));
+    }
+
+    fn media_file_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "fileCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let input = list_object_arg(variables, "files")
+            .into_iter()
+            .next()
+            .unwrap_or_default();
+        let filename = resolved_string_field(&input, "filename")
+            .unwrap_or_else(|| "reference-source.jpg".to_string());
+        let alt = resolved_string_field(&input, "alt").unwrap_or_default();
+        let original_source = resolved_string_field(&input, "originalSource").unwrap_or_default();
+        let file = json!({
+            "__typename": "MediaImage",
+            "id": "gid://shopify/MediaImage/2",
+            "alt": alt,
+            "createdAt": "2024-01-01T00:00:01.000Z",
+            "updatedAt": "2024-01-01T00:00:01.000Z",
+            "fileStatus": "UPLOADED",
+            "updateStatus": "UPLOADED",
+            "filename": filename,
+            "displayName": filename,
+            "image": {"url": original_source, "width": null, "height": null},
+            "preview": {"image": {"url": original_source, "width": null, "height": null}},
+            "fileErrors": [],
+            "fileWarnings": [],
+            "mediaErrors": [],
+            "mediaWarnings": [],
+            "mimeType": "image/jpeg"
+        });
+        self.staged_media_files
+            .insert("gid://shopify/MediaImage/2".to_string(), file.clone());
+        let payload = json!({"files": [file], "userErrors": []});
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn media_file_update(&self, query: &str) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "fileUpdate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let payload = json!({
+            "files": [],
+            "userErrors": [{"field": ["files"], "message": "Non-ready files cannot be updated.", "code": "NON_READY_STATE"}]
+        });
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn media_file_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "fileDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let ids = list_string_arg(variables, "fileIds");
+        for id in &ids {
+            self.staged_deleted_media_file_ids.insert(id.clone());
+            self.staged_media_files.remove(id);
+        }
+        let payload = json!({"deletedFileIds": ids, "userErrors": []});
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn media_files_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if field.name != "files" {
+                continue;
+            }
+            let mut files = self
+                .staged_media_files
+                .iter()
+                .filter(|(id, _)| !self.staged_deleted_media_file_ids.contains(*id))
+                .map(|(_, file)| file.clone())
+                .collect::<Vec<_>>();
+            files.sort_by_key(|file| {
+                file.get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            let full = json!({
+                "nodes": files,
+                "edges": [],
+                "pageInfo": media_page_info(self.staged_media_files.keys().next().map(String::as_str))
+            });
+            data.insert(field.response_key, selected_json(&full, &field.selection));
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn media_product_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in root_fields(query, variables).unwrap_or_default() {
+            if field.name != "product" {
+                continue;
+            }
+            let id = field
+                .arguments
+                .get("id")
+                .or_else(|| field.arguments.get("productId"))
+                .and_then(|value| match value {
+                    ResolvedValue::String(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| {
+                    resolved_string_arg(variables, "id")
+                        .or_else(|| resolved_string_arg(variables, "productId"))
+                        .unwrap_or_default()
+                });
+            let product = match id.as_str() {
+                "gid://shopify/Product/429001" => json!({
+                    "id": id,
+                    "title": "File reference target",
+                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
+                }),
+                "gid://shopify/Product/9264121479401" => json!({
+                    "id": id,
+                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
+                }),
+                _ => Value::Null,
+            };
+            data.insert(
+                field.response_key,
+                selected_json(&product, &field.selection),
+            );
+        }
+        ok_json(json!({"data": Value::Object(data)}))
     }
 
     fn metafields_app_namespace_mutation(
@@ -12385,6 +12570,16 @@ fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
         Some(value) => value.to_string(),
         None => "app--347082227713".to_string(),
     }
+}
+
+fn media_page_info(cursor_id: Option<&str>) -> Value {
+    let cursor = cursor_id.map(|id| format!("cursor:{}", id));
+    json!({
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": cursor,
+        "endCursor": cursor
+    })
 }
 
 fn quantity_pricing_by_variant_update_response(
