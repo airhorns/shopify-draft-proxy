@@ -4120,6 +4120,12 @@ impl DraftProxy {
             return self.saved_search_mutation_fields(&query, &variables, request);
         }
 
+        if operation.operation_type == OperationType::Mutation {
+            if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
         if is_inventory_quantity_document(&query) {
             if operation.operation_type == OperationType::Query {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -14493,6 +14499,41 @@ fn product_fixture_data(fixture: &str) -> Value {
         .unwrap_or(Value::Null)
 }
 
+fn product_fixture_backed_mutation_data(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if query.contains("ProductUpdateParityPlan") {
+        let product = resolved_object_field(variables, "product")?;
+        if resolved_string_field(&product, "id").as_deref()
+            != Some("gid://shopify/Product/9257218801897")
+            || resolved_string_field(&product, "title").as_deref()
+                != Some("Hermes Product Conformance 1776550632328 Updated")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json"
+        ))
+        .expect("product update parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductDeleteParityPlan") {
+        let input = resolved_object_field(variables, "input")?;
+        if resolved_string_field(&input, "id").as_deref()
+            != Some("gid://shopify/Product/9257218801897")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+        ))
+        .expect("product delete parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    None
+}
+
 fn product_catalog_search_read_data(query: &str) -> Option<Value> {
     if query.contains("ProductsCatalogRead") {
         return Some(product_fixture_data(include_str!(
@@ -15782,16 +15823,20 @@ fn product_input(
 fn product_update_missing_product(query: &str) -> Response {
     let response_key =
         root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let error_selection =
+        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+    let error = selected_json(
+        &json!({
+            "field": ["id"],
+            "message": "Product does not exist",
+            "code": "NOT_FOUND"
+        }),
+        &error_selection,
+    );
     ok_json(json!({
         "data": {
-            response_key: {
-                "product": null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Product does not exist",
-                    "code": "NOT_FOUND"
-                }]
-            }
+            response_key: selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
         }
     }))
 }
@@ -15799,16 +15844,20 @@ fn product_update_missing_product(query: &str) -> Response {
 fn product_delete_missing_product(query: &str) -> Response {
     let response_key =
         root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
+    let payload_selection = root_field_selection(query).unwrap_or_default();
+    let error_selection =
+        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+    let error = selected_json(
+        &json!({
+            "field": ["id"],
+            "message": "Product does not exist",
+            "code": "NOT_FOUND"
+        }),
+        &error_selection,
+    );
     ok_json(json!({
         "data": {
-            response_key: {
-                "deletedProductId": null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Product does not exist",
-                    "code": "NOT_FOUND"
-                }]
-            }
+            response_key: selected_json(&json!({"deletedProductId": null, "userErrors": [error]}), &payload_selection)
         }
     }))
 }

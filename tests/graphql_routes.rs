@@ -10464,3 +10464,53 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         }])
     );
 }
+
+#[test]
+fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-parity-plan.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/9257218801897",
+                "title": "Hermes Product Conformance 1776550632328 Updated",
+                "vendor": "HERMES-LABS",
+                "productType": "TEST-GOODS",
+                "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+                "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
+                "templateSuffix": "product-mutation-updated",
+                "seo": {
+                    "title": "Hermes Product 1776550632328 Updated",
+                    "description": "Updated Hermes product mutation conformance 1776550632328"
+                }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let update_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"],
+        update_fixture["mutation"]["response"]["data"]["productUpdate"]["product"]
+    );
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-parity-plan.graphql"),
+        json!({ "input": { "id": "gid://shopify/Product/9257218801897" } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"],
+        json!({
+            "deletedProductId": "gid://shopify/Product/9257218801897",
+            "userErrors": []
+        })
+    );
+}
