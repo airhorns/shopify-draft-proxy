@@ -65,7 +65,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: strings(&["product", "Product"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -75,7 +75,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: strings(&["products", "Products"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -85,7 +85,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: strings(&["productsCount", "ProductsCount"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -95,7 +95,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: strings(&["productByIdentifier", "ProductByIdentifier"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -105,7 +105,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: strings(&["productCreate", "ProductCreate"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -115,7 +115,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: strings(&["productUpdate", "ProductUpdate"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -125,7 +125,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: strings(&["productDelete", "ProductDelete"]),
-            runtime_tests: strings(&["test/parity_test.gleam"]),
+            runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
         OperationRegistryEntry {

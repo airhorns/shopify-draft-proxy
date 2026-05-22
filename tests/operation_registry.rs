@@ -14,7 +14,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::OverlayRead,
             implemented: true,
             match_names: vec!["product".to_string(), "Product".to_string()],
-            runtime_tests: vec!["test/parity_test.gleam".to_string()],
+            runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
             support_notes: None,
         },
         OperationRegistryEntry {
@@ -24,7 +24,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             execution: CapabilityExecution::StageLocally,
             implemented: true,
             match_names: vec!["productCreate".to_string()],
-            runtime_tests: vec!["test/parity_test.gleam".to_string()],
+            runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
             support_notes: Some("stages products locally".to_string()),
         },
         OperationRegistryEntry {
@@ -140,4 +140,32 @@ fn default_registry_classifies_core_port_targets_without_runtime_io() {
     let app = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(app.domain, CapabilityDomain::Unknown);
     assert_eq!(app.execution, CapabilityExecution::Passthrough);
+}
+
+#[test]
+fn default_registry_runtime_tests_reference_current_rust_coverage_files() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    for entry in implemented_entries(&default_registry()) {
+        assert!(
+            !entry.runtime_tests.is_empty(),
+            "implemented registry entry {} should declare executable runtime coverage",
+            entry.name
+        );
+
+        for runtime_test in &entry.runtime_tests {
+            assert!(
+                !runtime_test.ends_with(".gleam"),
+                "implemented registry entry {} still points at deleted Gleam test {}",
+                entry.name,
+                runtime_test
+            );
+            assert!(
+                repo_root.join(runtime_test).exists(),
+                "implemented registry entry {} points at missing runtime test {}",
+                entry.name,
+                runtime_test
+            );
+        }
+    }
 }
