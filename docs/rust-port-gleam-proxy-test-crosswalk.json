@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 164,
-      "needs_manual_review": 513,
+      "needs_manual_review": 486,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1481
+      "represented_by_rust_root_tests": 1508
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -11744,8 +11744,11 @@
     },
     {
       "body_sha1": "1c61535e3a38f3c594180ca99ddaaf2956b3642f",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 18,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11755,12 +11758,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "b1cbcc252147ead6959b231def20714d612e1fde",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 34,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11770,12 +11776,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "59389a0de6280924a5a8b93a59313f54168ea2f2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 48,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11785,7 +11794,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "dc9e9196d03c7a7d069055fbafcc59bd16250d2e",
@@ -11857,8 +11866,11 @@
     },
     {
       "body_sha1": "891df374e647fcd735ba4de4c610bbf74fe04372",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 103,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11868,12 +11880,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "7abfdadd658070928c0e86ee62717b13801705f6",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 117,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11883,7 +11898,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "4e705306af4b6fbcc24a6c000cdae56c663897f4",
@@ -11913,8 +11928,11 @@
     },
     {
       "body_sha1": "d58726026d92d4447c7c01e0053afb2f964bc21f",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 145,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11924,7 +11942,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "9083cdd905b938e3e7280a4fb9a3daa67372ccbf",
@@ -11949,8 +11967,11 @@
     },
     {
       "body_sha1": "656571cdf20f73af509b83613f4d336efd3ad939",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 173,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11960,12 +11981,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "e0e5b2807d438614a1f6c6e31ba07c7b6b59dbd6",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 189,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11975,12 +11999,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "66090381d022bc97cf92687875dfe738211f95e2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 213,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11990,12 +12017,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "2f5e4afbd3f07c3178b71c069184a358f4e9f484",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 227,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -12005,7 +12035,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "33375e02d2da88a1a99520ffbf0ea385ed6f6b7a",
@@ -12035,8 +12065,11 @@
     },
     {
       "body_sha1": "f40862e7af9ba7ca1c6c8ef88271c1787f7e4c70",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 262,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -12046,12 +12079,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "dcde3c14c11fec2ab2142774c61323487f0d2400",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 277,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -12061,12 +12097,16 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ab4d0011d3d4bfdfa0874378f37136db3c9baeb1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/graphql_routes.rs delivery settings empty-read coverage"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 291,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -12076,12 +12116,16 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "44c0e3b2e9edc24e638df745d75d3b1001723cba",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/graphql_routes.rs delivery settings empty-read coverage"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 307,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -12091,7 +12135,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "e814df90f776650189886756d8a43739e9d32fc5",
@@ -14428,8 +14472,11 @@
     },
     {
       "body_sha1": "a07f3bf200cc86d4f56f2998947d622ad186d615",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2013,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14439,12 +14486,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "4989265d3e8a00453da5e09612dc224afeedcb19",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2019,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14454,12 +14504,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "53b342bf5f802bfa217ec5e544b94c9edfe1128b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2034,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14469,12 +14522,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "bcb3dffd292e68efbba577e9c768cb355e2b5a45",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2044,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14484,12 +14540,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "be7d9c7e40c5701fe1a66c8ee1d4d44ffd2e9344",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2050,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14499,12 +14558,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "730194b3e4d0ea8277054c6504e4bec804bbf236",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2063,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14514,7 +14576,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "cb9f5bf87031aeccc8dfe675050997fb6f1c3ec4",
@@ -14544,8 +14606,12 @@
     },
     {
       "body_sha1": "b7e8773f1886b8b0cc9fd51049789f022d6eed49",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/meta_routes.rs::meta_reset_clears_log_and_staged_product_overlay"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2095,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14555,7 +14621,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "56dba02b52f984beeb6bda5b7f2018ebebd20318",
@@ -14645,8 +14711,11 @@
     },
     {
       "body_sha1": "ee4f250f456c887689bc4db91258144541180452",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2181,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14656,7 +14725,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a3b161b9bd249d78c7bf88e89245980b6828ca22",
@@ -14675,8 +14744,11 @@
     },
     {
       "body_sha1": "1922c87c2bfcd70790c2c392c6c9bfd8f20905f6",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2217,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14686,12 +14758,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1e091cb87a0fe76cd9f0c10196b99fd4becc56cc",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2289,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14701,7 +14776,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ffe5fdfe063baa89ba7765b496404070f67c7af5",
@@ -14767,8 +14842,12 @@
     },
     {
       "body_sha1": "209f12c3d611512537cf79dfe2a3457f5e56124b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps and meta_dump_and_restore_round_trip_staged_rust_state"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2364,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14778,7 +14857,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "10a442948f22dd5c77c431f9a46bd4ed23e53aba",
@@ -14903,8 +14982,12 @@
     },
     {
       "body_sha1": "c0f2189ba3eff735b06d4f6be1483ae10ec6d52d",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps and meta_dump_and_restore_round_trip_staged_rust_state"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2448,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14914,12 +14997,16 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c8b864ac546eb31deba39ed7a269fd56155a41b6",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests",
+        "manual_rust_port_override:tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps and meta_dump_and_restore_round_trip_staged_rust_state"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2464,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14929,7 +15016,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "279df59be0a96006d7f7b568be1a4836741785be",

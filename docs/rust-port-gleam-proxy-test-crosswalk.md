@@ -6,9 +6,9 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
   - `implementation_unit_replaced_needs_review`: 164
-  - `needs_manual_review`: 513
+  - `needs_manual_review`: 486
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1481
+  - `represented_by_rust_root_tests`: 1508
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -25,7 +25,6 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `b2b`: 36
 - `localization_mutation`: 35
 - `store_properties`: 33
-- `draft_proxy`: 31
 - `metaobject_definitions`: 26
 - `mutation_helpers`: 22
 - `commit`: 20
@@ -52,6 +51,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `metafield_definitions`: 5
 - `segments_mutation`: 5
 - `capabilities`: 4
+- `draft_proxy`: 4
 - `marketing`: 4
 - `upstream_query`: 4
 - `gift_cards`: 3
@@ -66,6 +66,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Webhook endpoint/URI conversion, connection filter/sort/count behavior, validation edge cases, and dedicated Pub/Sub update field-path behavior are now represented by Rust integration tests in `tests/graphql_routes.rs`.
 - Draft-proxy state dump/restore malformed-input behavior from `draft_proxy_test.gleam` is now represented by `tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps`, covering unsupported schemas, missing state buckets, missing log entries, invalid synthetic identity, and malformed JSON.
 - Events empty-read behavior from `events_test.gleam` and the draft-proxy event route helpers is now represented by `tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests`, covering `event`, `events`, `eventsCount`, aliases, unknown event subfields, unknown mixed event roots, and the data envelope.
+- Draft-proxy route/config/snapshot helper behavior from `draft_proxy_test.gleam` is now represented by `tests/meta_routes.rs::ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests`, covering default/config snapshot parity, snapshot-path config, meta route/getter equality, method/path guards, invalid GraphQL bodies, unsupported mutation envelopes, reset, empty commit, and default Rust state dump envelopes. This pass also fixed `Config::default()` to preserve the old proxy default port `4000`.
 
 ## Notes
 

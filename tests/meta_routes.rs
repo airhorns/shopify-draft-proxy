@@ -2,7 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
-use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request, Response};
+use shopify_draft_proxy::proxy::{
+    Config, DraftProxy, ProductRecord, ReadMode, Request, Response, UnsupportedMutationMode,
+};
 
 fn snapshot_proxy() -> DraftProxy {
     DraftProxy::new(Config {
@@ -86,6 +88,147 @@ fn serves_meta_route_response_shapes() {
     let reset = proxy.process_request(request("POST", "/__meta/reset"));
     assert_eq!(reset.status, 200);
     assert_eq!(reset.body, json!({ "ok": true, "message": "state reset" }));
+}
+
+#[test]
+fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
+    let mut default_proxy = DraftProxy::new(Config::default());
+    let expected_default_config = json!({
+        "runtime": {
+            "readMode": "snapshot",
+            "unsupportedMutationMode": "passthrough",
+            "bulkOperationRunMutationMaxInputFileSizeBytes": 104857600
+        },
+        "proxy": { "port": 4000, "shopifyAdminOrigin": "https://shopify.com" },
+        "snapshot": { "enabled": false, "path": null }
+    });
+    assert_eq!(default_proxy.get_config_snapshot(), expected_default_config);
+    assert_eq!(
+        default_proxy
+            .process_request(request("GET", "/__meta/config"))
+            .body,
+        expected_default_config
+    );
+
+    let snapshot_proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: Some(104_857_600),
+        port: 4001,
+        shopify_admin_origin: "https://example.myshopify.com".to_string(),
+        snapshot_path: Some("/tmp/snap.json".to_string()),
+    });
+    assert_eq!(
+        snapshot_proxy.get_config_snapshot(),
+        json!({
+            "runtime": {
+                "readMode": "live-hybrid",
+                "unsupportedMutationMode": "passthrough",
+                "bulkOperationRunMutationMaxInputFileSizeBytes": 104857600
+            },
+            "proxy": { "port": 4001, "shopifyAdminOrigin": "https://example.myshopify.com" },
+            "snapshot": { "enabled": true, "path": "/tmp/snap.json" }
+        })
+    );
+
+    let log_snapshot = default_proxy.get_log_snapshot();
+    assert_eq!(log_snapshot, json!({ "entries": [] }));
+    assert_eq!(
+        default_proxy
+            .process_request(request("GET", "/__meta/log"))
+            .body,
+        log_snapshot
+    );
+
+    let state_snapshot = default_proxy.get_state_snapshot();
+    assert_eq!(
+        default_proxy
+            .process_request(request("GET", "/__meta/state"))
+            .body,
+        state_snapshot
+    );
+
+    let mut helper_proxy = DraftProxy::new(Config::default());
+    let create = helper_proxy.process_request(graphql_request(
+        &json!({ "query": "mutation { productCreate(product: { title: \"Snapshot helper product\" }) { product { id } userErrors { message } } }" }).to_string(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        helper_proxy
+            .process_request(request("GET", "/__meta/log"))
+            .body,
+        helper_proxy.get_log_snapshot()
+    );
+    assert_eq!(
+        helper_proxy
+            .process_request(request("GET", "/__meta/state"))
+            .body,
+        helper_proxy.get_state_snapshot()
+    );
+
+    let route_guards = [
+        ("POST", "/__meta/health", 405),
+        ("POST", "/__meta/config", 405),
+        ("GET", "/__meta/reset", 405),
+        ("GET", "/__meta/commit", 405),
+        ("GET", "/totally-unknown", 404),
+        ("GET", "/admin/api/2026-04/graphql.json", 405),
+    ];
+    for (method, path, expected_status) in route_guards {
+        let response = default_proxy.process_request(request(method, path));
+        assert_eq!(
+            response.status, expected_status,
+            "{method} {path} should keep old draft_proxy route status"
+        );
+    }
+
+    assert_eq!(
+        default_proxy
+            .process_request(request_with_body(
+                "POST",
+                "/admin/api/2026-04/graphql.json",
+                "not-json"
+            ))
+            .status,
+        400
+    );
+    assert_eq!(
+        default_proxy
+            .process_request(graphql_request(
+                &json!({ "query": "mutation { eventDelete(id: \"x\") { ok } }" }).to_string()
+            ))
+            .status,
+        400
+    );
+    assert_eq!(
+        default_proxy
+            .process_request(request("POST", "/__meta/reset"))
+            .body,
+        json!({ "ok": true, "message": "state reset" })
+    );
+
+    let empty_commit = default_proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(empty_commit.status, 200);
+    assert_eq!(
+        empty_commit.body,
+        json!({ "ok": true, "committed": 0, "failed": 0 })
+    );
+
+    let dump = default_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-04-29T12:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["schema"],
+        json!("shopify-draft-proxy-rust-state/v1")
+    );
+    assert_eq!(dump.body["createdAt"], json!("2026-04-29T12:00:00.000Z"));
+    assert_eq!(dump.body["log"], json!({ "entries": [] }));
+    assert_eq!(dump.body["nextSyntheticId"], json!(1));
+    assert!(dump.body["state"]["baseState"].is_object());
+    assert!(dump.body["state"]["stagedState"].is_object());
 }
 
 #[test]
@@ -594,6 +737,15 @@ fn meta_reset_clears_log_and_staged_product_overlay() {
     assert_eq!(
         read_back.body,
         json!({ "data": { "product": { "title": "Base product" } } })
+    );
+
+    let fresh_create = proxy.process_request(graphql_request(
+        &json!({ "query": "mutation { productCreate(product: { title: \"Fresh product\" }) { product { id } userErrors { message } } }" }).to_string(),
+    ));
+    assert_eq!(fresh_create.status, 200);
+    assert_eq!(
+        fresh_create.body["data"]["productCreate"]["product"]["id"],
+        json!("gid://shopify/Product/1?shopify-draft-proxy=synthetic")
     );
 }
 

@@ -71,7 +71,7 @@ impl Default for Config {
             bulk_operation_run_mutation_max_input_file_size_bytes: Some(
                 DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES,
             ),
-            port: 3000,
+            port: 4000,
             shopify_admin_origin: "https://shopify.com".to_string(),
             snapshot_path: None,
         }
