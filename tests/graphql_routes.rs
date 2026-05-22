@@ -267,6 +267,97 @@ fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
 }
 
 #[test]
+fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query FinanceRiskNoDataRead(
+          $cashId: ID!
+          $posId: ID!
+          $disputeId: ID!
+          $evidenceId: ID!
+          $token: String!
+          $first: Int!
+        ) {
+          cashTrackingSession(id: $cashId) { __typename }
+          cashTrackingSessions(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          pointOfSaleDevice(id: $posId) { __typename }
+          dispute(id: $disputeId) { __typename }
+          disputeEvidence(id: $evidenceId) { __typename }
+          disputes(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          shopPayPaymentRequestReceipt(token: $token) { __typename }
+          shopPayPaymentRequestReceipts(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({
+            "cashId": "gid://shopify/CashTrackingSession/0",
+            "posId": "gid://shopify/PointOfSaleDevice/0",
+            "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+            "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+            "token": "codex-missing-shop-pay-payment-request-receipt-token",
+            "first": 1
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "cashTrackingSession": null,
+                "cashTrackingSessions": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
+                "pointOfSaleDevice": null,
+                "dispute": null,
+                "disputeEvidence": null,
+                "disputes": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
+                "shopPayPaymentRequestReceipt": null,
+                "shopPayPaymentRequestReceipts": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } }
+            }
+        })
+    );
+}
+
+#[test]
+fn shopify_payments_account_access_probe_returns_captured_null_account_data() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopifyPaymentsAccountAccessProbe {
+          shopifyPaymentsAccount {
+            id
+            activated
+            country
+            defaultCurrency
+            onboardable
+            payouts(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            disputes(first: 1) { edges { node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            balanceTransactions(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "shopifyPaymentsAccount": null } })
+    );
+}
+
+#[test]
 fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
     let mut proxy = snapshot_proxy();
     let query = r#"

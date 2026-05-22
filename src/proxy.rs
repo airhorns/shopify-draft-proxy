@@ -2830,6 +2830,37 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && is_finance_risk_no_data_read_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "cashTrackingSession"
+                        | "cashTrackingSessions"
+                        | "pointOfSaleDevice"
+                        | "dispute"
+                        | "disputeEvidence"
+                        | "disputes"
+                        | "shopPayPaymentRequestReceipt"
+                        | "shopPayPaymentRequestReceipts"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("ShopifyPaymentsAccountAccessProbe")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "shopifyPaymentsAccount")
+        {
+            return ok_json(json!({ "data": { "shopifyPaymentsAccount": Value::Null } }));
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| field == "company")
             && is_b2b_company_customer_since_read_document(&query)
         {
@@ -9987,6 +10018,42 @@ fn is_safe_no_data_node_gid(id: &str) -> bool {
     ]
     .iter()
     .any(|prefix| id.starts_with(prefix))
+}
+
+fn is_finance_risk_no_data_read_document(query: &str) -> bool {
+    query.contains("FinanceRiskNoDataRead")
+}
+
+fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "cashTrackingSession"
+            | "pointOfSaleDevice"
+            | "dispute"
+            | "disputeEvidence"
+            | "shopPayPaymentRequestReceipt" => Value::Null,
+            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
+                selected_json(&empty_nodes_edges_connection(), &field.selection)
+            }
+            _ => Value::Null,
+        };
+        data.insert(field.response_key.clone(), value);
+    }
+    Value::Object(data)
+}
+
+fn empty_nodes_edges_connection() -> Value {
+    json!({
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
+        }
+    })
 }
 
 fn resolved_value_json(value: &ResolvedValue) -> Value {
