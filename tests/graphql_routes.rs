@@ -47,6 +47,81 @@ fn product_fixture(path: &str) -> Value {
 }
 
 #[test]
+fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
+    let lifecycle: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
+    ))
+    .unwrap();
+    let validation: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let primary = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-local-staging.graphql"
+        ),
+        lifecycle["variables"].clone(),
+    ));
+    assert_eq!(primary.body, lifecycle["expected"]["primary"]);
+
+    let duplication = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql"),
+        json!({
+            "customerId": "gid://shopify/Customer/8802",
+            "billingAddress": lifecycle["variables"]["billingAddress"].clone(),
+            "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
+        }),
+    ));
+    assert_eq!(duplication.body, lifecycle["expected"]["duplication"]);
+
+    let lifecycle_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-local-staging-read.graphql"
+        ),
+        json!({
+            "sourceCustomerId": "gid://shopify/Customer/8801",
+            "targetCustomerId": "gid://shopify/Customer/8802"
+        }),
+    ));
+    assert_eq!(lifecycle_read.body, lifecycle["expected"]["readAfter"]);
+
+    let blank = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
+        validation["variables"]["blankBilling"].clone(),
+    ));
+    assert_eq!(blank.body, validation["expected"]["blankBilling"]);
+
+    let missing_session = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
+        validation["variables"]["missingSession"].clone(),
+    ));
+    assert_eq!(
+        missing_session.body,
+        validation["expected"]["missingSession"]
+    );
+
+    let processing = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
+        validation["variables"]["processing"].clone(),
+    ));
+    assert_eq!(processing.body, validation["expected"]["processing"]);
+
+    let success = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
+        validation["variables"]["success"].clone(),
+    ));
+    assert_eq!(success.body, validation["expected"]["success"]);
+
+    let read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-read.graphql"),
+        validation["variables"]["readAfter"].clone(),
+    ));
+    assert_eq!(read.body, validation["expected"]["readAfter"]);
+}
+
+#[test]
 fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     let mut proxy = snapshot_proxy();
 

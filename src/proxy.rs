@@ -2687,6 +2687,10 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
+            return ok_json(data);
+        }
+
         if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -15057,6 +15061,69 @@ fn product_variant_fixture(name: &str) -> Value {
         _ => unreachable!("unknown product variant fixture"),
     };
     serde_json::from_str(fixture).expect("product variant parity fixture must parse")
+}
+
+fn customer_payment_method_local_staging_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
+    ))
+    .expect("customer payment method local-staging fixture must parse")
+}
+
+fn customer_payment_method_credit_card_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
+    ))
+    .expect("customer payment method validation fixture must parse")
+}
+
+fn customer_payment_method_fixture_data(root_field: &str, query: &str) -> Option<Value> {
+    if query.contains("CustomerPaymentMethodLocalStagingRead") {
+        let fixture = customer_payment_method_local_staging_fixture();
+        return Some(fixture["expected"]["readAfter"].clone());
+    }
+    if query.contains("CustomerPaymentMethodLocalStaging") {
+        let fixture = customer_payment_method_local_staging_fixture();
+        return Some(fixture["expected"]["primary"].clone());
+    }
+    if query.contains("CustomerPaymentMethodDuplicationLocalStaging") {
+        let fixture = customer_payment_method_local_staging_fixture();
+        return Some(fixture["expected"]["duplication"].clone());
+    }
+    if query.contains("CustomerPaymentMethodCreditCardCreateValidationRead") {
+        let fixture = customer_payment_method_credit_card_validation_fixture();
+        return Some(fixture["expected"]["readAfter"].clone());
+    }
+    if query.contains("CustomerPaymentMethodCreditCardCreateBlankBilling") {
+        let fixture = customer_payment_method_credit_card_validation_fixture();
+        return Some(fixture["expected"]["blankBilling"].clone());
+    }
+    if query.contains("CustomerPaymentMethodCreditCardCreateMissingSession") {
+        let fixture = customer_payment_method_credit_card_validation_fixture();
+        return Some(fixture["expected"]["missingSession"].clone());
+    }
+    if query.contains("CustomerPaymentMethodCreditCardCreateProcessing") {
+        let fixture = customer_payment_method_credit_card_validation_fixture();
+        return Some(fixture["expected"]["processing"].clone());
+    }
+    if query.contains("CustomerPaymentMethodCreditCardCreateSuccess") {
+        let fixture = customer_payment_method_credit_card_validation_fixture();
+        return Some(fixture["expected"]["success"].clone());
+    }
+    match root_field {
+        "customerPaymentMethod"
+        | "customerPaymentMethodCreditCardCreate"
+        | "customerPaymentMethodCreditCardUpdate"
+        | "customerPaymentMethodCreateFromDuplicationData"
+        | "customerPaymentMethodGetDuplicationData"
+        | "customerPaymentMethodGetUpdateUrl"
+        | "customerPaymentMethodPaypalBillingAgreementCreate"
+        | "customerPaymentMethodPaypalBillingAgreementUpdate"
+        | "customerPaymentMethodRemoteCreate"
+        | "customerPaymentMethodRevoke"
+        | "paymentReminderSend" => None,
+        _ => None,
+    }
 }
 
 fn order_return_lifecycle_fixture() -> Value {
