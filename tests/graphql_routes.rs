@@ -12675,6 +12675,224 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
 }
 
 #[test]
+fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam proxy tests:
+    // - market_localizations_register_rejects_more_than_100_keys_test
+    // - market_localizations_register_returns_translation_error_for_missing_resource_test
+    // - market_localizations_remove_returns_translation_error_for_missing_resource_test
+    // - market_localizations_register_validates_market_key_digest_and_value_test
+    // - market_localizations_register_stages_seeded_content_test
+    // - market_localizations_remove_deletes_matching_staged_records_test
+    // - market_localizations_remove_returns_null_when_no_staged_records_match_test
+    // - market_localizations_remove_unmatched_filters_noop_test
+    // - market_localizations_remove_returns_removed_staged_rows_test
+    let mut proxy = snapshot_proxy();
+    let resource_id = "gid://shopify/Metafield/localizable";
+    let register_query = r#"
+        mutation RustMarketLocalizationsLocalRuntimeRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { __typename field code }
+          }
+        }
+    "#;
+    let remove_query = r#"
+        mutation RustMarketLocalizationsLocalRuntimeRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {
+          marketLocalizationsRemove(resourceId: $resourceId, marketLocalizationKeys: $keys, marketIds: $marketIds) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { __typename field code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketLocalizationsLocalRuntimeRead($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            marketLocalizableContent { key value digest }
+            marketLocalizations { key value outdated market { id name } }
+          }
+        }
+    "#;
+    let valid_title = json!({
+        "marketId": "gid://shopify/Market/ca",
+        "key": "title",
+        "value": "Titre",
+        "marketLocalizableContentDigest": "digest-title"
+    });
+    let valid_subtitle = json!({
+        "marketId": "gid://shopify/Market/ca",
+        "key": "subtitle",
+        "value": "Sous-titre",
+        "marketLocalizableContentDigest": "digest-subtitle"
+    });
+
+    let too_many = (1..=101)
+        .map(|index| {
+            json!({
+                "marketId": format!("gid://shopify/Market/{index}"),
+                "key": "title",
+                "value": "Titre",
+                "marketLocalizableContentDigest": "digest-title"
+            })
+        })
+        .collect::<Vec<_>>();
+    let too_many_response = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "marketLocalizations": too_many}),
+    ));
+    assert_eq!(too_many_response.status, 200);
+    assert_eq!(
+        too_many_response.body["data"]["marketLocalizationsRegister"],
+        json!({
+            "marketLocalizations": null,
+            "userErrors": [{"__typename": "TranslationUserError", "field": ["resourceId"], "code": "TOO_MANY_KEYS_FOR_RESOURCE"}]
+        })
+    );
+
+    let missing_register = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "marketLocalizations": [valid_title.clone()]}),
+    ));
+    assert_eq!(
+        missing_register.body["data"]["marketLocalizationsRegister"]["userErrors"][0],
+        json!({"__typename": "TranslationUserError", "field": ["resourceId"], "code": "RESOURCE_NOT_FOUND"})
+    );
+
+    let missing_remove = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "keys": [], "marketIds": []}),
+    ));
+    assert_eq!(
+        missing_remove.body["data"]["marketLocalizationsRemove"],
+        json!({
+            "marketLocalizations": null,
+            "userErrors": [{"__typename": "TranslationUserError", "field": ["resourceId"], "code": "RESOURCE_NOT_FOUND"}]
+        })
+    );
+
+    let validation_cases = [
+        (
+            json!({"marketId": "gid://shopify/Market/missing", "key": "title", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "marketId"], "code": "MARKET_DOES_NOT_EXIST"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "value", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "key"], "code": "INVALID_KEY_FOR_MODEL"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "title", "value": "Titre", "marketLocalizableContentDigest": "stale"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "marketLocalizableContentDigest"], "code": "INVALID_MARKET_LOCALIZABLE_CONTENT"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "title", "value": "", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "value"], "code": "FAILS_RESOURCE_VALIDATION"}),
+        ),
+    ];
+    for (input, expected_error) in validation_cases {
+        let response = proxy.process_request(json_graphql_request(
+            register_query,
+            json!({"resourceId": resource_id, "marketLocalizations": [input]}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketLocalizationsRegister"],
+            json!({"marketLocalizations": null, "userErrors": [expected_error]})
+        );
+    }
+
+    let register = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": resource_id, "marketLocalizations": [valid_title.clone(), valid_subtitle.clone()]}),
+    ));
+    assert_eq!(
+        register.body["data"]["marketLocalizationsRegister"],
+        json!({
+            "marketLocalizations": [
+                {"key": "title", "value": "Titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}},
+                {"key": "subtitle", "value": "Sous-titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}
+            ],
+            "userErrors": []
+        })
+    );
+
+    let read_after_register = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_register.body["data"]["marketLocalizableResource"]["marketLocalizableContent"],
+        json!([
+            {"key": "title", "value": "Title", "digest": "digest-title"},
+            {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
+        ])
+    );
+    assert_eq!(
+        read_after_register.body["data"]["marketLocalizableResource"]["marketLocalizations"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    for (keys, market_ids) in [
+        (json!([]), json!(["gid://shopify/Market/ca"])),
+        (json!(["unknown"]), json!(["gid://shopify/Market/ca"])),
+        (json!(["title"]), json!(["gid://shopify/Market/missing"])),
+    ] {
+        let noop = proxy.process_request(json_graphql_request(
+            remove_query,
+            json!({"resourceId": resource_id, "keys": keys, "marketIds": market_ids}),
+        ));
+        assert_eq!(
+            noop.body["data"]["marketLocalizationsRemove"],
+            json!({"marketLocalizations": null, "userErrors": []})
+        );
+    }
+
+    let remove_title = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["title"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        remove_title.body["data"]["marketLocalizationsRemove"],
+        json!({
+            "marketLocalizations": [{"key": "title", "value": "Titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}],
+            "userErrors": []
+        })
+    );
+    let read_after_title_remove = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_title_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([{"key": "subtitle", "value": "Sous-titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}])
+    );
+
+    let remove_subtitle = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["subtitle"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        remove_subtitle.body["data"]["marketLocalizationsRemove"]["marketLocalizations"][0]["key"],
+        json!("subtitle")
+    );
+    let second_remove = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["subtitle"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        second_remove.body["data"]["marketLocalizationsRemove"],
+        json!({"marketLocalizations": null, "userErrors": []})
+    );
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([])
+    );
+}
+
+#[test]
 fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
     let mut proxy = snapshot_proxy();
     let helper_query =

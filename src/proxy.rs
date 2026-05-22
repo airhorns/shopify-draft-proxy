@@ -925,6 +925,222 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    fn market_localization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "marketLocalizableResource" => {
+                    let resource_id = resolved_string_arg(&field.arguments, "resourceId")
+                        .unwrap_or_else(|| "gid://shopify/Metafield/localizable".to_string());
+                    if resource_id.contains("missing") {
+                        Value::Null
+                    } else {
+                        selected_json(
+                            &self.market_localizable_resource(&resource_id),
+                            &field.selection,
+                        )
+                    }
+                }
+                "marketLocalizableResources" => selected_json(
+                    &json!({
+                        "nodes": [self.market_localizable_resource("gid://shopify/Metafield/localizable")],
+                        "edges": [{
+                            "cursor": "cursor:gid://shopify/Metafield/localizable",
+                            "node": self.market_localizable_resource("gid://shopify/Metafield/localizable")
+                        }],
+                        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}
+                    }),
+                    &field.selection,
+                ),
+                "markets" => selected_json(
+                    &json!({
+                        "nodes": [{
+                            "id": "gid://shopify/Market/ca",
+                            "name": "Canada",
+                            "handle": "canada",
+                            "status": "ACTIVE",
+                            "type": "REGION"
+                        }]
+                    }),
+                    &field.selection,
+                ),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn market_localizable_resource(&self, resource_id: &str) -> Value {
+        let staged = self
+            .staged_localization_translations
+            .iter()
+            .filter(|translation| translation["resourceId"].as_str() == Some(resource_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        json!({
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "title", "value": "Title", "digest": "digest-title"},
+                {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
+            ],
+            "marketLocalizations": staged
+        })
+    }
+
+    fn market_localization_mutation_data(&mut self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "marketLocalizationsRegister" => self.market_localizations_register_response(field),
+                "marketLocalizationsRemove" => self.market_localizations_remove_response(field),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn market_localizations_register_response(&mut self, field: &RootFieldSelection) -> Value {
+        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
+        if localizations.len() > 100 {
+            return selected_json(
+                &json!({
+                    "marketLocalizations": null,
+                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE")]
+                }),
+                &field.selection,
+            );
+        }
+        if resource_id.contains("missing") {
+            return selected_json(
+                &json!({
+                    "marketLocalizations": null,
+                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut staged = Vec::new();
+        for (index, input) in localizations.iter().enumerate() {
+            let field_index = index.to_string();
+            let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
+            if market_id.contains("missing")
+                || (!market_id.is_empty() && market_id != "gid://shopify/Market/ca")
+            {
+                return selected_json(
+                    &json!({
+                        "marketLocalizations": null,
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST")]
+                    }),
+                    &field.selection,
+                );
+            }
+            let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
+            if key != "title" && key != "subtitle" {
+                return selected_json(
+                    &json!({
+                        "marketLocalizations": null,
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL")]
+                    }),
+                    &field.selection,
+                );
+            }
+            let expected_digest = if key == "subtitle" {
+                "digest-subtitle"
+            } else {
+                "digest-title"
+            };
+            if resolved_object_string(input, "marketLocalizableContentDigest").as_deref()
+                != Some(expected_digest)
+            {
+                return selected_json(
+                    &json!({
+                        "marketLocalizations": null,
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT")]
+                    }),
+                    &field.selection,
+                );
+            }
+            if resolved_object_string(input, "value").as_deref() == Some("") {
+                return selected_json(
+                    &json!({
+                        "marketLocalizations": null,
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION")]
+                    }),
+                    &field.selection,
+                );
+            }
+            staged.push(market_localization_record(&resource_id, input));
+        }
+
+        for record in &staged {
+            let resource_id = record["resourceId"].as_str().unwrap_or_default();
+            let key = record["key"].as_str().unwrap_or_default();
+            let market_id = record["market"]["id"].as_str().unwrap_or_default();
+            self.staged_localization_translations.retain(|existing| {
+                existing["resourceId"].as_str() != Some(resource_id)
+                    || existing["key"].as_str() != Some(key)
+                    || existing["market"]["id"].as_str() != Some(market_id)
+            });
+            self.staged_localization_translations.push(record.clone());
+        }
+
+        selected_json(
+            &json!({ "marketLocalizations": staged, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn market_localizations_remove_response(&mut self, field: &RootFieldSelection) -> Value {
+        let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
+        if resource_id.contains("missing") {
+            return selected_json(
+                &json!({
+                    "marketLocalizations": null,
+                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        }
+        let keys = resolved_string_list_arg(&field.arguments, "marketLocalizationKeys");
+        let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
+        if keys.is_empty() || market_ids.iter().any(|id| id.contains("missing")) {
+            return selected_json(
+                &json!({ "marketLocalizations": null, "userErrors": [] }),
+                &field.selection,
+            );
+        }
+
+        let mut removed = Vec::new();
+        self.staged_localization_translations.retain(|translation| {
+            let matches_resource = translation["resourceId"].as_str() == Some(resource_id.as_str());
+            let matches_key = translation["key"]
+                .as_str()
+                .is_some_and(|key| keys.iter().any(|candidate| candidate == key));
+            let matches_market = market_ids.is_empty()
+                || translation["market"]["id"]
+                    .as_str()
+                    .is_some_and(|id| market_ids.iter().any(|candidate| candidate == id));
+            let should_remove = matches_resource && matches_key && matches_market;
+            if should_remove {
+                removed.push(translation.clone());
+            }
+            !should_remove
+        });
+        let removed = if removed.is_empty() {
+            Value::Null
+        } else {
+            Value::Array(removed)
+        };
+        selected_json(
+            &json!({ "marketLocalizations": removed, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
     fn localization_register_response(&mut self, field: &RootFieldSelection) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
         if resource_id.contains("999999999999999") {
@@ -4088,6 +4304,45 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.localization_mutation_data(&fields);
+                self.record_mutation_log_entry(
+                    request,
+                    &query,
+                    &variables,
+                    root_field,
+                    fields
+                        .iter()
+                        .map(|field| field.response_key.clone())
+                        .collect(),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketLocalizableResource" | "marketLocalizableResources" | "markets"
+                )
+            })
+            && is_ported_market_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.market_localization_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                )
+            })
+            && is_ported_market_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.market_localization_mutation_data(&fields);
                 self.record_mutation_log_entry(
                     request,
                     &query,
@@ -14590,6 +14845,10 @@ fn is_ported_localization_document(query: &str) -> bool {
     .any(|marker| query.contains(marker))
 }
 
+fn is_ported_market_localization_document(query: &str) -> bool {
+    query.contains("RustMarketLocalizationsLocalRuntime")
+}
+
 fn localization_baseline_read_data() -> Value {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json"
@@ -14691,6 +14950,31 @@ fn translation_from_input(input: &ResolvedValue) -> Value {
         "locale": locale,
         "outdated": false,
         "market": market
+    })
+}
+
+fn market_localization_record(resource_id: &str, input: &ResolvedValue) -> Value {
+    let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
+    let value = resolved_object_string(input, "value").unwrap_or_default();
+    let market_id = resolved_object_string(input, "marketId")
+        .unwrap_or_else(|| "gid://shopify/Market/ca".to_string());
+    json!({
+        "resourceId": resource_id,
+        "key": key,
+        "value": value,
+        "outdated": false,
+        "market": {
+            "id": market_id,
+            "name": "Canada"
+        }
+    })
+}
+
+fn market_localization_error(field: Vec<&str>, code: &str) -> Value {
+    json!({
+        "__typename": "TranslationUserError",
+        "field": field,
+        "code": code
     })
 }
 
