@@ -8384,3 +8384,137 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         json!([])
     );
 }
+
+#[test]
+fn marketing_empty_reads_keep_shopify_connection_shapes() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingBaselineRead($activityId: ID!, $eventId: ID!, $first: Int!, $activityQuery: String!, $eventQuery: String!) {
+          marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true) { nodes { id title } edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingActivitiesEmpty: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) { nodes { id title } edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingActivity(id: $activityId) { id title }
+          marketingEvents(first: $first) { nodes { id type } edges { cursor node { id type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingEventsEmpty: marketingEvents(first: $first, query: $eventQuery) { nodes { id type } edges { cursor node { id type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingEvent(id: $eventId) { id type }
+        }
+        "#,
+        json!({
+            "activityId": "gid://shopify/MarketingActivity/999999999999",
+            "eventId": "gid://shopify/MarketingEvent/999999999999",
+            "first": 3,
+            "activityQuery": "title:__none__",
+            "eventQuery": "description:__none__"
+        }),
+    ));
+
+    assert_eq!(response.body["data"]["marketingActivity"], Value::Null);
+    assert_eq!(response.body["data"]["marketingEvent"], Value::Null);
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["edges"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["pageInfo"],
+        json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null})
+    );
+}
+
+#[test]
+fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityCreateExternalInput!) {
+          createExternal: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title status statusLabel remoteId sourceAndMedium utmParameters { campaign source medium } marketingEvent { id remoteId manageUrl previewUrl sourceAndMedium } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Launch", "remoteId": "remote-1", "status": "ACTIVE", "remoteUrl": "https://example.com/manage", "previewUrl": "https://example.com/preview", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}}}),
+    ));
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["title"],
+        json!("Launch")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["statusLabel"],
+        json!("Sending")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title status statusLabel marketingEvent { remoteId manageUrl description } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "remote-1", "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
+    ));
+    assert_eq!(
+        update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["title"],
+        json!("Launch updated")
+    );
+    assert_eq!(
+        update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["statusLabel"],
+        json!("Paused")
+    );
+
+    let engagement = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle($remoteId: String!, $engagement: MarketingEngagementInput!) {
+          createByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {
+            marketingEngagement { occurredOn impressionsCount clicksCount adSpend { amount currencyCode } marketingActivity { adSpend { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "remote-1", "engagement": {"occurredOn": "2026-04-26", "impressionsCount": 7, "clicksCount": 2, "adSpend": {"amount": "3.21", "currencyCode": "USD"}, "isCumulative": false, "utcOffset": "+00:00"}}),
+    ));
+    assert_eq!(
+        engagement.body["data"]["createByRemoteId"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        engagement.body["data"]["createByRemoteId"]["marketingEngagement"]["marketingActivity"]
+            ["adSpend"],
+        json!(null)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($id: ID!, $remoteIds: [String!]) {
+          marketingActivity(id: $id) { id title status statusLabel adSpend { amount currencyCode } marketingEvent { remoteId manageUrl description } }
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title marketingEvent { remoteId } } }
+        }
+        "#,
+        json!({"id": activity_id, "remoteIds": ["remote-1"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["title"],
+        json!("Launch updated")
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["adSpend"],
+        json!(null)
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0]["marketingEvent"]["remoteId"],
+        json!("remote-1")
+    );
+}

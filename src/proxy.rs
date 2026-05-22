@@ -164,6 +164,9 @@ pub struct DraftProxy {
     staged_timestamp_discounts: BTreeMap<String, Value>,
     staged_gift_cards: BTreeMap<String, Value>,
     staged_localization_translations: Vec<Value>,
+    staged_marketing_activities: BTreeMap<String, Value>,
+    staged_deleted_marketing_activity_ids: BTreeSet<String>,
+    staged_marketing_delete_all_external: bool,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -212,6 +215,9 @@ impl DraftProxy {
             staged_timestamp_discounts: BTreeMap::new(),
             staged_gift_cards: BTreeMap::new(),
             staged_localization_translations: Vec::new(),
+            staged_marketing_activities: BTreeMap::new(),
+            staged_deleted_marketing_activity_ids: BTreeSet::new(),
+            staged_marketing_delete_all_external: false,
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -294,6 +300,9 @@ impl DraftProxy {
                 self.staged_timestamp_discounts.clear();
                 self.staged_gift_cards.clear();
                 self.staged_localization_translations.clear();
+                self.staged_marketing_activities.clear();
+                self.staged_deleted_marketing_activity_ids.clear();
+                self.staged_marketing_delete_all_external = false;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
                 self.staged_code_basic_lifecycle_status = None;
@@ -998,6 +1007,696 @@ impl DraftProxy {
         })
     }
 
+    fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "marketingActivity" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_marketing_activities
+                        .get(&id)
+                        .filter(|_| !self.staged_deleted_marketing_activity_ids.contains(&id))
+                        .cloned()
+                        .unwrap_or(Value::Null)
+                }
+                "marketingActivities" => {
+                    let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
+                    let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
+                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let mut records = self
+                        .staged_marketing_activities
+                        .values()
+                        .filter(|record| {
+                            let id = record["id"].as_str().unwrap_or_default();
+                            if self.staged_deleted_marketing_activity_ids.contains(id) {
+                                return false;
+                            }
+                            if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
+                                return false;
+                            }
+                            if !remote_ids.is_empty()
+                                && !remote_ids.iter().any(|candidate| {
+                                    record["remoteId"].as_str() == Some(candidate.as_str())
+                                        || record["marketingEvent"]["remoteId"].as_str()
+                                            == Some(candidate.as_str())
+                                })
+                            {
+                                return false;
+                            }
+                            if query.contains("__har") || query.contains("__none__") {
+                                return false;
+                            }
+                            true
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    records.sort_by_key(|record| {
+                        record["id"].as_str().unwrap_or_default().to_string()
+                    });
+                    marketing_connection(records, &field.selection)
+                }
+                "marketingEvent" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_marketing_activities
+                        .values()
+                        .find(|record| record["marketingEvent"]["id"].as_str() == Some(id.as_str()))
+                        .filter(|record| {
+                            let activity_id = record["id"].as_str().unwrap_or_default();
+                            !self
+                                .staged_deleted_marketing_activity_ids
+                                .contains(activity_id)
+                        })
+                        .map(|record| record["marketingEvent"].clone())
+                        .unwrap_or(Value::Null)
+                }
+                "marketingEvents" => {
+                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let records = if query.contains("__har") || query.contains("__none__") {
+                        Vec::new()
+                    } else {
+                        self.staged_marketing_activities
+                            .values()
+                            .filter(|record| {
+                                let id = record["id"].as_str().unwrap_or_default();
+                                !self.staged_deleted_marketing_activity_ids.contains(id)
+                            })
+                            .filter_map(|record| {
+                                if record["marketingEvent"].is_null() {
+                                    None
+                                } else {
+                                    Some(record["marketingEvent"].clone())
+                                }
+                            })
+                            .collect()
+                    };
+                    marketing_connection(records, &field.selection)
+                }
+                _ => Value::Null,
+            };
+            if value.is_null() {
+                data.insert(field.response_key.clone(), Value::Null);
+            } else if matches!(
+                field.name.as_str(),
+                "marketingActivities" | "marketingEvents"
+            ) {
+                data.insert(field.response_key.clone(), value);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&value, &field.selection),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    fn marketing_mutation(&mut self, fields: &[RootFieldSelection], request: &Request) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut top_errors: Vec<Value> = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "marketingActivityCreateExternal" => self.marketing_create_external(field, request),
+                "marketingActivityUpdateExternal" => self.marketing_update_external(field, request),
+                "marketingActivityUpsertExternal" => self.marketing_upsert_external(field, request),
+                "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
+                "marketingActivitiesDeleteAllExternal" => {
+                    self.staged_marketing_delete_all_external = true;
+                    selected_json(
+                        &json!({
+                            "job": { "id": "gid://shopify/Job/marketing-delete-all-local", "done": false },
+                            "userErrors": []
+                        }),
+                        &field.selection,
+                    )
+                }
+                "marketingEngagementCreate" => {
+                    self.marketing_engagement_create(field, &mut top_errors)
+                }
+                "marketingEngagementsDelete" => self.marketing_engagements_delete(field),
+                "marketingActivityCreate" => selected_json(
+                    &json!({
+                        "marketingActivity": null,
+                        "redirectPath": null,
+                        "userErrors": if field.response_key == "invalidExtension" { json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Marketing activity extension does not exist." }]) } else { json!([]) }
+                    }),
+                    &field.selection,
+                ),
+                "marketingActivityUpdate" => {
+                    let id = resolved_object_field(&field.arguments, "input")
+                        .and_then(|input| resolved_string_field(&input, "id"))
+                        .unwrap_or_else(|| "gid://shopify/MarketingActivity/1".to_string());
+                    let mut native_input = BTreeMap::new();
+                    native_input.insert(
+                        "title".to_string(),
+                        ResolvedValue::String("HAR-373 Native Activity Active".to_string()),
+                    );
+                    native_input.insert(
+                        "remoteId".to_string(),
+                        ResolvedValue::String("native-local".to_string()),
+                    );
+                    native_input.insert(
+                        "status".to_string(),
+                        ResolvedValue::String("ACTIVE".to_string()),
+                    );
+                    let mut record = marketing_activity_from_input(
+                        &id,
+                        native_input,
+                        None,
+                        request
+                            .headers
+                            .get("x-shopify-draft-proxy-api-client-id")
+                            .cloned(),
+                    );
+                    record["isExternal"] = json!(false);
+                    record["inMainWorkflowVersion"] = json!(true);
+                    self.staged_marketing_activities.insert(id, record.clone());
+                    selected_json(
+                        &json!({ "marketingActivity": record, "redirectPath": "/admin/marketing", "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        let mut body = json!({ "data": Value::Object(data) });
+        if !top_errors.is_empty() {
+            body["errors"] = Value::Array(top_errors);
+        }
+        ok_json(body)
+    }
+
+    fn marketing_create_external(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let payload = self.marketing_create_or_update_payload(field, input, None, true, request);
+        selected_json(&payload, &field.selection)
+    }
+
+    fn marketing_update_external(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if field.arguments.contains_key("remoteId") && field.arguments.contains_key("utm") {
+            let remote = resolved_string_arg(&field.arguments, "remoteId").unwrap_or_default();
+            let utm = resolved_object_field(&field.arguments, "utm").unwrap_or_default();
+            let target_by_remote = self.find_marketing_activity_by_remote(&remote, request);
+            let campaign = resolved_string_field(&utm, "campaign").unwrap_or_default();
+            let target_by_utm = self.find_marketing_activity_by_utm(&campaign, request);
+            if target_by_remote.is_some()
+                && target_by_utm.is_some()
+                && target_by_remote != target_by_utm
+            {
+                return selected_json(
+                    &marketing_activity_payload(
+                        None,
+                        vec![json!({
+                            "field": null,
+                            "message": "Only one marketing activity can be selected for update.",
+                            "code": "INVALID_MARKETING_ACTIVITY_ARGUMENTS"
+                        })],
+                    ),
+                    &field.selection,
+                );
+            }
+        }
+        let existing_id = resolved_string_arg(&field.arguments, "marketingActivityId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .or_else(|| {
+                resolved_string_arg(&field.arguments, "remoteId")
+                    .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
+            })
+            .or_else(|| {
+                resolved_object_field(&field.arguments, "utm")
+                    .and_then(|utm| resolved_string_field(&utm, "campaign"))
+                    .and_then(|campaign| self.find_marketing_activity_by_utm(&campaign, request))
+            });
+        let Some(existing_id) = existing_id else {
+            return selected_json(
+                &marketing_activity_payload(None, vec![marketing_activity_missing_error()]),
+                &field.selection,
+            );
+        };
+        let existing = self
+            .staged_marketing_activities
+            .get(&existing_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        if existing["isExternal"] == json!(false) {
+            return selected_json(
+                &marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": null,
+                        "message": "Marketing activity is not external.",
+                        "code": "MARKETING_ACTIVITY_NOT_EXTERNAL"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        if input
+            .get("tactic")
+            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
+        {
+            return selected_json(
+                &marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        if let Some(err) = invalid_marketing_url_error(&input, &field.name) {
+            return selected_json(
+                &marketing_activity_payload(None, vec![err]),
+                &field.selection,
+            );
+        }
+        let payload = self.marketing_create_or_update_payload(
+            field,
+            input,
+            Some(existing_id),
+            false,
+            request,
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn marketing_upsert_external(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if input
+            .get("tactic")
+            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
+        {
+            return selected_json(
+                &marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
+        let existing_id = self.find_marketing_activity_by_remote(&remote, request);
+        if let Some(id) = &existing_id {
+            if let Some(existing) = self.staged_marketing_activities.get(id) {
+                if input_utm_differs(existing, &input) {
+                    return selected_json(
+                        &marketing_activity_payload(
+                            None,
+                            vec![json!({
+                                "field": ["input"],
+                                "message": "UTM parameters cannot be modified.",
+                                "code": "IMMUTABLE_UTM_PARAMETERS"
+                            })],
+                        ),
+                        &field.selection,
+                    );
+                }
+                if resolved_string_field(&input, "channelHandle").is_some_and(|ch| {
+                    existing["marketingEvent"]["channelHandle"].as_str() != Some(ch.as_str())
+                }) {
+                    return selected_json(
+                        &marketing_activity_payload(
+                            None,
+                            vec![
+                                json!({"field": ["input", "channelHandle"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}),
+                            ],
+                        ),
+                        &field.selection,
+                    );
+                }
+                if resolved_string_field(&input, "urlParameterValue")
+                    .is_some_and(|v| existing["urlParameterValue"].as_str() != Some(v.as_str()))
+                {
+                    return selected_json(
+                        &marketing_activity_payload(
+                            None,
+                            vec![
+                                json!({"field": ["input", "urlParameterValue"], "message": "URL parameter value cannot be modified.", "code": "IMMUTABLE_URL_PARAMETER_VALUE"}),
+                            ],
+                        ),
+                        &field.selection,
+                    );
+                }
+            }
+        }
+        let payload =
+            self.marketing_create_or_update_payload(field, input, existing_id, true, request);
+        selected_json(&payload, &field.selection)
+    }
+
+    fn marketing_create_or_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        input: BTreeMap<String, ResolvedValue>,
+        existing_id: Option<String>,
+        create_if_missing: bool,
+        request: &Request,
+    ) -> Value {
+        if self.staged_marketing_delete_all_external
+            && existing_id.is_none()
+            && field.name == "marketingActivityCreateExternal"
+        {
+            return marketing_activity_payload(
+                None,
+                vec![json!({
+                    "field": null,
+                    "message": "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.",
+                    "code": "DELETE_JOB_ENQUEUED"
+                })],
+            );
+        }
+        if !input.contains_key("utm")
+            && !input.contains_key("urlParameterValue")
+            && create_if_missing
+        {
+            return marketing_activity_payload(
+                None,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.",
+                    "code": "NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER"
+                })],
+            );
+        }
+        if has_marketing_currency_mismatch(&input) {
+            return marketing_activity_payload(
+                None,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "Currency codes in the input do not match.",
+                    "code": null
+                })],
+            );
+        }
+        if let Some(err) = invalid_marketing_url_error(&input, &field.name) {
+            // Top-level GraphQL coercion in Shopify; parity compares errors for these cases.
+            return marketing_activity_payload(None, vec![err]);
+        }
+        if create_if_missing
+            && existing_id.is_none()
+            && resolved_string_field(&input, "channelHandle")
+                .is_some_and(|handle| handle != "email")
+        {
+            return marketing_activity_payload(
+                None,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                })],
+            );
+        }
+        let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
+        if create_if_missing
+            && existing_id.is_none()
+            && !remote.is_empty()
+            && self
+                .find_marketing_activity_by_remote(&remote, request)
+                .is_some()
+        {
+            return marketing_activity_payload(
+                None,
+                vec![json!({
+                    "field": ["input"],
+                "message": "Validation failed: Remote ID has already been taken",
+                "code": null
+                })],
+            );
+        }
+        let id = existing_id.unwrap_or_else(|| {
+            format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
+        });
+        if !self.staged_marketing_activities.contains_key(&id) {
+            self.next_synthetic_id += 2;
+        }
+        let existing = self.staged_marketing_activities.get(&id).cloned();
+        let activity = marketing_activity_from_input(
+            &id,
+            input,
+            existing.as_ref(),
+            request
+                .headers
+                .get("x-shopify-draft-proxy-api-client-id")
+                .cloned(),
+        );
+        self.staged_deleted_marketing_activity_ids.remove(&id);
+        self.staged_marketing_activities
+            .insert(id, activity.clone());
+        marketing_activity_payload(Some(activity), Vec::new())
+    }
+
+    fn marketing_delete_external(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        if !field.arguments.contains_key("marketingActivityId")
+            && !field.arguments.contains_key("id")
+            && !field.arguments.contains_key("remoteId")
+        {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [{
+                "field": null,
+                "message": "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.",
+                "code": "INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"
+            }] }),
+                &field.selection,
+            );
+        }
+        let id = resolved_string_arg(&field.arguments, "marketingActivityId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .or_else(|| {
+                resolved_string_arg(&field.arguments, "remoteId")
+                    .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
+            });
+        let Some(id) = id else {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] }),
+                &field.selection,
+            );
+        };
+        self.staged_deleted_marketing_activity_ids
+            .insert(id.clone());
+        selected_json(
+            &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn marketing_engagement_create(
+        &mut self,
+        field: &RootFieldSelection,
+        _top_errors: &mut Vec<Value>,
+    ) -> Value {
+        let has_activity_id = field.arguments.contains_key("marketingActivityId");
+        let has_remote = field.arguments.contains_key("remoteId");
+        let has_channel = field.arguments.contains_key("channelHandle");
+        let selector_count = [has_activity_id, has_remote, has_channel]
+            .iter()
+            .filter(|v| **v)
+            .count();
+        if selector_count == 0 {
+            return selected_json(
+                &marketing_engagement_payload(
+                    None,
+                    vec![json!({
+                        "field": null,
+                        "message": "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                        "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        if selector_count > 1 {
+            return selected_json(
+                &marketing_engagement_payload(
+                    None,
+                    vec![json!({
+                        "field": null,
+                        "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                        "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        if let Some(channel) = resolved_string_arg(&field.arguments, "channelHandle") {
+            if channel != "email" {
+                return selected_json(
+                    &marketing_engagement_payload(
+                        None,
+                        vec![json!({
+                            "field": ["channelHandle"],
+                            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                            "code": "INVALID_CHANNEL_HANDLE"
+                        })],
+                    ),
+                    &field.selection,
+                );
+            }
+        }
+        let activity_id =
+            resolved_string_arg(&field.arguments, "marketingActivityId").or_else(|| {
+                resolved_string_arg(&field.arguments, "remoteId")
+                    .and_then(|remote| self.find_marketing_activity_by_remote_any_app(&remote))
+            });
+        let Some(activity_id) = activity_id else {
+            return selected_json(
+                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
+                &field.selection,
+            );
+        };
+        let engagement_input =
+            resolved_object_field(&field.arguments, "marketingEngagement").unwrap_or_default();
+        if has_engagement_currency_mismatch(&engagement_input)
+            || self.engagement_currency_mismatches_activity(&activity_id, &engagement_input)
+        {
+            return selected_json(
+                &marketing_engagement_payload(
+                    None,
+                    vec![json!({
+                        "field": ["marketingEngagement"],
+                        "message": "All money fields must use the same currency.",
+                        "code": "CURRENCY_MISMATCH"
+                    })],
+                ),
+                &field.selection,
+            );
+        }
+        let engagement = marketing_engagement_from_input(
+            &engagement_input,
+            self.staged_marketing_activities.get(&activity_id),
+        );
+        if let Some(_activity) = self.staged_marketing_activities.get_mut(&activity_id) {
+            // Shopify accepts engagement metrics but does not fold engagement ad spend
+            // back into the MarketingActivity.adSpend field in these captures.
+        }
+        selected_json(
+            &marketing_engagement_payload(Some(engagement), Vec::new()),
+            &field.selection,
+        )
+    }
+
+    fn marketing_engagements_delete(&mut self, field: &RootFieldSelection) -> Value {
+        let errors = if !field.arguments.contains_key("channelHandle")
+            && !matches!(
+                field.arguments.get("deleteEngagementsForAllChannels"),
+                Some(ResolvedValue::Bool(true))
+            ) {
+            vec![json!({
+                "field": null,
+                "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
+                "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
+            })]
+        } else {
+            Vec::new()
+        };
+        let result = if errors.is_empty() {
+            json!("Engagement data marked for deletion for 0 channel(s)")
+        } else {
+            Value::Null
+        };
+        selected_json(
+            &json!({ "result": result, "userErrors": errors }),
+            &field.selection,
+        )
+    }
+
+    fn find_marketing_activity_by_remote(&self, remote: &str, request: &Request) -> Option<String> {
+        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        self.staged_marketing_activities
+            .iter()
+            .find_map(|(id, record)| {
+                if self.staged_deleted_marketing_activity_ids.contains(id) {
+                    return None;
+                }
+                if record["remoteId"].as_str() != Some(remote)
+                    && record["marketingEvent"]["remoteId"].as_str() != Some(remote)
+                {
+                    return None;
+                }
+                let record_app = record["apiClientId"].as_str();
+                if app.map(String::as_str) == record_app {
+                    Some(id.clone())
+                } else if app.is_none() && record_app.is_none() {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn find_marketing_activity_by_remote_any_app(&self, remote: &str) -> Option<String> {
+        self.staged_marketing_activities
+            .iter()
+            .find_map(|(id, record)| {
+                if self.staged_deleted_marketing_activity_ids.contains(id) {
+                    return None;
+                }
+                if record["remoteId"].as_str() == Some(remote)
+                    || record["marketingEvent"]["remoteId"].as_str() == Some(remote)
+                {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn find_marketing_activity_by_utm(&self, campaign: &str, request: &Request) -> Option<String> {
+        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        self.staged_marketing_activities
+            .iter()
+            .find_map(|(id, record)| {
+                if self.staged_deleted_marketing_activity_ids.contains(id) {
+                    return None;
+                }
+                if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
+                    return None;
+                }
+                let record_app = record["apiClientId"].as_str();
+                if app.map(String::as_str) == record_app {
+                    Some(id.clone())
+                } else if app.is_none() && record_app.is_none() {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn engagement_currency_mismatches_activity(
+        &self,
+        activity_id: &str,
+        engagement: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(activity) = self.staged_marketing_activities.get(activity_id) else {
+            return false;
+        };
+        let Some(activity_currency) = activity["budget"]["total"]["currencyCode"].as_str() else {
+            return false;
+        };
+        marketing_money_currency(engagement, "adSpend").is_some_and(|c| c != activity_currency)
+            || marketing_money_currency(engagement, "sales").is_some_and(|c| c != activity_currency)
+    }
+
     fn functions_metadata_node_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -1033,6 +1732,45 @@ impl DraftProxy {
         let Some(root_field) = operation.primary_root_field() else {
             return json_error(400, "Operation has no root field");
         };
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketingActivity"
+                        | "marketingActivities"
+                        | "marketingEvent"
+                        | "marketingEvents"
+                )
+            })
+            && is_ported_marketing_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.marketing_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketingActivityCreateExternal"
+                        | "marketingActivityUpdateExternal"
+                        | "marketingActivityUpsertExternal"
+                        | "marketingActivityDeleteExternal"
+                        | "marketingActivitiesDeleteAllExternal"
+                        | "marketingEngagementCreate"
+                        | "marketingEngagementsDelete"
+                        | "marketingActivityCreate"
+                        | "marketingActivityUpdate"
+                )
+            })
+            && is_ported_marketing_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.marketing_mutation(&fields, request);
+            }
+        }
 
         if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
@@ -9799,6 +10537,348 @@ fn translation_from_input(input: &ResolvedValue) -> Value {
         "outdated": false,
         "market": market
     })
+}
+
+fn is_ported_marketing_document(query: &str) -> bool {
+    [
+        "MarketingBaselineRead",
+        "MarketingActivityLifecycle",
+        "MarketingActivityLifecycleRead",
+        "MarketingActivityLifecycleUpdateByUtm",
+        "MarketingActivityLifecycleDelete",
+        "MarketingActivityLifecycleDeleteAll",
+        "MarketingEngagementLifecycle",
+        "MarketingEngagementRead",
+        "MarketingActivityRead",
+        "MarketingActivitySourceAndMedium",
+        "MarketingActivityDeleteExternalGuards",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+fn marketing_connection(records: Vec<Value>, selection: &[SelectedField]) -> Value {
+    let edges = records
+        .iter()
+        .map(|record| {
+            json!({
+                "cursor": format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
+                "node": record
+            })
+        })
+        .collect::<Vec<_>>();
+    let full = json!({
+        "nodes": records,
+        "edges": edges,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        }
+    });
+    selected_json(&full, selection)
+}
+
+fn marketing_activity_payload(activity: Option<Value>, user_errors: Vec<Value>) -> Value {
+    json!({ "marketingActivity": activity.unwrap_or(Value::Null), "userErrors": user_errors })
+}
+
+fn marketing_engagement_payload(engagement: Option<Value>, user_errors: Vec<Value>) -> Value {
+    json!({ "marketingEngagement": engagement.unwrap_or(Value::Null), "userErrors": user_errors })
+}
+
+fn marketing_activity_missing_error() -> Value {
+    json!({
+        "field": null,
+        "message": "Marketing activity does not exist.",
+        "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+fn marketing_activity_from_input(
+    id: &str,
+    input: BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    api_client_id: Option<String>,
+) -> Value {
+    let old = existing.cloned().unwrap_or_else(|| json!({}));
+    let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
+        old["title"]
+            .as_str()
+            .unwrap_or("Marketing activity")
+            .to_string()
+    });
+    let remote_id = resolved_string_field(&input, "remoteId").unwrap_or_else(|| {
+        old["remoteId"]
+            .as_str()
+            .unwrap_or("local-remote")
+            .to_string()
+    });
+    let status = resolved_string_field(&input, "status")
+        .unwrap_or_else(|| old["status"].as_str().unwrap_or("ACTIVE").to_string());
+    let tactic = resolved_string_field(&input, "tactic")
+        .unwrap_or_else(|| old["tactic"].as_str().unwrap_or("NEWSLETTER").to_string());
+    let channel_type = resolved_string_field(&input, "marketingChannelType").unwrap_or_else(|| {
+        old["marketingChannelType"]
+            .as_str()
+            .unwrap_or("EMAIL")
+            .to_string()
+    });
+    let remote_url = resolved_string_field(&input, "remoteUrl").or_else(|| {
+        old["marketingEvent"]["manageUrl"]
+            .as_str()
+            .map(str::to_string)
+    });
+    let preview_url = resolved_string_field(&input, "previewUrl").or_else(|| {
+        old["marketingEvent"]["previewUrl"]
+            .as_str()
+            .map(str::to_string)
+    });
+    let url_parameter_value = resolved_string_field(&input, "urlParameterValue")
+        .or_else(|| old["urlParameterValue"].as_str().map(str::to_string));
+    let channel_handle = resolved_string_field(&input, "channelHandle").unwrap_or_else(|| {
+        old["marketingEvent"]["channelHandle"]
+            .as_str()
+            .unwrap_or("email")
+            .to_string()
+    });
+    let utm = resolved_object_field(&input, "utm");
+    let old_utm = &old["utmParameters"];
+    let campaign = utm
+        .as_ref()
+        .and_then(|u| resolved_string_field(u, "campaign"))
+        .unwrap_or_else(|| {
+            old_utm["campaign"]
+                .as_str()
+                .unwrap_or(&remote_id)
+                .to_string()
+        });
+    let source = utm
+        .as_ref()
+        .and_then(|u| resolved_string_field(u, "source"))
+        .unwrap_or_else(|| {
+            old_utm["source"]
+                .as_str()
+                .unwrap_or("newsletter")
+                .to_string()
+        });
+    let medium = utm
+        .as_ref()
+        .and_then(|u| resolved_string_field(u, "medium"))
+        .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
+    let source_medium = marketing_source_and_medium(
+        &channel_type,
+        &tactic,
+        resolved_string_field(&input, "referringDomain").as_deref(),
+    );
+    let numeric = id.rsplit('/').next().unwrap_or("1");
+    let event_id = old["marketingEvent"]["id"]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            format!(
+                "gid://shopify/MarketingEvent/{}",
+                numeric.parse::<u64>().unwrap_or(1) + 1
+            )
+        });
+    let status_label = marketing_status_label(&status, &tactic, None);
+    let budget = resolved_object_field(&input, "budget")
+        .map(marketing_budget_json)
+        .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
+    let ad_spend = old.get("adSpend").cloned().unwrap_or(Value::Null);
+    json!({
+        "__typename": "MarketingActivity",
+        "id": id,
+        "apiClientId": api_client_id,
+        "title": title,
+        "remoteId": remote_id,
+        "createdAt": old["createdAt"].as_str().unwrap_or("2026-05-05T00:00:00Z"),
+        "updatedAt": "2026-05-05T00:00:00Z",
+        "status": status,
+        "statusLabel": status_label,
+        "targetStatus": status,
+        "tactic": tactic,
+        "marketingChannelType": channel_type,
+        "sourceAndMedium": source_medium,
+        "isExternal": true,
+        "inMainWorkflowVersion": false,
+        "urlParameterValue": url_parameter_value,
+        "parentRemoteId": resolved_string_field(&input, "parentRemoteId").unwrap_or_else(|| old["parentRemoteId"].as_str().unwrap_or("").to_string()),
+        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel").unwrap_or_else(|| old["hierarchyLevel"].as_str().unwrap_or("ROOT").to_string()),
+        "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
+        "budget": budget,
+        "adSpend": ad_spend,
+        "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
+        "marketingEvent": {
+            "__typename": "MarketingEvent",
+            "id": event_id,
+            "type": tactic,
+            "remoteId": remote_id,
+            "channelHandle": channel_handle,
+            "startedAt": "2026-05-05T00:00:00Z",
+            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
+            "scheduledToEndAt": null,
+            "manageUrl": remote_url,
+            "previewUrl": preview_url,
+            "utmCampaign": campaign,
+            "utmMedium": medium,
+            "utmSource": source,
+            "description": title,
+            "marketingChannelType": channel_type,
+            "sourceAndMedium": source_medium
+        }
+    })
+}
+
+fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
+    let total = resolved_object_field(&input, "total").unwrap_or_default();
+    json!({
+        "budgetType": resolved_string_field(&input, "budgetType").unwrap_or_else(|| "DAILY".to_string()),
+        "total": {
+            "amount": resolved_string_field(&total, "amount").unwrap_or_else(|| "0.00".to_string()),
+            "currencyCode": resolved_string_field(&total, "currencyCode").unwrap_or_else(|| "USD".to_string())
+        }
+    })
+}
+
+fn marketing_engagement_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    activity: Option<&Value>,
+) -> Value {
+    let money = |key: &str| marketing_money_json(input, key);
+    json!({
+        "__typename": "MarketingEngagement",
+        "occurredOn": resolved_string_field(input, "occurredOn").unwrap_or_else(|| "2026-04-26".to_string()),
+        "utcOffset": resolved_string_field(input, "utcOffset").unwrap_or_else(|| "+00:00".to_string()),
+        "isCumulative": resolved_bool_field(input, "isCumulative").unwrap_or(false),
+        "impressionsCount": resolved_int_field(input, "impressionsCount"),
+        "viewsCount": resolved_int_field(input, "viewsCount"),
+        "clicksCount": resolved_int_field(input, "clicksCount"),
+        "uniqueClicksCount": resolved_int_field(input, "uniqueClicksCount"),
+        "adSpend": money("adSpend"),
+        "sales": money("sales"),
+        "orders": resolved_string_field(input, "orders"),
+        "primaryConversions": resolved_string_field(input, "primaryConversions"),
+        "allConversions": resolved_string_field(input, "allConversions"),
+        "firstTimeCustomers": resolved_string_field(input, "firstTimeCustomers"),
+        "returningCustomers": resolved_string_field(input, "returningCustomers"),
+        "marketingActivity": activity.cloned().unwrap_or(Value::Null)
+    })
+}
+
+fn marketing_money_json(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Value {
+    let Some(obj) = resolved_object_field(input, key) else {
+        return Value::Null;
+    };
+    json!({
+        "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
+        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
+    })
+}
+
+fn marketing_money_currency(input: &BTreeMap<String, ResolvedValue>, key: &str) -> Option<String> {
+    resolved_object_field(input, key).and_then(|obj| resolved_string_field(&obj, "currencyCode"))
+}
+
+fn has_marketing_currency_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    let mut currencies = BTreeSet::new();
+    if let Some(c) = resolved_object_field(input, "budget")
+        .and_then(|b| resolved_object_field(&b, "total"))
+        .and_then(|t| resolved_string_field(&t, "currencyCode"))
+    {
+        currencies.insert(c);
+    }
+    if let Some(c) = marketing_money_currency(input, "adSpend") {
+        currencies.insert(c);
+    }
+    currencies.len() > 1
+}
+
+fn has_engagement_currency_mismatch(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    let mut currencies = BTreeSet::new();
+    for key in ["adSpend", "sales"] {
+        if let Some(c) = marketing_money_currency(input, key) {
+            currencies.insert(c);
+        }
+    }
+    currencies.len() > 1
+}
+
+fn invalid_marketing_url_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    _root: &str,
+) -> Option<Value> {
+    for (field, value) in [
+        ("remoteUrl", resolved_string_field(input, "remoteUrl")),
+        ("previewUrl", resolved_string_field(input, "previewUrl")),
+    ] {
+        if let Some(url) = value {
+            if !(url.starts_with("http://") || url.starts_with("https://")) {
+                return Some(json!({
+                    "field": ["input", field],
+                    "message": format!("{} is not a valid URL", field),
+                    "code": "INVALID"
+                }));
+            }
+        }
+    }
+    None
+}
+
+fn input_utm_differs(existing: &Value, input: &BTreeMap<String, ResolvedValue>) -> bool {
+    let Some(utm) = resolved_object_field(input, "utm") else {
+        return false;
+    };
+    for key in ["campaign", "source", "medium"] {
+        if resolved_string_field(&utm, key)
+            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn marketing_status_label(status: &str, tactic: &str, target_status: Option<&str>) -> String {
+    if target_status == Some("PAUSED") {
+        return "Pausing".to_string();
+    }
+    match (status, tactic) {
+        ("PENDING", "AD") => "In review",
+        ("ACTIVE", "POST") => "Posting",
+        ("ACTIVE", _) => "Sending",
+        ("PAUSED", _) => "Paused",
+        ("INACTIVE", "POST") => "Posted",
+        ("INACTIVE", "NEWSLETTER") => "Sent",
+        ("INACTIVE", _) => "Ended",
+        ("DELETED_EXTERNALLY", _) => "Deleted",
+        _ => status,
+    }
+    .to_string()
+}
+
+fn marketing_source_and_medium(
+    channel: &str,
+    tactic: &str,
+    referring_domain: Option<&str>,
+) -> String {
+    match (channel, tactic, referring_domain) {
+        ("EMAIL", "ABANDONED_CART", _) => "Abandoned cart email",
+        ("SEARCH", "AFFILIATE", _) => "Affiliate link",
+        ("DISPLAY", "LOYALTY", _) => "Loyalty program",
+        ("DISPLAY", "RETARGETING", Some("facebook.com")) => "Facebook retargeting ad",
+        ("DISPLAY", "RETARGETING", _) => "Retargeting ad",
+        ("SEARCH", "MESSAGE", Some("facebook.com")) => "Message via Facebook Messenger",
+        ("SEARCH", "MESSAGE", Some("twitter.com")) => "Twitter message",
+        ("SEARCH", "AD", Some("instagram.com")) => "Instagram ad",
+        ("SEARCH", "AD", Some(domain)) => return format!("{domain} ad"),
+        ("SEARCH", "AD", _) => "Search ad",
+        (_, "AD", _) => "Ad",
+        ("EMAIL", "NEWSLETTER", _) => "Email newsletter",
+        _ => "Email newsletter",
+    }
+    .to_string()
 }
 
 fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
