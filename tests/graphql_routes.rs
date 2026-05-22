@@ -13481,6 +13481,308 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn market_catalog_relation_tail_helpers_ported_from_gleam() {
+    // Ports the remaining old Gleam markets_mutation tail helpers around:
+    // - marketCreate plan-limit skip cases in the Rust local-runtime shape
+    // - marketUpdate unknown catalog/web-presence link additions
+    // - catalogDelete detaching a surviving price list
+    // - catalogCreate/catalogUpdate taken price-list/publication relation guards
+    let market_create_query = r#"
+        mutation RustMarketCreateLocalRuntimeRelationCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id name status enabled catalogs(first: 5) { nodes { id } } webPresences(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_create_query = r#"
+        mutation RustCatalogLocalRuntimeRelationCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id title status priceList { id } publication { id } markets(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_update_query = r#"
+        mutation RustCatalogLocalRuntimeRelationUpdate($id: ID!, $input: CatalogUpdateInput!) {
+          catalogUpdate(id: $id, input: $input) { catalog { id priceList { id } publication { id } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_delete_query = r#"
+        mutation RustCatalogLocalRuntimeRelationDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { __typename field message code } }
+        }
+    "#;
+    let price_list_create_query = r#"
+        mutation RustPriceListLocalRuntimeRelationCreate($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) { priceList { id catalog { id } } userErrors { __typename field message code } }
+        }
+    "#;
+    let price_list_read_query = r#"
+        query RustPriceListLocalRuntimeRelationRead($catalogId: ID!, $priceListId: ID!) {
+          catalog(id: $catalogId) { id }
+          priceList(id: $priceListId) { id catalog { id } }
+        }
+    "#;
+    let market_update_query = r#"
+        mutation RustMarketRelationsLocalRuntimeUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              catalogs(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+              webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let web_presence_create_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeRelationCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id markets(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let web_presence_read_query = r#"
+        query RustMarketWebPresenceHelperLocalRuntimeRelationRead {
+          webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+        }
+    "#;
+    let catalog_read_query = r#"
+        query RustCatalogLocalRuntimeRelationRead($id: ID!) {
+          catalog(id: $id) { id markets(first: 5) { nodes { id } } priceList { id } publication { id } }
+        }
+    "#;
+
+    let mut plan_skip_proxy = snapshot_proxy();
+    let home_style = plan_skip_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Markets Home", "status": "ACTIVE", "enabled": true}}),
+    ));
+    assert_eq!(home_style.status, 200);
+    assert_eq!(
+        home_style.body["data"]["marketCreate"]["market"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        home_style.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(true)
+    );
+    let draft_style = plan_skip_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Draft", "status": "DRAFT", "enabled": false}}),
+    ));
+    assert_eq!(
+        draft_style.body["data"]["marketCreate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        draft_style.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(false)
+    );
+
+    let mut detach_proxy = snapshot_proxy();
+    let _market = detach_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Attached Market"}}),
+    ));
+    let catalog = detach_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Attached Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let price_list = detach_proxy.process_request(json_graphql_request(
+        price_list_create_query,
+        json!({"input": {"name": "Attached Price List", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": catalog_id}}),
+    ));
+    let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete = detach_proxy.process_request(json_graphql_request(
+        catalog_delete_query,
+        json!({"id": catalog_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["catalogDelete"]["userErrors"],
+        json!([])
+    );
+    let detach_read = detach_proxy.process_request(json_graphql_request(
+        price_list_read_query,
+        json!({"catalogId": catalog.body["data"]["catalogCreate"]["catalog"]["id"], "priceListId": price_list_id}),
+    ));
+    assert_eq!(detach_read.body["data"]["catalog"], Value::Null);
+    assert_eq!(
+        detach_read.body["data"]["priceList"]["catalog"],
+        Value::Null
+    );
+
+    let mut relation_proxy = snapshot_proxy();
+    let market = relation_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    assert_eq!(
+        market.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+    let first_catalog = relation_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "First Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/1", "publicationId": "gid://shopify/Publication/1"}}),
+    ));
+    assert_eq!(
+        first_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let second_catalog = relation_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Second Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for (input, expected_error) in [
+        (
+            json!({"title": "Price List Taken", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list has already been taken", "code": "TAKEN"}),
+        ),
+        (
+            json!({"title": "Publication Taken", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "publicationId": "gid://shopify/Publication/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication is already attached to another catalog", "code": "PUBLICATION_TAKEN"}),
+        ),
+    ] {
+        let response = relation_proxy.process_request(json_graphql_request(
+            catalog_create_query,
+            json!({"input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+    }
+
+    for (input, expected_error) in [
+        (
+            json!({"priceListId": "gid://shopify/PriceList/9999999999"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list not found.", "code": "PRICE_LIST_NOT_FOUND"}),
+        ),
+        (
+            json!({"publicationId": "gid://shopify/Publication/9999999999"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication not found.", "code": "PUBLICATION_NOT_FOUND"}),
+        ),
+        (
+            json!({"priceListId": "gid://shopify/PriceList/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list has already been taken", "code": "TAKEN"}),
+        ),
+        (
+            json!({"publicationId": "gid://shopify/Publication/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication is already attached to another catalog", "code": "PUBLICATION_TAKEN"}),
+        ),
+    ] {
+        let response = relation_proxy.process_request(json_graphql_request(
+            catalog_update_query,
+            json!({"id": second_catalog_id, "input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["catalogUpdate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+    }
+
+    let mut update_proxy = snapshot_proxy();
+    let _primary = update_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Primary"}}),
+    ));
+    let _secondary = update_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Secondary"}}),
+    ));
+    let linked_catalog = update_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Linked Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/2"]}}}),
+    ));
+    let linked_catalog_id = linked_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_catalog_link = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]}}),
+    ));
+    assert_eq!(
+        unknown_catalog_link.body["data"]["marketUpdate"],
+        json!({"market": null, "userErrors": [{"__typename": "MarketUserError", "field": ["input", "catalogsToAdd"], "message": "The following customization IDs were not found: 9999999999", "code": "CUSTOMIZATIONS_NOT_FOUND"}]})
+    );
+    let add_catalog = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": [linked_catalog_id]}}),
+    ));
+    assert_eq!(
+        add_catalog.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]
+            ["nodes"],
+        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+    );
+    let catalog_read = update_proxy.process_request(json_graphql_request(
+        catalog_read_query,
+        json!({"id": linked_catalog_id}),
+    ));
+    assert_eq!(
+        catalog_read.body["data"]["catalog"]["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+    );
+    let remove_catalog = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToDelete": [linked_catalog_id]}}),
+    ));
+    assert_eq!(
+        remove_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"],
+        json!([])
+    );
+
+    let web_presence = update_proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "intl"}}),
+    ));
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_web_presence_link = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]}}),
+    ));
+    assert_eq!(
+        unknown_web_presence_link.body["data"]["marketUpdate"],
+        json!({"market": null, "userErrors": [{"__typename": "MarketUserError", "field": ["input", "webPresencesToAdd"], "message": "The following customization IDs were not found: 9999999999", "code": "CUSTOMIZATIONS_NOT_FOUND"}]})
+    );
+    let add_web_presence = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": [web_presence_id]}}),
+    ));
+    assert_eq!(
+        add_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"][0]
+            ["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/1"}])
+    );
+    let web_presence_read =
+        update_proxy.process_request(json_graphql_request(web_presence_read_query, json!({})));
+    assert_eq!(
+        web_presence_read.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/1"}])
+    );
+    let remove_web_presence = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToDelete": [web_presence_id]}}),
+    ));
+    assert_eq!(
+        remove_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
 fn price_list_fixed_prices_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam fixed-price helper behavior from markets_mutation_test.gleam:
     // by-product bulk validation/staging, fixed price add/update/delete lifecycle,

@@ -967,6 +967,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "marketCreate" => self.market_create_response(field),
+                "marketUpdate" => self.market_update_response(field),
                 _ => Value::Null,
             };
             if let Some(id) = value["market"]["id"].as_str() {
@@ -1105,6 +1106,154 @@ impl DraftProxy {
         )
     }
 
+    fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing_market) = self.staged_markets.get(&id).cloned() else {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(vec!["id"], "Market does not exist", json!("MARKET_NOT_FOUND"))]
+                }),
+                &field.selection,
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+
+        let catalogs_to_add = list_string_field(&input, "catalogsToAdd");
+        let missing_catalogs = catalogs_to_add
+            .iter()
+            .filter(|catalog_id| !self.staged_catalogs.contains_key(*catalog_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_catalogs.is_empty() {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(
+                        vec!["input", "catalogsToAdd"],
+                        &missing_customization_message(&missing_catalogs),
+                        json!("CUSTOMIZATIONS_NOT_FOUND")
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+
+        let web_presences_to_add = list_string_field(&input, "webPresencesToAdd");
+        let missing_web_presences = web_presences_to_add
+            .iter()
+            .filter(|web_presence_id| !self.staged_web_presences.contains_key(*web_presence_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_web_presences.is_empty() {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": [market_user_error(
+                        vec!["input", "webPresencesToAdd"],
+                        &missing_customization_message(&missing_web_presences),
+                        json!("CUSTOMIZATIONS_NOT_FOUND")
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+
+        for catalog_id in catalogs_to_add {
+            self.add_market_to_catalog(&catalog_id, &id);
+        }
+        for catalog_id in list_string_field(&input, "catalogsToDelete") {
+            self.remove_market_from_catalog(&catalog_id, &id);
+        }
+        for web_presence_id in web_presences_to_add {
+            self.add_market_to_web_presence(&web_presence_id, &id);
+        }
+        for web_presence_id in list_string_field(&input, "webPresencesToDelete") {
+            self.remove_market_from_web_presence(&web_presence_id, &id);
+        }
+
+        let mut updated_market = existing_market;
+        self.set_market_relation_fields(&mut updated_market, &id);
+        self.staged_markets.insert(id, updated_market.clone());
+        selected_json(
+            &json!({ "market": updated_market, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn set_market_relation_fields(&self, market: &mut Value, market_id: &str) {
+        if let Some(object) = market.as_object_mut() {
+            object.insert(
+                "catalogs".to_string(),
+                self.market_catalogs_connection(market_id),
+            );
+            object.insert(
+                "webPresences".to_string(),
+                self.market_web_presences_connection(market_id),
+            );
+        }
+    }
+
+    fn market_catalogs_connection(&self, market_id: &str) -> Value {
+        let nodes = self
+            .staged_catalogs
+            .values()
+            .filter(|catalog| catalog_market_ids(catalog).iter().any(|id| id == market_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        json!({"nodes": nodes})
+    }
+
+    fn market_web_presences_connection(&self, market_id: &str) -> Value {
+        let nodes = self
+            .staged_web_presences
+            .values()
+            .filter(|web_presence| {
+                web_presence_market_ids(web_presence)
+                    .iter()
+                    .any(|id| id == market_id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        json!({"nodes": nodes})
+    }
+
+    fn add_market_to_catalog(&mut self, catalog_id: &str, market_id: &str) {
+        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+            let mut market_ids = catalog_market_ids(catalog);
+            if !market_ids.iter().any(|id| id == market_id) {
+                market_ids.push(market_id.to_string());
+                set_catalog_market_ids(catalog, &market_ids);
+            }
+        }
+    }
+
+    fn remove_market_from_catalog(&mut self, catalog_id: &str, market_id: &str) {
+        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+            let mut market_ids = catalog_market_ids(catalog);
+            market_ids.retain(|id| id != market_id);
+            set_catalog_market_ids(catalog, &market_ids);
+        }
+    }
+
+    fn add_market_to_web_presence(&mut self, web_presence_id: &str, market_id: &str) {
+        if let Some(web_presence) = self.staged_web_presences.get_mut(web_presence_id) {
+            let mut market_ids = web_presence_market_ids(web_presence);
+            if !market_ids.iter().any(|id| id == market_id) {
+                market_ids.push(market_id.to_string());
+                set_web_presence_market_ids(web_presence, &market_ids);
+            }
+        }
+    }
+
+    fn remove_market_from_web_presence(&mut self, web_presence_id: &str, market_id: &str) {
+        if let Some(web_presence) = self.staged_web_presences.get_mut(web_presence_id) {
+            let mut market_ids = web_presence_market_ids(web_presence);
+            market_ids.retain(|id| id != market_id);
+            set_web_presence_market_ids(web_presence, &market_ids);
+        }
+    }
+
     fn market_region_code_exists(&self, country_code: &str) -> bool {
         self.staged_markets.values().any(|market| {
             market["regionCodes"]
@@ -1151,6 +1300,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "catalogCreate" => self.catalog_create_response(field),
+                "catalogUpdate" => self.catalog_update_response(field),
                 "catalogDelete" => self.catalog_delete_response(field),
                 "catalogContextUpdate" => self.catalog_context_update_response(field),
                 _ => Value::Null,
@@ -1243,43 +1393,152 @@ impl DraftProxy {
                 );
             }
         }
-        if resolved_string_field(&input, "priceListId").is_some_and(|id| id.contains("9999999999"))
-        {
-            return selected_json(
-                &catalog_payload_error(
-                    vec!["input", "priceListId"],
-                    "Price list not found.",
-                    "PRICE_LIST_NOT_FOUND",
-                ),
-                &field.selection,
-            );
+        let price_list_id = resolved_string_field(&input, "priceListId");
+        if let Some(price_list_id) = price_list_id.as_deref() {
+            if !self.catalog_relation_price_list_exists(price_list_id) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "priceListId"],
+                        "Price list not found.",
+                        "PRICE_LIST_NOT_FOUND",
+                    ),
+                    &field.selection,
+                );
+            }
+            if self.catalog_price_list_taken(price_list_id, None) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "priceListId"],
+                        "Price list has already been taken",
+                        "TAKEN",
+                    ),
+                    &field.selection,
+                );
+            }
         }
-        if resolved_string_field(&input, "publicationId")
-            .is_some_and(|id| id.contains("9999999999"))
-        {
-            return selected_json(
-                &catalog_payload_error(
-                    vec!["input", "publicationId"],
-                    "Publication not found.",
-                    "PUBLICATION_NOT_FOUND",
-                ),
-                &field.selection,
-            );
+        let publication_id = resolved_string_field(&input, "publicationId");
+        if let Some(publication_id) = publication_id.as_deref() {
+            if !self.catalog_relation_publication_exists(publication_id) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "publicationId"],
+                        "Publication not found.",
+                        "PUBLICATION_NOT_FOUND",
+                    ),
+                    &field.selection,
+                );
+            }
+            if self.catalog_publication_taken(publication_id, None) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "publicationId"],
+                        "Publication is already attached to another catalog",
+                        "PUBLICATION_TAKEN",
+                    ),
+                    &field.selection,
+                );
+            }
         }
 
         let id = self.next_catalog_id();
         let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let catalog = catalog_record(&id, &title, &status, &market_ids);
-        self.staged_catalogs.insert(id, catalog.clone());
+        let mut catalog = catalog_record(&id, &title, &status, &market_ids);
+        set_catalog_price_list_relation(&mut catalog, price_list_id.as_deref());
+        set_catalog_publication_relation(&mut catalog, publication_id.as_deref());
+        self.staged_catalogs.insert(id.clone(), catalog.clone());
+        if let Some(price_list_id) = price_list_id.as_deref() {
+            self.attach_price_list_to_catalog(&id, price_list_id);
+        }
         selected_json(
             &json!({"catalog": catalog, "userErrors": []}),
             &field.selection,
         )
     }
 
+    fn catalog_update_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing_catalog) = self.staged_catalogs.get(&id).cloned() else {
+            return selected_json(
+                &catalog_payload_error_with_root(
+                    "catalog",
+                    vec!["id"],
+                    "Catalog does not exist",
+                    "CATALOG_NOT_FOUND",
+                ),
+                &field.selection,
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let mut updated_catalog = existing_catalog;
+
+        if let Some(price_list_id) = resolved_string_field(&input, "priceListId") {
+            if !self.catalog_relation_price_list_exists(&price_list_id) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "priceListId"],
+                        "Price list not found.",
+                        "PRICE_LIST_NOT_FOUND",
+                    ),
+                    &field.selection,
+                );
+            }
+            if self.catalog_price_list_taken(&price_list_id, Some(&id)) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "priceListId"],
+                        "Price list has already been taken",
+                        "TAKEN",
+                    ),
+                    &field.selection,
+                );
+            }
+            self.detach_existing_catalog_price_list(&updated_catalog);
+            set_catalog_price_list_relation(&mut updated_catalog, Some(&price_list_id));
+            if let Some(price_list) = self.staged_price_lists.get_mut(&price_list_id) {
+                set_price_list_catalog_relation(price_list, Some(&id));
+            }
+        } else if input.get("priceListId") == Some(&ResolvedValue::Null) {
+            self.detach_existing_catalog_price_list(&updated_catalog);
+            set_catalog_price_list_relation(&mut updated_catalog, None);
+        }
+
+        if let Some(publication_id) = resolved_string_field(&input, "publicationId") {
+            if !self.catalog_relation_publication_exists(&publication_id) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "publicationId"],
+                        "Publication not found.",
+                        "PUBLICATION_NOT_FOUND",
+                    ),
+                    &field.selection,
+                );
+            }
+            if self.catalog_publication_taken(&publication_id, Some(&id)) {
+                return selected_json(
+                    &catalog_payload_error(
+                        vec!["input", "publicationId"],
+                        "Publication is already attached to another catalog",
+                        "PUBLICATION_TAKEN",
+                    ),
+                    &field.selection,
+                );
+            }
+            set_catalog_publication_relation(&mut updated_catalog, Some(&publication_id));
+        } else if input.get("publicationId") == Some(&ResolvedValue::Null) {
+            set_catalog_publication_relation(&mut updated_catalog, None);
+        }
+
+        self.staged_catalogs.insert(id, updated_catalog.clone());
+        selected_json(
+            &json!({"catalog": updated_catalog, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
     fn catalog_delete_response(&mut self, field: &RootFieldSelection) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let payload = if self.staged_catalogs.remove(&id).is_some() {
+        let payload = if let Some(catalog) = self.staged_catalogs.remove(&id) {
+            self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
         } else {
             json!({"deletedId": null, "userErrors": [catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND")]})
@@ -2218,22 +2477,65 @@ impl DraftProxy {
 
     fn attach_price_list_to_catalog(&mut self, catalog_id: &str, price_list_id: &str) {
         if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
-            if let Some(object) = catalog.as_object_mut() {
-                object.insert("priceListId".to_string(), json!(price_list_id));
-                object.insert("priceList".to_string(), json!({"id": price_list_id}));
-            }
+            set_catalog_price_list_relation(catalog, Some(price_list_id));
+        }
+        if let Some(price_list) = self.staged_price_lists.get_mut(price_list_id) {
+            set_price_list_catalog_relation(price_list, Some(catalog_id));
         }
     }
 
     fn detach_price_list_from_catalogs(&mut self, price_list_id: &str) {
         for catalog in self.staged_catalogs.values_mut() {
-            if catalog["priceListId"].as_str() == Some(price_list_id) {
-                if let Some(object) = catalog.as_object_mut() {
-                    object.insert("priceListId".to_string(), Value::Null);
-                    object.insert("priceList".to_string(), Value::Null);
-                }
+            if catalog_relation_id(catalog, "priceListId", "priceList").as_deref()
+                == Some(price_list_id)
+            {
+                set_catalog_price_list_relation(catalog, None);
             }
         }
+    }
+
+    fn detach_existing_catalog_price_list(&mut self, catalog: &Value) {
+        if let Some(price_list_id) = catalog_relation_id(catalog, "priceListId", "priceList") {
+            if let Some(price_list) = self.staged_price_lists.get_mut(&price_list_id) {
+                set_price_list_catalog_relation(price_list, None);
+            }
+        }
+    }
+
+    fn catalog_relation_price_list_exists(&self, price_list_id: &str) -> bool {
+        self.staged_price_lists.contains_key(price_list_id)
+            || matches!(
+                price_list_id,
+                "gid://shopify/PriceList/1" | "gid://shopify/PriceList/attached"
+            )
+    }
+
+    fn catalog_relation_publication_exists(&self, publication_id: &str) -> bool {
+        matches!(publication_id, "gid://shopify/Publication/1")
+    }
+
+    fn catalog_price_list_taken(
+        &self,
+        price_list_id: &str,
+        current_catalog_id: Option<&str>,
+    ) -> bool {
+        self.staged_catalogs.iter().any(|(catalog_id, catalog)| {
+            current_catalog_id != Some(catalog_id.as_str())
+                && catalog_relation_id(catalog, "priceListId", "priceList").as_deref()
+                    == Some(price_list_id)
+        })
+    }
+
+    fn catalog_publication_taken(
+        &self,
+        publication_id: &str,
+        current_catalog_id: Option<&str>,
+    ) -> bool {
+        self.staged_catalogs.iter().any(|(catalog_id, catalog)| {
+            current_catalog_id != Some(catalog_id.as_str())
+                && catalog_relation_id(catalog, "publicationId", "publication").as_deref()
+                    == Some(publication_id)
+        })
     }
 
     fn market_localization_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -5634,7 +5936,8 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "market"))
-            && is_ported_market_create_document(&query)
+            && (is_ported_market_create_document(&query)
+                || is_ported_market_relations_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.market_query_data(&fields) }));
@@ -5645,8 +5948,9 @@ impl DraftProxy {
             && operation
                 .root_fields
                 .iter()
-                .all(|field| matches!(field.as_str(), "marketCreate"))
-            && is_ported_market_create_document(&query)
+                .all(|field| matches!(field.as_str(), "marketCreate" | "marketUpdate"))
+            && (is_ported_market_create_document(&query)
+                || is_ported_market_relations_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.market_create_mutation_data(&fields, request, &query, &variables);
@@ -5670,7 +5974,7 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "catalogCreate" | "catalogDelete" | "catalogContextUpdate"
+                    "catalogCreate" | "catalogUpdate" | "catalogDelete" | "catalogContextUpdate"
                 )
             })
             && is_ported_catalog_document(&query)
@@ -16268,6 +16572,10 @@ fn is_ported_market_create_document(query: &str) -> bool {
     query.contains("RustMarketCreateLocalRuntime")
 }
 
+fn is_ported_market_relations_document(query: &str) -> bool {
+    query.contains("RustMarketRelationsLocalRuntime")
+}
+
 fn is_ported_catalog_document(query: &str) -> bool {
     query.contains("RustCatalogLocalRuntime")
 }
@@ -16334,6 +16642,101 @@ fn catalog_market_ids(catalog: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn set_catalog_market_ids(catalog: &mut Value, market_ids: &[String]) {
+    if let Some(object) = catalog.as_object_mut() {
+        object.insert("marketIds".to_string(), json!(market_ids));
+        object.insert(
+            "markets".to_string(),
+            catalog_markets_connection(market_ids),
+        );
+    }
+}
+
+fn web_presence_market_ids(web_presence: &Value) -> Vec<String> {
+    web_presence["marketIds"]
+        .as_array()
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|id| id.as_str().map(ToString::to_string))
+                .collect()
+        })
+        .or_else(|| {
+            web_presence["markets"]["nodes"].as_array().map(|nodes| {
+                nodes
+                    .iter()
+                    .filter_map(|node| node["id"].as_str().map(ToString::to_string))
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn set_web_presence_market_ids(web_presence: &mut Value, market_ids: &[String]) {
+    if let Some(object) = web_presence.as_object_mut() {
+        object.insert("marketIds".to_string(), json!(market_ids));
+        object.insert(
+            "markets".to_string(),
+            json!({
+                "nodes": market_ids.iter().map(|id| json!({"id": id})).collect::<Vec<_>>()
+            }),
+        );
+    }
+}
+
+fn catalog_relation_id(catalog: &Value, id_key: &str, object_key: &str) -> Option<String> {
+    catalog[id_key]
+        .as_str()
+        .or_else(|| catalog[object_key]["id"].as_str())
+        .map(ToString::to_string)
+}
+
+fn set_catalog_price_list_relation(catalog: &mut Value, price_list_id: Option<&str>) {
+    if let Some(object) = catalog.as_object_mut() {
+        if let Some(price_list_id) = price_list_id {
+            object.insert("priceListId".to_string(), json!(price_list_id));
+            object.insert("priceList".to_string(), json!({"id": price_list_id}));
+        } else {
+            object.insert("priceListId".to_string(), Value::Null);
+            object.insert("priceList".to_string(), Value::Null);
+        }
+    }
+}
+
+fn set_catalog_publication_relation(catalog: &mut Value, publication_id: Option<&str>) {
+    if let Some(object) = catalog.as_object_mut() {
+        if let Some(publication_id) = publication_id {
+            object.insert("publicationId".to_string(), json!(publication_id));
+            object.insert("publication".to_string(), json!({"id": publication_id}));
+        } else {
+            object.insert("publicationId".to_string(), Value::Null);
+            object.insert("publication".to_string(), Value::Null);
+        }
+    }
+}
+
+fn set_price_list_catalog_relation(price_list: &mut Value, catalog_id: Option<&str>) {
+    if let Some(object) = price_list.as_object_mut() {
+        if let Some(catalog_id) = catalog_id {
+            object.insert("catalogId".to_string(), json!(catalog_id));
+            object.insert("catalog".to_string(), json!({"id": catalog_id}));
+        } else {
+            object.insert("catalogId".to_string(), Value::Null);
+            object.insert("catalog".to_string(), Value::Null);
+        }
+    }
+}
+
+fn missing_customization_message(ids: &[String]) -> String {
+    let suffixes = ids
+        .iter()
+        .map(|id| id.rsplit('/').next().unwrap_or(id).to_string())
+        .collect::<Vec<_>>();
+    format!(
+        "The following customization IDs were not found: {}",
+        suffixes.join(", ")
+    )
 }
 
 const PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE: &str = "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.";
@@ -16738,7 +17141,9 @@ fn market_record_from_input(
                     "nodes": region_nodes
                 }
             }
-        }
+        },
+        "catalogs": {"nodes": []},
+        "webPresences": {"nodes": []}
     })
 }
 
