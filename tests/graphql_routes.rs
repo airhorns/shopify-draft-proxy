@@ -5026,6 +5026,66 @@ fn product_create_preserves_parity_fields_and_downstream_read() {
 }
 
 #[test]
+fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) {
+          myEvent: event(id: "gid://shopify/Event/1") { id }
+          event(id: $eventId) { id action message }
+          events(first: $first, query: $query, sortKey: ID, reverse: true) {
+            nodes { id action message }
+            edges { cursor node { id action message } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          nodeOnlyEvents: events(first: 5) { nodes { id } }
+          eventsCount(query: $query) { count precision }
+          looseCount: eventsCount { count whatever }
+          whatever
+        }
+        "#,
+        json!({
+            "eventId": "gid://shopify/BasicEvent/999999999999",
+            "first": 2,
+            "query": "id:999999999999"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "myEvent": null,
+                "event": null,
+                "events": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                },
+                "nodeOnlyEvents": {
+                    "nodes": []
+                },
+                "eventsCount": {
+                    "count": 0,
+                    "precision": "EXACT"
+                },
+                "looseCount": {
+                    "count": 0,
+                    "whatever": null
+                },
+                "whatever": null
+            }
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_path_is_post_only() {
     let mut proxy = snapshot_proxy();
 

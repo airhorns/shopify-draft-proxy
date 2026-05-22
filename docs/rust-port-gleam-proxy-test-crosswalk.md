@@ -5,10 +5,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Scope: `origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test`
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
-  - `implementation_unit_replaced_needs_review`: 171
-  - `needs_manual_review`: 516
+  - `implementation_unit_replaced_needs_review`: 164
+  - `needs_manual_review`: 513
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1471
+  - `represented_by_rust_root_tests`: 1481
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -24,8 +24,8 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `products_mutation`: 45
 - `b2b`: 36
 - `localization_mutation`: 35
-- `draft_proxy`: 33
 - `store_properties`: 33
+- `draft_proxy`: 31
 - `metaobject_definitions`: 26
 - `mutation_helpers`: 22
 - `commit`: 20
@@ -42,7 +42,6 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - `pagination`: 9
 - `passthrough`: 9
 - `delivery_settings`: 8
-- `events`: 8
 - `functions`: 8
 - `media`: 8
 - `operation_registry`: 8
@@ -66,6 +65,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 - Webhook endpoint/URI conversion, connection filter/sort/count behavior, validation edge cases, and dedicated Pub/Sub update field-path behavior are now represented by Rust integration tests in `tests/graphql_routes.rs`.
 - Draft-proxy state dump/restore malformed-input behavior from `draft_proxy_test.gleam` is now represented by `tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps`, covering unsupported schemas, missing state buckets, missing log entries, invalid synthetic identity, and malformed JSON.
+- Events empty-read behavior from `events_test.gleam` and the draft-proxy event route helpers is now represented by `tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests`, covering `event`, `events`, `eventsCount`, aliases, unknown event subfields, unknown mixed event roots, and the data envelope.
 
 ## Notes
 

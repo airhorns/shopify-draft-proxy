@@ -4044,6 +4044,19 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
+                    "event" | "events" | "eventsCount" | "whatever"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": event_empty_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
                     "availableLocales"
                         | "shopLocales"
                         | "translatableResource"
@@ -16514,6 +16527,47 @@ fn customer_fixture_record(
         "createdAt": "2026-04-25T01:41:06Z",
         "updatedAt": "2026-04-25T01:41:06Z"
     })
+}
+
+fn event_empty_read_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let value = match field.name.as_str() {
+            "event" => Some(Value::Null),
+            "events" => Some(selected_json(
+                &json!({
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }),
+                &field.selection,
+            )),
+            "eventsCount" => Some(event_count_empty_json(&field.selection)),
+            _ => Some(Value::Null),
+        };
+        if let Some(value) = value {
+            data.insert(field.response_key.clone(), value);
+        }
+    }
+    Value::Object(data)
+}
+
+fn event_count_empty_json(selections: &[SelectedField]) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "count" => json!(0),
+            "precision" => json!("EXACT"),
+            _ => Value::Null,
+        };
+        fields.insert(selection.response_key.clone(), value);
+    }
+    Value::Object(fields)
 }
 
 fn delivery_settings_read_data(fields: &[RootFieldSelection]) -> Value {

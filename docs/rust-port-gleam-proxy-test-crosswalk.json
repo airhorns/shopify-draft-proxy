@@ -1,10 +1,10 @@
 {
   "summary": {
     "coverage_status_counts": {
-      "implementation_unit_replaced_needs_review": 171,
-      "needs_manual_review": 516,
+      "implementation_unit_replaced_needs_review": 164,
+      "needs_manual_review": 513,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1471
+      "represented_by_rust_root_tests": 1481
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
-      "implementation_unit_replaced_needs_review": 171,
-      "needs_manual_review": 516,
+      "implementation_unit_replaced_needs_review": 164,
+      "needs_manual_review": 513,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1471
+      "represented_by_rust_root_tests": 1481
     },
     "test_count": 2162
   },
@@ -11789,7 +11789,9 @@
     },
     {
       "body_sha1": "dc9e9196d03c7a7d069055fbafcc59bd16250d2e",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 62,
@@ -11806,12 +11808,14 @@
       },
       "root_fields": ["nodes"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "8f9ccdccba04f6386481789a5f191cae4839ca62",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 77,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -11821,11 +11825,13 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "92406c64245de974bde0859ef586e4b3180f08f8",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 92,
@@ -11847,7 +11853,7 @@
       },
       "root_fields": ["node", "nodes"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "891df374e647fcd735ba4de4c610bbf74fe04372",
@@ -14553,7 +14559,9 @@
     },
     {
       "body_sha1": "56dba02b52f984beeb6bda5b7f2018ebebd20318",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2116,
@@ -14570,11 +14578,13 @@
       },
       "root_fields": ["nodes"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "79af0be56ccf435c83a354a3e4b947d14a67631c",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2130,
@@ -14591,11 +14601,13 @@
       },
       "root_fields": ["nodes"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "58908f37cc19005100edeac960984111e7c06167",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2148,
@@ -14612,12 +14624,14 @@
       },
       "root_fields": ["nodes"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "dd0dbf0a78aa24456be3477a1f4f22fbaf71290b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "draft_proxy",
       "gleam_line": 2164,
       "gleam_path": "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
@@ -14627,7 +14641,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ee4f250f456c887689bc4db91258144541180452",
@@ -15038,8 +15052,10 @@
     },
     {
       "body_sha1": "6f598ba1142c110a70cfabc00a37341fdd152b1c",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 9,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15048,13 +15064,15 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "bb985f44e7ce7099a37e3c82a445364032479483",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 16,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15063,12 +15081,14 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "04a39b2bdbf63ab3bf6759554939672ce09dd1f2",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 23,
@@ -15084,12 +15104,14 @@
         }
       },
       "root_fields": ["node"],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c58e509269123c42d1635e0b7e46d60605b98b1d",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 32,
@@ -15105,13 +15127,15 @@
         }
       },
       "root_fields": ["nodes"],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "73452f2eaa3a420428d18ffce352e9c754899fe2",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 38,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15120,13 +15144,15 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "943be7a780f97527c845a90666ce9d22b2193c7b",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 43,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15135,13 +15161,15 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "07625e5deffe1faec88406b9a073fd36ff16b5b7",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 48,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15150,13 +15178,15 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "30f0eb60411eb6e0e5152a492d98e174b6ec82f4",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 53,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15165,13 +15195,15 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5d1417746ce9650b834163d7f9b0b1e3092e9db2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 58,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15180,13 +15212,15 @@
       "kind": "domain_processor_behavior",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "dc3ab2e9acf71622dd17c0757114f7c7ab264f11",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "events",
       "gleam_line": 63,
       "gleam_path": "test/shopify_draft_proxy/proxy/events_test.gleam",
@@ -15195,8 +15229,8 @@
       "kind": "pure_helper_or_parser",
       "root_coverage": {},
       "root_fields": [],
-      "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_file_stem_hit": true,
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "05508c6d1f983933e204cb6bec62c280d069bc41",
