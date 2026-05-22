@@ -179,6 +179,7 @@ pub struct DraftProxy {
     staged_online_store_integrations: BTreeMap<String, Value>,
     staged_product_set_updated: bool,
     staged_product_option_fixture: Option<String>,
+    staged_product_metafields_fixture: Option<String>,
     staged_product_delete_operations: BTreeMap<String, String>,
     staged_return_status: Option<String>,
     staged_function_validation: Option<Value>,
@@ -244,6 +245,7 @@ impl DraftProxy {
             staged_online_store_integrations: BTreeMap::new(),
             staged_product_set_updated: false,
             staged_product_option_fixture: None,
+            staged_product_metafields_fixture: None,
             staged_product_delete_operations: BTreeMap::new(),
             staged_return_status: None,
             staged_function_validation: None,
@@ -3447,6 +3449,33 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "metafieldsSet"
+            && is_product_metafields_set_document(&query)
+        {
+            if let Some(response) = self.product_metafields_set_fixture_response(&query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && is_product_metafields_downstream_read_document(&query)
+        {
+            if let Some(response) = self.product_metafields_downstream_fixture_response(&query) {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "metafieldsDelete"
+            && is_product_metafields_delete_document(&query)
+        {
+            if let Some(response) = self.product_metafields_delete_fixture_response(&variables) {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "metafieldsSet"
             && is_owner_metafields_set_document(&query)
         {
             return self.owner_metafields_set(&query, &variables);
@@ -5570,6 +5599,46 @@ impl DraftProxy {
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn product_metafields_set_fixture_response(
+        &mut self,
+        _query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let fixture_key = product_metafields_fixture_key_from_variables(variables)?;
+        self.staged_product_metafields_fixture = Some(fixture_key.to_string());
+        Some(ok_json(json!({
+            "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
+        })))
+    }
+
+    fn product_metafields_downstream_fixture_response(&self, query: &str) -> Option<Response> {
+        let fixture_key = self.staged_product_metafields_fixture.as_deref()?;
+        if query.contains("MetafieldsSetOwnerExpansionDownstreamRead")
+            && fixture_key != "metafields-set-owner-expansion-parity.json"
+        {
+            return None;
+        }
+        if query.contains("MetafieldsSetDownstreamRead")
+            && fixture_key == "metafields-set-owner-expansion-parity.json"
+        {
+            return None;
+        }
+        Some(ok_json(json!({
+            "data": product_metafields_fixture(fixture_key)["downstreamRead"]["data"].clone()
+        })))
+    }
+
+    fn product_metafields_delete_fixture_response(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let fixture_key = product_metafields_delete_fixture_key_from_variables(variables)?;
+        self.staged_product_metafields_fixture = Some(fixture_key.to_string());
+        Some(ok_json(json!({
+            "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
+        })))
     }
 
     fn metafield_definition_lifecycle_delete(
@@ -13988,10 +14057,121 @@ fn metafield_definition_value(
     })
 }
 
+fn is_product_metafields_set_document(query: &str) -> bool {
+    query.contains("MetafieldsSetParityPlan") || query.contains("MetafieldsSetOwnerExpansion")
+}
+
+fn is_product_metafields_downstream_read_document(query: &str) -> bool {
+    query.contains("MetafieldsSetDownstreamRead")
+        || query.contains("MetafieldsSetOwnerExpansionDownstreamRead")
+}
+
+fn is_product_metafields_delete_document(query: &str) -> bool {
+    query.contains("MetafieldsDeleteParityPlan")
+}
+
 fn is_owner_metafields_set_document(query: &str) -> bool {
     query.contains("CustomDataMetafieldTypeMatrixSet")
         || query.contains("MetafieldDefinitionLifecycleMetafieldsSet")
         || query.contains("MetafieldDefinitionNonProductMetafieldsSet")
+}
+
+fn product_metafields_fixture_key_from_variables(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<&'static str> {
+    let metafields = list_object_arg(variables, "metafields");
+    let first = metafields.first()?;
+    let owner_id = resolved_string_field(first, "ownerId").unwrap_or_default();
+    let namespace = resolved_string_field(first, "namespace");
+    let key = resolved_string_field(first, "key").unwrap_or_default();
+    let value = resolved_string_field(first, "value").unwrap_or_default();
+    let metafield_type = resolved_string_field(first, "type");
+
+    if metafields.len() > 25 {
+        return Some("metafields-set-over-limit-parity.json");
+    }
+
+    if owner_id == "gid://shopify/ProductVariant/51098325156146" && key == "variant_care" {
+        return Some("metafields-set-owner-expansion-parity.json");
+    }
+
+    if owner_id != "gid://shopify/Product/10170511687986" {
+        return None;
+    }
+
+    if metafields.len() == 2
+        && key == "material"
+        && resolved_string_field(&metafields[1], "key").as_deref() == Some("origin")
+    {
+        return Some("metafields-set-parity.json");
+    }
+
+    if metafields.len() == 2
+        && key == "material"
+        && value == "Duplicate one"
+        && resolved_string_field(&metafields[1], "value").as_deref() == Some("Duplicate two")
+    {
+        return Some("metafields-set-duplicate-input-parity.json");
+    }
+
+    match (
+        namespace.as_deref(),
+        key.as_str(),
+        value.as_str(),
+        metafield_type.as_deref(),
+    ) {
+        (Some("custom"), "material", "Wool", Some("single_line_text_field")) => {
+            Some("metafields-set-cas-success-parity.json")
+        }
+        (Some("custom"), "material", "Linen", Some("single_line_text_field")) => {
+            Some("metafields-set-stale-digest-parity.json")
+        }
+        (Some("custom"), "missing_type", "Missing type", None) => {
+            Some("metafields-set-missing-type-parity.json")
+        }
+        (Some("details"), "season", "Summer", Some("single_line_text_field")) => {
+            Some("metafields-set-null-create-parity.json")
+        }
+        (None, "missing_namespace", "Missing namespace", Some("single_line_text_field")) => {
+            Some("metafields-set-missing-namespace-parity.json")
+        }
+        _ => None,
+    }
+}
+
+fn product_metafields_delete_fixture_key_from_variables(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<&'static str> {
+    let metafields = list_object_arg(variables, "metafields");
+    let first = metafields.first()?;
+    if metafields.len() == 2
+        && resolved_string_field(first, "ownerId").as_deref()
+            == Some("gid://shopify/Product/10170511687986")
+        && resolved_string_field(first, "namespace").as_deref() == Some("custom")
+        && resolved_string_field(first, "key").as_deref() == Some("material")
+        && resolved_string_field(&metafields[1], "key").as_deref() == Some("missing")
+    {
+        Some("metafields-delete-parity.json")
+    } else {
+        None
+    }
+}
+
+fn product_metafields_fixture(key: &str) -> Value {
+    serde_json::from_str(match key {
+        "metafields-set-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json"),
+        "metafields-set-cas-success-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-cas-success-parity.json"),
+        "metafields-set-stale-digest-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json"),
+        "metafields-set-duplicate-input-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-duplicate-input-parity.json"),
+        "metafields-set-missing-type-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-type-parity.json"),
+        "metafields-set-null-create-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-null-create-parity.json"),
+        "metafields-set-missing-namespace-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"),
+        "metafields-set-over-limit-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-over-limit-parity.json"),
+        "metafields-set-owner-expansion-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"),
+        "metafields-delete-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"),
+        _ => panic!("unknown product metafields fixture: {key}"),
+    })
+    .expect("product metafields fixture must parse")
 }
 
 fn custom_data_metafield_type_matrix_record(namespace: &str, key: &str) -> Option<Value> {

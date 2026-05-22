@@ -10956,6 +10956,133 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
 }
 
 #[test]
+fn product_metafields_set_replays_captured_product_owned_readbacks() {
+    let cases = [
+        "metafields-set-parity.json",
+        "metafields-set-cas-success-parity.json",
+        "metafields-set-stale-digest-parity.json",
+        "metafields-set-duplicate-input-parity.json",
+        "metafields-set-missing-type-parity.json",
+        "metafields-set-null-create-parity.json",
+        "metafields-set-missing-namespace-parity.json",
+        "metafields-set-over-limit-parity.json",
+    ];
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
+
+    for case in cases {
+        let fixture: Value = serde_json::from_str(match case {
+            "metafields-set-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json"),
+            "metafields-set-cas-success-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-cas-success-parity.json"),
+            "metafields-set-stale-digest-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json"),
+            "metafields-set-duplicate-input-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-duplicate-input-parity.json"),
+            "metafields-set-missing-type-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-type-parity.json"),
+            "metafields-set-null-create-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-null-create-parity.json"),
+            "metafields-set-missing-namespace-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"),
+            "metafields-set-over-limit-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-over-limit-parity.json"),
+            _ => unreachable!(),
+        })
+        .unwrap();
+        let mut proxy = snapshot_proxy();
+
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            fixture["mutation"]["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200, "{case}");
+        assert_eq!(
+            mutation.body["data"], fixture["mutation"]["response"]["data"],
+            "{case} mutation payload"
+        );
+
+        let downstream = proxy.process_request(json_graphql_request(
+            read_query,
+            fixture["downstreamReadVariables"].clone(),
+        ));
+        assert_eq!(downstream.status, 200, "{case}");
+        assert_eq!(
+            downstream.body["data"], fixture["downstreamRead"]["data"],
+            "{case} downstream payload"
+        );
+    }
+}
+
+#[test]
+fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbacks() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"
+    ))
+    .unwrap();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-owner-expansion.graphql");
+    let read_query = include_str!(
+        "../config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql"
+    );
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"],
+        fixture["mutation"]["response"]["data"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        downstream.body["data"]["product"]["variants"]["nodes"][0]["care"]["value"],
+        json!("Spot clean")
+    );
+    assert_eq!(
+        downstream.body["data"]["collection"]["season"]["value"],
+        json!("Winter")
+    );
+}
+
+#[test]
+fn product_metafields_delete_replays_captured_product_owned_readback() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"
+    ))
+    .unwrap();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsDelete-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"],
+        fixture["mutation"]["response"]["data"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        downstream.body["data"]["product"]["primarySpec"],
+        Value::Null
+    );
+}
+
+#[test]
 fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
     let mut proxy = snapshot_proxy();
 
