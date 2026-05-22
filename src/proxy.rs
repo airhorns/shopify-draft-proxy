@@ -6036,6 +6036,23 @@ impl DraftProxy {
                 }
             }));
         };
+        let incoming_tags = if input.contains_key("tags") {
+            Some(resolved_string_list_field_unsorted(&input, "tags"))
+        } else {
+            None
+        };
+        if let Some(tags) = incoming_tags.as_ref() {
+            if tags.len() > 250 {
+                return ok_json(json!({
+                    "errors": [{
+                        "message": format!("The input array size of {} is greater than the maximum allowed of 250.", tags.len()),
+                        "locations": [{"line": 3, "column": 5}],
+                        "path": ["productUpdate", "product", "tags"],
+                        "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
+                    }]
+                }));
+            }
+        }
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_update_missing_product(query);
         };
@@ -6048,6 +6065,33 @@ impl DraftProxy {
             return product_update_missing_product(query);
         };
 
+        if let Some(tags) = incoming_tags.as_ref() {
+            if tags.iter().any(|tag| tag.chars().count() > 255) {
+                let product_selection =
+                    nested_root_field_selection(query, "product").unwrap_or_default();
+                let payload_selection = root_field_selection(query).unwrap_or_default();
+                let error_selection =
+                    selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+                let user_error = selected_json(
+                    &json!({"field": ["tags"], "message": "Product tags is invalid"}),
+                    &error_selection,
+                );
+                let response_key =
+                    root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
+                return ok_json(json!({
+                    "data": {
+                        response_key: selected_json(
+                            &json!({
+                                "product": product_json(&existing, &product_selection),
+                                "userErrors": [user_error]
+                            }),
+                            &payload_selection
+                        )
+                    }
+                }));
+            }
+        }
+
         let product = ProductRecord {
             id: existing.id,
             title: resolved_string_field(&input, "title").unwrap_or(existing.title),
@@ -6059,7 +6103,7 @@ impl DraftProxy {
             product_type: resolved_string_field(&input, "productType")
                 .unwrap_or(existing.product_type),
             tags: if input.contains_key("tags") {
-                resolved_string_list_field(&input, "tags")
+                normalize_product_tags(incoming_tags.unwrap_or_default())
             } else {
                 existing.tags
             },
@@ -17188,6 +17232,22 @@ fn resolved_string_list_field(input: &BTreeMap<String, ResolvedValue>, field: &s
     let mut values = resolved_string_list_field_unsorted(input, field);
     values.sort();
     values
+}
+
+fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut normalized = Vec::new();
+    for tag in tags {
+        let trimmed = tag.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if seen.insert(trimmed.to_lowercase()) {
+            normalized.push(trimmed);
+        }
+    }
+    normalized.sort_by_key(|tag| tag.to_lowercase());
+    normalized
 }
 
 fn resolved_string_list_field_unsorted(

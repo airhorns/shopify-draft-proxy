@@ -10563,3 +10563,84 @@ fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() 
         })
     );
 }
+
+#[test]
+fn product_update_tag_normalization_limits_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-tag-normalization-setup.graphql"
+        ),
+        json!({
+            "product": {
+                "title": "HAR tag normalization seed",
+                "tags": ["base"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mixed = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": [" Red ", "red", "RED", " big   sale "]
+            }
+        }),
+    ));
+    assert_eq!(mixed.status, 200);
+    assert_eq!(
+        mixed.body["data"]["productUpdate"]["product"]["tags"],
+        json!(["big   sale", "Red"])
+    );
+    assert_eq!(mixed.body["data"]["productUpdate"]["userErrors"], json!([]));
+
+    let too_many_tags: Vec<String> = (0..251).map(|index| format!("tag-{index:03}")).collect();
+    let too_many = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": too_many_tags
+            }
+        }),
+    ));
+    assert_eq!(too_many.status, 200);
+    assert!(too_many.body.get("data").is_none());
+    assert_eq!(
+        too_many.body["errors"][0]["message"],
+        json!("The input array size of 251 is greater than the maximum allowed of 250.")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["productUpdate", "product", "tags"])
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"],
+        json!({ "code": "MAX_INPUT_SIZE_EXCEEDED" })
+    );
+
+    let too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": ["x".repeat(256)]
+            }
+        }),
+    ));
+    assert_eq!(too_long.status, 200);
+    assert_eq!(
+        too_long.body["data"]["productUpdate"]["product"]["tags"],
+        json!(["big   sale", "Red"])
+    );
+    assert_eq!(
+        too_long.body["data"]["productUpdate"]["userErrors"],
+        json!([{ "field": ["tags"], "message": "Product tags is invalid" }])
+    );
+}
