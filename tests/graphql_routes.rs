@@ -8876,3 +8876,229 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         json!([{"field": ["input", "changes", "0"], "message": "The quantities can't be moved between different locations."}])
     );
 }
+
+#[test]
+fn online_store_mobile_platform_application_lifecycle_and_validation_are_local() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateCreate {
+          appleCreate: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.old", universalLinksEnabled: false, sharedWebCredentialsEnabled: true, appClipsEnabled: false, appClipApplicationId: "com.example.apple.old.Clip" } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+          androidCreate: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.old", appLinksEnabled: false, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let apple_id = create.body["data"]["appleCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let android_id = create.body["data"]["androidCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"],
+        json!({
+            "appleCreate": {"mobilePlatformApplication": {"__typename": "AppleApplication", "id": apple_id, "appId": "com.example.apple.old", "universalLinksEnabled": false, "sharedWebCredentialsEnabled": true, "appClipsEnabled": false, "appClipApplicationId": "com.example.apple.old.Clip"}, "userErrors": []},
+            "androidCreate": {"mobilePlatformApplication": {"__typename": "AndroidApplication", "id": android_id, "applicationId": "com.example.android.old", "appLinksEnabled": false, "sha256CertFingerprints": ["AA:BB"]}, "userErrors": []}
+        })
+    );
+
+    let apple_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateApple($id: ID!) {
+          mobilePlatformApplicationUpdate(id: $id, input: { apple: { appId: "com.example.apple.new", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: "com.example.apple.new.Clip" } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"id": apple_id}),
+    ));
+    assert_eq!(
+        apple_update.body["data"]["mobilePlatformApplicationUpdate"]["mobilePlatformApplication"]
+            ["appId"],
+        json!("com.example.apple.new")
+    );
+    assert_eq!(
+        apple_update.body["data"]["mobilePlatformApplicationUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let android_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateAndroid($id: ID!) {
+          mobilePlatformApplicationUpdate(id: $id, input: { android: { applicationId: "com.example.android.new", appLinksEnabled: true, sha256CertFingerprints: ["CC:DD", "EE:FF"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"id": android_id}),
+    ));
+    assert_eq!(
+        android_update.body["data"]["mobilePlatformApplicationUpdate"]["mobilePlatformApplication"]
+            ["applicationId"],
+        json!("com.example.android.new")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($appleId: ID!, $androidId: ID!) {
+          apple: mobilePlatformApplication(id: $appleId) { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+          android: mobilePlatformApplication(id: $androidId) { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+        }
+        "#,
+        json!({"appleId": apple_id, "androidId": android_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["apple"]["appId"],
+        json!("com.example.apple.new")
+    );
+    assert_eq!(
+        read.body["data"]["android"]["sha256CertFingerprints"],
+        json!(["CC:DD", "EE:FF"])
+    );
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateValidation($appleId: ID!, $androidId: ID!, $missingId: ID!) {
+          platformMismatch: mobilePlatformApplicationUpdate(id: $androidId, input: { apple: { appId: "com.example.wrong-platform" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          missing: mobilePlatformApplicationUpdate(id: $missingId, input: { apple: { appId: "com.example.missing" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          blankApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "  " } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+        }
+        "#,
+        json!({"appleId": apple_id, "androidId": android_id, "missingId": "gid://shopify/MobilePlatformApplication/9999999999"}),
+    ));
+    assert_eq!(
+        validation.body["data"]["platformMismatch"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+    assert_eq!(
+        validation.body["data"]["missing"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        validation.body["data"]["blankAndroid"]["userErrors"][0]["code"],
+        json!("BLANK")
+    );
+    assert_eq!(
+        validation.body["data"]["blankApple"]["userErrors"][0]["code"],
+        json!("BLANK")
+    );
+}
+
+#[test]
+fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
+    let mut proxy = snapshot_proxy();
+
+    let script_validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagCreateValidatesSrc {
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        script_validation.body["data"]["blank"]["userErrors"][0],
+        json!({"code": "BLANK", "field": ["input", "src"], "message": "Source can't be blank"})
+    );
+    assert_eq!(
+        script_validation.body["data"]["tooLong"]["userErrors"][0]["code"],
+        json!("TOO_LONG")
+    );
+    assert_eq!(
+        script_validation.body["data"]["invalid"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+    assert_eq!(
+        script_validation.body["data"]["http"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
+    let create_script = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateValidationCreate {
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create_script.body["data"]["scriptTagCreate"]["scriptTag"],
+        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false})
+    );
+
+    let script_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateEventForceOnload {
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["event"],
+        json!("onload")
+    );
+    assert_eq!(
+        script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["cache"],
+        json!(true)
+    );
+
+    let web_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateValidationLocalRuntime {
+          create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        web_pixel.body["data"]["invalidJson"]["userErrors"][0]["code"],
+        json!("INVALID_CONFIGURATION_JSON")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["validUpdate"]["webPixel"]["settings"],
+        json!({"accountID": "abc"})
+    );
+
+    let theme_files = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeFilesChecksumsAndValidation {
+          themeCreate(source: "https://example.com/har-585-theme.zip", name: "HAR 585 theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        theme_files.body["data"]["first"]["upsertedThemeFiles"][0]["checksumMd5"],
+        json!("5d41402abc4b2a76b9719d911017c592")
+    );
+    assert_eq!(
+        theme_files.body["data"]["second"]["upsertedThemeFiles"][0]["size"],
+        json!(11)
+    );
+    assert_eq!(
+        theme_files.body["data"]["invalid"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+}

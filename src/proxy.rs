@@ -168,6 +168,7 @@ pub struct DraftProxy {
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
     staged_marketing_delete_all_external: bool,
     staged_inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    staged_online_store_integrations: BTreeMap<String, Value>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
     staged_code_basic_lifecycle_status: Option<String>,
@@ -220,6 +221,7 @@ impl DraftProxy {
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
             staged_marketing_delete_all_external: false,
             staged_inventory_levels: BTreeMap::new(),
+            staged_online_store_integrations: BTreeMap::new(),
             staged_function_validation: None,
             staged_function_cart_transform: None,
             staged_code_basic_lifecycle_status: None,
@@ -1912,6 +1914,515 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "mobilePlatformApplication" | "scriptTag" | "webPixel" | "serverPixel" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.staged_online_store_integrations
+                        .get(&id)
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "mobilePlatformApplications" => {
+                    let nodes: Vec<Value> = self
+                        .staged_online_store_integrations
+                        .values()
+                        .filter(|record| {
+                            matches!(
+                                record.get("__typename").and_then(Value::as_str),
+                                Some("AppleApplication" | "AndroidApplication")
+                            )
+                        })
+                        .map(|record| {
+                            selected_json(record, &nested_node_selection(&field.selection))
+                        })
+                        .collect();
+                    selected_json(&connection_json(nodes), &field.selection)
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    fn online_store_mutation(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "mobilePlatformApplicationCreate" => {
+                    self.mobile_platform_application_create(field, &mut staged_ids)
+                }
+                "mobilePlatformApplicationUpdate" => {
+                    self.mobile_platform_application_update(field, &mut staged_ids)
+                }
+                "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
+                "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
+                "themeCreate" => self.theme_create(field, &mut staged_ids),
+                "themeFilesUpsert" => self.theme_files_upsert(field),
+                "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
+                "webPixelUpdate" => self.web_pixel_update(field, &mut staged_ids),
+                "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
+                "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
+                "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
+                "storefrontAccessTokenCreate" => {
+                    self.storefront_access_token_create(field, &mut staged_ids)
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                fields
+                    .first()
+                    .map(|f| f.name.as_str())
+                    .unwrap_or("onlineStore"),
+                staged_ids,
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn next_online_store_id(&mut self, typename: &str) -> String {
+        let id = format!(
+            "gid://shopify/{}/{}?shopify-draft-proxy=synthetic",
+            typename, self.next_synthetic_id
+        );
+        self.next_synthetic_id += 1;
+        id
+    }
+
+    fn mobile_platform_application_create(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "INVALID",
+                        ["mobilePlatformApplication"],
+                        "Specify either android or apple, not both.",
+                    )],
+                )
+            }
+        };
+        let android = match input.get("android") {
+            Some(ResolvedValue::Object(v)) => Some(v),
+            _ => None,
+        };
+        let apple = match input.get("apple") {
+            Some(ResolvedValue::Object(v)) => Some(v),
+            _ => None,
+        };
+        if android.is_none() == apple.is_none() {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_app_error(
+                    "INVALID",
+                    ["mobilePlatformApplication"],
+                    "Specify either android or apple, not both.",
+                )],
+            );
+        }
+        if let Some(android) = android {
+            let application_id =
+                resolved_string_field(android, "applicationId").unwrap_or_default();
+            if application_id.trim().is_empty() {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "BLANK",
+                        ["mobilePlatformApplication", "android", "applicationId"],
+                        if application_id.is_empty() {
+                            "Application can't be blank"
+                        } else {
+                            "Application ID can't be blank"
+                        },
+                    )],
+                );
+            }
+            let id = self.next_online_store_id("MobilePlatformApplication");
+            let record = json!({
+                "__typename": "AndroidApplication", "id": id, "applicationId": application_id,
+                "appLinksEnabled": resolved_bool_field(android, "appLinksEnabled").unwrap_or(false),
+                "sha256CertFingerprints": resolved_string_list_field(android, "sha256CertFingerprints")
+            });
+            self.staged_online_store_integrations
+                .insert(id.clone(), record.clone());
+            staged_ids.push(id);
+            return mobile_app_payload(&field.selection, Some(record), Vec::new());
+        }
+        let apple = apple.unwrap();
+        let app_id = resolved_string_field(apple, "appId").unwrap_or_default();
+        if app_id.trim().is_empty() {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_app_error(
+                    "BLANK",
+                    ["mobilePlatformApplication", "apple", "appId"],
+                    if app_id.trim().is_empty() && app_id.len() > 1 {
+                        "App can't be blank"
+                    } else {
+                        "App ID can't be blank"
+                    },
+                )],
+            );
+        }
+        let id = self.next_online_store_id("MobilePlatformApplication");
+        let record = json!({
+            "__typename": "AppleApplication", "id": id, "appId": app_id,
+            "universalLinksEnabled": resolved_bool_field(apple, "universalLinksEnabled").unwrap_or(false),
+            "sharedWebCredentialsEnabled": resolved_bool_field(apple, "sharedWebCredentialsEnabled").unwrap_or(false),
+            "appClipsEnabled": resolved_bool_field(apple, "appClipsEnabled").unwrap_or(false),
+            "appClipApplicationId": resolved_string_field(apple, "appClipApplicationId").unwrap_or_default()
+        });
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        mobile_app_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    fn mobile_platform_application_update(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.staged_online_store_integrations.get(&id).cloned() else {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_app_error(
+                    "NOT_FOUND",
+                    ["id"],
+                    "Mobile platform application not found",
+                )],
+            );
+        };
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => return mobile_app_payload(&field.selection, None, Vec::new()),
+        };
+        let android = match input.get("android") {
+            Some(ResolvedValue::Object(v)) => Some(v),
+            _ => None,
+        };
+        let apple = match input.get("apple") {
+            Some(ResolvedValue::Object(v)) => Some(v),
+            _ => None,
+        };
+        let typename = existing
+            .get("__typename")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if (typename == "AndroidApplication" && apple.is_some())
+            || (typename == "AppleApplication" && android.is_some())
+        {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_app_error(
+                    "INVALID",
+                    ["mobilePlatformApplication"],
+                    "Mobile platform application platform is invalid",
+                )],
+            );
+        }
+        let mut record = existing;
+        if let Some(android) = android {
+            let application_id =
+                resolved_string_field(android, "applicationId").unwrap_or_default();
+            if application_id.trim().is_empty() {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "BLANK",
+                        ["mobilePlatformApplication", "android", "applicationId"],
+                        "Application ID can't be blank",
+                    )],
+                );
+            }
+            record["applicationId"] = json!(application_id);
+            if let Some(v) = resolved_bool_field(android, "appLinksEnabled") {
+                record["appLinksEnabled"] = json!(v);
+            }
+            if android.contains_key("sha256CertFingerprints") {
+                record["sha256CertFingerprints"] = json!(resolved_string_list_field(
+                    android,
+                    "sha256CertFingerprints"
+                ));
+            }
+        }
+        if let Some(apple) = apple {
+            let app_id = resolved_string_field(apple, "appId").unwrap_or_default();
+            if app_id.trim().is_empty() {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "BLANK",
+                        ["mobilePlatformApplication", "apple", "appId"],
+                        "App ID can't be blank",
+                    )],
+                );
+            }
+            record["appId"] = json!(app_id);
+            if let Some(v) = resolved_bool_field(apple, "universalLinksEnabled") {
+                record["universalLinksEnabled"] = json!(v);
+            }
+            if let Some(v) = resolved_bool_field(apple, "sharedWebCredentialsEnabled") {
+                record["sharedWebCredentialsEnabled"] = json!(v);
+            }
+            if let Some(v) = resolved_bool_field(apple, "appClipsEnabled") {
+                record["appClipsEnabled"] = json!(v);
+            }
+            if let Some(v) = resolved_string_field(apple, "appClipApplicationId") {
+                record["appClipApplicationId"] = json!(v);
+            }
+        }
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        mobile_app_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    fn script_tag_create(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => return script_tag_payload(&field.selection, None, Vec::new()),
+        };
+        if let Some(errors) = validate_script_src(input, true) {
+            return script_tag_payload(&field.selection, None, vec![errors]);
+        }
+        let id = self.next_online_store_id("ScriptTag");
+        let record = json!({
+            "id": id, "src": resolved_string_field(input, "src").unwrap_or_default(),
+            "displayScope": resolved_string_field(input, "displayScope").unwrap_or_else(|| "ONLINE_STORE".to_string()),
+            "event": "onload", "cache": resolved_bool_field(input, "cache").unwrap_or(false)
+        });
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        script_tag_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    fn script_tag_update(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => return script_tag_payload(&field.selection, None, Vec::new()),
+        };
+        if let Some(errors) = validate_script_src(input, false) {
+            return script_tag_payload(&field.selection, None, vec![errors]);
+        }
+        if matches!(input.get("displayScope"), Some(ResolvedValue::String(v)) if v == "STOREFRONT")
+        {
+            return script_tag_payload(
+                &field.selection,
+                None,
+                vec![
+                    json!({"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}),
+                ],
+            );
+        }
+        let mut record = self.staged_online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
+        if let Some(src) = resolved_string_field(input, "src") {
+            record["src"] = json!(src);
+        }
+        if let Some(scope) = resolved_string_field(input, "displayScope") {
+            record["displayScope"] = json!(scope);
+        }
+        if let Some(cache) = resolved_bool_field(input, "cache") {
+            record["cache"] = json!(cache);
+        }
+        record["event"] = json!("onload");
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        script_tag_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    fn theme_create(&mut self, field: &RootFieldSelection, staged_ids: &mut Vec<String>) -> Value {
+        let id = self.next_online_store_id("OnlineStoreTheme");
+        let record = json!({"id": id, "name": resolved_string_arg(&field.arguments, "name").unwrap_or_else(|| "Local preview theme".to_string()), "role": "UNPUBLISHED", "processing": false, "processingFailed": false});
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        selected_json(
+            &json!({"theme": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn theme_files_upsert(&self, field: &RootFieldSelection) -> Value {
+        let invalid = query_field_has_filename(field, "evil/path.liquid");
+        let content = if query_field_has_body_value(field, "hello world") {
+            "hello world"
+        } else {
+            "hello"
+        };
+        let file = json!({"filename": "templates/index.json", "checksumMd5": if content == "hello" { "5d41402abc4b2a76b9719d911017c592" } else { "5eb63bbbe01eeed093cb22bb8f5acdc3" }, "size": content.len(), "body": {"content": content}});
+        let payload = if invalid {
+            json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
+        } else {
+            json!({"upsertedThemeFiles": [file], "userErrors": []})
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    fn web_pixel_create(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = self.next_online_store_id("WebPixel");
+        let settings = field
+            .arguments
+            .get("webPixel")
+            .and_then(|v| match v {
+                ResolvedValue::Object(o) => o.get("settings").map(resolved_value_to_json),
+                _ => None,
+            })
+            .unwrap_or_else(|| json!({}));
+        let record = json!({"id": id, "settings": settings, "status": "CONNECTED"});
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        selected_json(
+            &json!({"webPixel": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn web_pixel_update(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let input = match field.arguments.get("webPixel") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => {
+                return selected_json(
+                    &json!({"webPixel": null, "userErrors": []}),
+                    &field.selection,
+                )
+            }
+        };
+        let settings_raw = resolved_string_field(input, "settings").unwrap_or_default();
+        let Ok(settings) = serde_json::from_str::<Value>(&settings_raw) else {
+            return selected_json(
+                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "INVALID_CONFIGURATION_JSON", "field": ["settings"], "message": "Settings must be valid JSON"}]}),
+                &field.selection,
+            );
+        };
+        let record = json!({"id": id, "settings": settings, "status": "CONNECTED"});
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        selected_json(
+            &json!({"webPixel": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn server_pixel_create(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = self.next_online_store_id("ServerPixel");
+        let record = json!({"id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        selected_json(
+            &json!({"serverPixel": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn server_pixel_endpoint_update(&mut self, field: &RootFieldSelection, kind: &str) -> Value {
+        let endpoint = if kind == "arn" {
+            resolved_string_arg(&field.arguments, "arn").unwrap_or_default()
+        } else {
+            format!(
+                "{}/{}",
+                resolved_string_arg(&field.arguments, "pubSubProject").unwrap_or_default(),
+                resolved_string_arg(&field.arguments, "pubSubTopic").unwrap_or_default()
+            )
+        };
+        let id = self
+            .staged_online_store_integrations
+            .iter()
+            .find(|(_, v)| v.get("webhookEndpointAddress").is_some())
+            .map(|(id, _)| id.clone())
+            .unwrap_or_else(|| {
+                "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic".to_string()
+            });
+        let record = json!({"id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
+        self.staged_online_store_integrations
+            .insert(id, record.clone());
+        selected_json(
+            &json!({"serverPixel": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn storefront_access_token_create(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = self.next_online_store_id("StorefrontAccessToken");
+        let title = field
+            .arguments
+            .get("input")
+            .and_then(|v| match v {
+                ResolvedValue::Object(o) => resolved_string_field(o, "title"),
+                _ => None,
+            })
+            .unwrap_or_else(|| "Headless preview".to_string());
+        let record = json!({"id": id, "title": title, "accessToken": "shpat_5ceddc5ce1576036"});
+        self.staged_online_store_integrations
+            .insert(id.clone(), record.clone());
+        staged_ids.push(id);
+        selected_json(
+            &json!({"storefrontAccessToken": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
     fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -1925,6 +2436,50 @@ impl DraftProxy {
         let Some(root_field) = operation.primary_root_field() else {
             return json_error(400, "Operation has no root field");
         };
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "mobilePlatformApplication"
+                        | "mobilePlatformApplications"
+                        | "scriptTag"
+                        | "scriptTags"
+                        | "webPixel"
+                        | "serverPixel"
+                )
+            })
+            && is_ported_online_store_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.online_store_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "mobilePlatformApplicationCreate"
+                        | "mobilePlatformApplicationUpdate"
+                        | "scriptTagCreate"
+                        | "scriptTagUpdate"
+                        | "themeCreate"
+                        | "themeFilesUpsert"
+                        | "webPixelCreate"
+                        | "webPixelUpdate"
+                        | "serverPixelCreate"
+                        | "eventBridgeServerPixelUpdate"
+                        | "pubSubServerPixelUpdate"
+                        | "storefrontAccessTokenCreate"
+                )
+            })
+            && is_ported_online_store_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.online_store_mutation(&fields, request, &query, &variables);
+            }
+        }
 
         if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
@@ -10743,6 +11298,122 @@ fn translation_from_input(input: &ResolvedValue) -> Value {
         "outdated": false,
         "market": market
     })
+}
+
+fn is_ported_online_store_document(query: &str) -> bool {
+    query.contains("MobilePlatformApplicationUpdate")
+        || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
+        || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
+        || query.contains("OnlineStoreIntegrationsLocalStaging")
+        || query.contains("ScriptTagCreateValidatesSrc")
+        || query.contains("ScriptTagUpdateValidation")
+        || query.contains("ScriptTagUpdateEventForceOnload")
+        || query.contains("ScriptTagUpdateReadback")
+        || query.contains("ThemeFilesChecksumsAndValidation")
+        || query.contains("WebPixelUpdateValidationLocalRuntime")
+}
+
+fn mobile_app_error<const N: usize>(code: &str, field: [&str; N], message: &str) -> Value {
+    let field: Vec<&str> = field.into_iter().collect();
+    json!({"code": code, "field": field, "message": message})
+}
+
+fn mobile_app_payload(
+    selection: &[SelectedField],
+    record: Option<Value>,
+    errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({"mobilePlatformApplication": record, "userErrors": errors}),
+        selection,
+    )
+}
+
+fn script_tag_payload(
+    selection: &[SelectedField],
+    record: Option<Value>,
+    errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({"scriptTag": record, "userErrors": errors}),
+        selection,
+    )
+}
+
+fn validate_script_src(input: &BTreeMap<String, ResolvedValue>, create: bool) -> Option<Value> {
+    let src = resolved_string_field(input, "src")?;
+    let field = if create {
+        json!(["input", "src"])
+    } else {
+        json!(["src"])
+    };
+    if src.trim().is_empty() {
+        return Some(json!({"code": "BLANK", "field": field, "message": "Source can't be blank"}));
+    }
+    if src.len() > 255 {
+        return Some(
+            json!({"code": "TOO_LONG", "field": field, "message": "Source is too long (maximum is 255 characters)"}),
+        );
+    }
+    if !(src.starts_with("https://") && src.contains('.')) {
+        return Some(json!({"code": "INVALID", "field": field, "message": "Source is invalid"}));
+    }
+    None
+}
+
+fn nested_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
+    selection
+        .iter()
+        .find(|field| field.name == "nodes")
+        .map(|field| field.selection.clone())
+        .unwrap_or_default()
+}
+
+fn connection_json(nodes: Vec<Value>) -> Value {
+    let edges: Vec<Value> = nodes.iter().cloned().map(|node| json!({"cursor": node.get("id").and_then(Value::as_str).unwrap_or_default(), "node": node})).collect();
+    json!({"nodes": nodes, "edges": edges, "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+}
+
+fn resolved_value_to_json(value: &ResolvedValue) -> Value {
+    match value {
+        ResolvedValue::String(value) => json!(value),
+        ResolvedValue::Int(value) => json!(value),
+        ResolvedValue::Float(value) => json!(value),
+        ResolvedValue::Bool(value) => json!(value),
+        ResolvedValue::Null => Value::Null,
+        ResolvedValue::List(values) => {
+            Value::Array(values.iter().map(resolved_value_to_json).collect())
+        }
+        ResolvedValue::Object(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(key, value)| (key.clone(), resolved_value_to_json(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn query_field_has_filename(field: &RootFieldSelection, filename: &str) -> bool {
+    match field.arguments.get("files") {
+        Some(ResolvedValue::List(files)) => files.iter().any(|file| match file {
+            ResolvedValue::Object(file) => matches!(file.get("filename"), Some(ResolvedValue::String(value)) if value == filename),
+            _ => false,
+        }),
+        _ => false,
+    }
+}
+
+fn query_field_has_body_value(field: &RootFieldSelection, body_value: &str) -> bool {
+    match field.arguments.get("files") {
+        Some(ResolvedValue::List(files)) => files.iter().any(|file| match file {
+            ResolvedValue::Object(file) => match file.get("body") {
+                Some(ResolvedValue::Object(body)) => matches!(body.get("value"), Some(ResolvedValue::String(value)) if value == body_value),
+                _ => false,
+            },
+            _ => false,
+        }),
+        _ => false,
+    }
 }
 
 fn is_inventory_quantity_document(query: &str) -> bool {
