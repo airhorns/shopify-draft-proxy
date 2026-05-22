@@ -1012,6 +1012,59 @@ fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes()
 }
 
 #[test]
+fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
+
+    let stripe_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-stripe.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(stripe_blank.status, 200);
+    assert_eq!(
+        stripe_blank.body,
+        fixture["operations"]["stripeBlankCustomerId"]["response"]
+    );
+
+    let paypal_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-paypal.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(paypal_blank.status, 200);
+    assert_eq!(
+        paypal_blank.body,
+        fixture["operations"]["paypalBlankBillingAgreementId"]["response"]
+    );
+
+    let two_gateways = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-two-gateways.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(two_gateways.status, 200);
+    assert_eq!(
+        two_gateways.body,
+        fixture["operations"]["twoGatewayObjects"]["response"]
+    );
+}
+
+#[test]
 fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"

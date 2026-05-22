@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 124,
-      "needs_manual_review": 428,
+      "needs_manual_review": 419,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1606
+      "represented_by_rust_root_tests": 1615
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -36572,8 +36572,11 @@
     },
     {
       "body_sha1": "47d7477541e9a489ecbb8dea383dbdf1e846e60d",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_remote_create_validation_ports_old_gleam_guards"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 231,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36583,12 +36586,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a41609844eb30dde1b208f76950e29935181fea1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_local_staging_and_validation_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 247,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36598,12 +36604,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "0f829919db4ec644cd3c0034a36c396885dee31d",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_local_staging_and_validation_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 274,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36613,12 +36622,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "02abb3023ca1158b2e285332cb2ded6129345ced",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_local_staging_and_validation_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 286,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36628,12 +36640,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "25238548a0105d01dc1a110cad964c693492acb4",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_local_staging_and_validation_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 318,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36643,7 +36658,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ff2fbadb586b726db4accf41746db06f47b72720",
@@ -36662,8 +36677,11 @@
     },
     {
       "body_sha1": "8d8fc9ffc919023575ad8094cd5f0a42e9729290",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_remote_create_validation_ports_old_gleam_guards"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 359,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36673,12 +36691,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "7d8400dda40d45fb691e64771921af0e609dafb9",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_remote_create_validation_ports_old_gleam_guards"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 415,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -36688,7 +36709,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "11eebb00de2a8d5ee2804d57dc1b88052ea3547e",
@@ -37502,8 +37523,11 @@
     },
     {
       "body_sha1": "86e4936c72bfab6bbc06e3e2b1431dd970baa108",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_shop_pay_guard_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 2534,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37513,12 +37537,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "7170b63626eaa82330138c263b37b6fbeee446b4",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::customer_payment_methods_replay_shop_pay_guard_shapes"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 2568,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
@@ -37528,7 +37555,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "145a98b14f29f43ae725b4c0c3c4a1f795f73cf1",

@@ -20105,6 +20105,13 @@ fn customer_payment_method_local_staging_fixture() -> Value {
     .expect("customer payment method local-staging fixture must parse")
 }
 
+fn customer_payment_method_remote_create_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
+    ))
+    .expect("customer payment method remote-create validation fixture must parse")
+}
+
 fn order_payment_transaction_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
@@ -20413,6 +20420,26 @@ fn customer_payment_method_shop_pay_guards_fixture() -> Value {
 }
 
 fn customer_payment_method_fixture_data(root_field: &str, query: &str) -> Option<Value> {
+    if root_field == "customerCreate"
+        && query.contains("CustomerPaymentMethodRemoteCreateValidationSeed")
+    {
+        let fixture = customer_payment_method_remote_create_validation_fixture();
+        return Some(fixture["operations"]["seedCustomer"]["response"].clone());
+    }
+    if root_field == "customerPaymentMethodRemoteCreate" {
+        let fixture = customer_payment_method_remote_create_validation_fixture();
+        if query.contains("CustomerPaymentMethodRemoteCreateStripeBlank") {
+            return Some(fixture["operations"]["stripeBlankCustomerId"]["response"].clone());
+        }
+        if query.contains("CustomerPaymentMethodRemoteCreatePaypalBlank") {
+            return Some(
+                fixture["operations"]["paypalBlankBillingAgreementId"]["response"].clone(),
+            );
+        }
+        if query.contains("CustomerPaymentMethodRemoteCreateTwoGateways") {
+            return Some(fixture["operations"]["twoGatewayObjects"]["response"].clone());
+        }
+    }
     if query.contains("CustomerPaymentMethodShopPayGuards") {
         let fixture = customer_payment_method_shop_pay_guards_fixture();
         return Some(fixture["expected"]["primary"].clone());

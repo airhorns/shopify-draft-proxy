@@ -96,6 +96,16 @@ async function closeServer(server: Server): Promise<void> {
   });
 }
 
+async function unusedLocalPort(): Promise<number> {
+  const server = createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address() as AddressInfo;
+  const { port } = address;
+  await closeServer(server);
+  return port;
+}
+
 async function withUpstream<T>(
   run: (
     origin: string,
@@ -179,18 +189,18 @@ async function withLaunchedProxy<T>(
 
 describe('package launch scripts', () => {
   it('starts the dev server and serves health', async () => {
-    await expectLaunchScriptHealth('dev', 43_194);
+    await expectLaunchScriptHealth('dev', await unusedLocalPort());
   }, 20_000);
 
   it('starts the built server and serves health', async () => {
     await runPnpm(['build']);
-    await expectLaunchScriptHealth('start', 43_195);
+    await expectLaunchScriptHealth('start', await unusedLocalPort());
   }, 30_000);
 
   it('forwards live-hybrid passthrough and commit replay through Rust HTTP transport', async () => {
     await withUpstream(async (upstreamOrigin, upstreamRequests) => {
       await withLaunchedProxy(
-        43_196,
+        await unusedLocalPort(),
         {
           SHOPIFY_ADMIN_ORIGIN: upstreamOrigin,
           SHOPIFY_DRAFT_PROXY_READ_MODE: 'live-hybrid',
