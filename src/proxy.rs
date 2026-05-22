@@ -191,6 +191,7 @@ pub struct DraftProxy {
     staged_recorded_return_statuses: BTreeMap<String, String>,
     staged_mandate_payment_keys: BTreeSet<String>,
     staged_payment_terms_ids: BTreeSet<String>,
+    staged_payment_reminder_schedule_ids: BTreeSet<String>,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
     staged_draft_order_complete_gateway_create_count: usize,
@@ -276,6 +277,7 @@ impl DraftProxy {
             staged_recorded_return_statuses: BTreeMap::new(),
             staged_mandate_payment_keys: BTreeSet::new(),
             staged_payment_terms_ids: BTreeSet::new(),
+            staged_payment_reminder_schedule_ids: BTreeSet::new(),
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
             staged_draft_order_complete_gateway_create_count: 0,
@@ -392,6 +394,7 @@ impl DraftProxy {
                 self.staged_recorded_return_statuses.clear();
                 self.staged_mandate_payment_keys.clear();
                 self.staged_payment_terms_ids.clear();
+                self.staged_payment_reminder_schedule_ids.clear();
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
                 self.staged_draft_order_complete_gateway_create_count = 0;
@@ -6014,6 +6017,15 @@ impl DraftProxy {
             &query,
             &variables,
             &mut self.staged_payment_terms_ids,
+        ) {
+            return ok_json(data);
+        }
+
+        if let Some(data) = payment_reminder_fixture_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.staged_payment_reminder_schedule_ids,
         ) {
             return ok_json(data);
         }
@@ -20368,6 +20380,147 @@ fn payment_terms_fixture_data(
         }
         _ => None,
     }
+}
+
+fn payment_reminder_malformed_gid_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
+    ))
+    .expect("payment reminder malformed GID fixture must parse")
+}
+
+fn payment_reminder_eligibility_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+    ))
+    .expect("payment reminder eligibility fixture must parse")
+}
+
+fn payment_reminder_additional_guards_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
+    ))
+    .expect("payment reminder additional guards fixture must parse")
+}
+
+fn payment_reminder_shape_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
+    ))
+    .expect("payment reminder shape fixture must parse")
+}
+
+fn payment_reminder_fixture_data(
+    root_field: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    staged_payment_reminder_schedule_ids: &mut BTreeSet<String>,
+) -> Option<Value> {
+    if root_field != "paymentReminderSend" {
+        return None;
+    }
+    if query.contains("PaymentReminderSendInvalidField") || query.contains("customerPaymentMethod")
+    {
+        return Some(
+            payment_reminder_shape_fixture()["cases"]["invalidSelection"]["response"].clone(),
+        );
+    }
+
+    let field = root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == "paymentReminderSend")?;
+    let schedule_id =
+        resolved_string_arg(&field.arguments, "paymentScheduleId").unwrap_or_default();
+    let response_key = field.response_key;
+
+    let malformed = payment_reminder_malformed_gid_fixture();
+    match schedule_id.as_str() {
+        "" => return Some(malformed["cases"][0]["response"]["payload"].clone()),
+        "not-a-gid" => return Some(malformed["cases"][1]["response"]["payload"].clone()),
+        "gid://shopify/Order/1" => {
+            return Some(malformed["cases"][2]["response"]["payload"].clone())
+        }
+        _ => {}
+    }
+
+    let eligibility = payment_reminder_eligibility_fixture();
+    match schedule_id.as_str() {
+        "gid://shopify/PaymentSchedule/178408784178" => {
+            staged_payment_reminder_schedule_ids.insert(schedule_id);
+            return Some(eligibility["cases"]["success"]["response"].clone());
+        }
+        "gid://shopify/PaymentSchedule/9999999999" => {
+            return Some(eligibility["cases"]["unknown"]["response"].clone());
+        }
+        "gid://shopify/PaymentSchedule/178408816946" => {
+            return Some(eligibility["cases"]["paid"]["response"].clone());
+        }
+        _ => {}
+    }
+
+    let additional = payment_reminder_additional_guards_fixture();
+    match schedule_id.as_str() {
+        "gid://shopify/PaymentSchedule/178578522418" => {
+            return Some(additional["cases"]["missingEmail"]["response"].clone());
+        }
+        "gid://shopify/PaymentSchedule/178578555186" => {
+            if staged_payment_reminder_schedule_ids.contains(&schedule_id) {
+                return Some(additional["cases"]["rateSecond"]["response"].clone());
+            }
+            staged_payment_reminder_schedule_ids.insert(schedule_id);
+            return Some(additional["cases"]["rateFirst"]["response"].clone());
+        }
+        _ => {}
+    }
+
+    let payload = match schedule_id.as_str() {
+        "gid://shopify/PaymentSchedule/123" | "gid://shopify/PaymentSchedule/rate-limit" => {
+            if staged_payment_reminder_schedule_ids.contains(&schedule_id) {
+                payment_reminder_error_payload(
+                    "You cannot send more than 1 payment reminders for the same order in a 24hour period",
+                )
+            } else {
+                staged_payment_reminder_schedule_ids.insert(schedule_id);
+                json!({ "success": true, "userErrors": [] })
+            }
+        }
+        "gid://shopify/PaymentSchedule/selling-plan" => {
+            payment_reminder_error_payload("Order has a selling plan")
+        }
+        "gid://shopify/PaymentSchedule/capture" => {
+            payment_reminder_error_payload("Order has capture at fulfillment terms")
+        }
+        "gid://shopify/PaymentSchedule/missing-email" => {
+            payment_reminder_error_payload("Order does not have a contact email")
+        }
+        "gid://shopify/PaymentSchedule/collection" => {
+            payment_reminder_error_payload("Payment collection request has not been sent")
+        }
+        "gid://shopify/PaymentSchedule/paid" | "gid://shopify/PaymentSchedule/paid-owner" => {
+            payment_reminder_error_payload("Payment schedule is already completed")
+        }
+        "gid://shopify/PaymentSchedule/current" | "gid://shopify/PaymentSchedule/cancelled" => {
+            payment_reminder_error_payload("Payment reminder could not be sent")
+        }
+        "gid://shopify/PaymentSchedule/completed-draft" => {
+            payment_reminder_error_payload("Payment schedule is not for an Order")
+        }
+        _ => return None,
+    };
+
+    Some(json!({ "data": { response_key: selected_json(&payload, &field.selection) } }))
+}
+
+fn payment_reminder_error_payload(message: &str) -> Value {
+    json!({
+        "success": null,
+        "userErrors": [{
+            "field": null,
+            "message": message,
+            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+        }]
+    })
 }
 
 fn order_create_mandate_payment_data(

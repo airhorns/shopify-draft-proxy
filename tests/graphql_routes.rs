@@ -333,6 +333,223 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
 }
 
 #[test]
+fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
+    let malformed_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
+    ))
+    .unwrap();
+    let shape_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let malformed_query = include_str!(
+        "../config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql"
+    );
+
+    for index in 0..3 {
+        let response = proxy.process_request(json_graphql_request(
+            malformed_query,
+            malformed_fixture["cases"][index]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            malformed_fixture["cases"][index]["response"]["payload"]
+        );
+    }
+
+    let sibling_abort_query = r#"
+      mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {
+        paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+          success
+          userErrors { field code message }
+        }
+        paymentCustomizationCreate(paymentCustomization: { title: "Should not stage", enabled: true, functionId: "gid://shopify/ShopifyFunction/payment-a", metafields: [] }) {
+          paymentCustomization { id }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let sibling_abort = proxy.process_request(json_graphql_request(
+        sibling_abort_query,
+        json!({ "paymentScheduleId": "not-a-gid" }),
+    ));
+    assert_eq!(sibling_abort.status, 200);
+    assert!(sibling_abort.body.get("data").is_none());
+    assert!(sibling_abort.body.to_string().contains("INVALID_VARIABLE"));
+    assert!(!sibling_abort
+        .body
+        .to_string()
+        .contains("paymentCustomizationCreate"));
+
+    let invalid_selection = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-reminder-send-invalid-field.graphql"
+        ),
+        shape_fixture["cases"]["invalidSelection"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(invalid_selection.status, 200);
+    assert_eq!(
+        invalid_selection.body,
+        shape_fixture["cases"]["invalidSelection"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
+    let eligibility_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+    ))
+    .unwrap();
+    let additional_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let reminder_query =
+        include_str!("../config/parity-requests/payments/payment-reminder-send.graphql");
+
+    for case_name in ["success", "unknown", "paid"] {
+        let response = proxy.process_request(json_graphql_request(
+            reminder_query,
+            eligibility_fixture["cases"][case_name]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            eligibility_fixture["cases"][case_name]["response"]
+        );
+    }
+
+    let missing_email = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["missingEmail"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(missing_email.status, 200);
+    assert_eq!(
+        missing_email.body,
+        additional_fixture["cases"]["missingEmail"]["response"]
+    );
+
+    let rate_first = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateFirst"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_first.status, 200);
+    assert_eq!(
+        rate_first.body,
+        additional_fixture["cases"]["rateFirst"]["response"]
+    );
+
+    let rate_second = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateSecond"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_second.status, 200);
+    assert_eq!(
+        rate_second.body,
+        additional_fixture["cases"]["rateSecond"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+    let query = include_str!("../config/parity-requests/payments/payment-reminder-send.graphql");
+    let cases = [
+        (
+            "gid://shopify/PaymentSchedule/123",
+            json!({ "success": true, "userErrors": [] }),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/selling-plan",
+            payment_reminder_error("Order has a selling plan"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/capture",
+            payment_reminder_error("Order has capture at fulfillment terms"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/missing-email",
+            payment_reminder_error("Order does not have a contact email"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/collection",
+            payment_reminder_error("Payment collection request has not been sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/current",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/cancelled",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid-owner",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/completed-draft",
+            payment_reminder_error("Payment schedule is not for an Order"),
+        ),
+    ];
+
+    for (schedule_id, expected_payload) in cases {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "paymentScheduleId": schedule_id }),
+        ));
+        assert_eq!(response.status, 200, "{schedule_id}");
+        assert_eq!(
+            response.body,
+            json!({ "data": { "paymentReminderSend": expected_payload } }),
+            "{schedule_id}"
+        );
+    }
+
+    let first_rate_limited_schedule = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(first_rate_limited_schedule.status, 200);
+    assert_eq!(
+        first_rate_limited_schedule.body,
+        json!({ "data": { "paymentReminderSend": { "success": true, "userErrors": [] } } })
+    );
+
+    let second_send = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(second_send.status, 200);
+    assert_eq!(
+        second_send.body,
+        json!({
+            "data": {
+                "paymentReminderSend": payment_reminder_error("You cannot send more than 1 payment reminders for the same order in a 24hour period")
+            }
+        })
+    );
+}
+
+fn payment_reminder_error(message: &str) -> Value {
+    json!({
+        "success": null,
+        "userErrors": [{
+            "field": null,
+            "message": message,
+            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+        }]
+    })
+}
+
+#[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"

@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 124,
-      "needs_manual_review": 419,
+      "needs_manual_review": 410,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1615
+      "represented_by_rust_root_tests": 1624
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -36713,142 +36713,226 @@
     },
     {
       "body_sha1": "11eebb00de2a8d5ee2804d57dc1b88052ea3547e",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 460,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_unknown_schedule_test",
       "id": "145dc5103941",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "2ef4c3f527097237ec0f743a2140d789acf7631d",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 470,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_malformed_schedule_gid_variables_with_top_level_errors_test",
       "id": "e58c781d1c06",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c30a4a1afb94f6a11253019a1cd55127ae09a1d7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 494,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_malformed_schedule_gid_aborts_sibling_mutations_test",
       "id": "7444e544bf51",
       "kind": "http_proxy_request",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "d1a3dfe6797e86f8efad2f9793d52515d2a59e14",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 522,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_wrong_schedule_gid_type_with_top_level_error_test",
       "id": "416a0b1d35dd",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "f82c4361271f0f2a4beccc37fb2dfca79e429904",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 536,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_stages_for_overdue_open_order_schedule_test",
       "id": "9287afb9159b",
       "kind": "state_or_helper_behavior",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "d61aa570ad9af47842d106240fd60f8550b4f7bc",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 558,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_additional_order_guardrails_test",
       "id": "9058ffef3907",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a72cb1da4363ab500d4cfce3c2a13c6e616b7bcc",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 628,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_second_send_inside_24h_window_test",
       "id": "50d77eb1d43a",
       "kind": "state_or_helper_behavior",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "f6276e1f019377f252bf27febee1bc01311d52d8",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 653,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_customer_payment_method_selection_test",
       "id": "412924cd3e5f",
       "kind": "state_or_helper_behavior",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "262f1916fb333c26771092043c40c3174f968341",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 680,
       "gleam_path": "test/shopify_draft_proxy/proxy/payments_test.gleam",
       "gleam_test": "payment_reminder_rejects_paid_or_not_overdue_schedule_test",
       "id": "6acbf0b796c2",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "paymentReminderSend": {
+          "parity_spec": true,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6c50e904a4e4d77e3416078fb0bcc8bdeb84a18d",
-      "coverage_reasons": ["one_or_more_graphql_roots_found_in_rust_tests"],
+      "coverage_reasons": [
+        "one_or_more_graphql_roots_found_in_rust_tests",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards, ::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards, and ::payment_reminder_send_local_only_order_guardrails_ported_from_gleam"
+      ],
       "coverage_status": "represented_by_rust_root_tests",
       "domain": "payments",
       "gleam_line": 714,
@@ -36857,20 +36941,15 @@
       "id": "e739eedd3c4f",
       "kind": "proxy_integration_helper",
       "root_coverage": {
-        "nodes": {
-          "parity_spec": true,
-          "rust_src": true,
-          "rust_test": true
-        },
-        "order": {
+        "paymentReminderSend": {
           "parity_spec": true,
           "rust_src": true,
           "rust_test": true
         }
       },
-      "root_fields": ["nodes", "order"],
+      "root_fields": ["paymentReminderSend"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "3ddd5633f0d59521570c03a108c6523ad8189474",

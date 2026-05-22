@@ -6,9 +6,9 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
   - `implementation_unit_replaced_needs_review`: 124
-  - `needs_manual_review`: 419
+  - `needs_manual_review`: 410
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1615
+  - `represented_by_rust_root_tests`: 1624
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -19,11 +19,11 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 ## Domains with unresolved/manual-review entries
 
 - `products_mutation`: 45
-- `payments`: 40
 - `b2b`: 36
 - `localization_mutation`: 35
 - `store_properties`: 33
 - `online_store`: 32
+- `payments`: 31
 - `metaobject_definitions`: 26
 - `mutation_helpers`: 22
 - `commit`: 20
@@ -62,6 +62,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Payment reminder behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards`, `tests/graphql_routes.rs::payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards`, and `tests/graphql_routes.rs::payment_reminder_send_local_only_order_guardrails_ported_from_gleam`, covering malformed/empty/wrong-type schedule IDs, sibling-mutation aborts, invalid payload selections, captured eligibility/missing-email/rate-limit responses, and the local-only selling-plan/capture-at-fulfillment/payment-collection/terminal-owner guardrails.
 - Customer-payment-method remote-create validation from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::customer_payment_methods_remote_create_validation_ports_old_gleam_guards`, and the existing customer-payment-method Rust tests explicitly cover the old credit-card create validation/readback and Shop Pay guard branches without introducing live payment-material handling.
 - Online-store storefront-token, web-pixel, server-pixel endpoint, and mobile-platform update edge cases from `online_store_test.gleam` are now backed by `tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam`, `tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam`, and `tests/graphql_routes.rs::online_store_mobile_platform_application_lifecycle_and_validation_are_local`, covering token scope filtering/blank/limit behavior, web-pixel duplicate/no-settings/update JSON/readback behavior, and server-pixel endpoint not-found/validation/success branches.
 - Online-store theme local-runtime behavior from `online_store_test.gleam` is now backed by `tests/graphql_routes.rs::online_store_theme_lifecycle_tail_helpers_ported_from_gleam` and `tests/graphql_routes.rs::online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam`, covering theme publish demotion/rejection, delete guards, locked/blank/successful themeUpdate branches, and theme-file upsert/copy/delete readback while leaving the schema-layer `role` input rejection as a distinct unresolved item.
