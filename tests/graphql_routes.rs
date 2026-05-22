@@ -11932,8 +11932,8 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntime {
           create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
@@ -11969,6 +11969,439 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     assert_eq!(
         theme_files.body["data"]["invalid"]["userErrors"][0]["code"],
         json!("INVALID")
+    );
+}
+
+#[test]
+fn online_store_storefront_access_token_edges_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFirst {
+          storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
+            storefrontAccessToken { id title accessToken accessScopes { handle } }
+            shop { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let first_token = first.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(first_token.starts_with("shpat_"));
+    assert_eq!(
+        first.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": {
+                "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+                "title": "Hydrogen",
+                "accessToken": first_token,
+                "accessScopes": [
+                    {"handle": "unauthenticated_read_product_listings"},
+                    {"handle": "unauthenticated_read_product_inventory"}
+                ]
+            },
+            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "userErrors": []
+        })
+    );
+
+    let mut filtered_request = json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFilteredScopes {
+          storefrontAccessTokenCreate(input: { title: "Hydrogen filtered" }) {
+            storefrontAccessToken { id title accessToken accessScopes { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    filtered_request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,unauthenticated_read_customers,unauthenticated_read_product_inventory,write_orders"
+            .to_string(),
+    );
+    let filtered = proxy.process_request(filtered_request);
+    let filtered_token = filtered.body["data"]["storefrontAccessTokenCreate"]
+        ["storefrontAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap();
+    assert!(filtered_token.starts_with("shpat_"));
+    assert_ne!(filtered_token, first_token);
+    assert_eq!(
+        filtered.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
+            ["accessScopes"],
+        json!([
+            {"handle": "unauthenticated_read_customers"},
+            {"handle": "unauthenticated_read_product_inventory"}
+        ])
+    );
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeBlankTitle {
+          storefrontAccessTokenCreate(input: { title: "   " }) {
+            storefrontAccessToken { id }
+            shop { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": null,
+            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
+        })
+    );
+
+    for index in 0..98 {
+        let fill = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {
+              storefrontAccessTokenCreate(input: { title: $title }) {
+                storefrontAccessToken { id }
+                userErrors { code field message }
+              }
+            }
+            "#,
+            json!({"title": format!("token {index}")}),
+        ));
+        assert_eq!(
+            fill.body["data"]["storefrontAccessTokenCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeLimit {
+          storefrontAccessTokenCreate(input: { title: "One too many" }) {
+            storefrontAccessToken { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        limit.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": null,
+            "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
+        })
+    );
+}
+
+#[test]
+fn online_store_pixel_endpoint_edges_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let web_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStorePixelLocalRuntimeEdges {
+          create: webPixelCreate(webPixel: {}) { webPixel { id status settings webhookEndpointAddress } userErrors { __typename code field message } }
+          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id status } userErrors { __typename code field message } }
+          missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status webhookEndpointAddress } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        web_pixel.body["data"]["create"],
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "NEEDS_CONFIGURATION", "settings": null, "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        web_pixel.body["data"]["duplicate"],
+        json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]})
+    );
+    assert_eq!(
+        web_pixel.body["data"]["missingUpdate"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["invalidJson"]["userErrors"][0]["code"],
+        json!("INVALID_CONFIGURATION_JSON")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["validUpdate"]["webPixel"],
+        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}, "status": "CONNECTED", "webhookEndpointAddress": null})
+    );
+
+    let missing_server = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreServerPixelMissingEndpointUpdate {
+          eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/missing") {
+            serverPixel { id webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_server.body["data"]["eventBridgeServerPixelUpdate"],
+        json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]})
+    );
+
+    let server_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreServerPixelEndpointLocalRuntimeEdges {
+          create: serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
+          invalidArn: eventBridgeServerPixelUpdate(arn: "not-an-arn") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          blankPubSub: pubSubServerPixelUpdate(pubSubProject: "", pubSubTopic: " ") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        server_pixel.body["data"]["create"],
+        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "CONNECTED", "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        server_pixel.body["data"]["invalidArn"]["userErrors"][0]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["blankPubSub"]["userErrors"],
+        json!([
+            {"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubProject"], "message": "pubSubProject can't be blank"},
+            {"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubTopic"], "message": "pubSubTopic can't be blank"}
+        ])
+    );
+    assert_eq!(
+        server_pixel.body["data"]["eventBridge"]["serverPixel"]["webhookEndpointAddress"],
+        json!("arn:aws:events:us-east-1:123456789012:event-bus/local")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],
+        json!("project/topic")
+    );
+}
+
+#[test]
+fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeCreate {
+          first: themeCreate(source: "https://example.com/current.zip", name: "Current main", role: MAIN) { theme { id role name } userErrors { field message code } }
+          second: themeCreate(source: "https://example.com/next.zip", name: "Next main", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } }
+          demo: themeCreate(source: "https://example.com/demo.zip", name: "Demo theme", role: DEMO) { theme { id role name } userErrors { field message code } }
+          locked: themeCreate(source: "https://example.com/locked.zip", name: "Locked fixture", role: LOCKED) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["first"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        created.body["data"]["second"]["theme"]["role"],
+        json!("UNPUBLISHED")
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimePublish {
+          publishSecond: themePublish(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") { theme { id role } userErrors { field message } }
+          rejectDemo: themePublish(id: "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic") { theme { id role } userErrors { field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish.body["data"]["publishSecond"],
+        json!({"theme": {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "MAIN"}, "userErrors": []})
+    );
+    assert_eq!(
+        publish.body["data"]["rejectDemo"],
+        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Theme cannot be published from role DEMO"}]})
+    );
+
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish {
+          previous: theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { id role name }
+          mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["previous"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "UNPUBLISHED", "name": "Current main"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["mains"]["nodes"],
+        json!([{"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Next main"}])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeUpdate {
+          locked: themeUpdate(id: "gid://shopify/OnlineStoreTheme/4?shopify-draft-proxy=synthetic", input: { name: "Renamed" }) { theme { id role name } userErrors { field message code } }
+          blank: themeUpdate(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", input: { name: "   " }) { theme { id role name } userErrors { field message code } }
+          valid: themeUpdate(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", input: { name: "Renamed fixture" }) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        update.body["data"]["locked"],
+        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Locked themes cannot be modified.", "code": "CANNOT_UPDATE_LOCKED_THEME"}]})
+    );
+    assert_eq!(
+        update.body["data"]["blank"],
+        json!({"theme": null, "userErrors": [{"field": ["input", "name"], "message": "Name can't be blank", "code": "INVALID"}]})
+    );
+    assert_eq!(
+        update.body["data"]["valid"],
+        json!({"theme": {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "UNPUBLISHED", "name": "Renamed fixture"}, "userErrors": []})
+    );
+
+    let delete_only_main_proxy = {
+        let mut proxy = snapshot_proxy();
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation RustOnlineStoreThemeLocalRuntimeOnlyMainSetup {
+              themeCreate(source: "https://example.com/current.zip", name: "Only main", role: MAIN) { theme { id role name } userErrors { field message code } }
+            }
+            "#,
+            json!({}),
+        ));
+        proxy
+    };
+    let mut delete_only_main_proxy = delete_only_main_proxy;
+    let only_main = delete_only_main_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeOnlyMainDelete {
+          themeDelete(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        only_main.body["data"]["themeDelete"],
+        json!({"deletedThemeId": null, "userErrors": [{"field": ["id"], "message": "You can't delete your only published theme.", "code": "INVALID"}]})
+    );
+
+    let delete_non_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDeleteNonMain {
+          deleteDemo: themeDelete(id: "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+          deleteFormerMain: themeDelete(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete_non_main.body["data"]["deleteDemo"],
+        json!({"deletedThemeId": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        delete_non_main.body["data"]["deleteFormerMain"],
+        json!({"deletedThemeId": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+}
+
+#[test]
+fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeCreate {
+          themeCreate(source: "https://example.com/theme.zip", name: "HAR 585 Theme") { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let upserts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeUpsert {
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        upserts.body["data"]["first"]["upsertedThemeFiles"][0],
+        json!({"filename": "templates/index.json", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+    );
+    assert_eq!(
+        upserts.body["data"]["second"]["upsertedThemeFiles"][0],
+        json!({"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+    );
+    assert_eq!(
+        upserts.body["data"]["invalid"],
+        json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
+    );
+
+    let copy_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
+          missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
+          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
+          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        copy_delete.body["data"]["missingCopy"],
+        json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
+        json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["requiredDelete"]["userErrors"],
+        json!([
+            {"field": ["files", "0"], "message": "File is required and can't be deleted", "code": "INVALID"},
+            {"field": ["files", "1"], "message": "File is required and can't be deleted", "code": "INVALID"}
+        ])
+    );
+    assert_eq!(
+        copy_delete.body["data"]["deleteCopy"],
+        json!({"deletedThemeFiles": [{"filename": "assets/copy.js"}], "userErrors": []})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeFileLocalRuntimeRead {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["theme"]["files"]["nodes"],
+        json!([
+            {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
+            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}
+        ])
     );
 }
 

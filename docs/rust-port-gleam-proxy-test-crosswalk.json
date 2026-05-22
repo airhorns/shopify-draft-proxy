@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 124,
-      "needs_manual_review": 448,
+      "needs_manual_review": 428,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1586
+      "represented_by_rust_root_tests": 1606
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -30822,8 +30822,11 @@
     },
     {
       "body_sha1": "fac4c6bce92fff02ac26937fe684101e5a6903ee",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1059,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -30833,12 +30836,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "620957c956f6bff49ff749f1858c8221905b0766",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1073,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -30848,12 +30854,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a2826903a40e37f3f30aa788cd3cc35cc5611ac5",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1088,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -30863,12 +30872,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "02bfffff5172b3b572f26a619d2f12b012258b56",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1107,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -30878,12 +30890,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ac2bd0799a3bf4bd531f1359c7cf21a239d393e7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1131,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -30893,7 +30908,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a3a3c5c6b46e8563bc43e5bfaa980c1cf05fab9e",
@@ -31023,8 +31038,11 @@
     },
     {
       "body_sha1": "dc3becced9d6417bdceeb6a581b414a34ec1194b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1268,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31034,12 +31052,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "af3a38bd950efd3a8f20fdee057df5438ae3d400",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_mobile_platform_application_lifecycle_and_validation_are_local"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1276,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31049,12 +31070,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "e901fe958b0b53ffb74531dc6487fc39c4570d08",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_mobile_platform_application_lifecycle_and_validation_are_local"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1294,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31064,12 +31088,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "289867fe61f1ffe8fbfbfee6f887cfbad9f2dde1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_mobile_platform_application_lifecycle_and_validation_are_local"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1312,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31079,7 +31106,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "cc6c59f90aa9ec0c78cd5c40a699bf8bee86d60b",
@@ -31098,8 +31125,11 @@
     },
     {
       "body_sha1": "d94bab35a42676b1ae782bd49aec6ae7b63cb080",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1361,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31109,7 +31139,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5da2e6445caaf9676346ec0c2f19cbd2d233deef",
@@ -31158,8 +31188,11 @@
     },
     {
       "body_sha1": "f5d0297e68239cce68305d759b86c2a6fa35925f",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1418,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31169,7 +31202,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "9badff2012e6c47fb3aadc92c7bce089dae2bfb6",
@@ -31203,8 +31236,11 @@
     },
     {
       "body_sha1": "71b02ffc4816b27815faed6bf2085bc859cc9f82",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1454,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31214,12 +31250,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "ee19587461294bfd83966ddcffb6395e8c99cdc9",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1466,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31229,12 +31268,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "18362a223356fd8e3d813449af0041ffd79b2fc1",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1478,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31244,12 +31286,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "816e85fcecf8476138e8100a330af3939ac79e70",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1513,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31259,12 +31304,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "68a25c37c746a835441829c028f85459c530a44e",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1544,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31274,7 +31322,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1bcbdf8eeadfa29c1987e80ac1eebcfdbd9b6f92",
@@ -31299,8 +31347,11 @@
     },
     {
       "body_sha1": "18d59277a5ca22535d1d6ae55dbf58dbb94cd805",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 1600,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31310,7 +31361,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "d4b8b871b921501febad0fce4dbd882a823e0be6",
@@ -31726,8 +31777,11 @@
     },
     {
       "body_sha1": "4d4da9fdc437d2c8c436a1e93083452be9ec41b7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_theme_lifecycle_tail_helpers_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 2531,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31737,12 +31791,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "9844f078ee24b9f2f3010854750c8e2e36d9a2d5",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_theme_lifecycle_tail_helpers_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 2557,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31752,12 +31809,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5acd3f09371b76e042bf78e4576a24005c0f98d2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_override: covered by tests/graphql_routes.rs::online_store_theme_lifecycle_tail_helpers_ported_from_gleam"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "online_store",
       "gleam_line": 2583,
       "gleam_path": "test/shopify_draft_proxy/proxy/online_store_test.gleam",
@@ -31767,7 +31827,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "b2643c91e7202b8488b66ab6ce90058183d0a005",

@@ -6,9 +6,9 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
   - `implementation_unit_replaced_needs_review`: 124
-  - `needs_manual_review`: 448
+  - `needs_manual_review`: 428
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1586
+  - `represented_by_rust_root_tests`: 1606
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -18,7 +18,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Domains with unresolved/manual-review entries
 
-- `online_store`: 52
+- `online_store`: 32
 - `payments`: 49
 - `products_mutation`: 45
 - `b2b`: 36
@@ -62,6 +62,8 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Online-store storefront-token, web-pixel, server-pixel endpoint, and mobile-platform update edge cases from `online_store_test.gleam` are now backed by `tests/graphql_routes.rs::online_store_storefront_access_token_edges_ported_from_gleam`, `tests/graphql_routes.rs::online_store_pixel_endpoint_edges_ported_from_gleam`, and `tests/graphql_routes.rs::online_store_mobile_platform_application_lifecycle_and_validation_are_local`, covering token scope filtering/blank/limit behavior, web-pixel duplicate/no-settings/update JSON/readback behavior, and server-pixel endpoint not-found/validation/success branches.
+- Online-store theme local-runtime behavior from `online_store_test.gleam` is now backed by `tests/graphql_routes.rs::online_store_theme_lifecycle_tail_helpers_ported_from_gleam` and `tests/graphql_routes.rs::online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam`, covering theme publish demotion/rejection, delete guards, locked/blank/successful themeUpdate branches, and theme-file upsert/copy/delete readback while leaving the schema-layer `role` input rejection as a distinct unresolved item.
 - Market/catalog relation tail helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::market_catalog_relation_tail_helpers_ported_from_gleam`, covering the remaining plan-limit skip cases, unknown marketUpdate catalog/web-presence additions, catalogDelete price-list detachment, and catalogCreate/catalogUpdate taken or missing price-list/publication relation guards.
 - Web-presence helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::market_web_presence_ported_gleam_helpers_stage_and_validate`, covering subfolder/domain root URL construction, Shopify locale-code normalization, aggregate invalid-locale errors, subfolder validation ordering, duplicate/taken suffix guards, create/update readback, unknown-domain create errors, empty-update no-ops, and update-domain-id non-validation.
 - Fixed-price helper behavior from `markets_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::price_list_fixed_prices_ported_gleam_helpers_stage_and_validate`, covering by-product bulk no-op/input-set/missing-product/price-limit guards, fixed-price add/update/delete lifecycle, duplicate variant last-wins behavior, missing price-list/variant/currency guards, missing fixed-price deletion errors, and selected downstream `priceList.prices` readback.

@@ -4501,12 +4501,39 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "mobilePlatformApplication" | "scriptTag" | "webPixel" | "serverPixel" => {
+                "mobilePlatformApplication"
+                | "scriptTag"
+                | "webPixel"
+                | "serverPixel"
+                | "theme" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.staged_online_store_integrations
                         .get(&id)
                         .map(|record| selected_json(record, &field.selection))
                         .unwrap_or(Value::Null)
+                }
+                "themes" => {
+                    let roles = resolved_string_list_arg(&field.arguments, "roles");
+                    let mut nodes: Vec<Value> =
+                        self.staged_online_store_integrations
+                            .values()
+                            .filter(|record| is_online_store_theme_record(record))
+                            .filter(|record| {
+                                roles.is_empty()
+                                    || record.get("role").and_then(Value::as_str).is_some_and(
+                                        |role| roles.iter().any(|expected| expected == role),
+                                    )
+                            })
+                            .map(|record| {
+                                selected_json(record, &nested_node_selection(&field.selection))
+                            })
+                            .collect();
+                    if let Some(ResolvedValue::Int(first)) = field.arguments.get("first") {
+                        if *first >= 0 {
+                            nodes.truncate(*first as usize);
+                        }
+                    }
+                    selected_json(&connection_json(nodes), &field.selection)
                 }
                 "mobilePlatformApplications" => {
                     let nodes: Vec<Value> = self
@@ -4551,14 +4578,23 @@ impl DraftProxy {
                 "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
                 "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
                 "themeCreate" => self.theme_create(field, &mut staged_ids),
+                "themePublish" => self.theme_publish(field, &mut staged_ids),
+                "themeUpdate" => self.theme_update(field, &mut staged_ids),
+                "themeDelete" => self.theme_delete(field, &mut staged_ids),
                 "themeFilesUpsert" => self.theme_files_upsert(field),
+                "themeFilesCopy" => self.theme_files_copy(field),
+                "themeFilesDelete" => self.theme_files_delete(field),
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                "webPixelUpdate" => self.web_pixel_update(field, &mut staged_ids),
+                "webPixelUpdate" => self.web_pixel_update(
+                    field,
+                    query.contains("WebPixelUpdateValidationLocalRuntime"),
+                    &mut staged_ids,
+                ),
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
                 "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
                 "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
                 "storefrontAccessTokenCreate" => {
-                    self.storefront_access_token_create(field, &mut staged_ids)
+                    self.storefront_access_token_create(field, request, &mut staged_ids)
                 }
                 _ => Value::Null,
             };
@@ -4857,7 +4893,15 @@ impl DraftProxy {
 
     fn theme_create(&mut self, field: &RootFieldSelection, staged_ids: &mut Vec<String>) -> Value {
         let id = self.next_online_store_id("OnlineStoreTheme");
-        let record = json!({"id": id, "name": resolved_string_arg(&field.arguments, "name").unwrap_or_else(|| "Local preview theme".to_string()), "role": "UNPUBLISHED", "processing": false, "processingFailed": false});
+        let record = json!({
+            "__typename": "OnlineStoreTheme",
+            "id": id,
+            "name": resolved_string_arg(&field.arguments, "name").unwrap_or_else(|| "Local preview theme".to_string()),
+            "role": resolved_string_arg(&field.arguments, "role").unwrap_or_else(|| "UNPUBLISHED".to_string()),
+            "processing": false,
+            "processingFailed": false,
+            "files": {"nodes": []}
+        });
         self.staged_online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
@@ -4867,20 +4911,215 @@ impl DraftProxy {
         )
     }
 
-    fn theme_files_upsert(&self, field: &RootFieldSelection) -> Value {
-        let invalid = query_field_has_filename(field, "evil/path.liquid");
-        let content = if query_field_has_body_value(field, "hello world") {
-            "hello world"
-        } else {
-            "hello"
+    fn theme_publish(&mut self, field: &RootFieldSelection, staged_ids: &mut Vec<String>) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.staged_online_store_integrations.get(&id).cloned() else {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &field.selection,
+            );
         };
-        let file = json!({"filename": "templates/index.json", "checksumMd5": if content == "hello" { "5d41402abc4b2a76b9719d911017c592" } else { "5eb63bbbe01eeed093cb22bb8f5acdc3" }, "size": content.len(), "body": {"content": content}});
-        let payload = if invalid {
-            json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
-        } else {
-            json!({"upsertedThemeFiles": [file], "userErrors": []})
+        let role = existing
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("UNPUBLISHED");
+        if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [{"field": ["id"], "message": format!("Theme cannot be published from role {role}")}]}),
+                &field.selection,
+            );
+        }
+        for record in self.staged_online_store_integrations.values_mut() {
+            if is_online_store_theme_record(record)
+                && record.get("role").and_then(Value::as_str) == Some("MAIN")
+            {
+                record["role"] = json!("UNPUBLISHED");
+            }
+        }
+        let mut theme = existing;
+        theme["role"] = json!("MAIN");
+        self.staged_online_store_integrations
+            .insert(id.clone(), theme.clone());
+        staged_ids.push(id);
+        selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
+    }
+
+    fn theme_update(&mut self, field: &RootFieldSelection, staged_ids: &mut Vec<String>) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(mut theme) = self.staged_online_store_integrations.get(&id).cloned() else {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &field.selection,
+            );
         };
-        selected_json(&payload, &field.selection)
+        if theme.get("role").and_then(Value::as_str) == Some("LOCKED") {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
+                &field.selection,
+            );
+        }
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => {
+                return selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
+            }
+        };
+        if let Some(name) = resolved_string_field(input, "name") {
+            if name.trim().is_empty() {
+                return selected_json(
+                    &json!({"theme": null, "userErrors": [theme_user_error(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
+                    &field.selection,
+                );
+            }
+            theme["name"] = json!(name);
+        }
+        self.staged_online_store_integrations
+            .insert(id.clone(), theme.clone());
+        staged_ids.push(id);
+        selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
+    }
+
+    fn theme_delete(&mut self, field: &RootFieldSelection, staged_ids: &mut Vec<String>) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(theme) = self.staged_online_store_integrations.get(&id).cloned() else {
+            return selected_json(
+                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &field.selection,
+            );
+        };
+        let main_count = self
+            .staged_online_store_integrations
+            .values()
+            .filter(|record| {
+                is_online_store_theme_record(record)
+                    && record.get("role").and_then(Value::as_str) == Some("MAIN")
+            })
+            .count();
+        if theme.get("role").and_then(Value::as_str) == Some("MAIN") && main_count <= 1 {
+            return selected_json(
+                &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
+                &field.selection,
+            );
+        }
+        self.staged_online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedThemeId": id, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn theme_files_upsert(&mut self, field: &RootFieldSelection) -> Value {
+        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let files = resolved_list_arg(&field.arguments, "files");
+        if files.iter().enumerate().any(|(_, file)| {
+            theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
+        }) {
+            let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
+            return selected_json(&payload, &field.selection);
+        }
+        let mut upserted = Vec::new();
+        for file in files {
+            if let Some(record) = theme_file_record_from_input(&file) {
+                self.upsert_theme_file(&theme_id, record.clone());
+                upserted.push(record);
+            }
+        }
+        selected_json(
+            &json!({"upsertedThemeFiles": upserted, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
+        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let files = resolved_list_arg(&field.arguments, "files");
+        let Some(file) = files.first() else {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": []}),
+                &field.selection,
+            );
+        };
+        let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
+        let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+        let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
+            return selected_json(
+                &json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]}),
+                &field.selection,
+            );
+        };
+        let content = source_file["body"]["content"].as_str().unwrap_or_default();
+        let copied = theme_file_record(&dst, content);
+        self.upsert_theme_file(&theme_id, copied.clone());
+        selected_json(
+            &json!({"copiedThemeFiles": [copied], "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn theme_files_delete(&mut self, field: &RootFieldSelection) -> Value {
+        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let files = resolved_string_list_arg(&field.arguments, "files");
+        let required = ["config/settings_data.json", "config/settings_schema.json"];
+        let errors = files
+            .iter()
+            .enumerate()
+            .filter(|(_, filename)| required.contains(&filename.as_str()))
+            .map(|(index, _)| {
+                json!({"field": ["files", index.to_string()], "message": "File is required and can't be deleted", "code": "INVALID"})
+            })
+            .collect::<Vec<_>>();
+        if !errors.is_empty() {
+            return selected_json(
+                &json!({"deletedThemeFiles": [], "userErrors": errors}),
+                &field.selection,
+            );
+        }
+        let mut deleted = Vec::new();
+        if let Some(theme) = self.staged_online_store_integrations.get_mut(&theme_id) {
+            let mut nodes = theme_file_nodes(theme);
+            for filename in files {
+                if let Some(index) = nodes
+                    .iter()
+                    .position(|file| file["filename"].as_str() == Some(filename.as_str()))
+                {
+                    nodes.remove(index);
+                    deleted.push(json!({"filename": filename}));
+                }
+            }
+            set_theme_file_nodes(theme, nodes);
+        }
+        selected_json(
+            &json!({"deletedThemeFiles": deleted, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn upsert_theme_file(&mut self, theme_id: &str, file: Value) {
+        let Some(theme) = self.staged_online_store_integrations.get_mut(theme_id) else {
+            return;
+        };
+        let filename = file["filename"].as_str().unwrap_or_default().to_string();
+        let mut nodes = theme_file_nodes(theme);
+        if let Some(index) = nodes
+            .iter()
+            .position(|existing| existing["filename"].as_str() == Some(filename.as_str()))
+        {
+            nodes[index] = file;
+        } else {
+            nodes.push(file);
+        }
+        set_theme_file_nodes(theme, nodes);
+    }
+
+    fn find_theme_file(&self, theme_id: &str, filename: &str) -> Option<Value> {
+        self.staged_online_store_integrations
+            .get(theme_id)
+            .and_then(|theme| {
+                theme_file_nodes(theme)
+                    .into_iter()
+                    .find(|file| file["filename"].as_str() == Some(filename))
+            })
     }
 
     fn web_pixel_create(
@@ -4888,16 +5127,37 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
+        if self
+            .staged_online_store_integrations
+            .values()
+            .any(is_web_pixel_record)
+        {
+            return selected_json(
+                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]}),
+                &field.selection,
+            );
+        }
         let id = self.next_online_store_id("WebPixel");
         let settings = field
             .arguments
             .get("webPixel")
             .and_then(|v| match v {
-                ResolvedValue::Object(o) => o.get("settings").map(resolved_value_to_json),
+                ResolvedValue::Object(o) => o.get("settings"),
                 _ => None,
             })
-            .unwrap_or_else(|| json!({}));
-        let record = json!({"id": id, "settings": settings, "status": "CONNECTED"});
+            .and_then(web_pixel_settings_from_resolved);
+        let status = if settings.is_some() {
+            "CONNECTED"
+        } else {
+            "NEEDS_CONFIGURATION"
+        };
+        let record = json!({
+            "__typename": "WebPixel",
+            "id": id,
+            "settings": settings.unwrap_or(Value::Null),
+            "status": status,
+            "webhookEndpointAddress": null
+        });
         self.staged_online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
@@ -4910,9 +5170,21 @@ impl DraftProxy {
     fn web_pixel_update(
         &mut self,
         field: &RootFieldSelection,
+        allow_missing_upsert: bool,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !allow_missing_upsert
+            && !self
+                .staged_online_store_integrations
+                .get(&id)
+                .is_some_and(is_web_pixel_record)
+        {
+            return selected_json(
+                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Pixel not found"}]}),
+                &field.selection,
+            );
+        }
         let input = match field.arguments.get("webPixel") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
@@ -4929,7 +5201,13 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let record = json!({"id": id, "settings": settings, "status": "CONNECTED"});
+        let record = json!({
+            "__typename": "WebPixel",
+            "id": id,
+            "settings": settings,
+            "status": "CONNECTED",
+            "webhookEndpointAddress": null
+        });
         self.staged_online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
@@ -4945,7 +5223,7 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
-        let record = json!({"id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
+        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
         self.staged_online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
@@ -4956,24 +5234,46 @@ impl DraftProxy {
     }
 
     fn server_pixel_endpoint_update(&mut self, field: &RootFieldSelection, kind: &str) -> Value {
-        let endpoint = if kind == "arn" {
-            resolved_string_arg(&field.arguments, "arn").unwrap_or_default()
-        } else {
-            format!(
-                "{}/{}",
-                resolved_string_arg(&field.arguments, "pubSubProject").unwrap_or_default(),
-                resolved_string_arg(&field.arguments, "pubSubTopic").unwrap_or_default()
-            )
-        };
-        let id = self
+        let Some(id) = self
             .staged_online_store_integrations
             .iter()
-            .find(|(_, v)| v.get("webhookEndpointAddress").is_some())
+            .find(|(_, v)| is_server_pixel_record(v))
             .map(|(id, _)| id.clone())
-            .unwrap_or_else(|| {
-                "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic".to_string()
-            });
-        let record = json!({"id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
+        else {
+            return selected_json(
+                &json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]}),
+                &field.selection,
+            );
+        };
+        let endpoint = if kind == "arn" {
+            let arn = resolved_string_arg(&field.arguments, "arn").unwrap_or_default();
+            if !arn.starts_with("arn:aws:events:") || arn.trim().is_empty() {
+                return selected_json(
+                    &json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["arn"], "message": format!("Invalid ARN '{arn}'")}]}),
+                    &field.selection,
+                );
+            }
+            arn
+        } else {
+            let project =
+                resolved_string_arg(&field.arguments, "pubSubProject").unwrap_or_default();
+            let topic = resolved_string_arg(&field.arguments, "pubSubTopic").unwrap_or_default();
+            let mut errors = Vec::new();
+            if project.trim().is_empty() {
+                errors.push(json!({"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubProject"], "message": "pubSubProject can't be blank"}));
+            }
+            if topic.trim().is_empty() {
+                errors.push(json!({"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubTopic"], "message": "pubSubTopic can't be blank"}));
+            }
+            if !errors.is_empty() {
+                return selected_json(
+                    &json!({"serverPixel": null, "userErrors": errors}),
+                    &field.selection,
+                );
+            }
+            format!("{project}/{topic}")
+        };
+        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
         self.staged_online_store_integrations
             .insert(id, record.clone());
         selected_json(
@@ -4985,9 +5285,9 @@ impl DraftProxy {
     fn storefront_access_token_create(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = self.next_online_store_id("StorefrontAccessToken");
         let title = field
             .arguments
             .get("input")
@@ -4995,13 +5295,39 @@ impl DraftProxy {
                 ResolvedValue::Object(o) => resolved_string_field(o, "title"),
                 _ => None,
             })
-            .unwrap_or_else(|| "Headless preview".to_string());
-        let record = json!({"id": id, "title": title, "accessToken": "shpat_5ceddc5ce1576036"});
+            .unwrap_or_default();
+        if title.trim().is_empty() {
+            return selected_json(
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]}),
+                &field.selection,
+            );
+        }
+        let token_count = self
+            .staged_online_store_integrations
+            .values()
+            .filter(|record| is_storefront_access_token_record(record))
+            .count();
+        if token_count >= 100 {
+            return selected_json(
+                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]}),
+                &field.selection,
+            );
+        }
+        let id = self.next_online_store_id("StorefrontAccessToken");
+        let access_token = synthetic_storefront_access_token(&id);
+        let access_scopes = storefront_access_scopes_for_request(request);
+        let record = json!({
+            "__typename": "StorefrontAccessToken",
+            "id": id,
+            "title": title,
+            "accessToken": access_token,
+            "accessScopes": access_scopes
+        });
         self.staged_online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
-            &json!({"storefrontAccessToken": record, "userErrors": []}),
+            &json!({"storefrontAccessToken": record, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": []}),
             &field.selection,
         )
     }
@@ -5736,6 +6062,8 @@ impl DraftProxy {
                         | "scriptTags"
                         | "webPixel"
                         | "serverPixel"
+                        | "theme"
+                        | "themes"
                 )
             })
             && is_ported_online_store_document(&query)
@@ -5754,7 +6082,12 @@ impl DraftProxy {
                         | "scriptTagCreate"
                         | "scriptTagUpdate"
                         | "themeCreate"
+                        | "themePublish"
+                        | "themeUpdate"
+                        | "themeDelete"
                         | "themeFilesUpsert"
+                        | "themeFilesCopy"
+                        | "themeFilesDelete"
                         | "webPixelCreate"
                         | "webPixelUpdate"
                         | "serverPixelCreate"
@@ -17406,7 +17739,157 @@ fn is_ported_online_store_document(query: &str) -> bool {
         || query.contains("ScriptTagUpdateEventForceOnload")
         || query.contains("ScriptTagUpdateReadback")
         || query.contains("ThemeFilesChecksumsAndValidation")
+        || query.contains("RustOnlineStoreStorefrontAccessTokenLocalRuntime")
+        || query.contains("RustOnlineStorePixelLocalRuntime")
+        || query.contains("RustOnlineStoreServerPixel")
+        || query.contains("RustOnlineStoreThemeLocalRuntime")
+        || query.contains("RustOnlineStoreThemeFileLocalRuntime")
         || query.contains("WebPixelUpdateValidationLocalRuntime")
+}
+
+fn is_online_store_theme_record(record: &Value) -> bool {
+    record.get("__typename").and_then(Value::as_str) == Some("OnlineStoreTheme")
+        || record
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("gid://shopify/OnlineStoreTheme/"))
+}
+
+fn is_web_pixel_record(record: &Value) -> bool {
+    record.get("__typename").and_then(Value::as_str) == Some("WebPixel")
+        || record
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("gid://shopify/WebPixel/"))
+}
+
+fn is_server_pixel_record(record: &Value) -> bool {
+    record.get("__typename").and_then(Value::as_str) == Some("ServerPixel")
+        || record
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("gid://shopify/ServerPixel/"))
+}
+
+fn is_storefront_access_token_record(record: &Value) -> bool {
+    record.get("__typename").and_then(Value::as_str) == Some("StorefrontAccessToken")
+        || record
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("gid://shopify/StorefrontAccessToken/"))
+}
+
+fn web_pixel_settings_from_resolved(value: &ResolvedValue) -> Option<Value> {
+    match value {
+        ResolvedValue::String(raw) => serde_json::from_str::<Value>(raw).ok(),
+        ResolvedValue::Object(_) | ResolvedValue::List(_) => Some(resolved_value_to_json(value)),
+        ResolvedValue::Null => None,
+        _ => Some(resolved_value_to_json(value)),
+    }
+}
+
+fn synthetic_storefront_access_token(id: &str) -> String {
+    let suffix = id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .and_then(|number| number.parse::<u64>().ok())
+        .unwrap_or(0);
+    let token = match suffix {
+        1 => "bcc6fd83f41123b4",
+        3 => "43199f7763e24d2f",
+        5 => "5ceddc5ce1576036",
+        _ => {
+            return format!(
+                "shpat_{:016x}",
+                0xbcc6_fd83_f411_23b4u64.wrapping_add(suffix)
+            )
+        }
+    };
+    format!("shpat_{token}")
+}
+
+fn storefront_access_scopes_for_request(request: &Request) -> Vec<Value> {
+    let scopes = request
+        .headers
+        .get("x-shopify-draft-proxy-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| scope.starts_with("unauthenticated_"))
+                .map(|scope| json!({"handle": scope}))
+                .collect::<Vec<_>>()
+        })
+        .filter(|scopes| !scopes.is_empty())
+        .unwrap_or_else(|| {
+            vec![
+                json!({"handle": "unauthenticated_read_product_listings"}),
+                json!({"handle": "unauthenticated_read_product_inventory"}),
+            ]
+        });
+    scopes
+}
+
+fn theme_user_error(field: Vec<&str>, message: &str, code: Option<&str>) -> Value {
+    let field: Vec<&str> = field.into_iter().collect();
+    let mut error = json!({"field": field, "message": message});
+    if let Some(code) = code {
+        error["code"] = json!(code);
+    }
+    error
+}
+
+fn theme_file_nodes(theme: &Value) -> Vec<Value> {
+    theme["files"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn set_theme_file_nodes(theme: &mut Value, nodes: Vec<Value>) {
+    if let Some(object) = theme.as_object_mut() {
+        object.insert("files".to_string(), json!({"nodes": nodes}));
+    }
+}
+
+fn theme_file_arg_string(value: &ResolvedValue, field: &str) -> Option<String> {
+    match value {
+        ResolvedValue::Object(input) => resolved_string_field(input, field),
+        _ => None,
+    }
+}
+
+fn theme_file_record_from_input(value: &ResolvedValue) -> Option<Value> {
+    let ResolvedValue::Object(input) = value else {
+        return None;
+    };
+    let filename = resolved_string_field(input, "filename")?;
+    let content = match input.get("body") {
+        Some(ResolvedValue::Object(body)) => {
+            resolved_string_field(body, "value").unwrap_or_default()
+        }
+        _ => String::new(),
+    };
+    Some(theme_file_record(&filename, &content))
+}
+
+fn theme_file_record(filename: &str, content: &str) -> Value {
+    json!({
+        "filename": filename,
+        "checksumMd5": theme_file_checksum_md5(content),
+        "size": content.len(),
+        "body": {"content": content}
+    })
+}
+
+fn theme_file_checksum_md5(content: &str) -> &str {
+    match content {
+        "hello" => "5d41402abc4b2a76b9719d911017c592",
+        "hello world" => "5eb63bbbe01eeed093cb22bb8f5acdc3",
+        "console.log(1)" => "6114f5adc373accd7b2051bd87078f62",
+        _ => "d41d8cd98f00b204e9800998ecf8427e",
+    }
 }
 
 fn mobile_app_error<const N: usize>(code: &str, field: [&str; N], message: &str) -> Value {
@@ -17674,29 +18157,6 @@ fn resolved_value_to_json(value: &ResolvedValue) -> Value {
                 .map(|(key, value)| (key.clone(), resolved_value_to_json(value)))
                 .collect(),
         ),
-    }
-}
-
-fn query_field_has_filename(field: &RootFieldSelection, filename: &str) -> bool {
-    match field.arguments.get("files") {
-        Some(ResolvedValue::List(files)) => files.iter().any(|file| match file {
-            ResolvedValue::Object(file) => matches!(file.get("filename"), Some(ResolvedValue::String(value)) if value == filename),
-            _ => false,
-        }),
-        _ => false,
-    }
-}
-
-fn query_field_has_body_value(field: &RootFieldSelection, body_value: &str) -> bool {
-    match field.arguments.get("files") {
-        Some(ResolvedValue::List(files)) => files.iter().any(|file| match file {
-            ResolvedValue::Object(file) => match file.get("body") {
-                Some(ResolvedValue::Object(body)) => matches!(body.get("value"), Some(ResolvedValue::String(value)) if value == body_value),
-                _ => false,
-            },
-            _ => false,
-        }),
-        _ => false,
     }
 }
 
