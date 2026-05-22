@@ -14770,6 +14770,53 @@ fn product_fixture_backed_mutation_data(
         .expect("product update media parity fixture must parse");
         return Some(fixture["mutation"]["response"]["data"].clone());
     }
+    if query.contains("ProductCreateMediaParityPlan") {
+        if resolved_string_field(variables, "productId").as_deref()
+            != Some("gid://shopify/Product/9257219162345")
+        {
+            return None;
+        }
+        let first_media = resolved_object_list_field(variables, "media")
+            .into_iter()
+            .next()?;
+        if resolved_string_field(&first_media, "alt").as_deref() != Some("Front view") {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-media-parity.json"
+        ))
+        .expect("product create media parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductDeleteMediaParityPlan") {
+        if resolved_string_field(variables, "productId").as_deref()
+            != Some("gid://shopify/Product/9257219162345")
+        {
+            return None;
+        }
+        let media_ids = resolved_string_list_field_unsorted(variables, "mediaIds");
+        if media_ids.first().map(String::as_str) != Some("gid://shopify/MediaImage/39467722375401")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-media-parity.json"
+        ))
+        .expect("product delete media parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductReorderMediaParity") {
+        if resolved_string_field(variables, "id").as_deref()
+            != Some("gid://shopify/Product/10170568147250")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-reorder-media-parity.json"
+        ))
+        .expect("product reorder media parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
     None
 }
 
@@ -14849,6 +14896,27 @@ fn product_catalog_search_read_data(query: &str) -> Option<Value> {
             "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-media-parity.json"
         ))
         .expect("product update media parity fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductCreateMediaDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-media-parity.json"
+        ))
+        .expect("product create media parity fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductDeleteMediaDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-media-parity.json"
+        ))
+        .expect("product delete media parity fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("ProductReorderMediaDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-reorder-media-parity.json"
+        ))
+        .expect("product reorder media parity fixture must parse");
         return Some(fixture["downstreamRead"]["data"].clone());
     }
     if query.contains("ProductVariantsBulkCreateInventoryReadDownstream") {

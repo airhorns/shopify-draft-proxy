@@ -4066,6 +4066,179 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
 }
 
 #[test]
+fn product_reorder_media_replays_captured_job_and_downstream_order() {
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductReorderMediaParity($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10170568147250",
+            "moves": [
+                { "id": "gid://shopify/MediaImage/43607668621618", "newPosition": "0" },
+                { "id": "gid://shopify/MediaImage/43607668588850", "newPosition": "99" }
+            ]
+        }),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"]["productReorderMedia"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        mutation.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductReorderMediaDownstreamRead($id: ID!) {
+          product(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+            images(first: 10) { nodes { id altText } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/10170568147250" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MediaImage/43607668621618",
+                "alt": "Back",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING"
+            },
+            {
+                "id": "gid://shopify/MediaImage/43607668588850",
+                "alt": "Front",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING"
+            }
+        ])
+    );
+    assert_eq!(read.body["data"]["product"]["images"]["nodes"], json!([]));
+}
+
+#[test]
+fn product_create_and_delete_media_replay_captured_mutations_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
+            mediaUserErrors { field message }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/600x400/png",
+                "alt": "Front view"
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["media"][0],
+        json!({
+            "id": "gid://shopify/MediaImage/39467722375401",
+            "alt": "Front view",
+            "mediaContentType": "IMAGE",
+            "status": "UPLOADED",
+            "preview": { "image": null },
+            "image": null
+        })
+    );
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
+        json!("UPLOADED")
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCreateMediaDownstreamRead($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(create_read.status, 200);
+    assert_eq!(
+        create_read.body["data"]["product"]["media"]["nodes"][0],
+        json!({
+            "id": "gid://shopify/MediaImage/39467722375401",
+            "alt": "Front view",
+            "mediaContentType": "IMAGE",
+            "status": "PROCESSING",
+            "preview": { "image": null },
+            "image": null
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteMediaParityPlan($productId: ID!, $mediaIds: [ID!]!) {
+          productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+            deletedMediaIds
+            deletedProductImageIds
+            mediaUserErrors { field message }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "mediaIds": ["gid://shopify/MediaImage/39467722375401"]
+        }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDeleteMedia"],
+        json!({
+            "deletedMediaIds": ["gid://shopify/MediaImage/39467722375401"],
+            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
+            "mediaUserErrors": [],
+            "product": {
+                "id": "gid://shopify/Product/9257219162345",
+                "media": { "nodes": [] }
+            }
+        })
+    );
+
+    let delete_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductDeleteMediaDownstreamRead($productId: ID!) {
+          product(id: $productId) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(delete_read.status, 200);
+    assert_eq!(
+        delete_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9257219162345",
+            "media": { "nodes": [] }
+        })
+    );
+}
+
+#[test]
 fn product_update_media_replays_captured_mutation_and_downstream_product_media() {
     let mut proxy = snapshot_proxy();
 
