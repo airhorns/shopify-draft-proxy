@@ -13166,3 +13166,25 @@ fn collection_membership_downstream_reads_replay_captured_shapes() {
         json!({ "data": reorder_fixture["downstreamRead"]["data"] })
     );
 }
+
+#[test]
+fn product_contextual_pricing_price_list_read_replays_captured_shape() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-contextual-pricing-price-list-parity.json"
+    ))
+    .unwrap();
+    let variables: Value = serde_json::from_str(include_str!(
+        "../config/parity-requests/products/product-contextual-pricing-price-list-read.variables.json"
+    ))
+    .unwrap();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-contextual-pricing-price-list-read.graphql"
+        ),
+        variables,
+    ));
+
+    assert_eq!(response.body, json!({ "data": fixture["data"] }));
+}

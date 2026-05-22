@@ -4768,6 +4768,11 @@ impl DraftProxy {
             if query.contains("ProductVariantsRead") {
                 return ok_json(json!({ "data": product_variants_read_data() }));
             }
+            if query.contains("ProductContextualPricingRead") {
+                return ok_json(
+                    json!({ "data": product_contextual_pricing_price_list_read_data() }),
+                );
+            }
             if query.contains("InventoryLevelRead") {
                 return ok_json(json!({ "data": inventory_level_read_data(&query, &variables) }));
             }
@@ -16389,6 +16394,14 @@ fn collections_catalog_read_data() -> Value {
         "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json"
     ))
     .expect("collections catalog fixture must parse");
+    fixture["data"].clone()
+}
+
+fn product_contextual_pricing_price_list_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-contextual-pricing-price-list-parity.json"
+    ))
+    .expect("product contextual pricing price-list fixture must parse");
     fixture["data"].clone()
 }
 
