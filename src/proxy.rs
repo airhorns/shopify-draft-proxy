@@ -21006,6 +21006,207 @@ fn payment_terms_create_on_order_attrs_match(variables: &BTreeMap<String, Resolv
         && resolved_string_field(&schedules[0], "dueAt").is_none()
 }
 
+fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn payment_terms_payload(root_field: &str, payment_terms: Value, user_errors: Vec<Value>) -> Value {
+    let payload_key = match root_field {
+        "paymentTermsUpdate" => "paymentTermsUpdate",
+        _ => "paymentTermsCreate",
+    };
+    json!({
+        "data": {
+            payload_key: {
+                "paymentTerms": payment_terms,
+                "userErrors": user_errors
+            }
+        }
+    })
+}
+
+fn payment_terms_success_record(id: &str, name: &str, terms_type: &str, schedules: Value) -> Value {
+    json!({
+        "id": id,
+        "paymentTermsName": name,
+        "paymentTermsType": terms_type,
+        "paymentSchedules": { "nodes": schedules }
+    })
+}
+
+fn payment_terms_net_record(id: &str) -> Value {
+    payment_terms_success_record(
+        id,
+        "Net 30",
+        "NET",
+        json!([{
+            "amount": { "amount": "57.00", "currencyCode": "CAD" },
+            "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
+            "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
+            "issuedAt": "2026-05-05T00:00:00Z",
+            "dueAt": "2026-06-04T00:00:00Z"
+        }]),
+    )
+}
+
+fn payment_terms_validation_error(
+    attrs: &BTreeMap<String, ResolvedValue>,
+    unsuccessful_code: &str,
+) -> Option<Value> {
+    let template_id = resolved_string_field(attrs, "paymentTermsTemplateId");
+    if template_id.is_none() {
+        return Some(payment_terms_user_error(
+            json!(["paymentTermsAttributes", "paymentTermsTemplateId"]),
+            "Payment terms template is required.",
+            "REQUIRED",
+        ));
+    }
+
+    let schedules = resolved_object_list_field(attrs, "paymentSchedules");
+    if schedules.len() > 1 {
+        return Some(payment_terms_user_error(
+            json!(["base"]),
+            "Cannot create payment terms with multiple schedules.",
+            unsuccessful_code,
+        ));
+    }
+
+    match template_id.as_deref() {
+        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
+            Value::Null,
+            "Could not find payment terms template.",
+            unsuccessful_code,
+        )),
+        Some("gid://shopify/PaymentTermsTemplate/7") => {
+            let due_at = schedules
+                .first()
+                .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
+            if due_at.is_none() {
+                Some(payment_terms_user_error(
+                    Value::Null,
+                    "A due date is required with fixed or net payment terms.",
+                    unsuccessful_code,
+                ))
+            } else {
+                None
+            }
+        }
+        Some("gid://shopify/PaymentTermsTemplate/1") => {
+            let has_due_at = schedules
+                .iter()
+                .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
+            if has_due_at {
+                Some(payment_terms_user_error(
+                    Value::Null,
+                    "A due date cannot be set with event payment terms.",
+                    unsuccessful_code,
+                ))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn payment_terms_local_runtime_create_data(
+    variables: &BTreeMap<String, ResolvedValue>,
+    staged_payment_terms_ids: &mut BTreeSet<String>,
+) -> Value {
+    let reference_id = resolved_string_field(variables, "referenceId").unwrap_or_default();
+    let attrs = resolved_object_field(variables, "attrs").unwrap_or_default();
+    if reference_id == "gid://shopify/Order/paid" {
+        return payment_terms_payload(
+            "paymentTermsCreate",
+            Value::Null,
+            vec![payment_terms_user_error(
+                Value::Null,
+                "Cannot create payment terms on an Order that has already been paid in full.",
+                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+            )],
+        );
+    }
+    if let Some(id) = reference_id.strip_prefix("gid://shopify/Order/") {
+        if id == "123" {
+            return payment_terms_payload(
+                "paymentTermsCreate",
+                Value::Null,
+                vec![payment_terms_user_error(
+                    Value::Null,
+                    "Cannot find the specific Order with id 123.",
+                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                )],
+            );
+        }
+    }
+    if let Some(id) = reference_id.strip_prefix("gid://shopify/DraftOrder/") {
+        if id == "999999" {
+            return payment_terms_payload(
+                "paymentTermsCreate",
+                Value::Null,
+                vec![payment_terms_user_error(
+                    Value::Null,
+                    "Cannot find the specific Draft order with id 999999.",
+                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                )],
+            );
+        }
+    }
+    if let Some(error) =
+        payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
+    {
+        return payment_terms_payload("paymentTermsCreate", Value::Null, vec![error]);
+    }
+
+    let template_id = resolved_string_field(&attrs, "paymentTermsTemplateId").unwrap_or_default();
+    let id_suffix = reference_id
+        .rsplit('/')
+        .next()
+        .filter(|suffix| !suffix.is_empty())
+        .unwrap_or("1");
+    let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
+    staged_payment_terms_ids.insert(terms_id.clone());
+    let record = if template_id == "gid://shopify/PaymentTermsTemplate/1" {
+        payment_terms_success_record(&terms_id, "Due on receipt", "RECEIPT", json!([]))
+    } else {
+        payment_terms_net_record(&terms_id)
+    };
+    payment_terms_payload("paymentTermsCreate", record, Vec::new())
+}
+
+fn payment_terms_local_runtime_update_data(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let input = resolved_object_field(variables, "input").unwrap_or_default();
+    let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+    let attrs = resolved_object_field(&input, "paymentTermsAttributes").unwrap_or_default();
+    let error = match payment_terms_id.as_str() {
+        "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
+            Value::Null,
+            "Payment terms do not exist.",
+            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+        )),
+        "gid://shopify/PaymentTerms/paid-update" => Some(payment_terms_user_error(
+            Value::Null,
+            "Cannot create payment terms on an Order that has already been paid in full.",
+            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+        )),
+        "gid://shopify/PaymentTerms/channel-policy-update" => Some(payment_terms_user_error(
+            Value::Null,
+            "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
+            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+        )),
+        _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
+    };
+    if let Some(error) = error {
+        return payment_terms_payload("paymentTermsUpdate", Value::Null, vec![error]);
+    }
+    let record = payment_terms_net_record(&payment_terms_id);
+    payment_terms_payload("paymentTermsUpdate", record, Vec::new())
+}
+
 fn payment_terms_fixture_data(
     root_field: &str,
     query: &str,
@@ -21014,6 +21215,16 @@ fn payment_terms_fixture_data(
 ) -> Option<Value> {
     let create_fixture = payment_terms_create_on_order_fixture();
     let cascade_fixture = payment_terms_delete_owner_cascade_fixture();
+    if query.contains("RustPaymentTermsLocalRuntime") {
+        return match root_field {
+            "paymentTermsCreate" => Some(payment_terms_local_runtime_create_data(
+                variables,
+                staged_payment_terms_ids,
+            )),
+            "paymentTermsUpdate" => Some(payment_terms_local_runtime_update_data(variables)),
+            _ => None,
+        };
+    }
     match root_field {
         "orderCreate" if query.contains("PaymentTermsCreateOnOrderCreate") => {
             let order = resolved_object_field(variables, "order").unwrap_or_default();

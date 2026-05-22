@@ -1001,6 +1001,293 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
 }
 
 #[test]
+fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
+    let create_query = r#"
+        mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              paymentTermsName
+              paymentTermsType
+              paymentSchedules(first: 1) {
+                nodes {
+                  amount { amount currencyCode }
+                  balanceDue { amount currencyCode }
+                  totalBalance { amount currencyCode }
+                  issuedAt
+                  dueAt
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPaymentTermsLocalRuntimeUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms { id paymentTermsName paymentTermsType }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+    let net_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+    });
+
+    let paid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/paid", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(paid_create.status, 200);
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    for reference_id in [
+        "gid://shopify/Order/closed",
+        "gid://shopify/Order/cancelled-unpaid",
+        "gid://shopify/DraftOrder/paid-status",
+    ] {
+        let accepted = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "referenceId": reference_id, "attrs": net_attrs.clone() }),
+        ));
+        assert_eq!(accepted.status, 200);
+        assert_eq!(
+            accepted.body["data"]["paymentTermsCreate"]["userErrors"],
+            json!([])
+        );
+        assert!(
+            accepted.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("gid://shopify/PaymentTerms/")
+        );
+    }
+
+    let multiple_schedules = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [
+                    { "issuedAt": "2026-05-05T00:00:00Z" },
+                    { "issuedAt": "2026-05-06T00:00:00Z" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        multiple_schedules.body["data"]["paymentTermsCreate"],
+        json!({
+            "paymentTerms": Value::Null,
+            "userErrors": [{
+                "field": ["base"],
+                "message": "Cannot create payment terms with multiple schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+            }]
+        })
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/123", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_order.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Order with id 123.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_draft = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/DraftOrder/999999", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_draft.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Draft order with id 999999.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("Could not find payment terms template.")
+    );
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+
+    let missing_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": { "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }] }
+        }),
+    ));
+    assert_eq!(
+        missing_template.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentTermsAttributes", "paymentTermsTemplateId"],
+            "message": "Payment terms template is required.",
+            "code": "REQUIRED"
+        })
+    );
+
+    let fixed_without_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{}]
+            }
+        }),
+    ));
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date is required with fixed or net payment terms.")
+    );
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
+    );
+
+    let receipt_with_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_with_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date cannot be set with event payment terms.")
+    );
+
+    let receipt_issued_at = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentTermsName"],
+        json!("Due on receipt")
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]
+            ["nodes"],
+        json!([])
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+    );
+
+    let paid_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/paid-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        paid_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+
+    let channel_policy_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
+        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
+    );
+
+    let draft_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/draft-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["id"],
+        json!("gid://shopify/PaymentTerms/draft-update")
+    );
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_update_attrs = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsAttributes": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                    "paymentSchedules": [{}]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_update_attrs.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "A due date is required with fixed or net payment terms.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+}
+
+#[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
