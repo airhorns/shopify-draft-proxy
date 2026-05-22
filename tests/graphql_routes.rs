@@ -10487,6 +10487,98 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
 }
 
 #[test]
+fn inventory_fixture_backed_downstream_reads_replay_captured_shapes() {
+    let quantity_contract: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
+    ))
+    .unwrap();
+    let reason_validation: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
+    ))
+    .unwrap();
+    let adjust_derived: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
+    ))
+    .unwrap();
+    let adjust_quantities: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
+    ))
+    .unwrap();
+    let item_update: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-item-update-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let contract_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql"
+        ),
+        json!({
+            "inventoryItemId": quantity_contract["setup"]["product"]["inventoryItemId"],
+            "productId": quantity_contract["setup"]["product"]["productId"]
+        }),
+    ));
+    assert_eq!(
+        contract_read.body["data"],
+        quantity_contract["downstreamRead"]["data"]
+    );
+
+    let reason_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventory-reason-validation-downstream.graphql"
+        ),
+        json!({"inventoryItemId": reason_validation["setup"]["inventoryItemId"]}),
+    ));
+    assert_eq!(
+        reason_read.body["data"],
+        reason_validation["downstreamAfterRejected"]["data"]
+    );
+
+    let derived_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-downstream.graphql"),
+        adjust_derived["setup"]["variables"].clone(),
+    ));
+    assert_eq!(
+        derived_read.body["data"],
+        adjust_derived["downstreamRead"]["data"]
+    );
+
+    let adjust_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryAdjustQuantities-downstream-read.graphql"
+        ),
+        adjust_quantities["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        adjust_read.body["data"],
+        adjust_quantities["downstreamRead"]["data"]
+    );
+
+    let non_available_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryAdjustQuantities-non-available-downstream-read.graphql"
+        ),
+        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        non_available_read.body["data"],
+        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["data"]
+    );
+
+    let item_update_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryItemUpdate-downstream-read.graphql"
+        ),
+        item_update["mutation"]["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        item_update_read.body["data"],
+        item_update["mutation"]["downstreamRead"]["data"]
+    );
+}
+
+#[test]
 fn online_store_mobile_platform_application_lifecycle_and_validation_are_local() {
     let mut proxy = snapshot_proxy();
 

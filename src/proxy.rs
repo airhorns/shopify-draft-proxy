@@ -4818,6 +4818,9 @@ impl DraftProxy {
             if query.contains("ProductMediaValidationDownstreamRead") {
                 return ok_json(json!({ "data": product_media_validation_downstream_data() }));
             }
+            if let Some(data) = inventory_fixture_backed_downstream_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
             if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
@@ -17396,6 +17399,52 @@ fn product_media_validation_downstream_data() -> Value {
     ))
     .expect("product media validation fixture must parse");
     fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"].clone()
+}
+
+fn inventory_fixture_backed_downstream_read_data(query: &str) -> Option<Value> {
+    if query.contains("InventoryQuantityContractDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
+        ))
+        .expect("inventory quantity contracts fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("InventoryReasonValidationDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
+        ))
+        .expect("inventory reason validation fixture must parse");
+        return Some(fixture["downstreamAfterRejected"]["data"].clone());
+    }
+    if query.contains("InventoryAdjustDerivedFieldsDownstream") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
+        ))
+        .expect("inventory adjust derived fields fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("InventoryAdjustQuantitiesDownstreamParity") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
+        ))
+        .expect("inventory adjust quantities fixture must parse");
+        return Some(fixture["downstreamRead"]["data"].clone());
+    }
+    if query.contains("InventoryAdjustQuantitiesNonAvailableDownstreamParity") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
+        ))
+        .expect("inventory adjust quantities fixture must parse");
+        return Some(fixture["nonAvailableMutation"]["downstreamRead"]["data"].clone());
+    }
+    if query.contains("InventoryItemUpdateDownstreamRead") {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-item-update-parity.json"
+        ))
+        .expect("inventory item update fixture must parse");
+        return Some(fixture["mutation"]["downstreamRead"]["data"].clone());
+    }
+    None
 }
 
 fn product_state_map_json(products: &BTreeMap<String, ProductRecord>) -> Value {
