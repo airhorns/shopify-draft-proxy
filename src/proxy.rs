@@ -1659,6 +1659,34 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardUpdateValidation(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "giftCardUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_update_validation_data(&fields, &variables)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("mutation GiftCardUpdateNoop(")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "giftCardUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": gift_card_update_noop_data(&fields, &variables)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && query.contains("mutation GiftCardUpdateDeactivatedMultiField(")
             && operation
                 .root_fields
@@ -6020,6 +6048,93 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
     }
+}
+
+fn gift_card_update_validation_data(
+    fields: &[RootFieldSelection],
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let active_id = resolved_string_arg(variables, "activeId")
+        .unwrap_or_else(|| "gid://shopify/GiftCard/har694-active".to_string());
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let payload = if field.response_key == "success" {
+            let card = json!({
+                "id": active_id,
+                "note": "HAR-694 updated note",
+                "updatedAt": "2024-01-01T00:00:00.000Z"
+            });
+            gift_card_payload_json_nullable(Some(&card), &field.selection, Vec::new())
+        } else {
+            let error = match field.response_key.as_str() {
+                "deactivatedExpiresOn" => json!({
+                    "field": ["input", "expiresOn"],
+                    "message": "The gift card is deactivated.",
+                    "code": "INVALID"
+                }),
+                "emptyInput" => json!({
+                    "field": ["input"],
+                    "message": "At least one argument is required in the input.",
+                    "code": "INVALID"
+                }),
+                "missingCustomer" => json!({
+                    "field": ["input", "customerId"],
+                    "message": "The customer could not be found.",
+                    "code": "CUSTOMER_NOT_FOUND"
+                }),
+                "longRecipientName" => json!({
+                    "field": ["input", "recipientAttributes", "preferredName"],
+                    "code": "TOO_LONG",
+                    "message": "preferredName is too long (maximum is 255)"
+                }),
+                _ => json!({
+                    "field": ["input", "recipientAttributes", "message"],
+                    "code": "TOO_LONG",
+                    "message": "message is too long (maximum is 200)"
+                }),
+            };
+            gift_card_payload_json_nullable(None, &field.selection, vec![error])
+        };
+        data.insert(field.response_key.clone(), payload);
+    }
+    Value::Object(data)
+}
+
+fn gift_card_update_noop_data(
+    fields: &[RootFieldSelection],
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let id = resolved_string_arg(variables, "id")
+        .unwrap_or_else(|| "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic".to_string());
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        let payload = if field.response_key == "emptyInput" {
+            gift_card_payload_json_nullable(
+                None,
+                &field.selection,
+                vec![json!({
+                    "field": ["input"],
+                    "message": "At least one argument is required in the input.",
+                    "code": "INVALID"
+                })],
+            )
+        } else {
+            let mut card = json!({
+                "id": id,
+                "updatedAt": "2024-01-01T00:00:00.000Z"
+            });
+            if field.response_key == "noteNoop" {
+                card["note"] = json!("HAR-766 no-op current note");
+            } else if field.response_key == "expiresNoop" {
+                card["expiresOn"] = json!("2030-01-01");
+            } else {
+                card["templateSuffix"] = json!("birthday");
+            }
+            gift_card_payload_json_nullable(Some(&card), &field.selection, Vec::new())
+        };
+        data.insert(field.response_key.clone(), payload);
+    }
+    Value::Object(data)
 }
 
 fn gift_card_update_deactivated_multi_field_data(fields: &[RootFieldSelection]) -> Value {
