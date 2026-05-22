@@ -42,6 +42,10 @@ fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     )
 }
 
+fn product_fixture(path: &str) -> Value {
+    serde_json::from_str(path).expect("product fixture must parse")
+}
+
 #[test]
 fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     let mut proxy = snapshot_proxy();
@@ -11655,4 +11659,123 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
             { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
         ])
     );
+}
+
+#[test]
+fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let downstream_query = include_str!(
+        "../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+    );
+
+    let create_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
+    ));
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionsCreate-parity-plan.graphql"),
+        create_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"],
+        create_fixture["mutation"]["response"]["data"]
+    );
+    let create_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": create.body["data"]["productOptionsCreate"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        create_read.body["data"],
+        create_fixture["downstreamRead"]["data"]
+    );
+
+    let update_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json"
+    ));
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionUpdate-parity-plan.graphql"),
+        update_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"],
+        update_fixture["mutation"]["response"]["data"]
+    );
+    let update_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": update.body["data"]["productOptionUpdate"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        update_read.body["data"],
+        update_fixture["downstreamRead"]["data"]
+    );
+
+    let delete_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-delete-parity.json"
+    ));
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionsDelete-parity-plan.graphql"),
+        delete_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"],
+        delete_fixture["mutation"]["response"]["data"]
+    );
+    let delete_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": delete.body["data"]["productOptionsDelete"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        delete_read.body["data"],
+        delete_fixture["downstreamRead"]["data"]
+    );
+}
+
+#[test]
+fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
+    let cases = [
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-create.graphql"),
+            include_str!("../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-leave-as-is-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"),
+        ),
+    ];
+
+    for (mutation_query, downstream_query, fixture_source) in cases {
+        let mut proxy = snapshot_proxy();
+        let fixture = product_fixture(fixture_source);
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            fixture["mutation"]["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200);
+        assert_eq!(
+            mutation.body["data"],
+            fixture["mutation"]["response"]["data"]
+        );
+
+        let product_id = mutation.body["data"]["productOptionsCreate"]["product"]["id"].clone();
+        let downstream = proxy.process_request(json_graphql_request(
+            downstream_query,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(downstream.status, 200);
+        assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    }
 }

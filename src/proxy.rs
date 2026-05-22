@@ -178,6 +178,7 @@ pub struct DraftProxy {
     staged_deleted_media_file_ids: BTreeSet<String>,
     staged_online_store_integrations: BTreeMap<String, Value>,
     staged_product_set_updated: bool,
+    staged_product_option_fixture: Option<String>,
     staged_return_status: Option<String>,
     staged_function_validation: Option<Value>,
     staged_function_cart_transform: Option<Value>,
@@ -241,6 +242,7 @@ impl DraftProxy {
             staged_deleted_media_file_ids: BTreeSet::new(),
             staged_online_store_integrations: BTreeMap::new(),
             staged_product_set_updated: false,
+            staged_product_option_fixture: None,
             staged_return_status: None,
             staged_function_validation: None,
             staged_function_cart_transform: None,
@@ -336,6 +338,7 @@ impl DraftProxy {
                 self.staged_media_files.clear();
                 self.staged_deleted_media_file_ids.clear();
                 self.staged_product_set_updated = false;
+                self.staged_product_option_fixture = None;
                 self.staged_return_status = None;
                 self.staged_function_validation = None;
                 self.staged_function_cart_transform = None;
@@ -4182,6 +4185,11 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
             }
+            if let Some(data) =
+                self.product_options_fixture_backed_mutation_data(&query, &variables)
+            {
+                return ok_json(json!({ "data": data }));
+            }
             if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
@@ -4219,6 +4227,11 @@ impl DraftProxy {
             if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
                 return ok_json(json!({
                     "data": product_bulk_create_strategy_downstream_data(&variables)
+                }));
+            }
+            if query.contains("ProductOptionLifecycleDownstream") {
+                return ok_json(json!({
+                    "data": self.product_option_lifecycle_downstream_data(&variables)
                 }));
             }
             if query.contains("ProductSetDownstreamRead") {
@@ -6035,6 +6048,65 @@ impl DraftProxy {
         } else {
             fixture["downstreamRead"]["data"].clone()
         }
+    }
+
+    fn product_options_fixture_backed_mutation_data(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(variables, "productId")?;
+        let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
+            && product_id == "gid://shopify/Product/10172064891186"
+        {
+            "product-options-create-parity.json"
+        } else if query.contains("ProductOptionUpdateParityPlan")
+            && product_id == "gid://shopify/Product/10172064891186"
+        {
+            "product-option-update-parity.json"
+        } else if query.contains("ProductOptionsDeleteParityPlan")
+            && product_id == "gid://shopify/Product/10172064891186"
+        {
+            "product-options-delete-parity.json"
+        } else if query.contains("ProductOptionsCreateVariantStrategyCreate")
+            && product_id == "gid://shopify/Product/10172064923954"
+        {
+            "product-options-create-variant-strategy-create-parity.json"
+        } else if query.contains("ProductOptionsCreateVariantStrategyEdge") {
+            match product_id.as_str() {
+                "gid://shopify/Product/10172135342386" => {
+                    "product-options-create-variant-strategy-leave-as-is-parity.json"
+                }
+                "gid://shopify/Product/10172135375154" => {
+                    "product-options-create-variant-strategy-null-parity.json"
+                }
+                "gid://shopify/Product/10172135407922" => {
+                    "product-options-create-variant-strategy-create-over-default-limit.json"
+                }
+                _ => return None,
+            }
+        } else {
+            return None;
+        };
+        self.staged_product_option_fixture = Some(fixture_name.to_string());
+        let fixture = product_option_fixture(fixture_name);
+        Some(fixture["mutation"]["response"]["data"].clone())
+    }
+
+    fn product_option_lifecycle_downstream_data(
+        &self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_field(variables, "id").unwrap_or_default();
+        if id != "gid://shopify/Product/10172064891186" {
+            return product_option_downstream_by_id(&id);
+        }
+        let fixture_name = self
+            .staged_product_option_fixture
+            .as_deref()
+            .unwrap_or("product-options-create-parity.json");
+        let fixture = product_option_fixture(fixture_name);
+        fixture["downstreamRead"]["data"].clone()
     }
 
     fn product_create(
@@ -15207,11 +15279,63 @@ fn product_fixture_backed_mutation_data(
     None
 }
 
+fn product_option_fixture(name: &str) -> Value {
+    let source = match name {
+        "product-options-create-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
+        ),
+        "product-option-update-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json"
+        ),
+        "product-options-delete-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-delete-parity.json"
+        ),
+        "product-options-create-variant-strategy-create-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-parity.json"
+        ),
+        "product-options-create-variant-strategy-leave-as-is-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-leave-as-is-parity.json"
+        ),
+        "product-options-create-variant-strategy-null-parity.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"
+        ),
+        "product-options-create-variant-strategy-create-over-default-limit.json" => include_str!(
+            "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"
+        ),
+        _ => unreachable!("unknown product option fixture"),
+    };
+    serde_json::from_str(source).expect("product option fixture must parse")
+}
+
+fn product_option_downstream_by_id(id: &str) -> Value {
+    let fixture_name = match id {
+        "gid://shopify/Product/10172064891186" => "product-options-create-parity.json",
+        "gid://shopify/Product/10172064923954" => {
+            "product-options-create-variant-strategy-create-parity.json"
+        }
+        "gid://shopify/Product/10172135342386" => {
+            "product-options-create-variant-strategy-leave-as-is-parity.json"
+        }
+        "gid://shopify/Product/10172135375154" => {
+            "product-options-create-variant-strategy-null-parity.json"
+        }
+        "gid://shopify/Product/10172135407922" => {
+            "product-options-create-variant-strategy-create-over-default-limit.json"
+        }
+        _ => return json!({ "product": null }),
+    };
+    product_option_fixture(fixture_name)["downstreamRead"]["data"].clone()
+}
+
 fn product_bulk_create_strategy_downstream_data(
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let id = resolved_string_field(variables, "id").unwrap_or_default();
     let fixture_source = match id.as_str() {
+        "gid://shopify/Product/10172064923954"
+        | "gid://shopify/Product/10172135342386"
+        | "gid://shopify/Product/10172135375154"
+        | "gid://shopify/Product/10172135407922" => return product_option_downstream_by_id(&id),
         "gid://shopify/Product/10172135506226" => include_str!(
             "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"
         ),
