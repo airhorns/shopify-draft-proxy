@@ -7,83 +7,6 @@ impl DraftProxy {
             log_entries: Vec::new(),
             registry: default_registry(),
             store: Store::default(),
-            staged_product_search_tags: BTreeMap::new(),
-            staged_shipping_packages: BTreeMap::new(),
-            staged_deleted_shipping_package_ids: BTreeSet::new(),
-            staged_customers: BTreeMap::new(),
-            staged_deleted_customer_ids: BTreeSet::new(),
-            staged_customer_orders: BTreeMap::new(),
-            staged_carrier_services: BTreeMap::new(),
-            staged_deleted_carrier_service_ids: BTreeSet::new(),
-            staged_app_subscriptions: BTreeMap::new(),
-            staged_app_one_time_purchases: BTreeMap::new(),
-            revoked_app_access_scopes: BTreeSet::new(),
-            app_uninstalled: false,
-            staged_delegate_access_tokens: BTreeMap::new(),
-            staged_customer_segment_member_queries: BTreeMap::new(),
-            staged_fulfillment_services: BTreeMap::new(),
-            staged_fulfillment_service_locations: BTreeMap::new(),
-            staged_deleted_fulfillment_service_ids: BTreeSet::new(),
-            staged_deleted_fulfillment_service_location_ids: BTreeSet::new(),
-            staged_segments: BTreeMap::new(),
-            staged_collections: BTreeMap::new(),
-            staged_fulfillment_order_deadlines: BTreeMap::new(),
-            staged_bulk_operations: BTreeMap::new(),
-            staged_timestamp_discounts: BTreeMap::new(),
-            staged_gift_cards: BTreeMap::new(),
-            staged_markets: BTreeMap::new(),
-            staged_catalogs: BTreeMap::new(),
-            staged_price_lists: BTreeMap::new(),
-            staged_web_presences: BTreeMap::new(),
-            staged_shop_locales: BTreeMap::new(),
-            staged_localization_translations: Vec::new(),
-            staged_marketing_activities: BTreeMap::new(),
-            staged_deleted_marketing_activity_ids: BTreeSet::new(),
-            staged_marketing_delete_all_external: false,
-            staged_webhook_subscriptions: BTreeMap::new(),
-            staged_b2b_companies: BTreeMap::new(),
-            staged_b2b_locations: BTreeMap::new(),
-            next_b2b_company_id: 1,
-            staged_inventory_levels: BTreeMap::new(),
-            staged_metaobjects: BTreeMap::new(),
-            staged_deleted_metaobject_ids: BTreeSet::new(),
-            staged_app_metafields: BTreeMap::new(),
-            staged_owner_metafields: BTreeMap::new(),
-            staged_metafield_definitions: BTreeMap::new(),
-            staged_media_files: BTreeMap::new(),
-            staged_deleted_media_file_ids: BTreeSet::new(),
-            staged_online_store_integrations: BTreeMap::new(),
-            staged_product_set_updated: false,
-            staged_product_option_fixture: None,
-            staged_product_metafields_fixture: None,
-            staged_product_delete_operations: BTreeMap::new(),
-            staged_selling_plan_group_downstream_step: 0,
-            staged_return_status: None,
-            staged_recorded_return_statuses: BTreeMap::new(),
-            staged_mandate_payment_keys: BTreeSet::new(),
-            staged_payment_terms_ids: BTreeSet::new(),
-            staged_payment_reminder_schedule_ids: BTreeSet::new(),
-            staged_payment_customizations: BTreeMap::new(),
-            staged_draft_orders: BTreeMap::new(),
-            next_draft_order_id: 1,
-            staged_draft_order_tags: BTreeMap::new(),
-            next_draft_order_bulk_tag_job_id: 1,
-            staged_draft_order_complete_gateway_create_count: 0,
-            staged_order_customer_orders: BTreeMap::new(),
-            staged_order_customer_cancelled_ids: BTreeSet::new(),
-            staged_order_customer_b2b_order_ids: BTreeSet::new(),
-            staged_order_customer_contact_customer_ids: BTreeSet::new(),
-            next_order_customer_order_id: 1,
-            staged_order_payment_transaction_state: None,
-            staged_order_edit_existing_mode: None,
-            staged_function_validation: None,
-            staged_function_cart_transform: None,
-            staged_code_basic_lifecycle_status: None,
-            staged_free_shipping_code_status: None,
-            staged_free_shipping_automatic_status: None,
-            staged_redeem_code_bulk_live_added: false,
-            staged_redeem_code_bulk_live_deleted_seed: false,
-            backup_region: backup_region_country("CA"),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
@@ -128,80 +51,6 @@ impl DraftProxy {
             Route::MetaReset => {
                 self.log_entries.clear();
                 self.store.clear_staged();
-                self.staged_product_search_tags.clear();
-                self.staged_shipping_packages.clear();
-                self.staged_deleted_shipping_package_ids.clear();
-                self.staged_customers.clear();
-                self.staged_deleted_customer_ids.clear();
-                self.staged_customer_orders.clear();
-                self.staged_carrier_services.clear();
-                self.staged_deleted_carrier_service_ids.clear();
-                self.staged_app_subscriptions.clear();
-                self.staged_app_one_time_purchases.clear();
-                self.revoked_app_access_scopes.clear();
-                self.app_uninstalled = false;
-                self.staged_delegate_access_tokens.clear();
-                self.staged_customer_segment_member_queries.clear();
-                self.staged_fulfillment_services.clear();
-                self.staged_fulfillment_service_locations.clear();
-                self.staged_deleted_fulfillment_service_ids.clear();
-                self.staged_deleted_fulfillment_service_location_ids.clear();
-                self.staged_segments.clear();
-                self.staged_collections.clear();
-                self.staged_fulfillment_order_deadlines.clear();
-                self.staged_bulk_operations.clear();
-                self.staged_timestamp_discounts.clear();
-                self.staged_gift_cards.clear();
-                self.staged_markets.clear();
-                self.staged_catalogs.clear();
-                self.staged_price_lists.clear();
-                self.staged_web_presences.clear();
-                self.staged_shop_locales.clear();
-                self.staged_localization_translations.clear();
-                self.staged_marketing_activities.clear();
-                self.staged_deleted_marketing_activity_ids.clear();
-                self.staged_marketing_delete_all_external = false;
-                self.staged_webhook_subscriptions.clear();
-                self.staged_b2b_companies.clear();
-                self.staged_b2b_locations.clear();
-                self.next_b2b_company_id = 1;
-                self.staged_metaobjects.clear();
-                self.staged_deleted_metaobject_ids.clear();
-                self.staged_app_metafields.clear();
-                self.staged_owner_metafields.clear();
-                self.staged_metafield_definitions.clear();
-                self.staged_media_files.clear();
-                self.staged_deleted_media_file_ids.clear();
-                self.staged_product_set_updated = false;
-                self.staged_product_option_fixture = None;
-                self.staged_product_delete_operations.clear();
-                self.staged_selling_plan_group_downstream_step = 0;
-                self.staged_return_status = None;
-                self.staged_recorded_return_statuses.clear();
-                self.staged_mandate_payment_keys.clear();
-                self.staged_payment_terms_ids.clear();
-                self.staged_payment_reminder_schedule_ids.clear();
-                self.staged_payment_customizations.clear();
-                self.staged_draft_orders.clear();
-                self.next_draft_order_id = 1;
-                self.staged_draft_order_tags.clear();
-                self.next_draft_order_bulk_tag_job_id = 1;
-                self.staged_draft_order_complete_gateway_create_count = 0;
-                self.staged_order_customer_orders.clear();
-                self.staged_order_customer_cancelled_ids.clear();
-                self.staged_order_customer_b2b_order_ids.clear();
-                self.staged_order_customer_contact_customer_ids.clear();
-                self.next_order_customer_order_id = 1;
-                self.staged_order_payment_transaction_state = None;
-                self.staged_order_edit_existing_mode = None;
-                self.staged_function_validation = None;
-                self.staged_function_cart_transform = None;
-                self.staged_code_basic_lifecycle_status = None;
-                self.staged_free_shipping_code_status = None;
-                self.staged_free_shipping_automatic_status = None;
-                self.staged_redeem_code_bulk_live_added = false;
-                self.staged_redeem_code_bulk_live_deleted_seed = false;
-                self.backup_region = backup_region_country("CA");
                 self.next_synthetic_id = 1;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
@@ -269,17 +118,19 @@ impl DraftProxy {
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
                 "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "shippingPackages": self.staged_shipping_packages.clone(),
-                "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
-                "delegatedAccessTokens": self.staged_delegate_access_tokens.clone(),
-                "customers": self.staged_customers.clone(),
-                "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.staged_customer_orders.clone()
+                "shippingPackages": self.store.staged.shipping_packages.clone(),
+                "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
+                "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
+                "customers": self.store.staged.customers.clone(),
+                "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "customerOrders": self.store.staged.customer_orders.clone()
             }
         });
-        if !self.staged_draft_orders.is_empty() {
+        if !self.store.staged.draft_orders.is_empty() {
             snapshot["stagedState"]["draftOrders"] = Value::Object(
-                self.staged_draft_orders
+                self.store
+                    .staged
+                    .draft_orders
                     .iter()
                     .map(|(id, record)| {
                         (
@@ -289,8 +140,13 @@ impl DraftProxy {
                     })
                     .collect::<serde_json::Map<_, _>>(),
             );
-            snapshot["stagedState"]["draftOrderOrder"] =
-                json!(self.staged_draft_orders.keys().cloned().collect::<Vec<_>>());
+            snapshot["stagedState"]["draftOrderOrder"] = json!(self
+                .store
+                .staged
+                .draft_orders
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         snapshot
     }
@@ -384,7 +240,7 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
-        self.staged_shipping_packages = state["stagedState"]["shippingPackages"]
+        self.store.staged.shipping_packages = state["stagedState"]["shippingPackages"]
             .as_object()
             .map(|packages| {
                 packages
@@ -393,12 +249,12 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.staged_deleted_shipping_package_ids = state["stagedState"]
+        self.store.staged.deleted_shipping_package_ids = state["stagedState"]
             ["deletedShippingPackageIds"]
             .as_object()
             .map(|ids| ids.keys().cloned().collect())
             .unwrap_or_default();
-        self.staged_customers = state["stagedState"]["customers"]
+        self.store.staged.customers = state["stagedState"]["customers"]
             .as_object()
             .map(|customers| {
                 customers
@@ -407,13 +263,13 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.staged_deleted_customer_ids = state["stagedState"]["deletedCustomerIds"]
+        self.store.staged.deleted_customer_ids = state["stagedState"]["deletedCustomerIds"]
             .as_array()
             .into_iter()
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
-        self.staged_customer_orders = state["stagedState"]["customerOrders"]
+        self.store.staged.customer_orders = state["stagedState"]["customerOrders"]
             .as_object()
             .map(|orders_by_customer| {
                 orders_by_customer

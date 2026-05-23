@@ -10,7 +10,9 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "bulkOperation" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_bulk_operations
+                    self.store
+                        .staged
+                        .bulk_operations
                         .get(&id)
                         .map(|operation| selected_json(operation, &field.selection))
                         .unwrap_or(Value::Null)
@@ -64,7 +66,9 @@ impl DraftProxy {
         };
         let terminal_operation =
             bulk_operation_record_with(&id, "COMPLETED", &query_text, count, created_at, "113499");
-        self.staged_bulk_operations
+        self.store
+            .staged
+            .bulk_operations
             .insert(id.clone(), terminal_operation);
         self.record_mutation_log_entry(
             request,
@@ -126,7 +130,9 @@ impl DraftProxy {
             "2026-04-27T20:35:00Z",
             "113499",
         );
-        self.staged_bulk_operations
+        self.store
+            .staged
+            .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -201,7 +207,7 @@ impl DraftProxy {
                     "mediaWarnings": [],
                     "mimeType": "image/jpeg"
                 });
-                self.staged_media_files.insert(id, file.clone());
+                self.store.staged.media_files.insert(id, file.clone());
                 file
             })
             .collect::<Vec<_>>();
@@ -233,20 +239,21 @@ impl DraftProxy {
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
         for id in &ids {
-            self.staged_deleted_media_file_ids.insert(id.clone());
-            self.staged_media_files.remove(id);
+            self.store.staged.deleted_media_file_ids.insert(id.clone());
+            self.store.staged.media_files.remove(id);
         }
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
     }
 
     pub(in crate::proxy) fn resolve_media_file_delete_id(&self, id: &str) -> String {
-        if self.staged_media_files.contains_key(id) || !id.starts_with("gid://shopify/Video/") {
+        if self.store.staged.media_files.contains_key(id) || !id.starts_with("gid://shopify/Video/")
+        {
             return id.to_string();
         }
         let numeric_id = id.trim_start_matches("gid://shopify/Video/");
         let media_image_id = format!("gid://shopify/MediaImage/{}", numeric_id);
-        if self.staged_media_files.contains_key(&media_image_id) {
+        if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
         } else {
             id.to_string()
@@ -264,9 +271,11 @@ impl DraftProxy {
                 continue;
             }
             let mut files = self
-                .staged_media_files
+                .store
+                .staged
+                .media_files
                 .iter()
-                .filter(|(id, _)| !self.staged_deleted_media_file_ids.contains(*id))
+                .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
             files.sort_by_key(|file| {
@@ -278,7 +287,7 @@ impl DraftProxy {
             let full = json!({
                 "nodes": files,
                 "edges": [],
-                "pageInfo": media_page_info(self.staged_media_files.keys().next().map(String::as_str))
+                "pageInfo": media_page_info(self.store.staged.media_files.keys().next().map(String::as_str))
             });
             data.insert(field.response_key, selected_json(&full, &field.selection));
         }
@@ -352,7 +361,9 @@ impl DraftProxy {
                             "values": {"nodes": [], "pageInfo": empty_page_info()}
                         });
                     }
-                    self.staged_metafield_definitions
+                    self.store
+                        .staged
+                        .metafield_definitions
                         .insert((namespace, key), definition.clone());
                     let payload = json!({"createdDefinition": definition, "userErrors": []});
                     data.insert(
@@ -403,7 +414,9 @@ impl DraftProxy {
                     }
                     let map_key = (namespace.clone(), key.clone());
                     if self
-                        .staged_metafield_definitions
+                        .store
+                        .staged
+                        .metafield_definitions
                         .get(&map_key)
                         .and_then(|definition| definition.get("pinnedPosition"))
                         .is_some_and(|position| !position.is_null())
@@ -420,7 +433,9 @@ impl DraftProxy {
                     }
                     let position = self.next_metafield_definition_pin_position(&namespace, &key);
                     let mut definition = self
-                        .staged_metafield_definitions
+                        .store
+                        .staged
+                        .metafield_definitions
                         .get(&map_key)
                         .cloned()
                         .unwrap_or_else(|| {
@@ -434,7 +449,9 @@ impl DraftProxy {
                     if definition.get("pinnedPosition").is_none_or(Value::is_null) {
                         definition["pinnedPosition"] = json!(position);
                     }
-                    self.staged_metafield_definitions
+                    self.store
+                        .staged
+                        .metafield_definitions
                         .insert(map_key, definition.clone());
                     let payload = json!({"pinnedDefinition": definition, "userErrors": []});
                     data.insert(
@@ -458,7 +475,9 @@ impl DraftProxy {
                                 namespace = found_namespace;
                                 key = found_key;
                             } else if let Some((found_namespace, found_key)) = self
-                                .staged_metafield_definitions
+                                .store
+                                .staged
+                                .metafield_definitions
                                 .iter()
                                 .find(|(_, definition)| {
                                     definition.get("id").and_then(Value::as_str)
@@ -473,7 +492,9 @@ impl DraftProxy {
                     }
                     let map_key = (namespace.clone(), key.clone());
                     let current = self
-                        .staged_metafield_definitions
+                        .store
+                        .staged
+                        .metafield_definitions
                         .get(&map_key)
                         .cloned()
                         .unwrap_or_else(|| {
@@ -502,7 +523,9 @@ impl DraftProxy {
                     }
                     let mut definition = current;
                     definition["pinnedPosition"] = Value::Null;
-                    self.staged_metafield_definitions
+                    self.store
+                        .staged
+                        .metafield_definitions
                         .insert(map_key, definition.clone());
                     self.compact_metafield_definition_pins(&namespace);
                     let payload = json!({"unpinnedDefinition": definition, "userErrors": []});
@@ -533,7 +556,9 @@ impl DraftProxy {
                     let key = resolved_string_field(&identifier, "key")
                         .unwrap_or_else(|| "pin_a".to_string());
                     let definition = self
-                        .staged_metafield_definitions
+                        .store
+                        .staged
+                        .metafield_definitions
                         .get(&(namespace.clone(), key.clone()))
                         .cloned()
                         .unwrap_or_else(|| {
@@ -615,7 +640,9 @@ impl DraftProxy {
                 "pin_b".to_string(),
             ))
         } else {
-            self.staged_metafield_definitions
+            self.store
+                .staged
+                .metafield_definitions
                 .iter()
                 .find(|(_, definition)| definition.get("id").and_then(Value::as_str) == Some(id))
                 .map(|((namespace, key), _)| (namespace.clone(), key.clone()))
@@ -630,7 +657,9 @@ impl DraftProxy {
         if namespace == "metafield_definition_pin_moyouov1" {
             return if key == "pin_b" { 4 } else { 3 };
         }
-        self.staged_metafield_definitions
+        self.store
+            .staged
+            .metafield_definitions
             .iter()
             .filter(|((ns, _), definition)| {
                 ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null)
@@ -641,7 +670,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn compact_metafield_definition_pins(&mut self, namespace: &str) {
         let mut pinned = self
-            .staged_metafield_definitions
+            .store
+            .staged
+            .metafield_definitions
             .iter()
             .filter_map(|((ns, key), definition)| {
                 if ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null) {
@@ -665,7 +696,9 @@ impl DraftProxy {
         };
         for (index, (key, _)) in pinned.into_iter().enumerate() {
             if let Some(definition) = self
-                .staged_metafield_definitions
+                .store
+                .staged
+                .metafield_definitions
                 .get_mut(&(namespace.to_string(), key))
             {
                 definition["pinnedPosition"] = json!(offset + index as i64 + 1);
@@ -678,7 +711,9 @@ impl DraftProxy {
         namespace: &str,
     ) -> Vec<Value> {
         let mut definitions = self
-            .staged_metafield_definitions
+            .store
+            .staged
+            .metafield_definitions
             .iter()
             .filter(|((ns, _), _)| ns == namespace)
             .map(|(_, definition)| definition.clone())
@@ -718,7 +753,9 @@ impl DraftProxy {
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
             let index = self
-                .staged_owner_metafields
+                .store
+                .staged
+                .owner_metafields
                 .values()
                 .map(Vec::len)
                 .sum::<usize>()
@@ -755,14 +792,18 @@ impl DraftProxy {
                     "owner": {"id": owner_id.clone()},
                 })
             };
-            self.staged_owner_metafields
+            self.store
+                .staged
+                .owner_metafields
                 .entry(owner_id.clone())
                 .or_default()
                 .retain(|existing| {
                     existing.get("namespace").and_then(Value::as_str) != Some(namespace.as_str())
                         || existing.get("key").and_then(Value::as_str) != Some(key.as_str())
                 });
-            self.staged_owner_metafields
+            self.store
+                .staged
+                .owner_metafields
                 .entry(owner_id.clone())
                 .or_default()
                 .push(metafield.clone());
@@ -778,7 +819,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
         let fixture_key = product_metafields_fixture_key_from_variables(variables)?;
-        self.staged_product_metafields_fixture = Some(fixture_key.to_string());
+        self.store.staged.product_metafields_fixture = Some(fixture_key.to_string());
         Some(ok_json(json!({
             "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
         })))
@@ -788,7 +829,7 @@ impl DraftProxy {
         &self,
         query: &str,
     ) -> Option<Response> {
-        let fixture_key = self.staged_product_metafields_fixture.as_deref()?;
+        let fixture_key = self.store.staged.product_metafields_fixture.as_deref()?;
         if query.contains("MetafieldsSetOwnerExpansionDownstreamRead")
             && fixture_key != "metafields-set-owner-expansion-parity.json"
         {
@@ -809,7 +850,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
         let fixture_key = product_metafields_delete_fixture_key_from_variables(variables)?;
-        self.staged_product_metafields_fixture = Some(fixture_key.to_string());
+        self.store.staged.product_metafields_fixture = Some(fixture_key.to_string());
         Some(ok_json(json!({
             "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
         })))
@@ -831,7 +872,7 @@ impl DraftProxy {
             Value::Null,
         );
         let definition_id = definition["id"].as_str().unwrap_or_default().to_string();
-        self.staged_metafield_definitions.insert(
+        self.store.staged.metafield_definitions.insert(
             ("standard".to_string(), "missing".to_string()),
             definition.clone(),
         );
@@ -861,14 +902,16 @@ impl DraftProxy {
             Some(ResolvedValue::Bool(true))
         );
         let first_metafield = self
-            .staged_owner_metafields
+            .store
+            .staged
+            .owner_metafields
             .values()
             .flatten()
             .next()
             .cloned()
             .unwrap_or_else(|| json!({"namespace": "", "key": ""}));
         if delete_all {
-            self.staged_owner_metafields.clear();
+            self.store.staged.owner_metafields.clear();
         }
         let payload = json!({
             "deletedDefinitionId": id,
@@ -905,11 +948,15 @@ impl DraftProxy {
             let namespace = resolved_string_arg(variables, "namespace").unwrap_or_default();
             let key = resolved_string_arg(variables, "key").unwrap_or_default();
             let owner_metafields = self
-                .staged_owner_metafields
+                .store
+                .staged
+                .owner_metafields
                 .get(&id)
                 .cloned()
                 .unwrap_or_else(|| {
-                    self.staged_owner_metafields
+                    self.store
+                        .staged
+                        .owner_metafields
                         .values()
                         .flatten()
                         .filter(|metafield| {
@@ -1012,7 +1059,7 @@ impl DraftProxy {
                     resolved_string_field(&input, "namespace").as_deref(),
                 );
                 let key = resolved_string_field(&input, "key").unwrap_or_default();
-                self.staged_app_metafields.remove(&(
+                self.store.staged.app_metafields.remove(&(
                     owner_id.clone(),
                     namespace.clone(),
                     key.clone(),
@@ -1033,13 +1080,15 @@ impl DraftProxy {
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let record = json!({
-                "id": format!("gid://shopify/Metafield/{}", self.staged_app_metafields.len() + 1),
+                "id": format!("gid://shopify/Metafield/{}", self.store.staged.app_metafields.len() + 1),
                 "namespace": namespace,
                 "key": key,
                 "type": resolved_string_field(&input, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
                 "value": resolved_string_field(&input, "value").unwrap_or_default()
             });
-            self.staged_app_metafields
+            self.store
+                .staged
+                .app_metafields
                 .insert((owner_id, namespace, key), record.clone());
             records.push(record);
         }
@@ -1075,9 +1124,11 @@ impl DraftProxy {
                         let namespace =
                             resolved_string_arg(variables, namespace_variable).unwrap_or_default();
                         let key = resolved_string_arg(variables, key_variable).unwrap_or_default();
-                        let record =
-                            self.staged_app_metafields
-                                .get(&(product_id.clone(), namespace, key));
+                        let record = self.store.staged.app_metafields.get(&(
+                            product_id.clone(),
+                            namespace,
+                            key,
+                        ));
                         Some(
                             record
                                 .map(|record| selected_json(record, &selection.selection))
@@ -1192,7 +1243,9 @@ impl DraftProxy {
                 products.clear();
             } else if let Some(tag) = product_tag_query_value(query) {
                 products.retain(|product| {
-                    self.staged_product_search_tags
+                    self.store
+                        .staged
+                        .product_search_tags
                         .get(&product.id)
                         .map(|tags| tags.contains(tag))
                         .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
@@ -1222,7 +1275,9 @@ impl DraftProxy {
                     .effective_products()
                     .into_iter()
                     .filter(|product| {
-                        self.staged_product_search_tags
+                        self.store
+                            .staged
+                            .product_search_tags
                             .get(&product.id)
                             .map(|tags| tags.contains(tag))
                             .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
@@ -1252,10 +1307,10 @@ impl DraftProxy {
         .expect("product set parity fixture must parse");
         let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
         if resolved_string_field(&identifier, "id").is_some() {
-            self.staged_product_set_updated = true;
+            self.store.staged.product_set_updated = true;
             Some(fixture["update"]["mutation"]["response"]["data"].clone())
         } else {
-            self.staged_product_set_updated = false;
+            self.store.staged.product_set_updated = false;
             Some(fixture["mutation"]["response"]["data"].clone())
         }
     }
@@ -1265,7 +1320,7 @@ impl DraftProxy {
             "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
         ))
         .expect("product set parity fixture must parse");
-        if self.staged_product_set_updated {
+        if self.store.staged.product_set_updated {
             fixture["update"]["downstreamRead"]["data"].clone()
         } else {
             fixture["downstreamRead"]["data"].clone()
@@ -1310,7 +1365,7 @@ impl DraftProxy {
         } else {
             return None;
         };
-        self.staged_product_option_fixture = Some(fixture_name.to_string());
+        self.store.staged.product_option_fixture = Some(fixture_name.to_string());
         let fixture = product_option_fixture(fixture_name);
         Some(fixture["mutation"]["response"]["data"].clone())
     }
@@ -1324,7 +1379,9 @@ impl DraftProxy {
             return product_option_downstream_by_id(&id);
         }
         let fixture_name = self
-            .staged_product_option_fixture
+            .store
+            .staged
+            .product_option_fixture
             .as_deref()
             .unwrap_or("product-options-create-parity.json");
         let fixture = product_option_fixture(fixture_name);
@@ -1622,7 +1679,9 @@ impl DraftProxy {
         if resolved_bool_field(variables, "synchronous") == Some(false) {
             let operation_id = "gid://shopify/ProductDeleteOperation/80067887410".to_string();
             if self
-                .staged_product_delete_operations
+                .store
+                .staged
+                .product_delete_operations
                 .values()
                 .any(|pending_id| pending_id == &id)
             {
@@ -1632,7 +1691,9 @@ impl DraftProxy {
                     }
                 }));
             }
-            self.staged_product_delete_operations
+            self.store
+                .staged
+                .product_delete_operations
                 .insert(operation_id.clone(), id.clone());
             self.record_mutation_log_entry(
                 request,
@@ -1729,7 +1790,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_delete_operation_read_data(&self, node: bool) -> Value {
         let product_id = self
-            .staged_product_delete_operations
+            .store
+            .staged
+            .product_delete_operations
             .get("gid://shopify/ProductDeleteOperation/80067887410")
             .cloned()
             .unwrap_or_else(|| "gid://shopify/Product/10178931687730".to_string());
@@ -1853,10 +1916,12 @@ impl DraftProxy {
             );
         };
 
-        if !self.staged_product_search_tags.contains_key(id) {
+        if !self.store.staged.product_search_tags.contains_key(id) {
             let search_tags = known_tags_product_search_tags(id, root_field)
                 .unwrap_or_else(|| product.tags.iter().cloned().collect());
-            self.staged_product_search_tags
+            self.store
+                .staged
+                .product_search_tags
                 .insert(id.clone(), search_tags);
         }
 

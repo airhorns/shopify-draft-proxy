@@ -52,13 +52,13 @@ App/test harness
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, remaining staged overlays, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, the normalized product/saved-search `Store`, remaining staged domain overlays, synthetic identity allocation, registry metadata, and injectable transports
+- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
 ### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
@@ -125,7 +125,9 @@ The TypeScript package is not a second proxy implementation. New runtime behavio
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for the domains migrated to normalized storage. The current Store covers products and saved searches with:
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary.
+
+The normalized product and saved-search portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state
 - `StagedState` for local inserts and updates
@@ -135,7 +137,7 @@ The runtime should use normalized state rather than raw GraphQL blobs.
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
-- staged state for local inserts/updates/deletes not yet committed
+- staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
 - synthetic identity counters scoped to a `DraftProxy` instance
 
