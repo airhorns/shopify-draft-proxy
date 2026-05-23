@@ -77,9 +77,10 @@ App/test harness
 ### `src/graphql.rs`
 
 - parses GraphQL documents with `graphql-parser`
-- extracts operation type and top-level root fields without routing by operation name or alias
-- resolves root-field arguments from literals, enums, lists, input objects, variables, and missing variables
-- extracts selection sets and nested selection paths while preserving response aliases
+- extracts operation type, operation name/path, source locations, and top-level root fields without routing by alias or raw query text
+- preserves raw root-field argument sources separately from resolved values so validators can distinguish omitted arguments, literal nulls, bound variables, and unbound variables
+- resolves root-field arguments from literals, enums, lists, input objects, and variables for existing callers that need the compatibility view
+- extracts selection sets and nested selection paths while preserving response aliases and expanding supported inline/named fragments
 
 ### `src/operation_registry.rs`
 
