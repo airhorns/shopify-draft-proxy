@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::RawArgumentValue;
 
 pub(in crate::proxy) fn product_variant_compat_mutation_data(
     root_field: &str,
@@ -2225,6 +2226,46 @@ pub(in crate::proxy) fn product_input(
     }
 }
 
+pub(in crate::proxy) fn product_delete_required_id_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let field = root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == "productDelete")?;
+    let input = field
+        .raw_arguments
+        .get("input")
+        .or_else(|| field.raw_arguments.get("product"))?;
+
+    match input {
+        RawArgumentValue::Object(input) => match input.get("id") {
+            None => Some(product_delete_inline_missing_id_error()),
+            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error()),
+            _ => None,
+        },
+        RawArgumentValue::Variable { name, value: None } => {
+            Some(product_delete_variable_required_id_error(Value::Null, name))
+        }
+        RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(input)),
+        } => match input.get("id") {
+            None => Some(product_delete_variable_required_id_error(
+                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                name,
+            )),
+            Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
+                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                name,
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response {
     let response_key =
         root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
@@ -2298,14 +2339,17 @@ pub(in crate::proxy) fn product_delete_inline_null_id_error() -> Response {
     }))
 }
 
-pub(in crate::proxy) fn product_delete_variable_missing_id_error() -> Response {
+pub(in crate::proxy) fn product_delete_variable_required_id_error(
+    value: Value,
+    variable_name: &str,
+) -> Response {
     ok_json(json!({
         "errors": [{
-            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "message": format!("Variable ${} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)", variable_name),
             "locations": [{"line": 2, "column": 37}],
             "extensions": {
                 "code": "INVALID_VARIABLE",
-                "value": {},
+                "value": value,
                 "problems": [{
                     "path": ["id"],
                     "explanation": "Expected value to not be null"

@@ -40,7 +40,10 @@ The registry-only read roots are:
 
 The registry-only mutation roots are:
 
+- `fulfillmentCreate`
 - `fulfillmentEventCreate`
+- `fulfillmentTrackingInfoUpdate`
+- `fulfillmentCancel`
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderCancel`

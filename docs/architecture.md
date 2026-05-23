@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs` plus domain-specific modules under `src/proxy/`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs` plus domain-specific modules under `src/proxy/`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, reusable upstream transport in `src/upstream.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -77,9 +77,10 @@ App/test harness
 ### `src/graphql.rs`
 
 - parses GraphQL documents with `graphql-parser`
-- extracts operation type and top-level root fields without routing by operation name or alias
-- resolves root-field arguments from literals, enums, lists, input objects, variables, and missing variables
-- extracts selection sets and nested selection paths while preserving response aliases
+- extracts operation type, operation name/path, source locations, and top-level root fields without routing by alias or raw query text
+- preserves raw root-field argument sources separately from resolved values so validators can distinguish omitted arguments, literal nulls, bound variables, and unbound variables
+- resolves root-field arguments from literals, enums, lists, input objects, and variables for existing callers that need the compatibility view
+- extracts selection sets and nested selection paths while preserving response aliases and expanding supported inline/named fragments
 
 ### `src/operation_registry.rs`
 
@@ -87,13 +88,20 @@ App/test harness
 - classifies implemented roots by domain and execution kind
 - keeps unimplemented/unknown roots explicit so metadata alone does not imply runtime support
 
+### `src/upstream.rs`
+
+- owns the reusable HTTPS-capable upstream Admin transport used by the Rust HTTP bridge
+- builds preserved-method, preserved-path, preserved-body requests for live-hybrid passthrough, local-domain upstream reads, and commit replay
+- forwards Shopify Admin auth headers unchanged while dropping hop-by-hop and computed transport headers such as `host`, `content-length`, and `connection`
+- returns proxy `Response` values so `DraftProxy` can keep its injectable upstream and commit transport seams for deterministic tests
+
 ### `src/bin/shopify-draft-proxy-server.rs`
 
 - thin Rust HTTP server used by `pnpm dev`, `pnpm start`, and the TypeScript public API shim
 - reads environment configuration such as `PORT`, `READ_MODE`, `UNSUPPORTED_MUTATION_MODE`, `SHOPIFY_ADMIN_ORIGIN`, and snapshot/bulk-file settings
 - adapts inbound HTTP requests into `DraftProxy::process_request(...)`
 - handles adapter-only surfaces such as staged uploads and bulk-operation artifact serving
-- provides the real HTTP upstream transport used by live-hybrid passthrough and commit replay, including chunked response decoding
+- installs the real reusable upstream client for live-hybrid passthrough and commit replay
 
 ## TypeScript package surface
 
@@ -116,7 +124,7 @@ The TypeScript package is not a second proxy implementation. New runtime behavio
   - `config/parity-requests/**`
   - `fixtures/conformance/**`
 - Those paths must be registered in the conformance capture index when they drift from `origin/main`.
-- `scripts/check-rust-port-fixture-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
+- `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.
 - `config/operation-registry.json` is the TypeScript tooling snapshot of operation metadata. The executable Rust registry remains in `src/operation_registry.rs`.
 
