@@ -1,0 +1,2803 @@
+use super::common::*;
+use pretty_assertions::assert_eq;
+
+#[test]
+fn order_cancel_state_transitions_replay_validation_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let fresh = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["freshOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(fresh.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let fresh_order_id = fresh.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let to_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["cancelledOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        to_cancel.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let cancelled_id = to_cancel.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let setup_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql"
+        ),
+        json!({ "orderId": cancelled_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(setup_cancel.body, fixture["expected"]["cancelOrderSuccess"]);
+
+    let already_cancelled = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_id, "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(
+        already_cancelled.body,
+        fixture["expected"]["alreadyCancelled"]
+    );
+
+    let staff_note_too_long = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id.clone(),
+            "restock": false,
+            "reason": "OTHER",
+            "staffNote": "x".repeat(300)
+        }),
+    ));
+    assert_eq!(
+        staff_note_too_long.body,
+        fixture["expected"]["staffNoteTooLong"]
+    );
+
+    let refund_conflict = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id,
+            "restock": false,
+            "reason": "OTHER",
+            "refund": true,
+            "refundMethod": { "originalPaymentMethodsRefund": true }
+        }),
+    ));
+    assert_eq!(
+        refund_conflict.body,
+        fixture["expected"]["refundAndRefundMethodConflict"]
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": "gid://shopify/Order/404", "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+}
+
+#[test]
+fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/orderCustomerSet-and-Remove-error-paths.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let customer = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCustomer-error-paths-customer-create.graphql"
+        ),
+        fixture["setup"]["customerCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"].clone();
+
+    let order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let happy_set = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id.clone(), "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(happy_set.body, fixture["expected"]["happySet"]);
+
+    let happy_remove = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(happy_remove.body, fixture["expected"]["happyRemove"]);
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": "gid://shopify/Order/order-customer-missing", "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+
+    let unknown_customer = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id, "customerId": "gid://shopify/Customer/order-customer-missing" }),
+    ));
+    assert_eq!(
+        unknown_customer.body,
+        fixture["expected"]["unknownCustomer"]
+    );
+
+    let company = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCustomer-error-paths-company-create.graphql"
+        ),
+        fixture["setup"]["companyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let assign = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/b2b/b2b-company-contact-main-delete-assign-customer.graphql"
+        ),
+        json!({ "companyId": company_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        assign.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+
+    let b2b_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["b2bOrderCreate"]["variables"].clone(),
+    ));
+    let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let b2b_not_permitted = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": b2b_order_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        b2b_not_permitted.body,
+        fixture["expected"]["b2bNotPermitted"]
+    );
+
+    let cancelled_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "email": "order-customer-cancelled@example.com",
+                "customerId": customer_id,
+                "lineItems": [{
+                    "title": "Cancelled order customer item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let cancelled_order_id = cancelled_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_order_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+
+    let cancelled_remove = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": cancelled_order_id }),
+    ));
+    assert_eq!(
+        cancelled_remove.body,
+        fixture["expected"]["cancelledRemove"]
+    );
+}
+
+#[test]
+fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql"
+        ),
+        fixture["setup"]["simpleDraftOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let partial_add = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({
+            "ids": [draft_order_id.clone(), "gid://shopify/DraftOrder/draft-order-bulk-tag-missing"],
+            "tags": [" added ", "ADDED"]
+        }),
+    ));
+    assert_eq!(
+        partial_add.body,
+        fixture["expected"]["partialSuccessWithUnknownId"]
+    );
+
+    let read_after_partial = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_partial.body,
+        fixture["expected"]["readAfterPartialSuccess"]
+    );
+
+    let long_tag = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": [fixture["inputs"]["longTag"].clone()] }),
+    ));
+    assert_eq!(long_tag.body, fixture["expected"]["longTagRejected"]);
+
+    let remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": [" INITIAL "] }),
+    ));
+    assert_eq!(
+        remove.body,
+        fixture["expected"]["removeNormalizesTagIdentity"]
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"
+        ),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_remove.body,
+        fixture["expected"]["readAfterNormalizedRemove"]
+    );
+
+    let too_many = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
+        ),
+        json!({ "ids": [draft_order_id], "tags": fixture["inputs"]["tooManyTags"].clone() }),
+    ));
+    assert_eq!(too_many.body, fixture["expected"]["tooManyInputTags"]);
+}
+
+#[test]
+fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
+    let malformed_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
+    ))
+    .unwrap();
+    let shape_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let malformed_query = include_str!(
+        "../../config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql"
+    );
+
+    for index in 0..3 {
+        let response = proxy.process_request(json_graphql_request(
+            malformed_query,
+            malformed_fixture["cases"][index]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            malformed_fixture["cases"][index]["response"]["payload"]
+        );
+    }
+
+    let sibling_abort_query = r#"
+      mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {
+        paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+          success
+          userErrors { field code message }
+        }
+        paymentCustomizationCreate(paymentCustomization: { title: "Should not stage", enabled: true, functionId: "gid://shopify/ShopifyFunction/payment-a", metafields: [] }) {
+          paymentCustomization { id }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let sibling_abort = proxy.process_request(json_graphql_request(
+        sibling_abort_query,
+        json!({ "paymentScheduleId": "not-a-gid" }),
+    ));
+    assert_eq!(sibling_abort.status, 200);
+    assert!(sibling_abort.body.get("data").is_none());
+    assert!(sibling_abort.body.to_string().contains("INVALID_VARIABLE"));
+    assert!(!sibling_abort
+        .body
+        .to_string()
+        .contains("paymentCustomizationCreate"));
+
+    let invalid_selection = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-reminder-send-invalid-field.graphql"
+        ),
+        shape_fixture["cases"]["invalidSelection"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(invalid_selection.status, 200);
+    assert_eq!(
+        invalid_selection.body,
+        shape_fixture["cases"]["invalidSelection"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
+    let eligibility_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+    ))
+    .unwrap();
+    let additional_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let reminder_query =
+        include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
+
+    for case_name in ["success", "unknown", "paid"] {
+        let response = proxy.process_request(json_graphql_request(
+            reminder_query,
+            eligibility_fixture["cases"][case_name]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            eligibility_fixture["cases"][case_name]["response"]
+        );
+    }
+
+    let missing_email = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["missingEmail"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(missing_email.status, 200);
+    assert_eq!(
+        missing_email.body,
+        additional_fixture["cases"]["missingEmail"]["response"]
+    );
+
+    let rate_first = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateFirst"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_first.status, 200);
+    assert_eq!(
+        rate_first.body,
+        additional_fixture["cases"]["rateFirst"]["response"]
+    );
+
+    let rate_second = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateSecond"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_second.status, 200);
+    assert_eq!(
+        rate_second.body,
+        additional_fixture["cases"]["rateSecond"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+    let query = include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
+    let cases = [
+        (
+            "gid://shopify/PaymentSchedule/123",
+            json!({ "success": true, "userErrors": [] }),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/selling-plan",
+            payment_reminder_error("Order has a selling plan"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/capture",
+            payment_reminder_error("Order has capture at fulfillment terms"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/missing-email",
+            payment_reminder_error("Order does not have a contact email"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/collection",
+            payment_reminder_error("Payment collection request has not been sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/current",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/cancelled",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid-owner",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/completed-draft",
+            payment_reminder_error("Payment schedule is not for an Order"),
+        ),
+    ];
+
+    for (schedule_id, expected_payload) in cases {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "paymentScheduleId": schedule_id }),
+        ));
+        assert_eq!(response.status, 200, "{schedule_id}");
+        assert_eq!(
+            response.body,
+            json!({ "data": { "paymentReminderSend": expected_payload } }),
+            "{schedule_id}"
+        );
+    }
+
+    let first_rate_limited_schedule = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(first_rate_limited_schedule.status, 200);
+    assert_eq!(
+        first_rate_limited_schedule.body,
+        json!({ "data": { "paymentReminderSend": { "success": true, "userErrors": [] } } })
+    );
+
+    let second_send = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(second_send.status, 200);
+    assert_eq!(
+        second_send.body,
+        json!({
+            "data": {
+                "paymentReminderSend": payment_reminder_error("You cannot send more than 1 payment reminders for the same order in a 24hour period")
+            }
+        })
+    );
+}
+
+fn payment_reminder_error(message: &str) -> Value {
+    json!({
+        "success": null,
+        "userErrors": [{
+            "field": null,
+            "message": message,
+            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+        }]
+    })
+}
+
+#[test]
+fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    let missing_metafields = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing metafields", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_metafields.status, 200);
+    let missing_metafields_payload = &missing_metafields.body["data"]["paymentCustomizationCreate"];
+    assert_eq!(missing_metafields_payload["userErrors"], json!([]));
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["id"],
+        json!("gid://shopify/PaymentCustomization/1")
+    );
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["metafields"]["edges"],
+        json!([])
+    );
+
+    let both_identifiers = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Both identifiers", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "functionHandle": "payment-a", "metafields": [] } }),
+    ));
+    assert_eq!(both_identifiers.status, 200);
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+    );
+
+    let missing_identifier = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing identifier", "enabled": true, "metafields": [] } }),
+    ));
+    assert_eq!(missing_identifier.status, 200);
+    assert_eq!(
+        missing_identifier.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MISSING_FUNCTION_IDENTIFIER")
+    );
+
+    let invalid_metafield = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Invalid metafield", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "metafields": [{ "namespace": "$app:foo", "key": "bar", "value": "baz" }] } }),
+    ));
+    assert_eq!(invalid_metafield.status, 200);
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "type"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let before = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Before",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "baz" }]
+            }
+        }),
+    ));
+    assert_eq!(before.status, 200);
+    let customization_id = before.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(customization_id, "gid://shopify/PaymentCustomization/2");
+    assert_eq!(
+        before.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["metafields"]
+            ["edges"][0]["node"],
+        json!({
+            "namespace": "app--347082227713--foo",
+            "key": "bar",
+            "type": "single_line_text_field",
+            "value": "baz"
+        })
+    );
+
+    let update_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($id: ID!, $input: PaymentCustomizationInput!) {
+        paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let rejected_function_change = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "functionId": "gid://shopify/ShopifyFunction/payment-b" } }),
+    ));
+    assert_eq!(rejected_function_change.status, 200);
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["userErrors"][0]
+            ["code"],
+        json!("FUNCTION_ID_CANNOT_BE_CHANGED")
+    );
+
+    let read_query = r#"
+      query RustPaymentCustomizationLocalRuntime($id: ID!) {
+        paymentCustomization(id: $id) {
+          id
+          title
+          enabled
+          functionId
+          functionHandle
+          metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+          metafields(first: 5) { edges { node { namespace key type value } } }
+        }
+      }
+    "#;
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_update.status, 200);
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["title"],
+        json!("Before")
+    );
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/payment-a")
+    );
+
+    let rejected_metafield_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "metafields": [{ "key": "bar", "type": "single_line_text_field", "value": "qux" }] } }),
+    ));
+    assert_eq!(rejected_metafield_update.status, 200);
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "namespace"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let accepted_equivalent_handle = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": "After",
+                "functionHandle": "payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "qux" }]
+            }
+        }),
+    ));
+    assert_eq!(accepted_equivalent_handle.status, 200);
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["title"],
+        json!("After")
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["functionHandle"],
+        Value::Null
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["metafield"]["value"],
+        json!("qux")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Payment customization 3", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-c", "metafields": [] } }),
+    ));
+    let second_id = second.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let activation_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($ids: [ID!]!, $enabled: Boolean!) {
+        paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+          ids
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": [customization_id, second_id, "gid://shopify/PaymentCustomization/999"], "enabled": false }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["ids"],
+        json!([
+            "gid://shopify/PaymentCustomization/2",
+            "gid://shopify/PaymentCustomization/3"
+        ])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["code"],
+        json!("PAYMENT_CUSTOMIZATION_NOT_FOUND")
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["field"],
+        json!(["ids"])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["message"],
+        json!("Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999")
+    );
+
+    let repeated_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "enabled": false }),
+    ));
+    assert_eq!(repeated_activation.status, 200);
+    assert_eq!(
+        repeated_activation.body["data"]["paymentCustomizationActivation"],
+        json!({ "ids": [], "userErrors": [] })
+    );
+
+    let all_invalid_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/999"], "enabled": true }),
+    ));
+    assert_eq!(all_invalid_activation.status, 200);
+    assert_eq!(
+        all_invalid_activation.body["data"]["paymentCustomizationActivation"],
+        json!({
+            "ids": [],
+            "userErrors": [{
+                "field": ["ids"],
+                "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND",
+                "message": "Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999"
+            }]
+        })
+    );
+}
+
+#[test]
+fn payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths(
+) {
+    let validation_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json"
+    ))
+    .unwrap();
+    let create_validation_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
+    ))
+    .unwrap();
+    let empty_read_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json"
+    ))
+    .unwrap();
+    let metafields_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
+    ))
+    .unwrap();
+    let activation_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
+    ))
+    .unwrap();
+    let immutable_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let validation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-validation.graphql"
+        ),
+        validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(validation.status, 200);
+    assert_eq!(validation.body, validation_fixture["response"]["payload"]);
+
+    let create_validation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-create-validation-gaps.graphql"
+        ),
+        create_validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(create_validation.status, 200);
+    assert_eq!(
+        create_validation.body,
+        create_validation_fixture["response"]["payload"]
+    );
+
+    let empty_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-empty-read.graphql"
+        ),
+        empty_read_fixture["variables"].clone(),
+    ));
+    assert_eq!(empty_read.status, 200);
+    assert_eq!(empty_read.body, empty_read_fixture["response"]);
+
+    let metafields_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-metafields-create.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_create.status, 200);
+    assert_eq!(
+        metafields_create.body,
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let metafields_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(metafields_update.status, 200);
+    assert_eq!(
+        metafields_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["response"]
+    );
+
+    let handle_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["variables"].clone(),
+    ));
+    assert_eq!(handle_update.status, 200);
+    assert_eq!(
+        handle_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["response"]
+    );
+
+    let metafields_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-metafields-read.graphql"
+        ),
+        metafields_fixture["reads"]["afterUpdates"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_read.status, 200);
+    assert_eq!(
+        metafields_read.body,
+        metafields_fixture["reads"]["afterUpdates"]["response"]
+    );
+
+    let activation_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(activation_create.status, 200);
+    assert_eq!(
+        activation_create.body,
+        activation_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-activation-mixed.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body,
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["response"]
+    );
+
+    let immutable_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_create.status, 200);
+    assert_eq!(
+        immutable_create.body,
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let immutable_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-immutable-update.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_update.status, 200);
+    assert_eq!(
+        immutable_update.body,
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["response"]
+    );
+
+    let immutable_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-customization-immutable-read.graphql"
+        ),
+        immutable_fixture["reads"]["afterImmutableUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_read.status, 200);
+    assert_eq!(
+        immutable_read.body,
+        immutable_fixture["reads"]["afterImmutableUpdate"]["response"]
+    );
+}
+
+#[test]
+fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
+    let create_query = r#"
+        mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              paymentTermsName
+              paymentTermsType
+              paymentSchedules(first: 1) {
+                nodes {
+                  amount { amount currencyCode }
+                  balanceDue { amount currencyCode }
+                  totalBalance { amount currencyCode }
+                  issuedAt
+                  dueAt
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPaymentTermsLocalRuntimeUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms { id paymentTermsName paymentTermsType }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+    let net_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+    });
+
+    let paid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/paid", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(paid_create.status, 200);
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    for reference_id in [
+        "gid://shopify/Order/closed",
+        "gid://shopify/Order/cancelled-unpaid",
+        "gid://shopify/DraftOrder/paid-status",
+    ] {
+        let accepted = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "referenceId": reference_id, "attrs": net_attrs.clone() }),
+        ));
+        assert_eq!(accepted.status, 200);
+        assert_eq!(
+            accepted.body["data"]["paymentTermsCreate"]["userErrors"],
+            json!([])
+        );
+        assert!(
+            accepted.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("gid://shopify/PaymentTerms/")
+        );
+    }
+
+    let multiple_schedules = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [
+                    { "issuedAt": "2026-05-05T00:00:00Z" },
+                    { "issuedAt": "2026-05-06T00:00:00Z" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        multiple_schedules.body["data"]["paymentTermsCreate"],
+        json!({
+            "paymentTerms": Value::Null,
+            "userErrors": [{
+                "field": ["base"],
+                "message": "Cannot create payment terms with multiple schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+            }]
+        })
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/123", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_order.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Order with id 123.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_draft = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/DraftOrder/999999", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_draft.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Draft order with id 999999.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("Could not find payment terms template.")
+    );
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+
+    let missing_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": { "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }] }
+        }),
+    ));
+    assert_eq!(
+        missing_template.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentTermsAttributes", "paymentTermsTemplateId"],
+            "message": "Payment terms template is required.",
+            "code": "REQUIRED"
+        })
+    );
+
+    let fixed_without_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{}]
+            }
+        }),
+    ));
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date is required with fixed or net payment terms.")
+    );
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
+    );
+
+    let receipt_with_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_with_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date cannot be set with event payment terms.")
+    );
+
+    let receipt_issued_at = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentTermsName"],
+        json!("Due on receipt")
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]
+            ["nodes"],
+        json!([])
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+    );
+
+    let paid_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/paid-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        paid_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+
+    let channel_policy_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
+        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
+    );
+
+    let draft_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/draft-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["id"],
+        json!("gid://shopify/PaymentTerms/draft-update")
+    );
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_update_attrs = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsAttributes": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                    "paymentSchedules": [{}]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_update_attrs.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "A due date is required with fixed or net payment terms.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+}
+
+#[test]
+fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
+    let create_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
+    ))
+    .unwrap();
+    let cascade_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        create_fixture["paymentTermsCreateOnOrder"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        order_create.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"]
+    );
+
+    let create_terms = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        create_terms.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"]
+    );
+
+    let multiple = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["multipleSchedules"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        multiple.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-update.graphql"
+        ),
+        create_fixture["paymentTermsCreateOnOrder"]["missingUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_update.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"]
+    );
+
+    let draft_terms = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
+        ),
+        json!({
+            "referenceId": cascade_fixture["draft"]["owner"]["id"].clone(),
+            "attrs": cascade_fixture["draft"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        draft_terms.body,
+        cascade_fixture["draft"]["expected"]["create"]
+    );
+
+    let draft_delete = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        draft_delete.body,
+        cascade_fixture["draft"]["expected"]["delete"]
+    );
+
+    let draft_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql"
+        ),
+        json!({ "id": cascade_fixture["draft"]["owner"]["id"].clone() }),
+    ));
+    assert_eq!(
+        draft_read.body,
+        cascade_fixture["draft"]["expected"]["readAfterDelete"]
+    );
+
+    let cascade_order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        cascade_fixture["order"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cascade_order_create.body,
+        cascade_fixture["order"]["expected"]["orderCreate"]
+    );
+
+    let cascade_order_terms = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
+        ),
+        json!({
+            "referenceId": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": cascade_fixture["order"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        cascade_order_terms.body,
+        cascade_fixture["order"]["expected"]["create"]
+    );
+
+    let cascade_order_delete = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        cascade_order_delete.body,
+        cascade_fixture["order"]["expected"]["delete"]
+    );
+
+    let cascade_order_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql"
+        ),
+        json!({ "id": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone() }),
+    ));
+    assert_eq!(
+        cascade_order_read.body,
+        cascade_fixture["order"]["expected"]["readAfterDelete"]
+    );
+
+    let missing_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        cascade_fixture["order"]["missingDelete"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_delete.body,
+        cascade_fixture["order"]["expected"]["missingDelete"]
+    );
+}
+
+#[test]
+fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let missing_mandate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "idempotencyKey": "missing-mandate"
+        }),
+    ));
+    assert_eq!(
+        missing_mandate.body,
+        fixture["mandateFlow"]["expected"]["missingMandate"]
+    );
+
+    let first_mandate = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        first_mandate.body,
+        fixture["mandateFlow"]["expected"]["mandate"]
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        repeat.body,
+        fixture["mandateFlow"]["expected"]["repeatMandate"]
+    );
+
+    let auth_only = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-848-auth-only",
+            "autoCapture": false,
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        auth_only.body,
+        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+    );
+}
+
+#[test]
+fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+
+    let mut capture_proxy = snapshot_proxy();
+    let create = capture_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        fixture["paymentCaptureFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body,
+        fixture["paymentCaptureFlow"]["expected"]["create"]
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let over_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": order_id, "parentTransactionId": parent_transaction_id, "amount": "30.00", "currency": "CAD"}}),
+    ));
+    assert_eq!(
+        over_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["overCapture"]
+    );
+
+    let first_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD", "finalCapture": false}}),
+    ));
+    assert_eq!(
+        first_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["firstCapture"]
+    );
+
+    let final_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": true}}),
+    ));
+    assert_eq!(
+        final_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["finalCapture"]
+    );
+
+    let read_after_final = capture_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-read-local-staging.graphql"
+        ),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone()}),
+    ));
+    assert_eq!(
+        read_after_final.body,
+        fixture["paymentCaptureFlow"]["expected"]["readAfterFinal"]
+    );
+
+    let void_after_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-void-local-staging.graphql"
+        ),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()}),
+    ));
+    assert_eq!(
+        void_after_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["voidAfterCapture"]
+    );
+
+    let missing_mandate_idempotency = capture_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/order-payment-mandate-local-staging.graphql"),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "mandateId": "gid://shopify/PaymentMandate/har-397"}),
+    ));
+    assert_eq!(
+        missing_mandate_idempotency.body,
+        fixture["paymentCaptureFlow"]["expected"]["missingMandateIdempotency"]
+    );
+
+    let mut void_proxy = snapshot_proxy();
+    let void_create = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        fixture["voidFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(
+        void_create.body,
+        fixture["paymentCaptureFlow"]["expected"]["create"]
+    );
+
+    let void_response = void_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/order-payment-void-local-staging.graphql"),
+        json!({"id": void_create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()}),
+    ));
+    assert_eq!(void_response.body, fixture["voidFlow"]["expected"]["void"]);
+
+    let read_after_void = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-read-local-staging.graphql"
+        ),
+        json!({"id": void_create.body["data"]["orderCreate"]["order"]["id"].clone()}),
+    ));
+    assert_eq!(
+        read_after_void.body,
+        fixture["voidFlow"]["expected"]["readAfterVoid"]
+    );
+}
+
+#[test]
+fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let single_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-single-create.graphql"
+        ),
+        fixture["singleCurrencyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        single_create.body,
+        fixture["singleCurrencyCreate"]["expected"]
+    );
+    let order_id = single_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let multi_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-multi-create.graphql"
+        ),
+        fixture["multiCurrencyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        multi_create.body,
+        fixture["multiCurrencyCreate"]["expected"]
+    );
+
+    let mark_as_paid = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql"
+        ),
+        json!({"input": {"id": order_id.clone()}}),
+    ));
+    assert_eq!(mark_as_paid.body, fixture["markAsPaid"]["expected"]);
+
+    let refund = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/money-bag-presentment-refund.graphql"),
+        json!({"input": {"orderId": order_id.clone(), "allowOverRefunding": true, "transactions": [{"amount": "5.00", "gateway": "manual", "kind": "REFUND", "orderId": order_id.clone()}]}}),
+    ));
+    assert_eq!(refund.body, fixture["refund"]["expected"]);
+
+    let edit_begin = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql"
+        ),
+        json!({"id": order_id}),
+    ));
+    assert_eq!(edit_begin.body, fixture["orderEditBegin"]["expected"]);
+    let calculated_order_id =
+        edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let edit_commit = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql"
+        ),
+        json!({"id": calculated_order_id}),
+    ));
+    assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
+}
+
+#[test]
+fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let forward = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
+        fixture["cases"]["forward"]["variables"].clone(),
+    ));
+    assert_eq!(forward.body, fixture["cases"]["forward"]["expected"]);
+
+    let abandonment_id = forward.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"]
+        ["abandonment"]["id"]
+        .clone();
+    let read_after = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql"),
+        json!({"id": abandonment_id.clone()}),
+    ));
+    assert_eq!(read_after.body, fixture["cases"]["forwardRead"]["expected"]);
+
+    let node_read = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-node-read.graphql"),
+        json!({"id": abandonment_id}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        fixture["cases"]["forwardRead"]["expected"]["data"]["abandonment"]
+    );
+
+    for case_name in [
+        "unknownMarketingActivity",
+        "backwards",
+        "sameStatus",
+        "futureDeliveredAt",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
+            fixture["cases"][case_name]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body, fixture["cases"][case_name]["expected"],
+            "abandonment delivery-status case {case_name} should match fixture"
+        );
+    }
+}
+
+#[test]
+fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
+    let staged_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    ))
+    .unwrap();
+    let gateway_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
+    ))
+    .unwrap();
+
+    let staged_expected = &staged_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+    let mut staged_proxy = snapshot_proxy();
+    let create = staged_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(create.body, staged_expected["create"]);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let complete = staged_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-complete.graphql"),
+        json!({"id": draft_id, "paymentPending": false}),
+    ));
+    assert_eq!(complete.body, staged_expected["complete"]);
+    let order_id = complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["id"].clone();
+
+    let read_by_id = staged_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-id.graphql"),
+        json!({"id": order_id}),
+    ));
+    assert_eq!(read_by_id.body, staged_expected["readById"]);
+
+    let read_by_name = staged_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-name.graphql"),
+        json!({}),
+    ));
+    assert_eq!(read_by_name.body, staged_expected["readByName"]);
+
+    let gateway_expected = &gateway_fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
+    let mut gateway_proxy = snapshot_proxy();
+    let no_gateway_create = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(no_gateway_create.body, gateway_expected["noGatewayCreate"]);
+    let no_gateway_id =
+        no_gateway_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let no_gateway_complete = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql"),
+        json!({"id": no_gateway_id, "paymentGatewayId": null, "paymentPending": true}),
+    ));
+    assert_eq!(
+        no_gateway_complete.body,
+        gateway_expected["noGatewayPending"]
+    );
+
+    let unknown_create = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_create.body,
+        gateway_expected["unknownGatewayCreate"]
+    );
+    let unknown_id = unknown_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let unknown_complete = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql"),
+        json!({"id": unknown_id, "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed", "paymentPending": false}),
+    ));
+    assert_eq!(unknown_complete.body, gateway_expected["unknownGateway"]);
+}
+
+#[test]
+fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-send-invoice-errors.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-create.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(create.body, fixture["createOpen"]["response"]);
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let no_recipient = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        json!({
+            "id": draft_order_id.clone(),
+            "email": null,
+            "currency": null,
+            "template": null
+        }),
+    ));
+    assert_eq!(no_recipient.body, fixture["noRecipient"]["response"]);
+
+    let valid_send_variables = fixture["validSend"]["request"]["variables"].clone();
+    let valid_send = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        valid_send_variables,
+    ));
+    assert_eq!(valid_send.body, fixture["validSend"]["response"]);
+
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]["data"]
+            ["__draftProxyInvoiceSend"],
+        fixture["validSend"]["state"]["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]
+            ["data"]["__draftProxyInvoiceSend"]
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"]
+        .as_array()
+        .expect("invoice send log entries should be an array");
+    let operation_statuses: Vec<Value> = entries
+        .iter()
+        .map(|entry| json!([entry["operationName"].clone(), entry["status"].clone()]))
+        .collect();
+    assert_eq!(
+        Value::Array(operation_statuses),
+        json!([
+            ["draftOrderCreate", "staged"],
+            ["draftOrderInvoiceSend", "failed"],
+            ["draftOrderInvoiceSend", "staged"]
+        ])
+    );
+
+    let invalid_template = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        json!({
+            "id": draft_order_id,
+            "email": { "to": "buyer@example.com" },
+            "currency": "USD",
+            "template": "NOT_A_REAL_TEMPLATE"
+        }),
+    ));
+    assert!(invalid_template.body.get("errors").is_some());
+}
+
+#[test]
+fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
+    let fulfillment_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
+    ))
+    .unwrap();
+    let residual_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
+    ))
+    .unwrap();
+    let delete_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
+    ))
+    .unwrap();
+    let update_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
+    ))
+    .unwrap();
+
+    let mut fulfillment_proxy = snapshot_proxy();
+    let cancel = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
+        ),
+        fulfillment_fixture["cancelAlreadyCancelled"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cancel.body,
+        fulfillment_fixture["cancelAlreadyCancelled"]["response"]
+    );
+    assert_eq!(fulfillment_proxy.get_log_snapshot()["entries"], json!([]));
+
+    let tracking = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
+        ),
+        fulfillment_fixture["trackingAlreadyCancelled"]["variables"].clone(),
+    ));
+    assert_eq!(
+        tracking.body,
+        fulfillment_fixture["trackingAlreadyCancelled"]["response"]
+    );
+
+    let delivered = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
+        ),
+        fulfillment_fixture["cancelDelivered"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivered.body,
+        fulfillment_fixture["cancelDelivered"]["response"]
+    );
+
+    let happy_tracking = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
+        ),
+        fulfillment_fixture["trackingHappyPath"]["variables"].clone(),
+    ));
+    assert_eq!(
+        happy_tracking.body,
+        fulfillment_fixture["trackingHappyPath"]["response"]
+    );
+
+    let mut proxy = snapshot_proxy();
+    let residual_count = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-edit-residual-local-staging-read.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(
+        residual_count.body["data"]["ordersCount"],
+        residual_fixture["expected"]["emptyOrdersCount"]
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql"
+        ),
+        delete_fixture["requests"]["unknownOrderDelete"]["variables"].clone(),
+    ));
+    assert_eq!(
+        unknown_delete.body,
+        delete_fixture["expected"]["unknownOrderDelete"]
+    );
+
+    let unknown_staff = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql"),
+        json!({"input": {"id": "gid://shopify/Order/8734696014130", "staffMemberId": "gid://shopify/StaffMember/999999999999"}}),
+    ));
+    assert_eq!(
+        unknown_staff.body,
+        update_fixture["localRuntimeStaffUnknown"]["expected"]
+    );
+}
+
+#[test]
+fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
+    let happy_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+    ))
+    .unwrap();
+    let zero_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
+    ))
+    .unwrap();
+
+    let mut add_proxy = snapshot_proxy();
+    let add = add_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
+    ));
+    assert_eq!(add.body, happy_fixture["addVariant"]["response"]);
+    let add_downstream = add_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
+        ),
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    assert_eq!(
+        add_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
+        json!(1)
+    );
+
+    let mut zero_proxy = snapshot_proxy();
+    let set_zero = zero_proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
+    ));
+    assert_eq!(set_zero.body, zero_fixture["setZero"]["response"]);
+    let zero_downstream = zero_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
+        ),
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    assert_eq!(
+        zero_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
+        json!(0)
+    );
+}
+
+#[test]
+fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let invalid_variant = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/CalculatedOrder/221172138217",
+            "variantId": "gid://shopify/ProductVariant/0",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+        }),
+    ));
+    assert_eq!(invalid_variant.body, fixture["invalidVariant"]["response"]);
+
+    let duplicate_variant = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/CalculatedOrder/221172138217",
+            "variantId": "gid://shopify/ProductVariant/48540157378793",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+        }),
+    ));
+    assert_eq!(
+        duplicate_variant.body,
+        fixture["duplicateVariant"]["response"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
+
+    let stripe_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-stripe.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(stripe_blank.status, 200);
+    assert_eq!(
+        stripe_blank.body,
+        fixture["operations"]["stripeBlankCustomerId"]["response"]
+    );
+
+    let paypal_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-paypal.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(paypal_blank.status, 200);
+    assert_eq!(
+        paypal_blank.body,
+        fixture["operations"]["paypalBlankBillingAgreementId"]["response"]
+    );
+
+    let two_gateways = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-two-gateways.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(two_gateways.status, 200);
+    assert_eq!(
+        two_gateways.body,
+        fixture["operations"]["twoGatewayObjects"]["response"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_replay_shop_pay_guard_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql"
+        ),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, fixture["expected"]["primary"]);
+}
+
+#[test]
+fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
+    let lifecycle: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
+    ))
+    .unwrap();
+    let validation: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let primary = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-local-staging.graphql"
+        ),
+        lifecycle["variables"].clone(),
+    ));
+    assert_eq!(primary.body, lifecycle["expected"]["primary"]);
+
+    let duplication = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql"),
+        json!({
+            "customerId": "gid://shopify/Customer/8802",
+            "billingAddress": lifecycle["variables"]["billingAddress"].clone(),
+            "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
+        }),
+    ));
+    assert_eq!(duplication.body, lifecycle["expected"]["duplication"]);
+
+    let lifecycle_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/customer-payment-method-local-staging-read.graphql"
+        ),
+        json!({
+            "sourceCustomerId": "gid://shopify/Customer/8801",
+            "targetCustomerId": "gid://shopify/Customer/8802"
+        }),
+    ));
+    assert_eq!(lifecycle_read.body, lifecycle["expected"]["readAfter"]);
+
+    let blank = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
+        validation["variables"]["blankBilling"].clone(),
+    ));
+    assert_eq!(blank.body, validation["expected"]["blankBilling"]);
+
+    let missing_session = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
+        validation["variables"]["missingSession"].clone(),
+    ));
+    assert_eq!(
+        missing_session.body,
+        validation["expected"]["missingSession"]
+    );
+
+    let processing = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
+        validation["variables"]["processing"].clone(),
+    ));
+    assert_eq!(processing.body, validation["expected"]["processing"]);
+
+    let success = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
+        validation["variables"]["success"].clone(),
+    ));
+    assert_eq!(success.body, validation["expected"]["success"]);
+
+    let read = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-read.graphql"),
+        validation["variables"]["readAfter"].clone(),
+    ));
+    assert_eq!(read.body, validation["expected"]["readAfter"]);
+}
+
+#[test]
+fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodCreditCardUpdateValidation {
+          customerPaymentMethodCreditCardUpdate(
+            id: "gid://shopify/CustomerPaymentMethod/base-card"
+            sessionId: "sess_valid"
+            billingAddress: { address1: null, city: null, zip: null, country: null, province: null }
+          ) {
+            customerPaymentMethod { id }
+            processing
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerPaymentMethodCreditCardUpdate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": false,
+            "userErrors": [
+                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
+                { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
+                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
+                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
+                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
+            ]
+        })
+    );
+
+    let active_contract = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/active-contract") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_contract.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": Value::Null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "message": "Cannot revoke a payment method with active subscription contracts.",
+                "code": "ACTIVE_CONTRACT"
+            }]
+        })
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/active-contract", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null
+        })
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/base-card",
+            "userErrors": []
+        })
+    );
+
+    let success_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/base-card",
+            "revokedAt": "2024-01-01T00:00:01.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+
+    let already_revoked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/already-revoked") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "userErrors": []
+        })
+    );
+
+    let already_revoked_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/already-revoked", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "revokedAt": "2026-05-01T00:00:00.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+}
+
+#[test]
+fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-create-local-staging.graphql"),
+        json!({
+            "returnInput": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "UNWANTED",
+                    "returnReasonNote": "Changed mind"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["id"],
+        json!("gid://shopify/Return/2")
+    );
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["returnLineItems"]["nodes"][0]
+            ["fulfillmentLineItem"]["lineItem"]["title"],
+        json!("Return flow item")
+    );
+
+    let close = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-close-local-staging.graphql"),
+        json!({ "id": "gid://shopify/Return/2" }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"]["return"],
+        json!({
+            "id": "gid://shopify/Return/2",
+            "status": "CLOSED",
+            "closedAt": "2024-01-01T00:00:03.000Z"
+        })
+    );
+
+    let cancel_read = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-read-local-staging.graphql"),
+        json!({
+            "id": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow"
+        }),
+    ));
+    assert_eq!(
+        cancel_read.body["data"]["order"]["returns"]["nodes"][0]["id"],
+        json!("gid://shopify/Return/2")
+    );
+
+    let reverse_request = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-request-reverse-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        reverse_request.body["data"]["returnRequest"]["return"]["status"],
+        json!("REQUESTED")
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-approve-request-local-staging.graphql"
+        ),
+        json!({ "input": { "id": "gid://shopify/Return/2" } }),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"]
+            [0]["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(1)
+    );
+
+    let reverse_delivery = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/reverse-delivery-create-with-shipping-local-staging.graphql"),
+        json!({
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5",
+            "reverseDeliveryLineItems": [{
+                "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "quantity": 1
+            }],
+            "trackingInput": {
+                "number": "TRACK-1",
+                "url": "https://tracking.example/1",
+                "company": "Example Carrier"
+            },
+            "labelInput": { "fileUrl": "https://labels.example/return.pdf" }
+        }),
+    ));
+    assert_eq!(
+        reverse_delivery.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]
+            ["deliverable"]["tracking"]["number"],
+        json!("TRACK-1")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-reverse-logistics-read-local-staging.graphql"
+        ),
+        json!({
+            "returnId": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow",
+            "reverseDeliveryId": "gid://shopify/ReverseDelivery/8",
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5"
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
+        json!("gid://shopify/ReverseDelivery/8")
+    );
+}
+
+#[test]
+fn order_return_recorded_reverse_logistics_and_shipping_fee_replay_captured_shapes() {
+    let reverse_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
+    ))
+    .unwrap();
+    let shipping_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let request = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-request-recorded.graphql"),
+        reverse_fixture["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        request.body["data"]["returnRequest"],
+        reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-approve-request-recorded.graphql"),
+        reverse_fixture["returnApproveRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"],
+        reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+
+    let delivery_create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql"),
+        reverse_fixture["reverseDeliveryCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_create.body["data"]["reverseDeliveryCreateWithShipping"],
+        reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]
+            ["reverseDeliveryCreateWithShipping"]
+    );
+
+    let delivery_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql"
+        ),
+        reverse_fixture["reverseDeliveryUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_update.body["data"]["reverseDeliveryShippingUpdate"],
+        reverse_fixture["reverseDeliveryUpdate"]["response"]["payload"]["data"]
+            ["reverseDeliveryShippingUpdate"]
+    );
+
+    let dispose = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql"
+        ),
+        reverse_fixture["reverseFulfillmentDispose"]["variables"].clone(),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"],
+        reverse_fixture["reverseFulfillmentDispose"]["response"]["payload"]["data"]
+            ["reverseFulfillmentOrderDispose"]
+    );
+
+    let process = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-process-recorded.graphql"),
+        reverse_fixture["returnProcess"]["variables"].clone(),
+    ));
+    assert_eq!(
+        process.body["data"]["returnProcess"],
+        reverse_fixture["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql"),
+        json!({
+            "returnId": reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]["return"]["id"].clone(),
+            "orderId": reverse_fixture["returnRequest"]["variables"]["input"]["orderId"].clone(),
+            "reverseDeliveryId": reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]["id"].clone(),
+            "reverseFulfillmentOrderId": reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"][0]["id"].clone()
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"],
+        reverse_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+
+    let shipping_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/return-create-shipping-fee-recorded.graphql"
+        ),
+        shipping_fixture["returnCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        shipping_create.body["data"]["returnCreate"],
+        shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+
+    let shipping_downstream = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/return-shipping-fee-read-recorded.graphql"),
+        json!({
+            "returnId": shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]["return"]["id"].clone(),
+            "orderId": shipping_fixture["returnCreate"]["variables"]["returnInput"]["orderId"].clone()
+        }),
+    ));
+    assert_eq!(
+        shipping_downstream.body["data"],
+        shipping_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+}
+
+#[test]
+fn order_return_recorded_close_reopen_cancel_state_preconditions_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
+    ))
+    .unwrap();
+    let request_query =
+        include_str!("../../config/parity-requests/orders/return-request-recorded.graphql");
+    let approve_query =
+        include_str!("../../config/parity-requests/orders/return-approve-request-recorded.graphql");
+    let decline_query = include_str!(
+        "../../config/parity-requests/orders/return-decline-request-local-staging.graphql"
+    );
+    let close_query =
+        include_str!("../../config/parity-requests/orders/return-close-state-precondition.graphql");
+    let reopen_query = include_str!(
+        "../../config/parity-requests/orders/return-reopen-state-precondition.graphql"
+    );
+    let cancel_query = include_str!(
+        "../../config/parity-requests/orders/return-cancel-state-precondition.graphql"
+    );
+    let process_query =
+        include_str!("../../config/parity-requests/orders/return-process-recorded.graphql");
+    let mut proxy = snapshot_proxy();
+
+    let requested = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["requestedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        requested.body["data"]["returnRequest"],
+        fixture["requestedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let requested_id = requested.body["data"]["returnRequest"]["return"]["id"].clone();
+    let requested_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": requested_id.clone() }),
+    ));
+    assert_eq!(
+        requested_close.body["data"]["returnClose"],
+        fixture["requestedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let requested_reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": requested_id }),
+    ));
+    assert_eq!(
+        requested_reopen.body["data"]["returnReopen"],
+        fixture["requestedCase"]["returnReopenInvalid"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let cancelable = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["cancelableCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cancelable.body["data"]["returnRequest"],
+        fixture["cancelableCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let cancelable_id = cancelable.body["data"]["returnRequest"]["return"]["id"].clone();
+    let cancelable_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": cancelable_id } }),
+    ));
+    assert_eq!(
+        cancelable_approve.body["data"]["returnApproveRequest"],
+        fixture["cancelableCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let cancelable_approved_id =
+        cancelable_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": cancelable_approved_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancel"]["response"]["payload"]["data"]["returnCancel"]
+    );
+    let canceled_id = cancel.body["data"]["returnCancel"]["return"]["id"].clone();
+    let cancel_again = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": canceled_id }),
+    ));
+    assert_eq!(
+        cancel_again.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancelIdempotent"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+
+    let open_case = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["openCloseReopenCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        open_case.body["data"]["returnRequest"],
+        fixture["openCloseReopenCase"]["returnRequest"]["response"]["payload"]["data"]
+            ["returnRequest"]
+    );
+    let open_id = open_case.body["data"]["returnRequest"]["return"]["id"].clone();
+    let open_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": open_id } }),
+    ));
+    assert_eq!(
+        open_approve.body["data"]["returnApproveRequest"],
+        fixture["openCloseReopenCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let open_approved_id =
+        open_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": open_approved_id }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnClose"]["response"]["payload"]["data"]["returnClose"]
+    );
+    let closed_id = close.body["data"]["returnClose"]["return"]["id"].clone();
+    let close_again = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": closed_id }),
+    ));
+    assert_eq!(
+        close_again.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnCloseIdempotent"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let reopen_id = close_again.body["data"]["returnClose"]["return"]["id"].clone();
+    let reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopen_id }),
+    ));
+    assert_eq!(
+        reopen.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopen"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+    let reopened_id = reopen.body["data"]["returnReopen"]["return"]["id"].clone();
+    let reopen_again = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopened_id }),
+    ));
+    assert_eq!(
+        reopen_again.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopenIdempotent"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let declined = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["declinedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        declined.body["data"]["returnRequest"],
+        fixture["declinedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let declined_id = declined.body["data"]["returnRequest"]["return"]["id"].clone();
+    let decline = proxy.process_request(json_graphql_request(
+        decline_query,
+        json!({ "input": { "id": declined_id, "declineReason": fixture["declineRequest"]["declineInput"]["declineReason"].clone(), "declineNote": fixture["declineRequest"]["declineInput"]["declineNote"].clone(), "notifyCustomer": fixture["declineRequest"]["declineInput"]["notifyCustomer"].clone() } }),
+    ));
+    assert_eq!(
+        decline.body["data"]["returnDeclineRequest"],
+        fixture["declinedCase"]["returnDeclineRequest"]["response"]["payload"]["data"]
+            ["returnDeclineRequest"]
+    );
+    let declined_return_id = decline.body["data"]["returnDeclineRequest"]["return"]["id"].clone();
+    let declined_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": declined_return_id }),
+    ));
+    assert_eq!(
+        declined_close.body["data"]["returnClose"],
+        fixture["declinedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]["returnClose"]
+    );
+
+    let processed = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["processedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        processed.body["data"]["returnRequest"],
+        fixture["processedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let processed_id = processed.body["data"]["returnRequest"]["return"]["id"].clone();
+    let processed_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": processed_id } }),
+    ));
+    assert_eq!(
+        processed_approve.body["data"]["returnApproveRequest"],
+        fixture["processedCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let process_return_id =
+        processed_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let process_line_id = processed_approve.body["data"]["returnApproveRequest"]["return"]
+        ["returnLineItems"]["nodes"][0]["id"]
+        .clone();
+    let processed_result = proxy.process_request(json_graphql_request(
+        process_query,
+        json!({ "input": { "returnId": process_return_id, "returnLineItems": [{ "id": process_line_id, "quantity": 1 }], "notifyCustomer": true } }),
+    ));
+    assert_eq!(
+        processed_result.body["data"]["returnProcess"],
+        fixture["processedCase"]["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+    let processed_return_id =
+        processed_result.body["data"]["returnProcess"]["return"]["id"].clone();
+    let processed_cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": processed_return_id }),
+    ));
+    assert_eq!(
+        processed_cancel.body["data"]["returnCancel"],
+        fixture["processedCase"]["returnCancelInvalid"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+}
