@@ -9,7 +9,7 @@ describe('Rust parity runner CLI', () => {
       cwd: repoRoot,
       encoding: 'utf8',
     });
-    expect(output).toContain('[parity] 910 spec(s) selected');
+    expect(output).toContain('[parity] 911 spec(s) selected');
   });
 
   it('uses the captured target response as the passthrough cassette fallback for unsupported roots', () => {

@@ -37,7 +37,12 @@ fn product_record(index: usize) -> ProductRecord {
         id: format!("gid://shopify/Product/{index}"),
         title: format!("Benchmark product {index:03}"),
         handle: format!("benchmark-product-{index:03}"),
-        status: if index % 3 == 0 { "DRAFT" } else { "ACTIVE" }.to_string(),
+        status: if index.is_multiple_of(3) {
+            "DRAFT"
+        } else {
+            "ACTIVE"
+        }
+        .to_string(),
         description_html: format!("<p>Benchmark product {index:03}</p>"),
         vendor: "Benchmark Vendor".to_string(),
         product_type: "Benchmark Type".to_string(),
