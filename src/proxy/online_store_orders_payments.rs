@@ -6,8 +6,7 @@ struct OrdersLocalLogEntry<'a> {
     variables: &'a BTreeMap<String, ResolvedValue>,
     root_field: &'a str,
     staged_resource_ids: Vec<String>,
-    status: &'a str,
-    notes: &'a str,
+    outcome: OrdersLocalLogOutcome<'a>,
 }
 
 impl DraftProxy {
@@ -1222,8 +1221,10 @@ impl DraftProxy {
             variables,
             root_field: "draftOrderCreate",
             staged_resource_ids: vec![id],
-            status: "staged",
-            notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            },
         });
         selected_json(
             &json!({
@@ -1249,8 +1250,10 @@ impl DraftProxy {
                 variables,
                 root_field: "draftOrderInvoiceSend",
                 staged_resource_ids: Vec::new(),
-                status: "failed",
-                notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                outcome: OrdersLocalLogOutcome {
+                    status: "failed",
+                    notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                },
             });
             return selected_json(
                 &json!({
@@ -1269,8 +1272,10 @@ impl DraftProxy {
                 variables,
                 root_field: "draftOrderInvoiceSend",
                 staged_resource_ids: Vec::new(),
-                status: "failed",
-                notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                outcome: OrdersLocalLogOutcome {
+                    status: "failed",
+                    notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                },
             });
             return selected_json(
                 &json!({
@@ -1295,8 +1300,10 @@ impl DraftProxy {
             variables,
             root_field: "draftOrderInvoiceSend",
             staged_resource_ids: vec![id],
-            status: "staged",
-            notes: "Locally handled draftOrderInvoiceSend safety validation.",
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally handled draftOrderInvoiceSend safety validation.",
+            },
         });
         selected_json(
             &json!({
@@ -1319,7 +1326,7 @@ impl DraftProxy {
             "query": entry.query,
             "variables": resolved_variables_json(entry.variables),
             "stagedResourceIds": entry.staged_resource_ids,
-            "status": entry.status,
+            "status": entry.outcome.status,
             "interpreted": {
                 "operationType": "mutation",
                 "operationName": entry.root_field,
@@ -1331,7 +1338,7 @@ impl DraftProxy {
                     "execution": "stage-locally"
                 }
             },
-            "notes": entry.notes
+            "notes": entry.outcome.notes
         }));
     }
 
