@@ -5689,6 +5689,7 @@ impl DraftProxy {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn record_orders_local_log_entry(
         &mut self,
         request: &Request,

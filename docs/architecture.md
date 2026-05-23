@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, reusable upstream transport in `src/upstream.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -77,13 +77,20 @@ App/test harness
 - classifies implemented roots by domain and execution kind
 - keeps unimplemented/unknown roots explicit so metadata alone does not imply runtime support
 
+### `src/upstream.rs`
+
+- owns the reusable HTTPS-capable upstream Admin transport used by the Rust HTTP bridge
+- builds preserved-method, preserved-path, preserved-body requests for live-hybrid passthrough, local-domain upstream reads, and commit replay
+- forwards Shopify Admin auth headers unchanged while dropping hop-by-hop and computed transport headers such as `host`, `content-length`, and `connection`
+- returns proxy `Response` values so `DraftProxy` can keep its injectable upstream and commit transport seams for deterministic tests
+
 ### `src/bin/shopify-draft-proxy-server.rs`
 
 - thin Rust HTTP server used by `pnpm dev`, `pnpm start`, and the TypeScript public API shim
 - reads environment configuration such as `PORT`, `READ_MODE`, `UNSUPPORTED_MUTATION_MODE`, `SHOPIFY_ADMIN_ORIGIN`, and snapshot/bulk-file settings
 - adapts inbound HTTP requests into `DraftProxy::process_request(...)`
 - handles adapter-only surfaces such as staged uploads and bulk-operation artifact serving
-- provides the real HTTP upstream transport used by live-hybrid passthrough and commit replay, including chunked response decoding
+- installs the real reusable upstream client for live-hybrid passthrough and commit replay
 
 ## TypeScript package surface
 
