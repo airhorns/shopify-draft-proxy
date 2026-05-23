@@ -1783,6 +1783,84 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
 }
 
 #[test]
+fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-send-invoice-errors.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-create.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(create.body, fixture["createOpen"]["response"]);
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let no_recipient = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        json!({
+            "id": draft_order_id.clone(),
+            "email": null,
+            "currency": null,
+            "template": null
+        }),
+    ));
+    assert_eq!(no_recipient.body, fixture["noRecipient"]["response"]);
+
+    let valid_send_variables = fixture["validSend"]["request"]["variables"].clone();
+    let valid_send = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        valid_send_variables,
+    ));
+    assert_eq!(valid_send.body, fixture["validSend"]["response"]);
+
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]["data"]
+            ["__draftProxyInvoiceSend"],
+        fixture["validSend"]["state"]["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]
+            ["data"]["__draftProxyInvoiceSend"]
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"]
+        .as_array()
+        .expect("invoice send log entries should be an array");
+    let operation_statuses: Vec<Value> = entries
+        .iter()
+        .map(|entry| json!([entry["operationName"].clone(), entry["status"].clone()]))
+        .collect();
+    assert_eq!(
+        Value::Array(operation_statuses),
+        json!([
+            ["draftOrderCreate", "staged"],
+            ["draftOrderInvoiceSend", "failed"],
+            ["draftOrderInvoiceSend", "staged"]
+        ])
+    );
+
+    let invalid_template = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
+        ),
+        json!({
+            "id": draft_order_id,
+            "email": { "to": "buyer@example.com" },
+            "currency": "USD",
+            "template": "NOT_A_REAL_TEMPLATE"
+        }),
+    ));
+    assert!(invalid_template.body.get("errors").is_some());
+}
+
+#[test]
 fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
     let fulfillment_fixture: Value = serde_json::from_str(include_str!(
         "../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"

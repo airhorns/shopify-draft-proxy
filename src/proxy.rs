@@ -197,6 +197,8 @@ pub struct DraftProxy {
     staged_payment_terms_ids: BTreeSet<String>,
     staged_payment_reminder_schedule_ids: BTreeSet<String>,
     staged_payment_customizations: BTreeMap<String, Value>,
+    staged_draft_orders: BTreeMap<String, Value>,
+    next_draft_order_id: u64,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
     staged_draft_order_complete_gateway_create_count: usize,
@@ -288,6 +290,8 @@ impl DraftProxy {
             staged_payment_terms_ids: BTreeSet::new(),
             staged_payment_reminder_schedule_ids: BTreeSet::new(),
             staged_payment_customizations: BTreeMap::new(),
+            staged_draft_orders: BTreeMap::new(),
+            next_draft_order_id: 1,
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
             staged_draft_order_complete_gateway_create_count: 0,
@@ -410,6 +414,8 @@ impl DraftProxy {
                 self.staged_payment_terms_ids.clear();
                 self.staged_payment_reminder_schedule_ids.clear();
                 self.staged_payment_customizations.clear();
+                self.staged_draft_orders.clear();
+                self.next_draft_order_id = 1;
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
                 self.staged_draft_order_complete_gateway_create_count = 0;
@@ -481,7 +487,7 @@ impl DraftProxy {
     }
 
     fn state_snapshot(&self) -> Value {
-        json!({
+        let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.base_products),
                 "savedSearches": {}
@@ -497,7 +503,23 @@ impl DraftProxy {
                 "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
                 "customerOrders": self.staged_customer_orders.clone()
             }
-        })
+        });
+        if !self.staged_draft_orders.is_empty() {
+            snapshot["stagedState"]["draftOrders"] = Value::Object(
+                self.staged_draft_orders
+                    .iter()
+                    .map(|(id, record)| {
+                        (
+                            id.clone(),
+                            json!({ "id": id, "cursor": Value::Null, "data": record }),
+                        )
+                    })
+                    .collect::<serde_json::Map<_, _>>(),
+            );
+            snapshot["stagedState"]["draftOrderOrder"] =
+                json!(self.staged_draft_orders.keys().cloned().collect::<Vec<_>>());
+        }
+        snapshot
     }
 
     fn dump_state(&self, request: &Request) -> Response {
@@ -5487,6 +5509,222 @@ impl DraftProxy {
         None
     }
 
+    fn draft_order_invoice_send_fixture_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        if !query.contains("DraftOrderInvoiceSendInvoiceErrors") {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+
+        for field in &fields {
+            if field.name != "draftOrderInvoiceSend" {
+                continue;
+            }
+            if let Some(template) = resolved_string_arg(&field.arguments, "templateName") {
+                if !is_valid_draft_order_invoice_template(&template) {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!(
+                                "Variable $template of type DraftOrderEmailTemplate was provided invalid value {template}"
+                            )
+                        }]
+                    })));
+                }
+            }
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "draftOrderCreate" => {
+                    Some(self.draft_order_invoice_errors_create(&field, request, query, variables))
+                }
+                "draftOrderInvoiceSend" => {
+                    Some(self.draft_order_invoice_errors_send(&field, request, query, variables))
+                }
+                _ => None,
+            }?;
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn draft_order_invoice_errors_create(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = format!("gid://shopify/DraftOrder/{}", self.next_draft_order_id);
+        self.next_draft_order_id += 1;
+        let email = resolved_string_field(&input, "email")
+            .filter(|email| !email.trim().is_empty())
+            .map(Value::String)
+            .unwrap_or(Value::Null);
+        let record = json!({
+            "id": id,
+            "name": "#D1",
+            "status": "OPEN",
+            "ready": true,
+            "email": email,
+            "note": Value::Null,
+            "purchasingEntity": Value::Null,
+            "customer": Value::Null,
+            "taxExempt": false,
+            "taxesIncluded": false,
+            "reserveInventoryUntil": Value::Null,
+            "paymentTerms": Value::Null,
+            "tags": [],
+            "invoiceUrl": format!("https://shopify-draft-proxy.local/draft_orders/{id}/invoice"),
+            "customAttributes": [],
+            "appliedDiscount": Value::Null,
+            "billingAddress": Value::Null,
+            "shippingAddress": Value::Null,
+            "shippingLine": Value::Null,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
+            "subtotalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "totalDiscountsSet": draft_order_invoice_money_set("0.0", "CAD"),
+            "totalShippingPriceSet": draft_order_invoice_money_set("0.0", "CAD"),
+            "totalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "totalQuantityOfLineItems": 1,
+            "lineItems": { "nodes": [draft_order_invoice_line_item()] }
+        });
+        self.staged_draft_orders.insert(id.clone(), record.clone());
+        self.record_orders_local_log_entry(
+            request,
+            query,
+            variables,
+            "draftOrderCreate",
+            vec![id],
+            "staged",
+            "Locally staged draftOrderCreate in shopify-draft-proxy.",
+        );
+        selected_json(
+            &json!({
+                "draftOrder": record,
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn draft_order_invoice_errors_send(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(draft_order) = self.staged_draft_orders.get(&id).cloned() else {
+            self.record_orders_local_log_entry(
+                request,
+                query,
+                variables,
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                "failed",
+                "Locally handled draftOrderInvoiceSend safety validation.",
+            );
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": Value::Null, "message": "Draft order not found" }],
+                    "invoiceErrors": []
+                }),
+                &field.selection,
+            );
+        };
+
+        if draft_order_invoice_recipient(&field.arguments, &draft_order).is_none() {
+            self.record_orders_local_log_entry(
+                request,
+                query,
+                variables,
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                "failed",
+                "Locally handled draftOrderInvoiceSend safety validation.",
+            );
+            return selected_json(
+                &json!({
+                    "draftOrder": draft_order,
+                    "userErrors": [{ "field": Value::Null, "message": "To can't be blank" }],
+                    "invoiceErrors": [{
+                        "code": "CUSTOMER_NO_EMAIL",
+                        "message": "Customer email can't be blank"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut updated = draft_order.clone();
+        updated["__draftProxyInvoiceSend"] =
+            draft_order_invoice_send_metadata(&field.arguments, &draft_order);
+        self.staged_draft_orders.insert(id.clone(), updated);
+        self.record_orders_local_log_entry(
+            request,
+            query,
+            variables,
+            "draftOrderInvoiceSend",
+            vec![id],
+            "staged",
+            "Locally handled draftOrderInvoiceSend safety validation.",
+        );
+        selected_json(
+            &json!({
+                "draftOrder": draft_order,
+                "userErrors": [],
+                "invoiceErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn record_orders_local_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+        status: &str,
+        notes: &str,
+    ) {
+        let root_fields = parse_operation(query)
+            .map(|operation| operation.root_fields)
+            .unwrap_or_else(|| vec![root_field.to_string()]);
+        self.log_entries.push(json!({
+            "id": format!("gid://shopify/MutationLogEntry/{}", self.log_entries.len() + 1),
+            "operationName": root_field,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": status,
+            "interpreted": {
+                "operationType": "mutation",
+                "operationName": root_field,
+                "rootFields": root_fields,
+                "primaryRootField": root_field,
+                "capability": {
+                    "operationName": root_field,
+                    "domain": "orders",
+                    "execution": "stage-locally"
+                }
+            },
+            "notes": notes
+        }));
+    }
+
     fn remaining_order_fixture_data(
         &mut self,
         root_field: &str,
@@ -6363,6 +6601,12 @@ impl DraftProxy {
 
         if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
             return ok_json(data);
+        }
+
+        if let Some(response) =
+            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
+        {
+            return response;
         }
 
         if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
@@ -19783,6 +20027,98 @@ fn resolved_string_arg(arguments: &BTreeMap<String, ResolvedValue>, name: &str) 
 
 fn normalize_draft_order_tag(tag: &str) -> String {
     tag.trim().to_ascii_lowercase()
+}
+
+fn is_valid_draft_order_invoice_template(template: &str) -> bool {
+    template.starts_with("DRAFT_ORDER_") && template != "NOT_A_REAL_TEMPLATE"
+}
+
+fn draft_order_invoice_recipient(
+    args: &BTreeMap<String, ResolvedValue>,
+    draft_order: &Value,
+) -> Option<String> {
+    let recipient = resolved_object_field(args, "email")
+        .and_then(|email| resolved_string_field(&email, "to"))
+        .or_else(|| draft_order["email"].as_str().map(str::to_string))?;
+    let trimmed = recipient.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn draft_order_invoice_send_metadata(
+    args: &BTreeMap<String, ResolvedValue>,
+    draft_order: &Value,
+) -> Value {
+    let email_arg = resolved_object_field(args, "email");
+    let recipient = email_arg
+        .as_ref()
+        .and_then(|email| resolved_string_field(email, "to"))
+        .or_else(|| draft_order["email"].as_str().map(str::to_string));
+
+    let mut email = serde_json::Map::new();
+    if let Some(value) = recipient {
+        email.insert("to".to_string(), json!(value));
+    }
+    if let Some(email_arg) = email_arg {
+        for field in ["subject", "customMessage", "from"] {
+            if let Some(value) = resolved_string_field(&email_arg, field) {
+                email.insert(field.to_string(), json!(value));
+            }
+        }
+        let bcc = resolved_string_list_field_unsorted(&email_arg, "bcc");
+        if !bcc.is_empty() {
+            email.insert("bcc".to_string(), json!(bcc));
+        }
+    }
+
+    let mut metadata = serde_json::Map::new();
+    metadata.insert(
+        "templateName".to_string(),
+        json!(resolved_string_arg(args, "templateName")
+            .unwrap_or_else(|| "DRAFT_ORDER_INVOICE".to_string())),
+    );
+    if let Some(currency) = resolved_string_arg(args, "presentmentCurrencyCode") {
+        metadata.insert("presentmentCurrencyCode".to_string(), json!(currency));
+    }
+    metadata.insert("email".to_string(), Value::Object(email));
+    Value::Object(metadata)
+}
+
+fn draft_order_invoice_money_set(amount: &str, currency_code: &str) -> Value {
+    json!({
+        "shopMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        },
+        "presentmentMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        }
+    })
+}
+
+fn draft_order_invoice_line_item() -> Value {
+    json!({
+        "id": "gid://shopify/DraftOrderLineItem/2",
+        "title": "Invoice error parity item",
+        "name": "Invoice error parity item",
+        "quantity": 1,
+        "sku": Value::Null,
+        "variantTitle": Value::Null,
+        "custom": true,
+        "requiresShipping": true,
+        "taxable": true,
+        "customAttributes": [],
+        "appliedDiscount": Value::Null,
+        "originalUnitPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "originalTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "discountedTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
+        "variant": Value::Null
+    })
 }
 
 fn resolved_object_field_bool(value: &ResolvedValue, name: &str) -> Option<bool> {
