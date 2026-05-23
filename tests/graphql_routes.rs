@@ -8368,10 +8368,10 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
     );
 
     let too_long = "x".repeat(101);
-    let batch_entries = std::iter::repeat(
+    let batch_entries = std::iter::repeat_n(
         "{ productId: \"gid://shopify/Product/optioned\", state: ACCEPTED, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", productUpdatedAt: \"2024-01-01T00:00:00Z\", messages: [] }",
+        51,
     )
-    .take(51)
     .collect::<Vec<_>>()
     .join(",");
     let product_feedback_query = format!(

@@ -80,6 +80,7 @@ Run the full Rust-port gate before pushing:
 corepack pnpm rust-port:fixture-invariants
 corepack pnpm rust-port:no-gleam-report
 corepack pnpm rust:fmt
+corepack pnpm rust:clippy
 corepack pnpm rust:test
 git diff --check
 corepack pnpm typecheck

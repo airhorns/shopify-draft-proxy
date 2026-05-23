@@ -38,6 +38,7 @@
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
     "e2e:product-create-commit-smoke": "tsx --no-experimental-require-module ./scripts/e2e-product-create-commit-smoke.mts",
     "rust:fmt": "cargo fmt --check",
+    "rust:clippy": "cargo clippy --all-targets --all-features -- -D warnings",
     "rust:test": "cargo test --all-targets",
     "rust:check": "cargo check --all-targets",
     "rust-port:fixture-invariants": "tsx ./scripts/check-rust-port-fixture-invariants.ts",
