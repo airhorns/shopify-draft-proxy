@@ -1,0 +1,23 @@
+[package]
+name = "shopify-draft-proxy"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Rust runtime for the Shopify Admin GraphQL digital twin / draft proxy"
+
+[lib]
+name = "shopify_draft_proxy"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+graphql-parser = "0.4"
+
+[dev-dependencies]
+criterion = "0.5"
+pretty_assertions = "1"
+
+[[bench]]
+name = "proxy_paths"
+harness = false
