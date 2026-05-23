@@ -61,11 +61,11 @@ impl DraftProxy {
 
         match country_code {
             None => ok_json(json!({
-                "data": { response_key: { "backupRegion": self.backup_region.clone(), "userErrors": [] } }
+                "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
             })),
             Some("CA") | Some("AE") => {
                 let region = backup_region_country(country_code.unwrap());
-                self.backup_region = region.clone();
+                self.store.staged.backup_region = region.clone();
                 let staged_id = region
                     .get("id")
                     .and_then(Value::as_str)
@@ -117,13 +117,13 @@ impl DraftProxy {
             if field.name != "currentAppInstallation" {
                 continue;
             }
-            let value = if self.app_uninstalled {
+            let value = if self.store.staged.app_uninstalled {
                 Value::Null
             } else {
                 current_app_installation_json(
-                    &self.staged_app_subscriptions,
-                    &self.staged_app_one_time_purchases,
-                    &self.revoked_app_access_scopes,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &self.store.staged.revoked_app_access_scopes,
                     &field.selection,
                 )
             };
@@ -148,22 +148,25 @@ impl DraftProxy {
                 .and_then(resolved_as_string)
                 .unwrap_or_default();
             let value = match id.as_str() {
-                "gid://shopify/AppInstallation/expected" if self.app_uninstalled => Value::Null,
+                "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
+                    Value::Null
+                }
                 "gid://shopify/AppInstallation/expected" => current_app_installation_json(
-                    &self.staged_app_subscriptions,
-                    &self.staged_app_one_time_purchases,
-                    &self.revoked_app_access_scopes,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &self.store.staged.revoked_app_access_scopes,
                     &field.selection,
                 ),
                 "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
                 _ => {
-                    if let Some(subscription) = self.staged_app_subscriptions.get(&id) {
+                    if let Some(subscription) = self.store.staged.app_subscriptions.get(&id) {
                         let type_selection = selected_fields_named(
                             &field.selection,
                             &["__typename", "id", "status", "trialDays", "lineItems"],
                         );
                         selected_json(subscription, &type_selection)
-                    } else if let Some(purchase) = self.staged_app_one_time_purchases.get(&id) {
+                    } else if let Some(purchase) = self.store.staged.app_one_time_purchases.get(&id)
+                    {
                         let type_selection = selected_fields_named(
                             &field.selection,
                             &["id", "name", "status", "test", "price"],
@@ -187,7 +190,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
-        self.staged_app_subscriptions
+        self.store
+            .staged
+            .app_subscriptions
             .values()
             .find_map(|subscription| {
                 subscription["lineItems"].as_array().and_then(|line_items| {
@@ -217,7 +222,7 @@ impl DraftProxy {
             .and_then(|input| resolved_string_field(&input, "id"));
 
         let (app, user_errors) = match requested_id.as_deref() {
-            Some("gid://shopify/App/expected") if self.app_uninstalled => (
+            Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
                 Value::Null,
                 vec![json!({
                     "field": ["id"],
@@ -234,13 +239,13 @@ impl DraftProxy {
                 })],
             ),
             _ => {
-                self.app_uninstalled = true;
-                for subscription in self.staged_app_subscriptions.values_mut() {
+                self.store.staged.app_uninstalled = true;
+                for subscription in self.store.staged.app_subscriptions.values_mut() {
                     if let Value::Object(fields) = subscription {
                         fields.insert("status".to_string(), json!("CANCELLED"));
                     }
                 }
-                self.staged_delegate_access_tokens.clear();
+                self.store.staged.delegate_access_tokens.clear();
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -303,7 +308,9 @@ impl DraftProxy {
             "currentPeriodEnd": "2024-02-07T00:00:00.000Z",
             "lineItems": line_items
         });
-        self.staged_app_subscriptions
+        self.store
+            .staged
+            .app_subscriptions
             .insert(id.clone(), subscription.clone());
         self.record_mutation_log_entry(
             request,
@@ -338,7 +345,7 @@ impl DraftProxy {
             nested_root_field_selection(query, "appSubscription").unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
 
-        let (subscription, user_errors) = match self.staged_app_subscriptions.get_mut(&id) {
+        let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
             Some(record) if record["status"] == "CANCELLED" => (
                 Value::Null,
                 vec![json!({
@@ -415,7 +422,7 @@ impl DraftProxy {
                 })],
             )
         } else {
-            match self.staged_app_subscriptions.get_mut(&id) {
+            match self.store.staged.app_subscriptions.get_mut(&id) {
                 None => (
                     Value::Null,
                     vec![json!({
@@ -510,7 +517,7 @@ impl DraftProxy {
 
             let mut matched_subscription_id = None;
             let mut matched_line_item = None;
-            for (subscription_id, subscription) in &self.staged_app_subscriptions {
+            for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
                 if let Some(line_items) = subscription["lineItems"].as_array() {
                     if let Some(line_item) =
                         line_items.iter().find(|line_item| line_item["id"] == id)
@@ -561,7 +568,9 @@ impl DraftProxy {
                             )
                         } else {
                             let subscription = self
-                                .staged_app_subscriptions
+                                .store
+                                .staged
+                                .app_subscriptions
                                 .get(&subscription_id)
                                 .cloned()
                                 .unwrap_or(Value::Null);
@@ -603,7 +612,9 @@ impl DraftProxy {
         &self,
         line_item_id: &str,
     ) -> Option<(String, usize)> {
-        self.staged_app_subscriptions
+        self.store
+            .staged
+            .app_subscriptions
             .iter()
             .find_map(|(subscription_id, subscription)| {
                 subscription["lineItems"]
@@ -666,7 +677,9 @@ impl DraftProxy {
             self.find_staged_app_subscription_line_item(&line_item_id)
         {
             let subscription = self
-                .staged_app_subscriptions
+                .store
+                .staged
+                .app_subscriptions
                 .get_mut(&subscription_id)
                 .expect("located subscription must still exist");
             let line_item = subscription["lineItems"]
@@ -840,7 +853,7 @@ impl DraftProxy {
 
         let token = format!(
             "shpat_delegate_proxy_{}",
-            self.staged_delegate_access_tokens.len() + 1
+            self.store.staged.delegate_access_tokens.len() + 1
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
@@ -854,7 +867,9 @@ impl DraftProxy {
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
         });
-        self.staged_delegate_access_tokens
+        self.store
+            .staged
+            .delegate_access_tokens
             .insert(token.clone(), record.clone());
         self.record_mutation_log_entry(
             request,
@@ -906,13 +921,13 @@ impl DraftProxy {
                 "Access denied.",
                 "ACCESS_DENIED",
             ));
-        } else if self.app_uninstalled {
+        } else if self.store.staged.app_uninstalled {
             user_errors.push(json!({
                 "field": ["accessToken"],
                 "message": "Access token not found.",
                 "code": "ACCESS_TOKEN_NOT_FOUND"
             }));
-        } else if let Some(record) = self.staged_delegate_access_tokens.get(&token) {
+        } else if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
             let token_api_client_id = record
                 .get("apiClientId")
                 .and_then(Value::as_str)
@@ -923,7 +938,7 @@ impl DraftProxy {
                     "ACCESS_DENIED",
                 ));
             } else {
-                self.staged_delegate_access_tokens.remove(&token);
+                self.store.staged.delegate_access_tokens.remove(&token);
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -995,7 +1010,10 @@ impl DraftProxy {
 
         let revoked = if user_errors.is_empty() {
             for scope in &scopes {
-                self.revoked_app_access_scopes.insert(scope.clone());
+                self.store
+                    .staged
+                    .revoked_app_access_scopes
+                    .insert(scope.clone());
             }
             scopes
                 .iter()
@@ -1106,7 +1124,9 @@ impl DraftProxy {
             "createdAt": "2024-01-01T00:00:00.000Z",
             "price": { "amount": amount, "currencyCode": currency_code }
         });
-        self.staged_app_one_time_purchases
+        self.store
+            .staged
+            .app_one_time_purchases
             .insert(LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string(), purchase.clone());
         self.record_mutation_log_entry(
             request,
@@ -1134,7 +1154,9 @@ impl DraftProxy {
             if field.name == "collection" {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 let value = self
-                    .staged_collections
+                    .store
+                    .staged
+                    .collections
                     .get(&id)
                     .map(|collection| selected_json(collection, &field.selection))
                     .unwrap_or(Value::Null);
@@ -1288,7 +1310,9 @@ impl DraftProxy {
     }
 
     fn location_has_inventory(&self, location_id: &str) -> bool {
-        self.staged_inventory_levels
+        self.store
+            .staged
+            .inventory_levels
             .keys()
             .any(|(_, staged_location_id)| staged_location_id == location_id)
     }
@@ -1299,20 +1323,26 @@ impl DraftProxy {
         destination_location_id: &str,
     ) {
         let source_keys = self
-            .staged_inventory_levels
+            .store
+            .staged
+            .inventory_levels
             .keys()
             .filter(|(_, location_id)| location_id == source_location_id)
             .cloned()
             .collect::<Vec<_>>();
         for (inventory_item_id, source_location_id) in source_keys {
             let Some(source_quantities) = self
-                .staged_inventory_levels
+                .store
+                .staged
+                .inventory_levels
                 .remove(&(inventory_item_id.clone(), source_location_id))
             else {
                 continue;
             };
             let destination_quantities = self
-                .staged_inventory_levels
+                .store
+                .staged
+                .inventory_levels
                 .entry((inventory_item_id, destination_location_id.to_string()))
                 .or_default();
             for (name, quantity) in source_quantities {
@@ -1441,7 +1471,9 @@ impl DraftProxy {
             )
         } else {
             for id in &ids {
-                self.staged_fulfillment_order_deadlines
+                self.store
+                    .staged
+                    .fulfillment_order_deadlines
                     .insert(id.clone(), deadline.clone());
             }
             self.record_mutation_log_entry(
@@ -1477,7 +1509,7 @@ impl DraftProxy {
             .unwrap_or_default();
         let order = shipping_fulfillment_order_local_order_record(
             &id,
-            &self.staged_fulfillment_order_deadlines,
+            &self.store.staged.fulfillment_order_deadlines,
         );
         ok_json(json!({
             "data": {
@@ -1522,7 +1554,9 @@ impl DraftProxy {
             let published = root_field == "publishablePublish";
             let collection = collection_publication_record(product_id, published);
             if let Some(id) = collection.get("id").and_then(Value::as_str) {
-                self.staged_collections
+                self.store
+                    .staged
+                    .collections
                     .insert(id.to_string(), collection.clone());
             }
             collection
@@ -1556,7 +1590,7 @@ impl DraftProxy {
                         .arguments
                         .get("id")
                         .and_then(resolved_as_string)
-                        .and_then(|id| self.staged_segments.get(&id).cloned())
+                        .and_then(|id| self.store.staged.segments.get(&id).cloned())
                         .map(|segment| selected_json(&segment, &field.selection))
                         .unwrap_or(Value::Null)
                 }
@@ -1570,7 +1604,9 @@ impl DraftProxy {
                     Value::Array(
                         ids.iter()
                             .map(|id| {
-                                self.staged_segments
+                                self.store
+                                    .staged
+                                    .segments
                                     .get(id)
                                     .map(|segment| selected_json(segment, &field.selection))
                                     .unwrap_or(Value::Null)
@@ -1620,19 +1656,25 @@ impl DraftProxy {
                         "creationDate": now,
                         "lastEditDate": now
                     });
-                    self.staged_segments.insert(id.clone(), segment.clone());
+                    self.store
+                        .staged
+                        .segments
+                        .insert(id.clone(), segment.clone());
                     (segment, vec![], vec![id])
                 }
             }
             "segmentUpdate" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
                 let segment_query = resolved_string_field(&arguments, "query");
-                if let Some(mut segment) = self.staged_segments.get(&id).cloned() {
+                if let Some(mut segment) = self.store.staged.segments.get(&id).cloned() {
                     if let Some(segment_query) = segment_query {
                         segment["query"] = json!(segment_query);
                         segment["lastEditDate"] = json!(now);
                     }
-                    self.staged_segments.insert(id.clone(), segment.clone());
+                    self.store
+                        .staged
+                        .segments
+                        .insert(id.clone(), segment.clone());
                     (segment, vec![], vec![id])
                 } else {
                     (Value::Null, vec![], Vec::new())
@@ -1664,7 +1706,9 @@ impl DraftProxy {
                 .get("id")
                 .and_then(resolved_as_string)
                 .and_then(|id| {
-                    self.staged_customer_segment_member_queries
+                    self.store
+                        .staged
+                        .customer_segment_member_queries
                         .get(&id)
                         .cloned()
                 })
@@ -1690,7 +1734,9 @@ impl DraftProxy {
                         .get("id")
                         .and_then(resolved_as_string)
                         .and_then(|id| {
-                            self.staged_customer_segment_member_queries
+                            self.store
+                                .staged
+                                .customer_segment_member_queries
                                 .get(&id)
                                 .cloned()
                         })
@@ -1707,7 +1753,9 @@ impl DraftProxy {
                     Value::Array(
                         ids.iter()
                             .map(|id| {
-                                self.staged_customer_segment_member_queries
+                                self.store
+                                    .staged
+                                    .customer_segment_member_queries
                                     .get(id)
                                     .map(|query| selected_json(query, &field.selection))
                                     .unwrap_or(Value::Null)
@@ -1771,7 +1819,9 @@ impl DraftProxy {
             "done": false,
             "status": "INITIALIZED"
         });
-        self.staged_customer_segment_member_queries
+        self.store
+            .staged
+            .customer_segment_member_queries
             .insert(id.clone(), record.clone());
         self.record_mutation_log_entry(
             request,
@@ -1807,10 +1857,15 @@ impl DraftProxy {
                         .get("id")
                         .and_then(resolved_as_string)
                         .and_then(|id| {
-                            if self.staged_deleted_fulfillment_service_ids.contains(&id) {
+                            if self
+                                .store
+                                .staged
+                                .deleted_fulfillment_service_ids
+                                .contains(&id)
+                            {
                                 None
                             } else {
-                                self.staged_fulfillment_services.get(&id).cloned()
+                                self.store.staged.fulfillment_services.get(&id).cloned()
                             }
                         })
                         .map(|service| selected_json(&service, &field.selection))
@@ -1825,12 +1880,18 @@ impl DraftProxy {
                         .and_then(resolved_as_string)
                         .and_then(|id| {
                             if self
-                                .staged_deleted_fulfillment_service_location_ids
+                                .store
+                                .staged
+                                .deleted_fulfillment_service_location_ids
                                 .contains(&id)
                             {
                                 None
                             } else {
-                                self.staged_fulfillment_service_locations.get(&id).cloned()
+                                self.store
+                                    .staged
+                                    .fulfillment_service_locations
+                                    .get(&id)
+                                    .cloned()
                             }
                         })
                         .map(|location| selected_json(&location, &field.selection))
@@ -1850,7 +1911,9 @@ impl DraftProxy {
     ) -> bool {
         let normalized_name = name.trim().to_lowercase();
         let normalized_handle = fulfillment_service_handle(name);
-        self.staged_fulfillment_services
+        self.store
+            .staged
+            .fulfillment_services
             .iter()
             .filter(|(id, _)| except_id != Some(id.as_str()))
             .any(|(_, service)| {
@@ -1937,13 +2000,21 @@ impl DraftProxy {
             resolved_bool_field(&arguments, "requiresShippingMethod").unwrap_or(false),
         );
         let location = service["location"].clone();
-        self.staged_fulfillment_services
+        self.store
+            .staged
+            .fulfillment_services
             .insert(service_id.clone(), service.clone());
-        self.staged_fulfillment_service_locations
+        self.store
+            .staged
+            .fulfillment_service_locations
             .insert(location_id.clone(), location);
-        self.staged_deleted_fulfillment_service_ids
+        self.store
+            .staged
+            .deleted_fulfillment_service_ids
             .remove(&service_id);
-        self.staged_deleted_fulfillment_service_location_ids
+        self.store
+            .staged
+            .deleted_fulfillment_service_location_ids
             .remove(&location_id);
         self.record_mutation_log_entry(
             request,
@@ -1974,7 +2045,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
             );
         };
-        let Some(existing) = self.staged_fulfillment_services.get(&id).cloned() else {
+        let Some(existing) = self.store.staged.fulfillment_services.get(&id).cloned() else {
             return ok_json(
                 json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
             );
@@ -2015,9 +2086,13 @@ impl DraftProxy {
         if let Some(handle) = existing.get("handle").and_then(Value::as_str) {
             service["handle"] = json!(handle);
         }
-        self.staged_fulfillment_services
+        self.store
+            .staged
+            .fulfillment_services
             .insert(id.clone(), service.clone());
-        self.staged_fulfillment_service_locations
+        self.store
+            .staged
+            .fulfillment_service_locations
             .insert(location_id, service["location"].clone());
         self.record_mutation_log_entry(
             request,
@@ -2045,7 +2120,7 @@ impl DraftProxy {
         let response_key = root_field_response_key(query)
             .unwrap_or_else(|| "fulfillmentServiceDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let Some(service) = self.staged_fulfillment_services.remove(&id) else {
+        let Some(service) = self.store.staged.fulfillment_services.remove(&id) else {
             return ok_json(
                 json!({ "data": { response_key: fulfillment_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })]) } }),
             );
@@ -2054,11 +2129,17 @@ impl DraftProxy {
             .as_str()
             .unwrap_or_default()
             .to_string();
-        self.staged_fulfillment_service_locations
+        self.store
+            .staged
+            .fulfillment_service_locations
             .remove(&location_id);
-        self.staged_deleted_fulfillment_service_ids
+        self.store
+            .staged
+            .deleted_fulfillment_service_ids
             .insert(id.clone());
-        self.staged_deleted_fulfillment_service_location_ids
+        self.store
+            .staged
+            .deleted_fulfillment_service_location_ids
             .insert(location_id);
         self.record_mutation_log_entry(
             request,
@@ -2095,10 +2176,12 @@ impl DraftProxy {
         let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
             return Value::Null;
         };
-        if self.staged_deleted_carrier_service_ids.contains(&id) {
+        if self.store.staged.deleted_carrier_service_ids.contains(&id) {
             return Value::Null;
         }
-        self.staged_carrier_services
+        self.store
+            .staged
+            .carrier_services
             .get(&id)
             .map(|carrier| selected_json(carrier, &field.selection))
             .unwrap_or(Value::Null)
@@ -2111,9 +2194,11 @@ impl DraftProxy {
         let query = field.arguments.get("query").and_then(resolved_as_string);
         let active_filter = query.as_deref() == Some("active:true");
         let mut services: Vec<Value> = self
-            .staged_carrier_services
+            .store
+            .staged
+            .carrier_services
             .iter()
-            .filter(|(id, _)| !self.staged_deleted_carrier_service_ids.contains(*id))
+            .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
             .map(|(_, carrier)| carrier.clone())
             .filter(|carrier| !active_filter || carrier.get("active") == Some(&json!(true)))
             .collect();
@@ -2177,9 +2262,11 @@ impl DraftProxy {
             resolved_bool_field(&input, "active").unwrap_or(false),
             resolved_bool_field(&input, "supportsServiceDiscovery").unwrap_or(false),
         );
-        self.staged_carrier_services
+        self.store
+            .staged
+            .carrier_services
             .insert(id.clone(), carrier.clone());
-        self.staged_deleted_carrier_service_ids.remove(&id);
+        self.store.staged.deleted_carrier_service_ids.remove(&id);
         self.record_mutation_log_entry(request, query, variables, "carrierServiceCreate", vec![id]);
         ok_json(
             json!({ "data": { response_key: carrier_service_payload_json(carrier, &payload_selection, &carrier_selection, vec![]) } }),
@@ -2205,7 +2292,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
             );
         };
-        let Some(existing) = self.staged_carrier_services.get(&id).cloned() else {
+        let Some(existing) = self.store.staged.carrier_services.get(&id).cloned() else {
             return ok_json(
                 json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
             );
@@ -2240,7 +2327,9 @@ impl DraftProxy {
                     .unwrap_or(false)
             }),
         );
-        self.staged_carrier_services
+        self.store
+            .staged
+            .carrier_services
             .insert(id.clone(), carrier.clone());
         self.record_mutation_log_entry(request, query, variables, "carrierServiceUpdate", vec![id]);
         ok_json(
@@ -2262,13 +2351,16 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "carrierServiceDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        if !self.staged_carrier_services.contains_key(&id) {
+        if !self.store.staged.carrier_services.contains_key(&id) {
             return ok_json(
                 json!({ "data": { response_key: carrier_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "The carrier or app could not be found." })]) } }),
             );
         }
-        self.staged_carrier_services.remove(&id);
-        self.staged_deleted_carrier_service_ids.insert(id.clone());
+        self.store.staged.carrier_services.remove(&id);
+        self.store
+            .staged
+            .deleted_carrier_service_ids
+            .insert(id.clone());
         self.record_mutation_log_entry(
             request,
             query,
@@ -2334,8 +2426,11 @@ impl DraftProxy {
                     self.clear_default_shipping_packages_except(&id);
                 }
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-                self.staged_deleted_shipping_package_ids.remove(&id);
-                self.staged_shipping_packages.insert(id.clone(), package);
+                self.store.staged.deleted_shipping_package_ids.remove(&id);
+                self.store
+                    .staged
+                    .shipping_packages
+                    .insert(id.clone(), package);
                 json!({ "userErrors": [] })
             }
             "shippingPackageMakeDefault" => {
@@ -2343,13 +2438,19 @@ impl DraftProxy {
                 let mut package = self.effective_shipping_package(&id);
                 package["default"] = json!(true);
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-                self.staged_deleted_shipping_package_ids.remove(&id);
-                self.staged_shipping_packages.insert(id.clone(), package);
+                self.store.staged.deleted_shipping_package_ids.remove(&id);
+                self.store
+                    .staged
+                    .shipping_packages
+                    .insert(id.clone(), package);
                 json!({ "userErrors": [] })
             }
             "shippingPackageDelete" => {
-                self.staged_shipping_packages.remove(&id);
-                self.staged_deleted_shipping_package_ids.insert(id.clone());
+                self.store.staged.shipping_packages.remove(&id);
+                self.store
+                    .staged
+                    .deleted_shipping_package_ids
+                    .insert(id.clone());
                 json!({ "deletedId": id, "userErrors": [] })
             }
             _ => unreachable!("shipping package dispatcher only receives supported roots"),
@@ -2360,7 +2461,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn effective_shipping_package(&self, id: &str) -> Value {
-        self.staged_shipping_packages
+        self.store
+            .staged
+            .shipping_packages
             .get(id)
             .cloned()
             .unwrap_or_else(|| seed_shipping_package(id))
@@ -2371,13 +2474,15 @@ impl DraftProxy {
             "gid://shopify/ShippingPackage/1",
             "gid://shopify/ShippingPackage/2",
         ] {
-            if id == default_id || self.staged_deleted_shipping_package_ids.contains(id) {
+            if id == default_id || self.store.staged.deleted_shipping_package_ids.contains(id) {
                 continue;
             }
             let mut package = self.effective_shipping_package(id);
             package["default"] = json!(false);
             package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-            self.staged_shipping_packages
+            self.store
+                .staged
+                .shipping_packages
                 .insert(id.to_string(), package);
         }
     }
@@ -2457,7 +2562,10 @@ impl DraftProxy {
                         "initialValue": { "amount": "10.0", "currencyCode": "CAD" },
                         "balance": { "amount": "10.0", "currencyCode": "CAD" }
                     });
-                    self.staged_gift_cards.insert(id.clone(), gift_card.clone());
+                    self.store
+                        .staged
+                        .gift_cards
+                        .insert(id.clone(), gift_card.clone());
                     staged_resource_ids.push(id);
                     gift_card_payload_json(&gift_card, &field.selection, Vec::new())
                 }
@@ -2466,7 +2574,7 @@ impl DraftProxy {
                         .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"));
                     let user_errors = match id
                         .as_deref()
-                        .and_then(|id| self.staged_gift_cards.get(id))
+                        .and_then(|id| self.store.staged.gift_cards.get(id))
                     {
                         Some(card) if card.get("notify") == Some(&json!(false)) => vec![json!({
                             "field": ["id"],
@@ -2482,7 +2590,7 @@ impl DraftProxy {
                     };
                     let gift_card = if user_errors.is_empty() {
                         id.as_deref()
-                            .and_then(|id| self.staged_gift_cards.get(id))
+                            .and_then(|id| self.store.staged.gift_cards.get(id))
                             .cloned()
                     } else {
                         None
@@ -2556,7 +2664,10 @@ impl DraftProxy {
                         let mut card = gift_card_lifecycle_base_card(&id);
                         card["initialValue"] = json!({ "amount": format_money_amount(initial_value.parse::<f64>().unwrap_or(5.0)), "currencyCode": "CAD" });
                         card["balance"] = card["initialValue"].clone();
-                        self.staged_gift_cards.insert(id.clone(), card.clone());
+                        self.store
+                            .staged
+                            .gift_cards
+                            .insert(id.clone(), card.clone());
                         staged_ids.push(id);
                         gift_card_payload_json(&card, &field.selection, Vec::new())
                     }
@@ -2629,7 +2740,9 @@ impl DraftProxy {
             let id = resolved_string_arg(&field.arguments, "id")
                 .unwrap_or_else(|| "gid://shopify/GiftCard/654773256498".to_string());
             let mut card = self
-                .staged_gift_cards
+                .store
+                .staged
+                .gift_cards
                 .get(&id)
                 .cloned()
                 .unwrap_or_else(|| gift_card_lifecycle_base_card(&id));
@@ -2648,7 +2761,10 @@ impl DraftProxy {
                             card["expiresOn"] = json!(expires_on);
                         }
                     }
-                    self.staged_gift_cards.insert(id.clone(), card.clone());
+                    self.store
+                        .staged
+                        .gift_cards
+                        .insert(id.clone(), card.clone());
                     staged_ids.push(id);
                     gift_card_payload_json(&card, &field.selection, Vec::new())
                 }
@@ -2691,7 +2807,7 @@ impl DraftProxy {
                         "giftCard": card.clone()
                     });
                     push_gift_card_transaction(&mut card, transaction.clone());
-                    self.staged_gift_cards.insert(id.clone(), card);
+                    self.store.staged.gift_cards.insert(id.clone(), card);
                     staged_ids.push(id);
                     gift_card_transaction_payload(
                         &field.selection,
@@ -2740,7 +2856,7 @@ impl DraftProxy {
                         "giftCard": card.clone()
                     });
                     push_gift_card_transaction(&mut card, transaction.clone());
-                    self.staged_gift_cards.insert(id.clone(), card);
+                    self.store.staged.gift_cards.insert(id.clone(), card);
                     staged_ids.push(id);
                     gift_card_transaction_payload(
                         &field.selection,
@@ -2753,7 +2869,10 @@ impl DraftProxy {
                     card["enabled"] = json!(false);
                     card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
                     card["updatedAt"] = json!("2026-04-29T09:31:13Z");
-                    self.staged_gift_cards.insert(id.clone(), card.clone());
+                    self.store
+                        .staged
+                        .gift_cards
+                        .insert(id.clone(), card.clone());
                     staged_ids.push(id);
                     gift_card_payload_json(&card, &field.selection, Vec::new())
                 }
@@ -2793,7 +2912,9 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "giftCard" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_gift_cards
+                    self.store
+                        .staged
+                        .gift_cards
                         .get(&id)
                         .map(|card| selected_json(card, &field.selection))
                         .unwrap_or(Value::Null)
@@ -2831,7 +2952,9 @@ impl DraftProxy {
             }
             let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
             let value = self
-                .staged_gift_cards
+                .store
+                .staged
+                .gift_cards
                 .get(&id)
                 .map(|card| selected_json(card, &field.selection))
                 .unwrap_or(Value::Null);
@@ -2841,7 +2964,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn gift_card_lifecycle_matching_cards(&self, query: &str) -> Vec<Value> {
-        self.staged_gift_cards
+        self.store
+            .staged
+            .gift_cards
             .values()
             .filter(|card| {
                 if query.is_empty() {

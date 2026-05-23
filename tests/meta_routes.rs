@@ -443,7 +443,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "seo": { "title": "", "description": "" }
                     }
                 },
-                "savedSearches": {}
+                "productOrder": ["gid://shopify/Product/base"],
+                "savedSearches": {},
+                "savedSearchOrder": []
             },
             "stagedState": {
                 "products": {
@@ -460,6 +462,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "seo": { "title": "", "description": "" }
                     }
                 },
+                "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
                 "deletedProductIds": ["gid://shopify/Product/base"],
                 "shippingPackages": {},
                 "deletedShippingPackageIds": {},
@@ -474,7 +477,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "query": "tag:promo",
                         "resourceType": "PRODUCT"
                     }
-                }
+                },
+                "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
+                "deletedSavedSearchIds": []
             }
         })
     );
@@ -656,6 +661,26 @@ fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
         "Rust state dump is missing state.baseState.products",
     );
 
+    let mut missing_base_product_order = dump.body.clone();
+    missing_base_product_order["state"]["baseState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("productOrder");
+    reject_restore(
+        missing_base_product_order.to_string(),
+        "Rust state dump is missing state.baseState.productOrder",
+    );
+
+    let mut missing_base_saved_search_order = dump.body.clone();
+    missing_base_saved_search_order["state"]["baseState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("savedSearchOrder");
+    reject_restore(
+        missing_base_saved_search_order.to_string(),
+        "Rust state dump is missing state.baseState.savedSearchOrder",
+    );
+
     let mut missing_staged_state = dump.body.clone();
     missing_staged_state["state"]
         .as_object_mut()
@@ -676,6 +701,16 @@ fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
         "Rust state dump is missing state.stagedState.products",
     );
 
+    let mut missing_staged_product_order = dump.body.clone();
+    missing_staged_product_order["state"]["stagedState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("productOrder");
+    reject_restore(
+        missing_staged_product_order.to_string(),
+        "Rust state dump is missing state.stagedState.productOrder",
+    );
+
     let mut missing_staged_deleted_ids = dump.body.clone();
     missing_staged_deleted_ids["state"]["stagedState"]
         .as_object_mut()
@@ -684,6 +719,26 @@ fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
     reject_restore(
         missing_staged_deleted_ids.to_string(),
         "Rust state dump is missing state.stagedState.deletedProductIds",
+    );
+
+    let mut missing_staged_saved_search_order = dump.body.clone();
+    missing_staged_saved_search_order["state"]["stagedState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("savedSearchOrder");
+    reject_restore(
+        missing_staged_saved_search_order.to_string(),
+        "Rust state dump is missing state.stagedState.savedSearchOrder",
+    );
+
+    let mut missing_staged_deleted_saved_search_ids = dump.body.clone();
+    missing_staged_deleted_saved_search_ids["state"]["stagedState"]
+        .as_object_mut()
+        .unwrap()
+        .remove("deletedSavedSearchIds");
+    reject_restore(
+        missing_staged_deleted_saved_search_ids.to_string(),
+        "Rust state dump is missing state.stagedState.deletedSavedSearchIds",
     );
 
     let mut missing_log_entries = dump.body.clone();

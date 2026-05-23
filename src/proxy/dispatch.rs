@@ -92,7 +92,7 @@ impl DraftProxy {
             root_field,
             &query,
             &variables,
-            &mut self.staged_mandate_payment_keys,
+            &mut self.store.staged.mandate_payment_keys,
         ) {
             return ok_json(data);
         }
@@ -101,7 +101,7 @@ impl DraftProxy {
             root_field,
             &query,
             &variables,
-            &mut self.staged_payment_terms_ids,
+            &mut self.store.staged.payment_terms_ids,
         ) {
             return ok_json(data);
         }
@@ -110,7 +110,7 @@ impl DraftProxy {
             root_field,
             &query,
             &variables,
-            &mut self.staged_payment_reminder_schedule_ids,
+            &mut self.store.staged.payment_reminder_schedule_ids,
         ) {
             return ok_json(data);
         }
@@ -688,8 +688,8 @@ impl DraftProxy {
                 return ok_json(json!({
                     "data": discount_redeem_code_bulk_live_read_data(
                         &fields,
-                        self.staged_redeem_code_bulk_live_added,
-                        self.staged_redeem_code_bulk_live_deleted_seed,
+                        self.store.staged.redeem_code_bulk_live_added,
+                        self.store.staged.redeem_code_bulk_live_deleted_seed,
                     )
                 }));
             }
@@ -913,7 +913,7 @@ impl DraftProxy {
                 }
             }
             if let Some(data) =
-                local_node_read_fields(&query, &variables, Some(&self.backup_region))
+                local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))
             {
                 return ok_json(json!({ "data": data }));
             }
@@ -922,7 +922,9 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Query && root_field == "backupRegion" {
             let response_key =
                 root_field_response_key(&query).unwrap_or_else(|| root_field.to_string());
-            return ok_json(json!({ "data": { response_key: self.backup_region.clone() } }));
+            return ok_json(
+                json!({ "data": { response_key: self.store.staged.backup_region.clone() } }),
+            );
         }
 
         if let Some(data) =
@@ -940,7 +942,7 @@ impl DraftProxy {
             root_field,
             &query,
             &variables,
-            &mut self.staged_recorded_return_statuses,
+            &mut self.store.staged.recorded_return_statuses,
         ) {
             return ok_json(data);
         }
@@ -949,7 +951,7 @@ impl DraftProxy {
             root_field,
             &query,
             &variables,
-            &mut self.staged_return_status,
+            &mut self.store.staged.return_status,
         ) {
             return ok_json(data);
         }
@@ -1520,7 +1522,7 @@ impl DraftProxy {
                 .all(|field| field == "discountRedeemCodeBulkAdd")
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                self.staged_redeem_code_bulk_live_added = true;
+                self.store.staged.redeem_code_bulk_live_added = true;
                 return ok_json(json!({
                     "data": discount_redeem_code_bulk_live_add_data(&fields)
                 }));
@@ -1535,7 +1537,7 @@ impl DraftProxy {
                 .all(|field| field == "discountCodeRedeemCodeBulkDelete")
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                self.staged_redeem_code_bulk_live_deleted_seed = true;
+                self.store.staged.redeem_code_bulk_live_deleted_seed = true;
                 return ok_json(json!({
                     "data": discount_redeem_code_bulk_live_delete_data(&fields)
                 }));

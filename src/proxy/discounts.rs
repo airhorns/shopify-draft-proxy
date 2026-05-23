@@ -2681,70 +2681,70 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "discountCodeFreeShippingCreate" => {
-                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_code_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_free_shipping_code_node("create", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeFreeShippingUpdate" => {
-                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_code_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_free_shipping_code_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountAutomaticFreeShippingCreate" => {
-                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_automatic_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "automaticDiscountNode": discount_free_shipping_automatic_node("create", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountAutomaticFreeShippingUpdate" => {
-                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_automatic_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "automaticDiscountNode": discount_free_shipping_automatic_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeDeactivate" => {
-                    self.staged_free_shipping_code_status = Some("EXPIRED".to_string());
+                    self.store.staged.free_shipping_code_status = Some("EXPIRED".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_free_shipping_code_node("update", "EXPIRED"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeActivate" => {
-                    self.staged_free_shipping_code_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_code_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_free_shipping_code_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeDelete" => {
-                    self.staged_free_shipping_code_status = Some("DELETED".to_string());
+                    self.store.staged.free_shipping_code_status = Some("DELETED".to_string());
                     Some(json!({
                         "deletedCodeDiscountId": DISCOUNT_FREE_SHIPPING_CODE_ID,
                         "userErrors": []
                     }))
                 }
                 "discountAutomaticDeactivate" => {
-                    self.staged_free_shipping_automatic_status = Some("EXPIRED".to_string());
+                    self.store.staged.free_shipping_automatic_status = Some("EXPIRED".to_string());
                     Some(json!({
                         "automaticDiscountNode": discount_free_shipping_automatic_node("update", "EXPIRED"),
                         "userErrors": []
                     }))
                 }
                 "discountAutomaticActivate" => {
-                    self.staged_free_shipping_automatic_status = Some("ACTIVE".to_string());
+                    self.store.staged.free_shipping_automatic_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "automaticDiscountNode": discount_free_shipping_automatic_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountAutomaticDelete" => {
-                    self.staged_free_shipping_automatic_status = Some("DELETED".to_string());
+                    self.store.staged.free_shipping_automatic_status = Some("DELETED".to_string());
                     Some(json!({
                         "deletedAutomaticDiscountId": DISCOUNT_FREE_SHIPPING_AUTOMATIC_ID,
                         "userErrors": []
@@ -2767,11 +2767,15 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> Value {
         let code_status = self
-            .staged_free_shipping_code_status
+            .store
+            .staged
+            .free_shipping_code_status
             .as_deref()
             .unwrap_or("ACTIVE");
         let automatic_status = self
-            .staged_free_shipping_automatic_status
+            .store
+            .staged
+            .free_shipping_automatic_status
             .as_deref()
             .unwrap_or("ACTIVE");
         let code_deleted = code_status == "DELETED";
@@ -2994,35 +2998,35 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "discountCodeBasicCreate" => {
-                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    self.store.staged.code_basic_lifecycle_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_code_basic_lifecycle_node("create", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeBasicUpdate" => {
-                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    self.store.staged.code_basic_lifecycle_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_code_basic_lifecycle_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeDeactivate" => {
-                    self.staged_code_basic_lifecycle_status = Some("EXPIRED".to_string());
+                    self.store.staged.code_basic_lifecycle_status = Some("EXPIRED".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_code_basic_lifecycle_node("update", "EXPIRED"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeActivate" => {
-                    self.staged_code_basic_lifecycle_status = Some("ACTIVE".to_string());
+                    self.store.staged.code_basic_lifecycle_status = Some("ACTIVE".to_string());
                     Some(json!({
                         "codeDiscountNode": discount_code_basic_lifecycle_node("update", "ACTIVE"),
                         "userErrors": []
                     }))
                 }
                 "discountCodeDelete" => {
-                    self.staged_code_basic_lifecycle_status = Some("DELETED".to_string());
+                    self.store.staged.code_basic_lifecycle_status = Some("DELETED".to_string());
                     Some(json!({
                         "deletedCodeDiscountId": DISCOUNT_CODE_BASIC_LIFECYCLE_ID,
                         "userErrors": []
@@ -3046,7 +3050,9 @@ impl DraftProxy {
     ) -> Value {
         let mut data = serde_json::Map::new();
         let status = self
-            .staged_code_basic_lifecycle_status
+            .store
+            .staged
+            .code_basic_lifecycle_status
             .as_deref()
             .unwrap_or("ACTIVE");
         let deleted = status == "DELETED";
