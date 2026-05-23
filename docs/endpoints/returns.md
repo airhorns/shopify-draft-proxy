@@ -6,6 +6,8 @@ mutations to Shopify.
 
 ## Current support and limitations
 
+Return roots are documented as their own endpoint group, but the current registry snapshot does not have a separate `returns` domain. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus order-backed parity specs, tests, and fixtures.
+
 ### Supported roots
 
 Overlay reads:

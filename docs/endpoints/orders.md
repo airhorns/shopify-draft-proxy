@@ -1,8 +1,10 @@
 # Orders Endpoint Group
 
-The orders group is broadly implemented in the operation registry, with explicit blockers documented for roots that still lack enough Shopify evidence. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
+The orders group has broad Rust runtime local slices, with explicit blockers documented for roots that still lack enough Shopify evidence. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
 
 ## Current support and limitations
+
+`config/operation-registry.json` currently keeps order roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
 
 ### Supported roots
 

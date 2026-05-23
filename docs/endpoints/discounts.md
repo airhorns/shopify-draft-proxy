@@ -4,6 +4,8 @@ The discounts group has catalog-first local read support. Keep discount-specific
 
 ## Current support and limitations
 
+`config/operation-registry.json` currently keeps discount roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
+
 ### Supported roots
 
 Overlay reads:

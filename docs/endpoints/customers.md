@@ -1,8 +1,10 @@
 # Customers Endpoint Group
 
-The customers group has implemented local slices, but the whole registry domain is not complete yet. Keep new customer-specific quirks here instead of in `docs/architecture.md`.
+The customers group has Rust runtime local slices for the documented parity-backed flows, but the whole registry domain is not complete yet. Keep new customer-specific quirks here instead of in `docs/architecture.md`.
 
 ## Current support and limitations
+
+`config/operation-registry.json` currently keeps customer roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
 
 ### Supported roots
 
