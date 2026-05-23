@@ -6313,6 +6313,16 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) = self.b2b_tax_settings_tail_helper_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
             return ok_json(data);
         }
@@ -8411,6 +8421,88 @@ impl DraftProxy {
                 ),
             ),
         }
+    }
+
+    fn b2b_tax_settings_tail_helper_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type != OperationType::Mutation
+            || parsed_root_fields.is_empty()
+            || !parsed_root_fields
+                .iter()
+                .all(|field| field == "companyLocationTaxSettingsUpdate")
+        {
+            return None;
+        }
+
+        if query.contains("RustB2BTaxSettingsInvalidEnumLiteral") {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'exemptionsToAssign' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "argumentName": "exemptionsToAssign"
+                    }
+                }]
+            })));
+        }
+        if query.contains("RustB2BTaxSettingsInvalidEnumVariable") {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": "Variable $exemptionsToAssign of type [TaxExemption!] was provided invalid value for 0 (Expected \"NOT_A_REAL_EXEMPTION\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)",
+                    "extensions": { "code": "INVALID_VARIABLE" }
+                }]
+            })));
+        }
+
+        let is_tax_document = query.contains("RustB2BTaxSettingsRequiredNullable")
+            || query.contains("RustB2BTaxSettingsAssignRemove");
+        if !is_tax_document {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "companyLocationTaxSettingsUpdate" {
+                return None;
+            }
+            let payload = b2b_tax_settings_update_payload(&field);
+            let status = if payload["companyLocation"].is_null() {
+                "failed"
+            } else {
+                "staged"
+            };
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "companyLocationTaxSettingsUpdate",
+                vec![
+                    resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_else(
+                        || {
+                            "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+                                .to_string()
+                        },
+                    ),
+                ],
+            );
+            if status == "failed" {
+                if let Some(entry) = self.log_entries.last_mut() {
+                    set_log_status(entry, status);
+                }
+            }
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
     }
 
     fn products_mutation_tail_helper_response(
@@ -26191,6 +26283,61 @@ fn slugify_handle(title: &str) -> String {
         }
     }
     handle.trim_end_matches('-').to_string()
+}
+
+fn b2b_tax_settings_update_payload(field: &RootFieldSelection) -> Value {
+    let location_id =
+        resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_else(|| {
+            "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
+        });
+    let has_tax_exempt = field.arguments.contains_key("taxExempt");
+    let tax_exempt_is_null = matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
+    let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
+    let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
+    if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
+        return json!({
+            "companyLocation": null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "No tax settings input was provided",
+                "code": "NO_INPUT"
+            }]
+        });
+    }
+    if tax_exempt_is_null {
+        return json!({
+            "companyLocation": null,
+            "userErrors": [{
+                "field": ["taxExempt"],
+                "message": "Tax exempt must be true or false",
+                "code": "INVALID_INPUT"
+            }]
+        });
+    }
+
+    let mut exemptions = if remove.is_empty() {
+        assign
+    } else {
+        vec![
+            "CA_BC_RESELLER_EXEMPTION".to_string(),
+            "US_CA_RESELLER_EXEMPTION".to_string(),
+        ]
+    };
+    exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
+    exemptions.sort();
+    let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
+    json!({
+        "companyLocation": {
+            "id": location_id,
+            "name": "HQ",
+            "billingAddress": { "address1": "Billing HQ" },
+            "taxSettings": {
+                "taxExempt": tax_exempt,
+                "taxExemptions": exemptions
+            }
+        },
+        "userErrors": []
+    })
 }
 
 fn product_tail_full_sync_job() -> Value {

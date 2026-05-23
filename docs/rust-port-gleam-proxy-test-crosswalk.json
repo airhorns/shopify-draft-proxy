@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 117,
-      "needs_manual_review": 361,
+      "needs_manual_review": 358,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1680
+      "represented_by_rust_root_tests": 1683
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -3446,8 +3446,8 @@
     },
     {
       "body_sha1": "a98bd4268ff850ff5327c920d11b0fc982fcb348",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_b2b_tax_settings_tail_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "b2b",
       "gleam_line": 1919,
       "gleam_path": "test/shopify_draft_proxy/proxy/b2b_test.gleam",
@@ -3457,12 +3457,12 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "f6dedd533f682593b04193b5393657d8daed1dee",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_b2b_tax_settings_tail_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "b2b",
       "gleam_line": 1954,
       "gleam_path": "test/shopify_draft_proxy/proxy/b2b_test.gleam",
@@ -3472,12 +3472,12 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "4c9702be52b92dffaf05028b7bebccdd9ee286e0",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": ["no_known_graphql_root_extracted", "manual_rust_port_b2b_tax_settings_tail_helpers"],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "b2b",
       "gleam_line": 1998,
       "gleam_path": "test/shopify_draft_proxy/proxy/b2b_test.gleam",
@@ -3487,7 +3487,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "575fe8cc6ed1df21a59ab7f04250bf784d95331b",

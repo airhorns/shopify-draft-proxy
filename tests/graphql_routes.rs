@@ -3583,6 +3583,159 @@ fn store_property_node_reads_resolve_known_shop_records_locally() {
 }
 
 #[test]
+fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let required_and_nullable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsRequiredNullable($locationId: ID!, $taxExempt: Boolean) {
+          emptyInput: companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+          nullTaxExempt: companyLocationTaxSettingsUpdate(companyLocationId: $locationId, taxExempt: $taxExempt) {
+            companyLocation { id taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id, "taxExempt": Value::Null }),
+    ));
+    assert_eq!(required_and_nullable.status, 200);
+    assert_eq!(
+        required_and_nullable.body["data"]["emptyInput"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "No tax settings input was provided",
+                "code": "NO_INPUT"
+            }]
+        })
+    );
+    assert_eq!(
+        required_and_nullable.body["data"]["nullTaxExempt"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["taxExempt"],
+                "message": "Tax exempt must be true or false",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+
+    let invalid_literal = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsInvalidEnumLiteral {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(invalid_literal.status, 200);
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert!(invalid_literal.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+    assert!(invalid_literal.body["data"].is_null());
+
+    let invalid_variable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsInvalidEnumVariable($locationId: ID!, $exemptionsToAssign: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $exemptionsToAssign) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "exemptionsToAssign": ["NOT_A_REAL_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(invalid_variable.status, 200);
+    assert_eq!(
+        invalid_variable.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(invalid_variable.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+
+    let assign = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsAssignRemove($locationId: ID!, $assign: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $assign) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "assign": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(assign.status, 200);
+    assert_eq!(
+        assign.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsAssignRemove($locationId: ID!, $remove: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToRemove: $remove) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "remove": ["CA_BC_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["companyLocationTaxSettingsUpdate"]["companyLocation"]["taxSettings"]
+            ["taxExemptions"],
+        json!(["US_CA_RESELLER_EXEMPTION"])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert!(entries
+        .iter()
+        .any(|entry| entry["status"] == json!("failed")
+            && entry["interpreted"]["primaryRootField"]
+                == json!("companyLocationTaxSettingsUpdate")));
+    assert!(entries
+        .iter()
+        .any(|entry| entry["status"] == json!("staged")
+            && entry["interpreted"]["primaryRootField"]
+                == json!("companyLocationTaxSettingsUpdate")));
+}
+
+#[test]
 fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
 
