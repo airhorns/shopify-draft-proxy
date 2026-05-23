@@ -11,12 +11,15 @@ impl DraftProxy {
                 let record = timestamp_discount_from_input(
                     &field.arguments,
                     "basicCodeDiscount",
-                    self.staged_timestamp_discounts.len() + 1,
+                    self.store.staged.timestamp_discounts.len() + 1,
                     false,
                     None,
                 );
                 let id = record["id"].as_str().unwrap().to_string();
-                self.staged_timestamp_discounts.insert(id, record.clone());
+                self.store
+                    .staged
+                    .timestamp_discounts
+                    .insert(id, record.clone());
                 json!({
                     "codeDiscountNode": record,
                     "userErrors": []
@@ -40,15 +43,18 @@ impl DraftProxy {
         for field in fields {
             let value = if field.name == "discountCodeBasicUpdate" {
                 let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-                let existing = self.staged_timestamp_discounts.get(&id).cloned();
+                let existing = self.store.staged.timestamp_discounts.get(&id).cloned();
                 let record = timestamp_discount_from_input(
                     &field.arguments,
                     "basicCodeDiscount",
-                    self.staged_timestamp_discounts.len() + 1,
+                    self.store.staged.timestamp_discounts.len() + 1,
                     true,
                     existing.as_ref(),
                 );
-                self.staged_timestamp_discounts.insert(id, record.clone());
+                self.store
+                    .staged
+                    .timestamp_discounts
+                    .insert(id, record.clone());
                 json!({
                     "codeDiscountNode": record,
                     "userErrors": []
@@ -72,11 +78,13 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "codeDiscountNode" => resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.staged_timestamp_discounts.get(&id).cloned())
+                    .and_then(|id| self.store.staged.timestamp_discounts.get(&id).cloned())
                     .unwrap_or(Value::Null),
                 "codeDiscountNodeByCode" => {
                     let code = resolved_field_string_arg(field, "code").unwrap_or_default();
-                    self.staged_timestamp_discounts
+                    self.store
+                        .staged
+                        .timestamp_discounts
                         .values()
                         .find(|record| {
                             record["codeDiscount"]["codes"]["nodes"][0]["code"].as_str()
@@ -108,18 +116,18 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "validationCreate" => {
                     let validation = local_function_validation_record_from_create(field);
-                    self.staged_function_validation = Some(validation.clone());
+                    self.store.staged.function_validation = Some(validation.clone());
                     json!({ "validation": validation, "userErrors": [] })
                 }
                 "validationUpdate" => {
                     let validation = local_function_validation_record_from_update(field);
-                    self.staged_function_validation = Some(validation.clone());
+                    self.store.staged.function_validation = Some(validation.clone());
                     json!({ "validation": validation, "userErrors": [] })
                 }
                 "validationDelete" => {
                     let id = resolved_field_string_arg(field, "id").unwrap_or_default();
                     if id == "gid://shopify/Validation/2" {
-                        self.staged_function_validation = None;
+                        self.store.staged.function_validation = None;
                         json!({ "deletedId": "gid://shopify/Validation/2", "userErrors": [] })
                     } else {
                         json!({
@@ -134,13 +142,13 @@ impl DraftProxy {
                 }
                 "cartTransformCreate" => {
                     let cart_transform = local_function_cart_transform_record();
-                    self.staged_function_cart_transform = Some(cart_transform.clone());
+                    self.store.staged.function_cart_transform = Some(cart_transform.clone());
                     json!({ "cartTransform": cart_transform, "userErrors": [] })
                 }
                 "cartTransformDelete" => {
                     let id = resolved_field_string_arg(field, "id").unwrap_or_default();
                     if id == "gid://shopify/CartTransform/3" {
-                        self.staged_function_cart_transform = None;
+                        self.store.staged.function_cart_transform = None;
                         json!({ "deletedId": "gid://shopify/CartTransform/3", "userErrors": [] })
                     } else {
                         json!({
@@ -182,12 +190,16 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "validation" => self
-                    .staged_function_validation
+                    .store
+                    .staged
+                    .function_validation
                     .clone()
                     .unwrap_or(Value::Null),
-                "validations" => local_function_connection(self.staged_function_validation.clone()),
+                "validations" => {
+                    local_function_connection(self.store.staged.function_validation.clone())
+                }
                 "cartTransforms" => {
-                    local_function_connection(self.staged_function_cart_transform.clone())
+                    local_function_connection(self.store.staged.function_cart_transform.clone())
                 }
                 "shopifyFunctions" => {
                     let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
@@ -218,7 +230,9 @@ impl DraftProxy {
         query: &str,
     ) -> Value {
         let mut data = if query.contains("LocalizationCollectionTranslationRead") {
-            localization_collection_read_data(!self.staged_localization_translations.is_empty())
+            localization_collection_read_data(
+                !self.store.staged.localization_translations.is_empty(),
+            )
         } else {
             localization_baseline_read_data()
         };
@@ -289,7 +303,7 @@ impl DraftProxy {
         published_filter: Option<bool>,
     ) -> Vec<Value> {
         let mut locales = vec![shop_locale_record("en", true)];
-        locales.extend(self.staged_shop_locales.values().cloned());
+        locales.extend(self.store.staged.shop_locales.values().cloned());
         locales.sort_by_key(|locale| locale["locale"].as_str().unwrap_or_default().to_string());
         if let Some(published) = published_filter {
             locales.retain(|locale| locale["published"].as_bool() == Some(published));
@@ -313,14 +327,16 @@ impl DraftProxy {
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid", "INVALID")]
             })
-        } else if self.staged_shop_locales.contains_key(&locale) {
+        } else if self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
             })
         } else {
             let record = shop_locale_record(&locale, false);
-            self.staged_shop_locales
+            self.store
+                .staged
+                .shop_locales
                 .insert(locale.clone(), record.clone());
             json!({ "shopLocale": record, "userErrors": [] })
         };
@@ -348,7 +364,7 @@ impl DraftProxy {
             );
         }
 
-        let locale_exists = locale == "en" || self.staged_shop_locales.contains_key(&locale);
+        let locale_exists = locale == "en" || self.store.staged.shop_locales.contains_key(&locale);
         if !locale_exists && market_web_presence_ids.is_empty() {
             return selected_json(
                 &json!({
@@ -360,7 +376,9 @@ impl DraftProxy {
         }
 
         let mut record = self
-            .staged_shop_locales
+            .store
+            .staged
+            .shop_locales
             .get(&locale)
             .cloned()
             .unwrap_or_else(|| shop_locale_record(&locale, false));
@@ -377,7 +395,10 @@ impl DraftProxy {
             );
         }
         if locale != "en" {
-            self.staged_shop_locales.insert(locale, record.clone());
+            self.store
+                .staged
+                .shop_locales
+                .insert(locale, record.clone());
         }
         selected_json(
             &json!({ "shopLocale": record, "userErrors": [] }),
@@ -396,14 +417,16 @@ impl DraftProxy {
                 "locale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
             })
-        } else if !self.staged_shop_locales.contains_key(&locale) {
+        } else if !self.store.staged.shop_locales.contains_key(&locale) {
             json!({
                 "locale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.", "SHOP_LOCALE_DOES_NOT_EXIST")]
             })
         } else {
-            self.staged_shop_locales.remove(&locale);
-            self.staged_localization_translations
+            self.store.staged.shop_locales.remove(&locale);
+            self.store
+                .staged
+                .localization_translations
                 .retain(|translation| translation["locale"] != json!(locale));
             json!({ "locale": locale, "userErrors": [] })
         };
@@ -416,7 +439,9 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "market" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_markets
+                    self.store
+                        .staged
+                        .markets
                         .get(&id)
                         .map(|market| selected_json(market, &field.selection))
                         .unwrap_or(Value::Null)
@@ -531,7 +556,9 @@ impl DraftProxy {
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         if !name.is_empty()
             && self
-                .staged_markets
+                .store
+                .staged
+                .markets
                 .values()
                 .any(|market| market["name"].as_str() == Some(name.as_str()))
         {
@@ -547,7 +574,9 @@ impl DraftProxy {
         let explicit_handle = resolved_string_field(&input, "handle");
         let mut handle = normalize_localized_handle(explicit_handle.as_deref().unwrap_or(&name));
         let existing_handles = self
-            .staged_markets
+            .store
+            .staged
+            .markets
             .values()
             .filter_map(|market| market["handle"].as_str())
             .map(ToString::to_string)
@@ -570,9 +599,12 @@ impl DraftProxy {
             }
         }
 
-        let id = format!("gid://shopify/Market/{}", self.staged_markets.len() + 1);
+        let id = format!(
+            "gid://shopify/Market/{}",
+            self.store.staged.markets.len() + 1
+        );
         let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
-        self.staged_markets.insert(id, market.clone());
+        self.store.staged.markets.insert(id, market.clone());
         selected_json(
             &json!({ "market": market, "userErrors": [] }),
             &field.selection,
@@ -581,7 +613,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing_market) = self.staged_markets.get(&id).cloned() else {
+        let Some(existing_market) = self.store.staged.markets.get(&id).cloned() else {
             return selected_json(
                 &json!({
                     "market": null,
@@ -595,7 +627,7 @@ impl DraftProxy {
         let catalogs_to_add = list_string_field(&input, "catalogsToAdd");
         let missing_catalogs = catalogs_to_add
             .iter()
-            .filter(|catalog_id| !self.staged_catalogs.contains_key(*catalog_id))
+            .filter(|catalog_id| !self.store.staged.catalogs.contains_key(*catalog_id))
             .cloned()
             .collect::<Vec<_>>();
         if !missing_catalogs.is_empty() {
@@ -615,7 +647,13 @@ impl DraftProxy {
         let web_presences_to_add = list_string_field(&input, "webPresencesToAdd");
         let missing_web_presences = web_presences_to_add
             .iter()
-            .filter(|web_presence_id| !self.staged_web_presences.contains_key(*web_presence_id))
+            .filter(|web_presence_id| {
+                !self
+                    .store
+                    .staged
+                    .web_presences
+                    .contains_key(*web_presence_id)
+            })
             .cloned()
             .collect::<Vec<_>>();
         if !missing_web_presences.is_empty() {
@@ -647,7 +685,7 @@ impl DraftProxy {
 
         let mut updated_market = existing_market;
         self.set_market_relation_fields(&mut updated_market, &id);
-        self.staged_markets.insert(id, updated_market.clone());
+        self.store.staged.markets.insert(id, updated_market.clone());
         selected_json(
             &json!({ "market": updated_market, "userErrors": [] }),
             &field.selection,
@@ -669,7 +707,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_catalogs_connection(&self, market_id: &str) -> Value {
         let nodes = self
-            .staged_catalogs
+            .store
+            .staged
+            .catalogs
             .values()
             .filter(|catalog| catalog_market_ids(catalog).iter().any(|id| id == market_id))
             .cloned()
@@ -679,7 +719,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_web_presences_connection(&self, market_id: &str) -> Value {
         let nodes = self
-            .staged_web_presences
+            .store
+            .staged
+            .web_presences
             .values()
             .filter(|web_presence| {
                 web_presence_market_ids(web_presence)
@@ -692,7 +734,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn add_market_to_catalog(&mut self, catalog_id: &str, market_id: &str) {
-        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+        if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
             let mut market_ids = catalog_market_ids(catalog);
             if !market_ids.iter().any(|id| id == market_id) {
                 market_ids.push(market_id.to_string());
@@ -706,7 +748,7 @@ impl DraftProxy {
         catalog_id: &str,
         market_id: &str,
     ) {
-        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+        if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
             let mut market_ids = catalog_market_ids(catalog);
             market_ids.retain(|id| id != market_id);
             set_catalog_market_ids(catalog, &market_ids);
@@ -718,7 +760,7 @@ impl DraftProxy {
         web_presence_id: &str,
         market_id: &str,
     ) {
-        if let Some(web_presence) = self.staged_web_presences.get_mut(web_presence_id) {
+        if let Some(web_presence) = self.store.staged.web_presences.get_mut(web_presence_id) {
             let mut market_ids = web_presence_market_ids(web_presence);
             if !market_ids.iter().any(|id| id == market_id) {
                 market_ids.push(market_id.to_string());
@@ -732,7 +774,7 @@ impl DraftProxy {
         web_presence_id: &str,
         market_id: &str,
     ) {
-        if let Some(web_presence) = self.staged_web_presences.get_mut(web_presence_id) {
+        if let Some(web_presence) = self.store.staged.web_presences.get_mut(web_presence_id) {
             let mut market_ids = web_presence_market_ids(web_presence);
             market_ids.retain(|id| id != market_id);
             set_web_presence_market_ids(web_presence, &market_ids);
@@ -740,7 +782,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_region_code_exists(&self, country_code: &str) -> bool {
-        self.staged_markets.values().any(|market| {
+        self.store.staged.markets.values().any(|market| {
             market["regionCodes"]
                 .as_array()
                 .is_some_and(|codes| codes.iter().any(|code| code.as_str() == Some(country_code)))
@@ -748,7 +790,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_exists(&self, market_id: &str) -> bool {
-        self.staged_markets.contains_key(market_id)
+        self.store.staged.markets.contains_key(market_id)
     }
 
     pub(in crate::proxy) fn catalog_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -757,13 +799,21 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "catalog" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_catalogs
+                    self.store
+                        .staged
+                        .catalogs
                         .get(&id)
                         .map(|catalog| selected_json(catalog, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "catalogs" => {
-                    let nodes = self.staged_catalogs.values().cloned().collect::<Vec<_>>();
+                    let nodes = self
+                        .store
+                        .staged
+                        .catalogs
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
                     selected_json(&json!({"nodes": nodes}), &field.selection)
                 }
                 _ => Value::Null,
@@ -933,7 +983,10 @@ impl DraftProxy {
         let mut catalog = catalog_record(&id, &title, &status, &market_ids);
         set_catalog_price_list_relation(&mut catalog, price_list_id.as_deref());
         set_catalog_publication_relation(&mut catalog, publication_id.as_deref());
-        self.staged_catalogs.insert(id.clone(), catalog.clone());
+        self.store
+            .staged
+            .catalogs
+            .insert(id.clone(), catalog.clone());
         if let Some(price_list_id) = price_list_id.as_deref() {
             self.attach_price_list_to_catalog(&id, price_list_id);
         }
@@ -948,7 +1001,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing_catalog) = self.staged_catalogs.get(&id).cloned() else {
+        let Some(existing_catalog) = self.store.staged.catalogs.get(&id).cloned() else {
             return selected_json(
                 &catalog_payload_error_with_root(
                     "catalog",
@@ -985,7 +1038,7 @@ impl DraftProxy {
             }
             self.detach_existing_catalog_price_list(&updated_catalog);
             set_catalog_price_list_relation(&mut updated_catalog, Some(&price_list_id));
-            if let Some(price_list) = self.staged_price_lists.get_mut(&price_list_id) {
+            if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
                 set_price_list_catalog_relation(price_list, Some(&id));
             }
         } else if input.get("priceListId") == Some(&ResolvedValue::Null) {
@@ -1019,7 +1072,10 @@ impl DraftProxy {
             set_catalog_publication_relation(&mut updated_catalog, None);
         }
 
-        self.staged_catalogs.insert(id, updated_catalog.clone());
+        self.store
+            .staged
+            .catalogs
+            .insert(id, updated_catalog.clone());
         selected_json(
             &json!({"catalog": updated_catalog, "userErrors": []}),
             &field.selection,
@@ -1031,7 +1087,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let payload = if let Some(catalog) = self.staged_catalogs.remove(&id) {
+        let payload = if let Some(catalog) = self.store.staged.catalogs.remove(&id) {
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -1045,7 +1101,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let catalog_id = resolved_string_arg(&field.arguments, "catalogId").unwrap_or_default();
-        let Some(existing_catalog) = self.staged_catalogs.get(&catalog_id).cloned() else {
+        let Some(existing_catalog) = self.store.staged.catalogs.get(&catalog_id).cloned() else {
             return selected_json(
                 &catalog_payload_error_with_root(
                     "catalog",
@@ -1117,7 +1173,9 @@ impl DraftProxy {
                 catalog_markets_connection(&market_ids),
             );
         }
-        self.staged_catalogs
+        self.store
+            .staged
+            .catalogs
             .insert(catalog_id.clone(), updated_catalog.clone());
         selected_json(
             &json!({"catalog": updated_catalog, "userErrors": []}),
@@ -1126,7 +1184,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
-        let numeric_id = (self.staged_markets.len() * 2) + (self.staged_catalogs.len() * 2) + 1;
+        let numeric_id =
+            (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
         format!("gid://shopify/MarketCatalog/{numeric_id}")
     }
 
@@ -1136,21 +1195,27 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "catalog" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_catalogs
+                    self.store
+                        .staged
+                        .catalogs
                         .get(&id)
                         .map(|catalog| selected_json(catalog, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "priceList" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_price_lists
+                    self.store
+                        .staged
+                        .price_lists
                         .get(&id)
                         .map(|price_list| selected_json(price_list, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "priceLists" => {
                     let nodes = self
-                        .staged_price_lists
+                        .store
+                        .staged
+                        .price_lists
                         .values()
                         .cloned()
                         .collect::<Vec<_>>();
@@ -1221,7 +1286,9 @@ impl DraftProxy {
             );
         }
         if self
-            .staged_price_lists
+            .store
+            .staged
+            .price_lists
             .values()
             .any(|price_list| price_list["name"].as_str() == Some(name.as_str()))
         {
@@ -1302,7 +1369,7 @@ impl DraftProxy {
         if let Some(catalog_id) = catalog_id.as_deref() {
             self.attach_price_list_to_catalog(catalog_id, &id);
         }
-        self.staged_price_lists.insert(id, price_list.clone());
+        self.store.staged.price_lists.insert(id, price_list.clone());
         selected_json(
             &json!({"priceList": price_list, "userErrors": []}),
             &field.selection,
@@ -1314,7 +1381,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.staged_price_lists.get(&id).cloned() else {
+        let Some(existing) = self.store.staged.price_lists.get(&id).cloned() else {
             return selected_json(
                 &price_list_payload_error(
                     "priceList",
@@ -1339,7 +1406,9 @@ impl DraftProxy {
                 );
             }
             if self
-                .staged_price_lists
+                .store
+                .staged
+                .price_lists
                 .iter()
                 .any(|(existing_id, price_list)| {
                     existing_id != &id && price_list["name"].as_str() == Some(name.as_str())
@@ -1416,7 +1485,7 @@ impl DraftProxy {
                 object.insert("catalog".to_string(), json!({"id": catalog_id}));
             }
         }
-        self.staged_price_lists.insert(id, updated.clone());
+        self.store.staged.price_lists.insert(id, updated.clone());
         selected_json(
             &json!({"priceList": updated, "userErrors": []}),
             &field.selection,
@@ -1428,7 +1497,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let payload = if self.staged_price_lists.remove(&id).is_some() {
+        let payload = if self.store.staged.price_lists.remove(&id).is_some() {
             self.detach_price_list_from_catalogs(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -1476,7 +1545,9 @@ impl DraftProxy {
         }
 
         let price_list = self
-            .staged_price_lists
+            .store
+            .staged
+            .price_lists
             .get(&price_list_id)
             .cloned()
             .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
@@ -1611,7 +1682,9 @@ impl DraftProxy {
 
         let mut updated_price_list = price_list;
         set_fixed_price_rows(&mut updated_price_list, rows);
-        self.staged_price_lists
+        self.store
+            .staged
+            .price_lists
             .insert(price_list_id.clone(), updated_price_list.clone());
         selected_json(
             &json!({
@@ -1640,7 +1713,9 @@ impl DraftProxy {
             );
         }
         let price_list = self
-            .staged_price_lists
+            .store
+            .staged
+            .price_lists
             .get(&price_list_id)
             .cloned()
             .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
@@ -1659,7 +1734,9 @@ impl DraftProxy {
         }
         let mut updated_price_list = price_list;
         set_fixed_price_rows(&mut updated_price_list, rows);
-        self.staged_price_lists
+        self.store
+            .staged
+            .price_lists
             .insert(price_list_id, updated_price_list);
         selected_json(
             &json!({"prices": added, "userErrors": []}),
@@ -1685,7 +1762,9 @@ impl DraftProxy {
             );
         }
         let price_list = self
-            .staged_price_lists
+            .store
+            .staged
+            .price_lists
             .get(&price_list_id)
             .cloned()
             .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
@@ -1724,7 +1803,9 @@ impl DraftProxy {
         }
         let mut updated_price_list = price_list;
         set_fixed_price_rows(&mut updated_price_list, rows);
-        self.staged_price_lists
+        self.store
+            .staged
+            .price_lists
             .insert(price_list_id, updated_price_list.clone());
         selected_json(
             &json!({
@@ -1753,7 +1834,9 @@ impl DraftProxy {
             );
         }
         let price_list = self
-            .staged_price_lists
+            .store
+            .staged
+            .price_lists
             .get(&price_list_id)
             .cloned()
             .unwrap_or_else(|| seeded_fixed_price_list_record(&price_list_id, 0));
@@ -1788,7 +1871,9 @@ impl DraftProxy {
         });
         let mut updated_price_list = price_list;
         set_fixed_price_rows(&mut updated_price_list, rows);
-        self.staged_price_lists
+        self.store
+            .staged
+            .price_lists
             .insert(price_list_id, updated_price_list);
         selected_json(
             &json!({"deletedFixedPriceVariantIds": deleted, "userErrors": []}),
@@ -1803,18 +1888,18 @@ impl DraftProxy {
         {
             return false;
         }
-        if !self.staged_price_lists.contains_key(price_list_id) {
+        if !self.store.staged.price_lists.contains_key(price_list_id) {
             let count = if price_list_id.contains("9999") {
                 9999
             } else {
                 0
             };
-            self.staged_price_lists.insert(
+            self.store.staged.price_lists.insert(
                 price_list_id.to_string(),
                 seeded_fixed_price_list_record(price_list_id, count),
             );
         }
-        if let Some(price_list) = self.staged_price_lists.get_mut(price_list_id) {
+        if let Some(price_list) = self.store.staged.price_lists.get_mut(price_list_id) {
             ensure_fixed_price_list_fields(price_list);
         }
         true
@@ -1874,7 +1959,9 @@ impl DraftProxy {
         for field in fields {
             if field.name == "webPresences" {
                 let nodes = self
-                    .staged_web_presences
+                    .store
+                    .staged
+                    .web_presences
                     .values()
                     .cloned()
                     .collect::<Vec<_>>();
@@ -1914,7 +2001,7 @@ impl DraftProxy {
             }
             "webPresenceDelete" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                let deleted_id = if self.staged_web_presences.remove(&id).is_some() {
+                let deleted_id = if self.store.staged.web_presences.remove(&id).is_some() {
                     json!(id)
                 } else {
                     Value::Null
@@ -1938,7 +2025,7 @@ impl DraftProxy {
         web_presence_validate_routing_and_uniqueness(
             &draft,
             input,
-            &self.staged_web_presences,
+            &self.store.staged.web_presences,
             None,
             true,
             &mut errors,
@@ -1948,11 +2035,14 @@ impl DraftProxy {
         }
         let id = format!(
             "gid://shopify/MarketWebPresence/{}",
-            self.staged_web_presences.len() + 1
+            self.store.staged.web_presences.len() + 1
         );
         draft.id = id.clone();
         let record = market_web_presence_helper_record(&draft);
-        self.staged_web_presences.insert(id.clone(), record.clone());
+        self.store
+            .staged
+            .web_presences
+            .insert(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, "webPresenceCreate", vec![id]);
         json!({"webPresence": record, "userErrors": []})
     }
@@ -1965,7 +2055,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let Some(existing) = self.staged_web_presences.get(id).cloned() else {
+        let Some(existing) = self.store.staged.web_presences.get(id).cloned() else {
             return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
         };
         let mut errors = Vec::new();
@@ -1973,7 +2063,7 @@ impl DraftProxy {
         web_presence_validate_routing_and_uniqueness(
             &draft,
             input,
-            &self.staged_web_presences,
+            &self.store.staged.web_presences,
             Some(id),
             false,
             &mut errors,
@@ -1982,7 +2072,9 @@ impl DraftProxy {
             return json!({"webPresence": null, "userErrors": errors});
         }
         let record = market_web_presence_helper_record(&draft);
-        self.staged_web_presences
+        self.store
+            .staged
+            .web_presences
             .insert(id.to_string(), record.clone());
         self.record_mutation_log_entry(
             request,
@@ -1995,9 +2087,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_price_list_id(&self) -> String {
-        let numeric_id = (self.staged_markets.len() * 2)
-            + (self.staged_catalogs.len() * 2)
-            + self.staged_price_lists.len()
+        let numeric_id = (self.store.staged.markets.len() * 2)
+            + (self.store.staged.catalogs.len() * 2)
+            + self.store.staged.price_lists.len()
             + 1;
         format!("gid://shopify/PriceList/{numeric_id}")
     }
@@ -2007,16 +2099,16 @@ impl DraftProxy {
         catalog_id: &str,
         price_list_id: &str,
     ) {
-        if let Some(catalog) = self.staged_catalogs.get_mut(catalog_id) {
+        if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
             set_catalog_price_list_relation(catalog, Some(price_list_id));
         }
-        if let Some(price_list) = self.staged_price_lists.get_mut(price_list_id) {
+        if let Some(price_list) = self.store.staged.price_lists.get_mut(price_list_id) {
             set_price_list_catalog_relation(price_list, Some(catalog_id));
         }
     }
 
     pub(in crate::proxy) fn detach_price_list_from_catalogs(&mut self, price_list_id: &str) {
-        for catalog in self.staged_catalogs.values_mut() {
+        for catalog in self.store.staged.catalogs.values_mut() {
             if catalog_relation_id(catalog, "priceListId", "priceList").as_deref()
                 == Some(price_list_id)
             {
@@ -2027,14 +2119,14 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn detach_existing_catalog_price_list(&mut self, catalog: &Value) {
         if let Some(price_list_id) = catalog_relation_id(catalog, "priceListId", "priceList") {
-            if let Some(price_list) = self.staged_price_lists.get_mut(&price_list_id) {
+            if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
                 set_price_list_catalog_relation(price_list, None);
             }
         }
     }
 
     pub(in crate::proxy) fn catalog_relation_price_list_exists(&self, price_list_id: &str) -> bool {
-        self.staged_price_lists.contains_key(price_list_id)
+        self.store.staged.price_lists.contains_key(price_list_id)
             || matches!(
                 price_list_id,
                 "gid://shopify/PriceList/1" | "gid://shopify/PriceList/attached"
@@ -2053,11 +2145,15 @@ impl DraftProxy {
         price_list_id: &str,
         current_catalog_id: Option<&str>,
     ) -> bool {
-        self.staged_catalogs.iter().any(|(catalog_id, catalog)| {
-            current_catalog_id != Some(catalog_id.as_str())
-                && catalog_relation_id(catalog, "priceListId", "priceList").as_deref()
-                    == Some(price_list_id)
-        })
+        self.store
+            .staged
+            .catalogs
+            .iter()
+            .any(|(catalog_id, catalog)| {
+                current_catalog_id != Some(catalog_id.as_str())
+                    && catalog_relation_id(catalog, "priceListId", "priceList").as_deref()
+                        == Some(price_list_id)
+            })
     }
 
     pub(in crate::proxy) fn catalog_publication_taken(
@@ -2065,11 +2161,15 @@ impl DraftProxy {
         publication_id: &str,
         current_catalog_id: Option<&str>,
     ) -> bool {
-        self.staged_catalogs.iter().any(|(catalog_id, catalog)| {
-            current_catalog_id != Some(catalog_id.as_str())
-                && catalog_relation_id(catalog, "publicationId", "publication").as_deref()
-                    == Some(publication_id)
-        })
+        self.store
+            .staged
+            .catalogs
+            .iter()
+            .any(|(catalog_id, catalog)| {
+                current_catalog_id != Some(catalog_id.as_str())
+                    && catalog_relation_id(catalog, "publicationId", "publication").as_deref()
+                        == Some(publication_id)
+            })
     }
 
     pub(in crate::proxy) fn market_localization_query_data(
@@ -2123,7 +2223,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_localizable_resource(&self, resource_id: &str) -> Value {
         let staged = self
-            .staged_localization_translations
+            .store
+            .staged
+            .localization_translations
             .iter()
             .filter(|translation| translation["resourceId"].as_str() == Some(resource_id))
             .cloned()
@@ -2236,12 +2338,18 @@ impl DraftProxy {
             let resource_id = record["resourceId"].as_str().unwrap_or_default();
             let key = record["key"].as_str().unwrap_or_default();
             let market_id = record["market"]["id"].as_str().unwrap_or_default();
-            self.staged_localization_translations.retain(|existing| {
-                existing["resourceId"].as_str() != Some(resource_id)
-                    || existing["key"].as_str() != Some(key)
-                    || existing["market"]["id"].as_str() != Some(market_id)
-            });
-            self.staged_localization_translations.push(record.clone());
+            self.store
+                .staged
+                .localization_translations
+                .retain(|existing| {
+                    existing["resourceId"].as_str() != Some(resource_id)
+                        || existing["key"].as_str() != Some(key)
+                        || existing["market"]["id"].as_str() != Some(market_id)
+                });
+            self.store
+                .staged
+                .localization_translations
+                .push(record.clone());
         }
 
         selected_json(
@@ -2274,21 +2382,25 @@ impl DraftProxy {
         }
 
         let mut removed = Vec::new();
-        self.staged_localization_translations.retain(|translation| {
-            let matches_resource = translation["resourceId"].as_str() == Some(resource_id.as_str());
-            let matches_key = translation["key"]
-                .as_str()
-                .is_some_and(|key| keys.iter().any(|candidate| candidate == key));
-            let matches_market = market_ids.is_empty()
-                || translation["market"]["id"]
+        self.store
+            .staged
+            .localization_translations
+            .retain(|translation| {
+                let matches_resource =
+                    translation["resourceId"].as_str() == Some(resource_id.as_str());
+                let matches_key = translation["key"]
                     .as_str()
-                    .is_some_and(|id| market_ids.iter().any(|candidate| candidate == id));
-            let should_remove = matches_resource && matches_key && matches_market;
-            if should_remove {
-                removed.push(translation.clone());
-            }
-            !should_remove
-        });
+                    .is_some_and(|key| keys.iter().any(|candidate| candidate == key));
+                let matches_market = market_ids.is_empty()
+                    || translation["market"]["id"]
+                        .as_str()
+                        .is_some_and(|id| market_ids.iter().any(|candidate| candidate == id));
+                let should_remove = matches_resource && matches_key && matches_market;
+                if should_remove {
+                    removed.push(translation.clone());
+                }
+                !should_remove
+            });
         let removed = if removed.is_empty() {
             Value::Null
         } else {
@@ -2423,12 +2535,17 @@ impl DraftProxy {
             }
             translation["value"] = json!(normalize_localized_handle(original_value));
         }
-        self.staged_localization_translations.retain(|existing| {
-            existing["key"] != translation["key"]
-                || existing["locale"] != translation["locale"]
-                || existing["market"] != translation["market"]
-        });
-        self.staged_localization_translations
+        self.store
+            .staged
+            .localization_translations
+            .retain(|existing| {
+                existing["key"] != translation["key"]
+                    || existing["locale"] != translation["locale"]
+                    || existing["market"] != translation["market"]
+            });
+        self.store
+            .staged
+            .localization_translations
             .push(translation.clone());
         selected_json(
             &json!({ "translations": [translation], "userErrors": user_errors }),
@@ -2468,16 +2585,22 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let removed = if let Some(position) =
-            self.staged_localization_translations
-                .iter()
-                .position(|translation| {
-                    market_ids.is_empty()
-                        || market_ids
-                            .iter()
-                            .any(|id| translation["market"]["id"] == json!(id))
-                }) {
-            Value::Array(vec![self.staged_localization_translations.remove(position)])
+        let removed = if let Some(position) = self
+            .store
+            .staged
+            .localization_translations
+            .iter()
+            .position(|translation| {
+                market_ids.is_empty()
+                    || market_ids
+                        .iter()
+                        .any(|id| translation["market"]["id"] == json!(id))
+            }) {
+            Value::Array(vec![self
+                .store
+                .staged
+                .localization_translations
+                .remove(position)])
         } else {
             Value::Null
         };
@@ -2497,7 +2620,7 @@ impl DraftProxy {
                 "locale": "en",
                 "type": "SINGLE_LINE_TEXT_FIELD"
             }],
-            "translations": self.staged_localization_translations.clone()
+            "translations": self.store.staged.localization_translations.clone()
         })
     }
 }

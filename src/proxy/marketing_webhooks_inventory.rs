@@ -7,9 +7,17 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "marketingActivity" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_marketing_activities
+                    self.store
+                        .staged
+                        .marketing_activities
                         .get(&id)
-                        .filter(|_| !self.staged_deleted_marketing_activity_ids.contains(&id))
+                        .filter(|_| {
+                            !self
+                                .store
+                                .staged
+                                .deleted_marketing_activity_ids
+                                .contains(&id)
+                        })
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
@@ -18,11 +26,18 @@ impl DraftProxy {
                     let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
                     let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
                     let mut records = self
-                        .staged_marketing_activities
+                        .store
+                        .staged
+                        .marketing_activities
                         .values()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            if self.staged_deleted_marketing_activity_ids.contains(id) {
+                            if self
+                                .store
+                                .staged
+                                .deleted_marketing_activity_ids
+                                .contains(id)
+                            {
                                 return false;
                             }
                             if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
@@ -51,13 +66,17 @@ impl DraftProxy {
                 }
                 "marketingEvent" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_marketing_activities
+                    self.store
+                        .staged
+                        .marketing_activities
                         .values()
                         .find(|record| record["marketingEvent"]["id"].as_str() == Some(id.as_str()))
                         .filter(|record| {
                             let activity_id = record["id"].as_str().unwrap_or_default();
                             !self
-                                .staged_deleted_marketing_activity_ids
+                                .store
+                                .staged
+                                .deleted_marketing_activity_ids
                                 .contains(activity_id)
                         })
                         .map(|record| record["marketingEvent"].clone())
@@ -68,11 +87,17 @@ impl DraftProxy {
                     let records = if query.contains("__har") || query.contains("__none__") {
                         Vec::new()
                     } else {
-                        self.staged_marketing_activities
+                        self.store
+                            .staged
+                            .marketing_activities
                             .values()
                             .filter(|record| {
                                 let id = record["id"].as_str().unwrap_or_default();
-                                !self.staged_deleted_marketing_activity_ids.contains(id)
+                                !self
+                                    .store
+                                    .staged
+                                    .deleted_marketing_activity_ids
+                                    .contains(id)
                             })
                             .filter_map(|record| {
                                 if record["marketingEvent"].is_null() {
@@ -115,7 +140,7 @@ impl DraftProxy {
                     .arguments
                     .get("id")
                     .and_then(resolved_as_string)
-                    .and_then(|id| self.staged_webhook_subscriptions.get(&id))
+                    .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),
                 "webhookSubscriptions" => {
@@ -181,7 +206,9 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Vec<Value> {
-        self.staged_webhook_subscriptions
+        self.store
+            .staged
+            .webhook_subscriptions
             .values()
             .filter(|record| webhook_subscription_matches_field_args(record, &field.arguments))
             .cloned()
@@ -205,7 +232,9 @@ impl DraftProxy {
             let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
             return ok_json(json!({ "data": { response_key: payload } }));
         }
-        self.staged_webhook_subscriptions
+        self.store
+            .staged
+            .webhook_subscriptions
             .insert(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
         ok_json(json!({
@@ -226,7 +255,7 @@ impl DraftProxy {
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let Some(existing) = self.staged_webhook_subscriptions.get(&id).cloned() else {
+        let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
             let payload = self.webhook_subscription_payload(
                 Value::Null,
                 payload_selection,
@@ -240,7 +269,9 @@ impl DraftProxy {
             let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
             return ok_json(json!({ "data": { response_key: payload } }));
         }
-        self.staged_webhook_subscriptions
+        self.store
+            .staged
+            .webhook_subscriptions
             .insert(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
         ok_json(json!({
@@ -261,7 +292,13 @@ impl DraftProxy {
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let deleted_id = if self.staged_webhook_subscriptions.remove(&id).is_some() {
+        let deleted_id = if self
+            .store
+            .staged
+            .webhook_subscriptions
+            .remove(&id)
+            .is_some()
+        {
             json!(id.clone())
         } else {
             Value::Null
@@ -411,7 +448,9 @@ impl DraftProxy {
             }));
         }
         if self
-            .staged_webhook_subscriptions
+            .store
+            .staged
+            .webhook_subscriptions
             .iter()
             .any(|(existing_id, existing)| {
                 existing_id != id
@@ -447,7 +486,9 @@ impl DraftProxy {
                 }));
             }
             if self
-                .staged_webhook_subscriptions
+                .store
+                .staged
+                .webhook_subscriptions
                 .iter()
                 .any(|(existing_id, existing)| {
                     existing_id != id
@@ -533,7 +574,7 @@ impl DraftProxy {
                 "marketingActivityUpsertExternal" => self.marketing_upsert_external(field, request),
                 "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
                 "marketingActivitiesDeleteAllExternal" => {
-                    self.staged_marketing_delete_all_external = true;
+                    self.store.staged.marketing_delete_all_external = true;
                     selected_json(
                         &json!({
                             "job": { "id": "gid://shopify/Job/marketing-delete-all-local", "done": false },
@@ -583,7 +624,10 @@ impl DraftProxy {
                     record["isExternal"] = json!(false);
                     record["inMainWorkflowVersion"] = json!(true);
                     record["marketingEvent"] = Value::Null;
-                    self.staged_marketing_activities.insert(id, record.clone());
+                    self.store
+                        .staged
+                        .marketing_activities
+                        .insert(id, record.clone());
                     selected_json(
                         &json!({ "marketingActivity": record, "redirectPath": "/admin/marketing", "userErrors": [] }),
                         &field.selection,
@@ -657,7 +701,9 @@ impl DraftProxy {
             );
         };
         let existing = self
-            .staged_marketing_activities
+            .store
+            .staged
+            .marketing_activities
             .get(&existing_id)
             .cloned()
             .unwrap_or(Value::Null);
@@ -727,7 +773,7 @@ impl DraftProxy {
         let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
         let existing_id = self.find_marketing_activity_by_remote(&remote, request);
         if let Some(id) = &existing_id {
-            if let Some(existing) = self.staged_marketing_activities.get(id) {
+            if let Some(existing) = self.store.staged.marketing_activities.get(id) {
                 if input_utm_differs(existing, &input) {
                     return selected_json(
                         &marketing_activity_payload(
@@ -782,7 +828,7 @@ impl DraftProxy {
         create_if_missing: bool,
         request: &Request,
     ) -> Value {
-        if self.staged_marketing_delete_all_external
+        if self.store.staged.marketing_delete_all_external
             && existing_id.is_none()
             && field.name == "marketingActivityCreateExternal"
         {
@@ -856,10 +902,10 @@ impl DraftProxy {
         let id = existing_id.unwrap_or_else(|| {
             format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
         });
-        if !self.staged_marketing_activities.contains_key(&id) {
+        if !self.store.staged.marketing_activities.contains_key(&id) {
             self.next_synthetic_id += 2;
         }
-        let existing = self.staged_marketing_activities.get(&id).cloned();
+        let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let activity = marketing_activity_from_input(
             &id,
             input,
@@ -869,8 +915,10 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
         );
-        self.staged_deleted_marketing_activity_ids.remove(&id);
-        self.staged_marketing_activities
+        self.store.staged.deleted_marketing_activity_ids.remove(&id);
+        self.store
+            .staged
+            .marketing_activities
             .insert(id, activity.clone());
         marketing_activity_payload(Some(activity), Vec::new())
     }
@@ -905,7 +953,9 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        self.staged_deleted_marketing_activity_ids
+        self.store
+            .staged
+            .deleted_marketing_activity_ids
             .insert(id.clone());
         selected_json(
             &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
@@ -1008,9 +1058,9 @@ impl DraftProxy {
         }
         let engagement = marketing_engagement_from_input(
             &engagement_input,
-            self.staged_marketing_activities.get(&activity_id),
+            self.store.staged.marketing_activities.get(&activity_id),
         );
-        if let Some(_activity) = self.staged_marketing_activities.get_mut(&activity_id) {
+        if let Some(_activity) = self.store.staged.marketing_activities.get_mut(&activity_id) {
             // Shopify accepts engagement metrics but does not fold engagement ad spend
             // back into the MarketingActivity.adSpend field in these captures.
         }
@@ -1054,10 +1104,17 @@ impl DraftProxy {
         request: &Request,
     ) -> Option<String> {
         let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
-        self.staged_marketing_activities
+        self.store
+            .staged
+            .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self.staged_deleted_marketing_activity_ids.contains(id) {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
                     return None;
                 }
                 if record["remoteId"].as_str() != Some(remote)
@@ -1080,10 +1137,17 @@ impl DraftProxy {
         request: &Request,
     ) -> Option<String> {
         let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
-        self.staged_marketing_activities
+        self.store
+            .staged
+            .marketing_activities
             .iter()
             .find_map(|(id, record)| {
-                if self.staged_deleted_marketing_activity_ids.contains(id) {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
                     return None;
                 }
                 if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
@@ -1103,7 +1167,7 @@ impl DraftProxy {
         activity_id: &str,
         engagement: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let Some(activity) = self.staged_marketing_activities.get(activity_id) else {
+        let Some(activity) = self.store.staged.marketing_activities.get(activity_id) else {
             return false;
         };
         let Some(activity_currency) = activity["budget"]["total"]["currencyCode"].as_str() else {
@@ -1158,12 +1222,12 @@ impl DraftProxy {
                 "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
             ))
             .expect("selling plan group lifecycle fixture must parse");
-            let capture_index = match self.staged_selling_plan_group_downstream_step {
+            let capture_index = match self.store.staged.selling_plan_group_downstream_step {
                 0 => 4,
                 1 => 6,
                 _ => 10,
             };
-            self.staged_selling_plan_group_downstream_step += 1;
+            self.store.staged.selling_plan_group_downstream_step += 1;
             return Some(fixture["captures"][capture_index]["response"]["data"].clone());
         }
         if query.contains("ProductRelationshipSellingPlanMembershipRead") {
@@ -1179,7 +1243,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn inventory_item_json(&self, inventory_item_id: &str) -> Value {
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let levels = self
-            .staged_inventory_levels
+            .store.staged.inventory_levels
             .iter()
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
             .map(|((_, location_id), quantities)| {
@@ -1204,7 +1268,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn inventory_total(&self, inventory_item_id: &str, name: &str) -> i64 {
-        self.staged_inventory_levels
+        self.store
+            .staged
+            .inventory_levels
             .iter()
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
             .map(|(_, quantities)| quantities.get(name).copied().unwrap_or(0))
@@ -1248,7 +1314,7 @@ impl DraftProxy {
             let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
             let new_quantity = resolved_int_field(&quantity, "quantity").unwrap_or(0);
             let key = (item_id, location_id.clone());
-            let level = self.staged_inventory_levels.entry(key).or_default();
+            let level = self.store.staged.inventory_levels.entry(key).or_default();
             let old = level.get(&name).copied().unwrap_or(0);
             let delta = new_quantity - old;
             level.insert(name.clone(), new_quantity);
@@ -1312,7 +1378,9 @@ impl DraftProxy {
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
             let level = self
-                .staged_inventory_levels
+                .store
+                .staged
+                .inventory_levels
                 .entry((item_id, location_id.clone()))
                 .or_default();
             *level.entry(from_name.clone()).or_insert(0) -= quantity;
@@ -1351,7 +1419,9 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = if field.name == "node" {
-                self.staged_function_cart_transform
+                self.store
+                    .staged
+                    .function_cart_transform
                     .clone()
                     .unwrap_or(Value::Null)
             } else {

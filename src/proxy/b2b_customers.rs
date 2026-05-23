@@ -135,7 +135,9 @@ impl DraftProxy {
                 for field in fields {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let location = self
-                        .staged_b2b_locations
+                        .store
+                        .staged
+                        .b2b_locations
                         .get(&id)
                         .map(|location| selected_json(location, &field.selection))
                         .unwrap_or(Value::Null);
@@ -190,7 +192,9 @@ impl DraftProxy {
                 "deposit": deposit
             }
         });
-        self.staged_b2b_locations
+        self.store
+            .staged
+            .b2b_locations
             .insert(location_id.clone(), location.clone());
         (
             b2b_company_location_payload(Some(&location), Vec::new()),
@@ -249,7 +253,9 @@ impl DraftProxy {
                 for field in fields {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let company = self
-                        .staged_b2b_companies
+                        .store
+                        .staged
+                        .b2b_companies
                         .get(&id)
                         .map(|company| selected_json(company, &field.selection))
                         .unwrap_or(Value::Null);
@@ -268,16 +274,16 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
         let errors =
-            b2b_company_create_validation_errors(&company_input, &self.staged_b2b_companies);
+            b2b_company_create_validation_errors(&company_input, &self.store.staged.b2b_companies);
         if !errors.is_empty() {
             return (b2b_company_payload(None, errors), "failed", Vec::new());
         }
 
         let id = format!(
             "gid://shopify/Company/{}?shopify-draft-proxy=synthetic",
-            self.next_b2b_company_id
+            self.store.staged.next_b2b_company_id
         );
-        self.next_b2b_company_id += 5;
+        self.store.staged.next_b2b_company_id += 5;
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
@@ -288,7 +294,9 @@ impl DraftProxy {
             "customerSince": resolved_string_field(&company_input, "customerSince").map(Value::String).unwrap_or(Value::Null),
             "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null)
         });
-        self.staged_b2b_companies
+        self.store
+            .staged
+            .b2b_companies
             .insert(id.clone(), company.clone());
         (
             b2b_company_payload(Some(&company), Vec::new()),
@@ -303,14 +311,19 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let errors =
-            b2b_company_update_validation_errors(&input, &self.staged_b2b_companies, &company_id);
+        let errors = b2b_company_update_validation_errors(
+            &input,
+            &self.store.staged.b2b_companies,
+            &company_id,
+        );
         if !errors.is_empty() {
             return (b2b_company_payload(None, errors), "failed", Vec::new());
         }
 
         let mut company = self
-            .staged_b2b_companies
+            .store
+            .staged
+            .b2b_companies
             .get(&company_id)
             .cloned()
             .unwrap_or_else(|| json!({ "id": company_id }));
@@ -327,7 +340,9 @@ impl DraftProxy {
                 .map(Value::String)
                 .unwrap_or(Value::Null);
         }
-        self.staged_b2b_companies
+        self.store
+            .staged
+            .b2b_companies
             .insert(company_id.clone(), company.clone());
         (
             b2b_company_payload(Some(&company), Vec::new()),
@@ -805,12 +820,12 @@ impl DraftProxy {
         fields.iter().any(|field| match field.name.as_str() {
             "customer" => match field.arguments.get("id") {
                 Some(ResolvedValue::String(id)) => {
-                    self.staged_customers.contains_key(id)
-                        || self.staged_deleted_customer_ids.contains(id)
+                    self.store.staged.customers.contains_key(id)
+                        || self.store.staged.deleted_customer_ids.contains(id)
                 }
                 _ => false,
             },
-            "customerByIdentifier" => !self.staged_customers.is_empty(),
+            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
             _ => false,
         })
     }
@@ -842,10 +857,12 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return Value::Null;
         };
-        if self.staged_deleted_customer_ids.contains(id) {
+        if self.store.staged.deleted_customer_ids.contains(id) {
             return Value::Null;
         }
-        self.staged_customers
+        self.store
+            .staged
+            .customers
             .get(id)
             .map(|customer| {
                 let enriched = self.customer_with_order_connection(id, customer);
@@ -861,7 +878,9 @@ impl DraftProxy {
     ) -> Value {
         let mut enriched = customer.clone();
         let orders = self
-            .staged_customer_orders
+            .store
+            .staged
+            .customer_orders
             .get(id)
             .cloned()
             .unwrap_or_default();
@@ -892,14 +911,16 @@ impl DraftProxy {
             return Value::Null;
         };
         let customer = match identifier.get("email") {
-            Some(ResolvedValue::String(email)) => self.staged_customers.values().find(|customer| {
-                customer.get("email").and_then(Value::as_str) == Some(email.as_str())
-            }),
+            Some(ResolvedValue::String(email)) => {
+                self.store.staged.customers.values().find(|customer| {
+                    customer.get("email").and_then(Value::as_str) == Some(email.as_str())
+                })
+            }
             _ => match identifier.get("id") {
-                Some(ResolvedValue::String(id)) => self.staged_customers.get(id),
+                Some(ResolvedValue::String(id)) => self.store.staged.customers.get(id),
                 _ => match identifier.get("phone") {
                     Some(ResolvedValue::String(phone)) => {
-                        self.staged_customers.values().find(|customer| {
+                        self.store.staged.customers.values().find(|customer| {
                             customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
                         })
                     }
@@ -986,7 +1007,10 @@ impl DraftProxy {
             "createdAt": timestamp,
             "updatedAt": timestamp
         });
-        self.staged_customers.insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .customers
+            .insert(id.clone(), customer.clone());
         self.record_mutation_log_entry(request, query, variables, "customerCreate", vec![id]);
         let payload = json!({ "customer": customer, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -1067,8 +1091,11 @@ impl DraftProxy {
                 );
             }
         }
-        self.staged_deleted_customer_ids.remove(&id);
-        self.staged_customers.insert(id.clone(), customer.clone());
+        self.store.staged.deleted_customer_ids.remove(&id);
+        self.store
+            .staged
+            .customers
+            .insert(id.clone(), customer.clone());
         self.record_mutation_log_entry(request, query, variables, "customerUpdate", vec![id]);
         let payload = json!({ "customer": customer, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -1092,7 +1119,9 @@ impl DraftProxy {
                 "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
             })
         } else if self
-            .staged_customer_orders
+            .store
+            .staged
+            .customer_orders
             .get(&id)
             .map(|orders| !orders.is_empty())
             .unwrap_or(false)
@@ -1106,8 +1135,8 @@ impl DraftProxy {
                 }]
             })
         } else {
-            self.staged_customers.remove(&id);
-            self.staged_deleted_customer_ids.insert(id.clone());
+            self.store.staged.customers.remove(&id);
+            self.store.staged.deleted_customer_ids.insert(id.clone());
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -1142,7 +1171,9 @@ impl DraftProxy {
         let order_input = resolved_object_field(variables, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
         let customer = self
-            .staged_customers
+            .store
+            .staged
+            .customers
             .get(&customer_id)
             .cloned()
             .unwrap_or(Value::Null);
@@ -1158,7 +1189,9 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
-            self.staged_customer_orders
+            self.store
+                .staged
+                .customer_orders
                 .entry(customer_id.clone())
                 .or_default()
                 .push(order.clone());

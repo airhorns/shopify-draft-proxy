@@ -52,13 +52,13 @@ App/test harness
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its store, staged overlays, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, normalized staged state, synthetic identity allocation, registry metadata, and injectable transports
+- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
 ### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
@@ -72,6 +72,7 @@ App/test harness
 
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
+- use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`
 
 ### `src/graphql.rs`
@@ -132,14 +133,23 @@ The TypeScript package is not a second proxy implementation. New runtime behavio
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary.
+
+The normalized product and saved-search portions currently include:
+
+- `BaseState` for snapshot, fixture, or restored upstream state
+- `StagedState` for local inserts and updates
+- ordered ID arrays for deterministic effective lists and dump/restore round trips
+- tombstone sets for staged deletes
+
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
-- staged state for local inserts/updates/deletes not yet committed
+- staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
 - ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
 - synthetic identity counters scoped to a `DraftProxy` instance
 
-Effective reads merge base state and staged state, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
+Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
 
 ## Public route contract
 

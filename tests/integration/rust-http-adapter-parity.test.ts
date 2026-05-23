@@ -150,11 +150,19 @@ describe('Rust HTTP adapter route surface', () => {
       expect(await getJson(origin, '/__meta/state')).toEqual({
         status: 200,
         body: {
-          baseState: { products: {}, savedSearches: {} },
+          baseState: {
+            products: {},
+            productOrder: [],
+            savedSearches: {},
+            savedSearchOrder: [],
+          },
           stagedState: {
             products: {},
+            productOrder: [],
             deletedProductIds: [],
             savedSearches: {},
+            savedSearchOrder: [],
+            deletedSavedSearchIds: [],
             shippingPackages: {},
             deletedShippingPackageIds: {},
             delegatedAccessTokens: {},
