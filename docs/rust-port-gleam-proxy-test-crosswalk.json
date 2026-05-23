@@ -2,9 +2,9 @@
   "summary": {
     "coverage_status_counts": {
       "implementation_unit_replaced_needs_review": 117,
-      "needs_manual_review": 353,
+      "needs_manual_review": 352,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1688
+      "represented_by_rust_root_tests": 1689
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -290,14 +290,14 @@
       "pure_helper_or_parser": 423,
       "state_or_helper_behavior": 660
     },
-    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback. Payment customization create/update/activation/readback helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers and tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths, including missing/empty/invalid metafields, function identifier validation, enabled toggles with ids-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream paymentCustomization readback. Payment-terms create/update guard helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges, including paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors. Customer-payment-method update/revoke tail helpers from payments_test.gleam are covered by tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam, including blank billing-address update fields, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence. Product media deprecated userErrors and variant-media guard helpers from products_mutation_test.gleam are covered by tests/graphql_routes.rs::product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers, including mirrored userErrors/mediaUserErrors for create/update/delete/reorder media validation, non-ready media append rejection, and unattached detach rejection. B2B company create/update validation helper behavior from b2b_test.gleam is covered by tests/graphql_routes.rs::b2b_company_identity_validation_tail_helpers_port_old_gleam_tests and tests/graphql_routes.rs::b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests, including name length checks, HTML-name sanitization, externalId length/character/duplicate guards, self-update duplicate exemption, immutable customerSince rejection with readback unchanged, and note HTML/length errors.",
+    "manual_overrides": "Updated during Rust webhook port: endpoint/URI conversion, filters/sorts/counts, validation edge cases, and dedicated Pub/Sub field-path errors are now covered by Rust integration tests. Restoration malformed-dump/schema/identity guard behavior from draft_proxy_test.gleam is covered by tests/meta_routes.rs::ported_gleam_restore_state_rejects_malformed_rust_dumps. Event empty-read helper/proxy behavior from events_test.gleam and draft_proxy_test.gleam is covered by tests/graphql_routes.rs::ported_gleam_event_empty_read_shapes_match_draft_proxy_tests. Market localization helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_localizations_register_remove_ported_gleam_helpers_stage_and_validate, including register/remove missing-resource errors, >100-key caps, invalid market/key/digest/value validation, staged reads, no-op removes, returned removed rows, and read-after-remove state. Market create validation/staging helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests, including status/enabled guards, price-inclusion projection/rejection, currency settings validation/readback, region duplicate/unsupported guards, generated handle slugification/deduplication, and duplicate name/handle errors. Catalog create/delete/context helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate, including status/context/market/country validation, typed CatalogUserError shapes, market-context staging/readback, unknown relation guards, delete-missing behavior, and catalogContextUpdate add/remove validation/readback. Price-list helper behavior from markets_mutation_test.gleam is covered by tests/graphql_routes.rs::price_list_create_update_delete_ported_gleam_helpers_stage_and_validate, including create validation, adjustment bounds, typed PriceList/QuantityRule/Market user-error shapes, staged readback, catalog attachment, and null-catalog detachment for locally created price lists. Localization shop-locale update/disable tail helper behavior from localization_mutation_test.gleam is covered by tests/graphql_routes.rs::localization_shop_locale_update_disable_tail_helpers_ported_from_gleam, including staged market-web-presence projection, published updates, missing-locale update guards, primary-locale mutation guards, unknown disable guards, disable removal, and shopLocales readback. Payment customization create/update/activation/readback helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers and tests/graphql_routes.rs::payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths, including missing/empty/invalid metafields, function identifier validation, enabled toggles with ids-scoped not-found errors, immutable function guards, app-namespace metafield normalization, fixture-backed validation/read paths, and downstream paymentCustomization readback. Payment-terms create/update guard helper behavior from payments_test.gleam is covered by tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges, including paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors. Customer-payment-method update/revoke tail helpers from payments_test.gleam are covered by tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam, including blank billing-address update fields, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence. Product media deprecated userErrors and variant-media guard helpers from products_mutation_test.gleam are covered by tests/graphql_routes.rs::product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers, including mirrored userErrors/mediaUserErrors for create/update/delete/reorder media validation, non-ready media append rejection, and unattached detach rejection. B2B company create/update validation helper behavior from b2b_test.gleam is covered by tests/graphql_routes.rs::b2b_company_identity_validation_tail_helpers_port_old_gleam_tests and tests/graphql_routes.rs::b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests, including name length checks, HTML-name sanitization, externalId length/character/duplicate guards, self-update duplicate exemption, immutable customerSince rejection with readback unchanged, and note HTML/length errors. B2B company-location buyer-experience configuration update validation from b2b_test.gleam is covered by tests/graphql_routes.rs::b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_gleam_tests, including empty buyerExperienceConfiguration, deposit-without-template, deposit-disabled, successful deposit/payment-terms staging, downstream companyLocation readback, and failed/staged log evidence.",
     "rust_branch_worktree": "/home/airhorns/code/_worktrees/shopify-draft-proxy-rust-port",
     "scope": "origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test",
     "status_counts": {
       "implementation_unit_replaced_needs_review": 117,
-      "needs_manual_review": 353,
+      "needs_manual_review": 352,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1688
+      "represented_by_rust_root_tests": 1689
     },
     "test_count": 2162
   },
@@ -3076,18 +3076,32 @@
     },
     {
       "body_sha1": "850694f58d5fcb726a2e3f3181d63688d1e82978",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "ported_b2b_location_buyer_experience_update_tail_helper_to_rust_integration_test",
+        "one_or_more_graphql_roots_found_in_rust_tests"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "b2b",
       "gleam_line": 681,
       "gleam_path": "test/shopify_draft_proxy/proxy/b2b_test.gleam",
       "gleam_test": "b2b_location_buyer_experience_configuration_update_validation_test",
       "id": "e56b4707e763",
       "kind": "proxy_integration_helper",
-      "root_coverage": {},
-      "root_fields": [],
+      "root_coverage": {
+        "companyLocation": {
+          "parity_spec": false,
+          "rust_src": true,
+          "rust_test": true
+        },
+        "companyLocationUpdate": {
+          "parity_spec": false,
+          "rust_src": true,
+          "rust_test": true
+        }
+      },
+      "root_fields": ["companyLocationUpdate", "companyLocation"],
       "rust_file_stem_hit": true,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "5b512d8634415770fd7359c26d0aaea35d4f237d",

@@ -3736,6 +3736,161 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
 }
 
 #[test]
+fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: {} }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(empty.status, 200);
+    assert_eq!(
+        empty.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration"],
+                "message": "Invalid input.",
+                "code": "INVALID_INPUT",
+                "detail": "buyer_experience_configuration_empty"
+            }]
+        })
+    );
+
+    let deposit_without_terms = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { deposit: { percentage: 50.0 } } }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(deposit_without_terms.status, 200);
+    assert_eq!(
+        deposit_without_terms.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration", "deposit"],
+                "message": "Deposit requires a payment terms template.",
+                "code": "INVALID",
+                "detail": "deposit_without_payment_terms"
+            }]
+        })
+    );
+
+    let deposit_disabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationDepositDisabled($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4", deposit: { percentage: 50.0 } } }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(deposit_disabled.status, 200);
+    assert_eq!(
+        deposit_disabled.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration", "deposit"],
+                "message": "Deposits are not enabled for this shop.",
+                "code": "INVALID",
+                "detail": "deposit_not_enabled"
+            }]
+        })
+    );
+
+    let valid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4", checkoutToDraft: true, editableShippingAddress: true, deposit: { percentage: 50.0 } } }) {
+            companyLocation {
+              id
+              taxSettings { taxExempt }
+              buyerExperienceConfiguration {
+                editableShippingAddress
+                checkoutToDraft
+                paymentTermsTemplate { id }
+                deposit { __typename }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": { "taxExempt": true },
+                "buyerExperienceConfiguration": {
+                    "editableShippingAddress": true,
+                    "checkoutToDraft": true,
+                    "paymentTermsTemplate": { "id": "gid://shopify/PaymentTermsTemplate/4" },
+                    "deposit": { "__typename": "DepositPercentage" }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BLocationBuyerExperienceConfigurationRead($locationId: ID!) {
+          companyLocation(id: $locationId) {
+            id
+            taxSettings { taxExempt }
+            buyerExperienceConfiguration {
+              editableShippingAddress
+              checkoutToDraft
+              paymentTermsTemplate { id }
+              deposit { __typename }
+            }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(
+        readback.body["data"]["companyLocation"],
+        valid.body["data"]["companyLocationUpdate"]["companyLocation"]
+    );
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    assert!(entries.iter().any(|entry| {
+        entry["status"] == json!("failed")
+            && entry["interpreted"]["primaryRootField"] == json!("companyLocationUpdate")
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["status"] == json!("staged")
+            && entry["interpreted"]["primaryRootField"] == json!("companyLocationUpdate")
+    }));
+}
+
+#[test]
 fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
 

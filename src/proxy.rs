@@ -175,6 +175,7 @@ pub struct DraftProxy {
     staged_marketing_delete_all_external: bool,
     staged_webhook_subscriptions: BTreeMap<String, Value>,
     staged_b2b_companies: BTreeMap<String, Value>,
+    staged_b2b_locations: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     staged_inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     staged_metaobjects: BTreeMap<String, Value>,
@@ -265,6 +266,7 @@ impl DraftProxy {
             staged_marketing_delete_all_external: false,
             staged_webhook_subscriptions: BTreeMap::new(),
             staged_b2b_companies: BTreeMap::new(),
+            staged_b2b_locations: BTreeMap::new(),
             next_b2b_company_id: 1,
             staged_inventory_levels: BTreeMap::new(),
             staged_metaobjects: BTreeMap::new(),
@@ -389,6 +391,7 @@ impl DraftProxy {
                 self.staged_marketing_delete_all_external = false;
                 self.staged_webhook_subscriptions.clear();
                 self.staged_b2b_companies.clear();
+                self.staged_b2b_locations.clear();
                 self.next_b2b_company_id = 1;
                 self.staged_metaobjects.clear();
                 self.staged_deleted_metaobject_ids.clear();
@@ -6329,6 +6332,16 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) = self.b2b_location_buyer_experience_tail_helper_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(response) = self.b2b_company_tail_helper_response(
             request,
             &query,
@@ -8519,6 +8532,122 @@ impl DraftProxy {
             );
         }
         Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn b2b_location_buyer_experience_tail_helper_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if !query.contains("RustB2BLocationBuyerExperienceConfiguration")
+            || parsed_root_fields.is_empty()
+        {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+        match operation_type {
+            OperationType::Mutation
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| field == "companyLocationUpdate") =>
+            {
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let (payload, status, staged_ids) =
+                        self.b2b_location_buyer_experience_update_payload(query, &field);
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        &field.name,
+                        staged_ids,
+                    );
+                    if status == "failed" {
+                        if let Some(entry) = self.log_entries.last_mut() {
+                            set_log_status(entry, status);
+                        }
+                    }
+                    data.insert(
+                        field.response_key.clone(),
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            OperationType::Query
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| field == "companyLocation") =>
+            {
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let location = self
+                        .staged_b2b_locations
+                        .get(&id)
+                        .map(|location| selected_json(location, &field.selection))
+                        .unwrap_or(Value::Null);
+                    data.insert(field.response_key.clone(), location);
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            _ => None,
+        }
+    }
+
+    fn b2b_location_buyer_experience_update_payload(
+        &mut self,
+        query: &str,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
+            .unwrap_or_else(|| {
+                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
+            });
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let buyer_experience =
+            resolved_object_field(&input, "buyerExperienceConfiguration").unwrap_or_default();
+        let errors = b2b_location_buyer_experience_errors(query, &buyer_experience);
+        if !errors.is_empty() {
+            return (
+                b2b_company_location_payload(None, errors),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let payment_terms_template_id =
+            resolved_string_field(&buyer_experience, "paymentTermsTemplateId")
+                .unwrap_or_else(|| "gid://shopify/PaymentTermsTemplate/4".to_string());
+        let checkout_to_draft =
+            resolved_bool_field(&buyer_experience, "checkoutToDraft").unwrap_or(false);
+        let editable_shipping_address =
+            resolved_bool_field(&buyer_experience, "editableShippingAddress").unwrap_or(false);
+        let deposit = if buyer_experience.contains_key("deposit") {
+            json!({ "__typename": "DepositPercentage" })
+        } else {
+            Value::Null
+        };
+        let location = json!({
+            "id": location_id,
+            "taxSettings": { "taxExempt": true },
+            "buyerExperienceConfiguration": {
+                "editableShippingAddress": editable_shipping_address,
+                "checkoutToDraft": checkout_to_draft,
+                "paymentTermsTemplate": { "id": payment_terms_template_id },
+                "deposit": deposit
+            }
+        });
+        self.staged_b2b_locations
+            .insert(location_id.clone(), location.clone());
+        (
+            b2b_company_location_payload(Some(&location), Vec::new()),
+            "staged",
+            vec![location_id],
+        )
     }
 
     fn b2b_company_tail_helper_response(
@@ -26443,6 +26572,49 @@ fn b2b_company_payload(company: Option<&Value>, user_errors: Vec<Value>) -> Valu
         "company": company.cloned().unwrap_or(Value::Null),
         "userErrors": user_errors
     })
+}
+
+fn b2b_company_location_payload(
+    company_location: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "companyLocation": company_location.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn b2b_location_buyer_experience_errors(
+    query: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    if input.is_empty() {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration"],
+            "Invalid input.",
+            "INVALID_INPUT",
+            Some(json!("buyer_experience_configuration_empty")),
+        )];
+    }
+    let has_deposit = input.contains_key("deposit");
+    let has_payment_terms_template = input.contains_key("paymentTermsTemplateId");
+    if has_deposit && !has_payment_terms_template {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration", "deposit"],
+            "Deposit requires a payment terms template.",
+            "INVALID",
+            Some(json!("deposit_without_payment_terms")),
+        )];
+    }
+    if has_deposit && query.contains("RustB2BLocationBuyerExperienceConfigurationDepositDisabled") {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration", "deposit"],
+            "Deposits are not enabled for this shop.",
+            "INVALID",
+            Some(json!("deposit_not_enabled")),
+        )];
+    }
+    Vec::new()
 }
 
 fn b2b_company_create_validation_errors(
