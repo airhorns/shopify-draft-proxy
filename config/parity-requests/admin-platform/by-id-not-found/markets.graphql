@@ -1,0 +1,11 @@
+query MarketByIdNotFound($catalogId: ID!, $marketId: ID!, $priceListId: ID!) {
+  missingCatalog: catalog(id: $catalogId) {
+    __typename
+  }
+  missingMarket: market(id: $marketId) {
+    __typename
+  }
+  missingPriceList: priceList(id: $priceListId) {
+    __typename
+  }
+}

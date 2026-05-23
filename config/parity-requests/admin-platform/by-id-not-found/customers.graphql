@@ -1,0 +1,8 @@
+query CustomerPaymentByIdNotFound($customerPaymentMethodId: ID!, $storeCreditAccountId: ID!) {
+  missingCustomerPaymentMethod: customerPaymentMethod(id: $customerPaymentMethodId) {
+    __typename
+  }
+  missingStoreCreditAccount: storeCreditAccount(id: $storeCreditAccountId) {
+    __typename
+  }
+}

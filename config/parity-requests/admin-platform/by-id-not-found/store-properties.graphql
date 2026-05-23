@@ -1,0 +1,5 @@
+query StorePropertiesByIdNotFound($locationId: ID!) {
+  missingLocation: location(id: $locationId) {
+    __typename
+  }
+}

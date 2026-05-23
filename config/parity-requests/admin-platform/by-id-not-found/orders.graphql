@@ -1,0 +1,11 @@
+query OrderReverseByIdNotFound($returnId: ID!, $reverseDeliveryId: ID!, $reverseFulfillmentOrderId: ID!) {
+  missingReturn: return(id: $returnId) {
+    __typename
+  }
+  missingReverseDelivery: reverseDelivery(id: $reverseDeliveryId) {
+    __typename
+  }
+  missingReverseFulfillmentOrder: reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {
+    __typename
+  }
+}
