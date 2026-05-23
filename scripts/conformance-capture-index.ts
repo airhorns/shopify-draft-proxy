@@ -40,7 +40,7 @@ const statusCheckSchema = z.enum([
   'conformance:status',
   'conformance:check',
   'conformance:parity',
-  'gleam:test',
+  'rust:test',
   'targeted-runtime-test',
   'manual-capture-review',
 ]);
@@ -63,7 +63,7 @@ const captureIndexSchema = z.array(captureIndexEntrySchema);
 export type ConformanceCaptureIndexEntry = z.infer<typeof captureIndexEntrySchema>;
 type StatusCheck = z.infer<typeof statusCheckSchema>;
 
-const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'gleam:test'];
+const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'rust:test'];
 const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>/';
 const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 
@@ -2234,11 +2234,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
-    purpose: 'Metafield definition mutation validation branches.',
+    purpose:
+      'standardMetafieldDefinitionEnable validation branches plus regular metafieldDefinition create/update/delete/pin/unpin userError typename evidence.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}standard-metafield-definition-enable-validation.json`],
-    cleanupBehavior: 'Validation-oriented capture; success paths require explicit disposable setup/cleanup.',
-    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-validation.json`,
+      'config/parity-specs/metafields/standard-metafield-definition-enable-validation.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-validation.graphql',
+      'config/parity-requests/metafields/metafield-definition-user-error-typenames.graphql',
+    ],
+    cleanupBehavior:
+      'Records standard enable validation branches, then creates disposable product/reference setup for regular metafieldDefinition userError typename probes and deletes created definitions/products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'metafields',
@@ -5504,7 +5511,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${LOCAL_RUNTIME_ROOT}discount-activation-failure-field-base.json`],
     cleanupBehavior:
       'Runs only against the local proxy runtime with a deterministic Function cassette; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'discounts',
@@ -6877,7 +6884,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Runs only against the local proxy runtime with a deterministic order-hydration cassette; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'orders',
@@ -6981,6 +6988,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-close-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-close-state-conformance.ts',
+    purpose:
+      'fulfillmentOrderClose success state after a fulfillment order is moved to an API fulfillment service, submitted, and accepted.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'fulfillment service management',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-close-state.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-close-state.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-close-state-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service and one disposable order, closes the accepted fulfillment order, then cancels the order and deletes the service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The captured public Admin API behavior transitions close success to status INCOMPLETE with requestStatus CLOSED.',
   },
   {
     domain: 'shipping-fulfillments',

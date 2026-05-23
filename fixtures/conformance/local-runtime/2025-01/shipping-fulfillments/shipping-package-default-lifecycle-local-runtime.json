@@ -1,8 +1,8 @@
 {
   "fixtureKind": "runtime-test-backed-local-shipping-package-lifecycle",
   "apiVersion": "2025-01",
-  "source": "focused-gleam-runtime-tests",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "source": "focused-rust-runtime-tests",
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "publicSchemaLimitation": {
     "shippingPackageReadRoot": "The checked-in public Admin GraphQL 2025-01 conformance schema has no shipping package read root for downstream package reads.",
     "shippingPackageMakeDefaultPayload.shippingPackage": "The configured 2025-01 conformance target rejected selecting this payload field with undefinedField, while the ticket references an internal Core payload contract that includes it."

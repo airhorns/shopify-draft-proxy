@@ -1,4 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { once } from 'node:events';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 
@@ -41,7 +44,7 @@ async function waitForServer(child: ChildProcessWithoutNullStreams, getOutput: (
   const deadline = Date.now() + 15_000;
 
   while (Date.now() < deadline) {
-    if (getOutput().includes('shopify-draft-proxy listening')) {
+    if (getOutput().includes('shopify-draft-proxy rust runtime listening')) {
       return;
     }
     if (child.exitCode !== null) {
@@ -84,6 +87,55 @@ function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS
   }
 }
 
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function unusedLocalPort(): Promise<number> {
+  const server = createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address() as AddressInfo;
+  const { port } = address;
+  await closeServer(server);
+  return port;
+}
+
+async function withUpstream<T>(
+  run: (
+    origin: string,
+    requests: Array<{ url: string | undefined; authorization: string | undefined; body: string }>,
+  ) => Promise<T>,
+): Promise<T> {
+  const requests: Array<{ url: string | undefined; authorization: string | undefined; body: string }> = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk: string) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      requests.push({ url: req.url, authorization: req.headers.authorization, body });
+      res.writeHead(202, { 'content-type': 'application/json', 'x-test-upstream': 'rust-http' });
+      res.end(JSON.stringify({ data: { upstreamEcho: { ok: true } } }));
+    });
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address() as AddressInfo;
+
+  try {
+    return await run(`http://127.0.0.1:${address.port}`, requests);
+  } finally {
+    await closeServer(server);
+  }
+}
+
 async function expectLaunchScriptHealth(script: 'dev' | 'start', port: number): Promise<void> {
   const child = spawn(pnpmCommand, pnpmArgs([script]), {
     cwd: repoRoot,
@@ -111,13 +163,92 @@ async function expectLaunchScriptHealth(script: 'dev' | 'start', port: number): 
   }
 }
 
+async function withLaunchedProxy<T>(
+  port: number,
+  env: Record<string, string>,
+  run: (origin: string) => Promise<T>,
+): Promise<T> {
+  const child = spawn(pnpmCommand, pnpmArgs(['dev']), {
+    cwd: repoRoot,
+    detached: true,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      ...env,
+    },
+  });
+  const { getOutput } = collectOutput(child);
+
+  try {
+    await waitForServer(child, getOutput);
+    return await run(`http://127.0.0.1:${port}`);
+  } finally {
+    await stopServer(child);
+  }
+}
+
 describe('package launch scripts', () => {
   it('starts the dev server and serves health', async () => {
-    await expectLaunchScriptHealth('dev', 43_194);
+    await expectLaunchScriptHealth('dev', await unusedLocalPort());
   }, 20_000);
 
   it('starts the built server and serves health', async () => {
     await runPnpm(['build']);
-    await expectLaunchScriptHealth('start', 43_195);
+    await expectLaunchScriptHealth('start', await unusedLocalPort());
+  }, 30_000);
+
+  it('forwards live-hybrid passthrough and commit replay through Rust HTTP transport', async () => {
+    await withUpstream(async (upstreamOrigin, upstreamRequests) => {
+      await withLaunchedProxy(
+        await unusedLocalPort(),
+        {
+          SHOPIFY_ADMIN_ORIGIN: upstreamOrigin,
+          SHOPIFY_DRAFT_PROXY_READ_MODE: 'live-hybrid',
+          SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'passthrough',
+        },
+        async (proxyOrigin) => {
+          const passthrough = await fetch(`${proxyOrigin}/admin/api/2026-04/graphql.json`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: 'Bearer live-token' },
+            body: JSON.stringify({ query: '{ currentAppInstallation { id } }' }),
+          });
+          expect(passthrough.status).toBe(202);
+          expect(passthrough.headers.get('x-test-upstream')).toBe('rust-http');
+          await expect(passthrough.json()).resolves.toEqual({ data: { upstreamEcho: { ok: true } } });
+
+          const create = await fetch(`${proxyOrigin}/admin/api/2026-04/graphql.json`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              query:
+                'mutation { savedSearchCreate(input: { name: "Promo orders", query: "tag:promo", resourceType: ORDER }) { savedSearch { id name } userErrors { field message } } }',
+            }),
+          });
+          expect(create.status).toBe(200);
+          await expect(create.json()).resolves.toMatchObject({
+            data: { savedSearchCreate: { savedSearch: { name: 'Promo orders' }, userErrors: [] } },
+          });
+
+          const commit = await fetch(`${proxyOrigin}/__meta/commit`, {
+            method: 'POST',
+            headers: { authorization: 'Bearer commit-token' },
+          });
+          expect(commit.status).toBe(200);
+          await expect(commit.json()).resolves.toMatchObject({ ok: true, committed: 1, failed: 0 });
+        },
+      );
+
+      expect(upstreamRequests).toHaveLength(2);
+      expect(upstreamRequests[0]).toMatchObject({
+        url: '/admin/api/2026-04/graphql.json',
+        authorization: 'Bearer live-token',
+        body: JSON.stringify({ query: '{ currentAppInstallation { id } }' }),
+      });
+      expect(upstreamRequests[1]).toMatchObject({
+        url: '/admin/api/2026-04/graphql.json',
+        authorization: 'Bearer commit-token',
+      });
+      expect(upstreamRequests[1]?.body).toContain('savedSearchCreate');
+    });
   }, 30_000);
 });

@@ -1,9 +1,9 @@
 {
-  "capturedAt": "2026-04-25T20:53:52.508Z",
+  "capturedAt": "2026-05-09T22:38:30.406Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "safety": {
-    "successfulEnablementNotCaptured": "This fixture records validation branches only. Successful standardMetafieldDefinitionEnable calls create real metafield definitions and may be captured in a disposable test-shop setup with explicit cleanup evidence."
+    "successfulEnablementNotCaptured": "This fixture records standardMetafieldDefinitionEnable validation branches plus a disposable regular metafieldDefinition user-error typename setup with explicit cleanup evidence."
   },
   "schema": {
     "request": {
@@ -249,7 +249,7 @@
           "actualQueryCost": 8,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -260,7 +260,7 @@
     {
       "name": "missing-selector",
       "request": {
-        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        __typename\n        code\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "ownerType": "PRODUCT"
         }
@@ -272,9 +272,10 @@
             "createdDefinition": null,
             "userErrors": [
               {
+                "__typename": "StandardMetafieldDefinitionEnableUserError",
+                "code": "TEMPLATE_NOT_FOUND",
                 "field": null,
-                "message": "A namespace and key or standard metafield definition template id must be provided.",
-                "code": "TEMPLATE_NOT_FOUND"
+                "message": "A namespace and key or standard metafield definition template id must be provided."
               }
             ]
           }
@@ -282,10 +283,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 11,
-            "actualQueryCost": 10,
+            "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -295,7 +296,7 @@
     {
       "name": "unknown-id",
       "request": {
-        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        __typename\n        code\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "ownerType": "PRODUCT",
           "id": "gid://shopify/StandardMetafieldDefinitionTemplate/999999999"
@@ -308,9 +309,10 @@
             "createdDefinition": null,
             "userErrors": [
               {
+                "__typename": "StandardMetafieldDefinitionEnableUserError",
+                "code": "TEMPLATE_NOT_FOUND",
                 "field": ["id"],
-                "message": "Id is not a valid standard metafield definition template id",
-                "code": "TEMPLATE_NOT_FOUND"
+                "message": "Id is not a valid standard metafield definition template id"
               }
             ]
           }
@@ -318,10 +320,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 11,
-            "actualQueryCost": 10,
+            "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -331,7 +333,7 @@
     {
       "name": "unknown-namespace-key",
       "request": {
-        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        __typename\n        code\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "ownerType": "PRODUCT",
           "namespace": "codex_missing_standard",
@@ -345,9 +347,10 @@
             "createdDefinition": null,
             "userErrors": [
               {
+                "__typename": "StandardMetafieldDefinitionEnableUserError",
+                "code": "TEMPLATE_NOT_FOUND",
                 "field": null,
-                "message": "A standard definition wasn't found for the specified owner type, namespace, and key.",
-                "code": "TEMPLATE_NOT_FOUND"
+                "message": "A standard definition wasn't found for the specified owner type, namespace, and key."
               }
             ]
           }
@@ -355,10 +358,10 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 11,
-            "actualQueryCost": 10,
+            "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -368,7 +371,7 @@
     {
       "name": "incompatible-owner-type",
       "request": {
-        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        __typename\n        code\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "ownerType": "CUSTOMER",
           "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
@@ -381,9 +384,10 @@
             "createdDefinition": null,
             "userErrors": [
               {
+                "__typename": "StandardMetafieldDefinitionEnableUserError",
+                "code": "TEMPLATE_NOT_FOUND",
                 "field": ["id"],
-                "message": "Id is not a valid standard metafield definition template id",
-                "code": "TEMPLATE_NOT_FOUND"
+                "message": "Id is not a valid standard metafield definition template id"
               }
             ]
           }
@@ -391,10 +395,296 @@
         "extensions": {
           "cost": {
             "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "regularUserErrorTypenamesSetup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation RegularUserErrorTypenameProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-1213 typename owner moyxdt76"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10181461541170",
+              "title": "HAR-1213 typename owner moyxdt76"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation RegularUserErrorTypenameProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-1213 typename reference moyxdt76"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10181461573938",
+              "title": "HAR-1213 typename reference moyxdt76"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "regularUserErrorTypenamesVariables": {
+    "namespace": "har1213_typename_moyxdt76",
+    "ownerProductId": "gid://shopify/Product/10181461541170",
+    "referenceProductId": "gid://shopify/Product/10181461573938",
+    "categoryId": "gid://shopify/TaxonomyCategory/ap-2"
+  },
+  "regularUserErrorTypenames": {
+    "request": {
+      "query": "mutation MetafieldDefinitionUserErrorTypenames(\n  $namespace: String!\n  $ownerProductId: ID!\n  $referenceProductId: String!\n  $categoryId: String!\n) {\n  createError: metafieldDefinitionCreate(\n    definition: {\n      name: \"Typename probe\"\n      namespace: \"ab\"\n      key: \"x\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n    }\n  ) {\n    createdDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  updateError: metafieldDefinitionUpdate(\n    definition: { name: \"Typename probe\", namespace: $namespace, key: \"missing\", ownerType: PRODUCT }\n  ) {\n    updatedDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  createReferenceDeleteTarget: metafieldDefinitionCreate(\n    definition: {\n      name: \"Delete typename target\"\n      namespace: $namespace\n      key: \"delete_error\"\n      ownerType: PRODUCT\n      type: \"product_reference\"\n    }\n  ) {\n    createdDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  setDeleteTargetMetafield: metafieldsSet(\n    metafields: [\n      {\n        ownerId: $ownerProductId\n        namespace: $namespace\n        key: \"delete_error\"\n        type: \"product_reference\"\n        value: $referenceProductId\n      }\n    ]\n  ) {\n    metafields {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  deleteError: metafieldDefinitionDelete(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"delete_error\" }\n    deleteAllAssociatedMetafields: false\n  ) {\n    deletedDefinitionId\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  createPinTarget: metafieldDefinitionCreate(\n    definition: {\n      name: \"Pin typename target\"\n      namespace: $namespace\n      key: \"pin_error\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      constraints: { key: \"category\", values: [$categoryId] }\n    }\n  ) {\n    createdDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  pinError: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_error\" }) {\n    pinnedDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  createUnpinTarget: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unpin typename target\"\n      namespace: $namespace\n      key: \"unpin_error\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n    }\n  ) {\n    createdDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  unpinError: metafieldDefinitionUnpin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"unpin_error\" }) {\n    unpinnedDefinition {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "namespace": "har1213_typename_moyxdt76",
+        "ownerProductId": "gid://shopify/Product/10181461541170",
+        "referenceProductId": "gid://shopify/Product/10181461573938",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "createError": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionCreateUserError",
+              "code": "TOO_SHORT",
+              "field": ["definition", "namespace"],
+              "message": "Namespace is too short (minimum is 3 characters)"
+            },
+            {
+              "__typename": "MetafieldDefinitionCreateUserError",
+              "code": "TOO_SHORT",
+              "field": ["definition", "key"],
+              "message": "Key is too short (minimum is 2 characters)"
+            }
+          ]
+        },
+        "updateError": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionUpdateUserError",
+              "code": "NOT_FOUND",
+              "field": ["definition"],
+              "message": "Definition not found."
+            }
+          ]
+        },
+        "createReferenceDeleteTarget": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207896445234"
+          },
+          "userErrors": []
+        },
+        "setDeleteTargetMetafield": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/43161180930354"
+            }
+          ],
+          "userErrors": []
+        },
+        "deleteError": {
+          "deletedDefinitionId": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionDeleteUserError",
+              "code": "REFERENCE_TYPE_DELETION_ERROR",
+              "field": null,
+              "message": "Deleting a reference type metafield definition requires deletion of its associated metafields."
+            }
+          ]
+        },
+        "createPinTarget": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207896478002"
+          },
+          "userErrors": []
+        },
+        "pinError": {
+          "pinnedDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionPinUserError",
+              "code": "UNSUPPORTED_PINNING",
+              "field": null,
+              "message": "Constrained metafield definitions do not support pinning."
+            }
+          ]
+        },
+        "createUnpinTarget": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207896510770"
+          },
+          "userErrors": []
+        },
+        "unpinError": {
+          "unpinnedDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionUnpinUserError",
+              "code": "NOT_PINNED",
+              "field": null,
+              "message": "Definition 207896510770 isn't pinned."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 90,
+          "actualQueryCost": 90,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1910,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "regularUserErrorTypenamesCleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation CleanupRegularUserErrorTypenameDefinitions($namespace: String!) {\n    deleteReferenceTarget: metafieldDefinitionDelete(\n      identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"delete_error\" }\n      deleteAllAssociatedMetafields: true\n    ) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    deletePinTarget: metafieldDefinitionDelete(\n      identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_error\" }\n      deleteAllAssociatedMetafields: true\n    ) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    deleteUnpinTarget: metafieldDefinitionDelete(\n      identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"unpin_error\" }\n      deleteAllAssociatedMetafields: true\n    ) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "namespace": "har1213_typename_moyxdt76"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "deleteReferenceTarget": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207896445234",
+            "userErrors": []
+          },
+          "deletePinTarget": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207896478002",
+            "userErrors": []
+          },
+          "deleteUnpinTarget": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207896510770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1917,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation RegularUserErrorTypenameProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10181461541170"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10181461541170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1930,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation RegularUserErrorTypenameProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10181461573938"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10181461573938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
               "restoreRate": 100
             }
           }
