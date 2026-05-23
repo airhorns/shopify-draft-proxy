@@ -48,11 +48,8 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Check Rust port fixture invariants
-        run: corepack pnpm rust-port:fixture-invariants
-
-      - name: Enforce no remaining Gleam files
-        run: corepack pnpm rust-port:no-gleam-report
+      - name: Check protected evidence invariants
+        run: corepack pnpm conformance:fixture-invariants
 
       - name: Rust format check
         run: corepack pnpm rust:fmt

@@ -3621,6 +3621,75 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
 }
 
 #[test]
+fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_variables_by_ast() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+                mutation AnyDeleteName {
+                  deletionAlias: productDelete(input: {
+                  }) {
+                    deletedProductId
+                    userErrors { field message code }
+                  }
+                }
+            "#
+        })
+        .to_string(),
+    ));
+    assert_eq!(missing_inline.status, 200);
+    assert_eq!(
+        missing_inline.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredInputObjectAttribute")
+    );
+
+    let null_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+                mutation AnyDeleteName {
+                  deletionAlias: productDelete(input: {
+                    id: null
+                  }) {
+                    deletedProductId
+                    userErrors { field message code }
+                  }
+                }
+            "#
+        })
+        .to_string(),
+    ));
+    assert_eq!(null_inline.status, 200);
+    assert_eq!(
+        null_inline.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+
+    let unbound_variable = proxy.process_request(json_graphql_request(
+        r#"
+            mutation AnyDeleteName($input: ProductDeleteInput!) {
+              deletionAlias: productDelete(input: $input) {
+                deletedProductId
+                userErrors { field message code }
+              }
+            }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(unbound_variable.status, 200);
+    assert_eq!(
+        unbound_variable.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        unbound_variable.body["errors"][0]["extensions"]["value"],
+        Value::Null
+    );
+}
+
+#[test]
 fn product_create_length_validation_errors_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
     let too_long = "a".repeat(260);

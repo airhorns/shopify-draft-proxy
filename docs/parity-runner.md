@@ -4,7 +4,7 @@ The parity runner drives every recorded scenario in `config/parity-specs/**`
 through `draft_proxy.process_request` and compares the response (and, where
 applicable, the proxy's emitted state and log) against the slice of the
 captured Shopify response named by the spec. It is the canonical proof
-that the Gleam port emulates Shopify with high fidelity.
+that the Rust runtime emulates Shopify with high fidelity.
 
 This document describes the **cassette-playback** model. The previous
 seed-based model (where the parity runner pre-wrote into `base_state` to
@@ -23,11 +23,11 @@ A scenario consists of:
    `upstreamCalls` cassette of upstream traffic the proxy made while
    serving the captured request.
 
-The runner configures the proxy with `read_mode: LiveHybrid` and installs
-the cassette transport via `draft_proxy.with_upstream_transport`.
-Operation handlers may call `proxy/upstream_query.fetch_*` to ask upstream
-for information they don't have locally; those calls are matched against
-the cassette and served deterministically. **Mutations stage their effects
+The runner configures the proxy in live-hybrid mode and installs a cassette
+upstream transport through the TypeScript shim around the Rust runtime.
+Operation handlers may use their injected upstream transport when they need
+information they do not have locally; those calls are matched against the
+cassette and served deterministically. **Mutations stage their effects
 locally**; upstream is never written to from a parity test.
 
 There is **no per-domain "hydrate from upstream" pass** and no uniform
@@ -120,32 +120,8 @@ that fits the operation; do not over-engineer.
 
 For read operations where the proxy has nothing local to add (the
 captured response is exactly what upstream returns and the proxy's job
-is just to forward), opt the operation into the dispatch-layer
-passthrough list:
-
-```gleam
-// src/shopify_draft_proxy/proxy/draft_proxy.gleam
-fn force_passthrough_in_live_hybrid(
-  proxy: DraftProxy,
-  type_: GraphQLOperationType,
-  primary_root_field: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Bool {
-  case type_, primary_root_field {
-    QueryOperation, "customersCount" -> True
-    QueryOperation, "customerByIdentifier" -> True
-    QueryOperation, "customer" ->
-      !customers.local_has_customer_id(proxy, variables)
-    QueryOperation, "customers" -> True
-    // Add your operation here, gated on local state:
-    QueryOperation, "discountNode" ->
-      !discounts.local_has_discount_id(proxy, variables)
-    QueryOperation, "discountNodes" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    _, _ -> False
-  }
-}
-```
+is just to forward), route the root through the Rust live-hybrid
+passthrough path in `src/proxy.rs`.
 
 When this returns `True`, `dispatch_graphql` forwards the entire
 GraphQL document verbatim to the upstream transport (cassette in
@@ -153,53 +129,16 @@ tests, real HTTP in production). The proxy adds nothing to the
 response; cassette replay is trivially correct because the cassette
 captured the same response the spec is being graded against.
 
-`Snapshot` mode is unaffected — `force_passthrough_in_live_hybrid`
-only fires when `read_mode == LiveHybrid`. The local handler keeps
-serving Snapshot reads.
+`Snapshot` mode is unaffected. Passthrough branches should only fire in
+live-hybrid mode; the local handler keeps serving Snapshot reads.
 
 #### **Almost always gate passthrough on local state**
 
-Unconditional passthrough (`-> True`) regresses lifecycle scenarios
-that stage or delete records, because passthrough forwards
-proxy-synthetic gids upstream (where they 404) and bypasses the
-empty/null answer the test expects after a delete. The discounts
-domain demonstrates the pattern:
-
-```gleam
-// src/shopify_draft_proxy/proxy/discounts.gleam
-pub fn local_has_discount_id(
-  proxy: DraftProxy,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Bool {
-  dict.values(variables)
-  |> list.any(fn(value) {
-    case value {
-      root_field.StringVal(id) ->
-        is_proxy_synthetic_gid(id)
-        || case store.get_effective_discount_by_id(proxy.store, id) {
-          Some(_) -> True
-          None -> False
-        }
-      _ -> False
-    }
-  })
-}
-
-pub fn local_has_staged_discounts(
-  proxy: DraftProxy,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Bool {
-  let has_synthetic =
-    dict.values(variables)
-    |> list.any(fn(value) {
-      case value {
-        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
-        _ -> False
-      }
-    })
-  has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
-}
-```
+Unconditional passthrough regresses lifecycle scenarios that stage or delete
+records, because passthrough forwards proxy-synthetic gids upstream (where they 404) and bypasses the empty/null answer the test expects after a delete.
+Existing domains demonstrate the pattern by checking staged state before
+falling back to passthrough. Keep those local-state predicates close to the
+domain logic so they are reviewed with the lifecycle behavior they protect.
 
 Two important details:
 
@@ -272,17 +211,21 @@ be served by forwarding verbatim.
 ## Running
 
 ```sh
-# Run every spec on both Gleam targets:
-gleam test --target javascript && gleam test --target erlang
+# Run every checked-in parity spec.
+corepack pnpm parity:run
 
-# Run the parity test module on one target:
-gleam test --target javascript -- parity_test
+# Dry-run discovery without executing scenarios.
+corepack pnpm parity:run -- --dry-run
+
+# Run one scenario by ID.
+corepack pnpm parity -- <scenario-id>
+
+# Run one spec file.
+corepack pnpm parity -- --spec config/parity-specs/products/product-empty-state-read.json
 ```
 
-The central gate test
-(`test/parity_test.gleam:all_discovered_parity_specs_pass_test`)
-discovers every spec and treats any runner error or comparison mismatch
-as a hard test failure. A spec without a valid `upstreamCalls` cassette
+The parity CLI discovers every spec and treats any runner error or comparison
+mismatch as a hard failure. A spec without a valid `upstreamCalls` cassette
 does not run in a degraded mode; it fails until the capture is repaired.
 
 ## Debugging a single scenario
@@ -292,33 +235,10 @@ isn't enough to figure out why, the runner has a debug mode that
 streams every request, response, cassette match/miss, and per-target
 assertion result to stderr.
 
-Drop a tiny inspector test into `test/`:
-
-```gleam
-// test/inspect_spec_test.gleam
-import gleam/io
-import parity/runner
-
-pub fn inspect_test() {
-  let path = "config/parity-specs/customers/customerInputValidation-parity.json"
-  case runner.run_debug(path) {
-    Ok(report) ->
-      case runner.into_assert(report) {
-        Ok(Nil) -> io.println("PASS")
-        Error(message) -> { io.println("FAIL:") io.println(message) }
-      }
-    Error(err) -> {
-      io.println("RUNERR:")
-      io.println(runner.render_error(err))
-    }
-  }
-}
-```
-
-Run it with:
+Run the scenario with debug output:
 
 ```sh
-gleam test --target erlang -- inspect_spec_test
+corepack pnpm parity -- --debug --spec config/parity-specs/customers/customerInputValidation-parity.json
 ```
 
 The output is line-prefixed:
@@ -362,11 +282,10 @@ pnpm` for unattended/CI envs, but on local dev boxes `corepack pnpm`
 > that, drop the `corepack` prefix — bare `pnpm` works wherever it's
 > on `PATH`.
 
-The recorder boots an in-memory `DraftProxy` (Gleam JS target) in
-`LiveHybrid` mode against real Shopify, plays the spec's primary +
-targets through it, intercepts every upstream call the operation
-handlers issue, and writes the result into the capture file's
-`upstreamCalls` field.
+The recorder boots an in-memory `DraftProxy` in live-hybrid mode against real
+Shopify, plays the spec's primary and targets through it, intercepts every
+upstream call the operation handlers issue, and writes the result into the
+capture file's `upstreamCalls` field.
 
 Credentials come from the existing OAuth flow:
 `pnpm conformance:auth-link`, `pnpm conformance:exchange-auth`,
@@ -465,26 +384,23 @@ Per-scenario steps:
    - **If it wrote N>0 upstreamCalls cleanly**, the cassette is
      populated; skip to step 3.
 2. Decide the pattern (1 or 2 above) and wire the operation:
-   - Pattern 1: add the root field to `force_passthrough_in_live_hybrid`
-     in `src/shopify_draft_proxy/proxy/draft_proxy.gleam`. **Gate
-     it on local state** (use or add a `local_has_*_id` /
-     `local_has_staged_*` helper in the domain module — see Pattern 1
-     section above for the discounts example).
-   - Pattern 2: add a `upstream_query.fetch_sync(...)` call inside the
-     domain handler and document the choice inline.
+   - Pattern 1: add the root field to the live-hybrid passthrough branch in
+     `src/proxy.rs`. **Gate it on local state** when staged or deleted rows can
+     affect the same root.
+   - Pattern 2: use the injected upstream transport inside the domain handler
+     and document the choice inline.
    - Re-run `pnpm parity:record <id>` and confirm it writes the expected
      `upstreamCalls` entries. An empty array is valid for mutation-only
      scenarios that make no upstream reads.
-3. `gleam test --target javascript -- parity_test` to run
-   on JS, then `--target erlang` to run on Erlang. If you see:
+3. `corepack pnpm parity -- --spec <path>` to run the repaired spec. If you see:
    - `cassette miss: operation=<X>` — the operation made an upstream
      call we didn't record. Re-record or extend the cassette.
    - `expectedDifference rule was not satisfied at <path>` — a stale
      `expectedDifferences` rule. Delete the rule from the spec.
    - parity diff — the operation isn't computing the right response.
      Adjust the handler.
-4. **Verify on both targets.** Drift between Erlang and JS is the
-   most expensive bug class.
+4. **Verify with targeted Rust and parity tests.** The TypeScript shim should
+   only adapt the public package surface around the Rust runtime.
 5. **Watch for collateral regressions.** Adding an unconditional or
    incorrectly-gated passthrough branch can regress lifecycle
    scenarios in _other_ specs that touch the same root fields. After

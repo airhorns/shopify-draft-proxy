@@ -129,9 +129,8 @@ Future agents should avoid turning this into any of the following:
 
 These are deliberate for v1:
 
-- Gleam runtime compiled to JavaScript and Erlang
-- Node HTTP adapter for JavaScript callers
-- strict TypeScript configuration
+- Rust HTTP runtime with a thin Node/TypeScript package shim for JavaScript callers
+- strict TypeScript configuration for scripts and package glue
 - pnpm package manager
 - in-memory state only
 - no parallel test-session isolation yet
