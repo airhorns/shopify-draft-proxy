@@ -21,15 +21,14 @@ A root is not considered supported just because it appears in the registry or ha
 
 | Layer                                                   | What it proves                                                                      |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Gleam unit tests under `test/`                          | Domain handlers, state transitions, serializers, parsers, and helper contracts.     |
+| Rust tests under `src/` and `tests/`                    | Domain handlers, state transitions, serializers, parsers, and helper contracts.     |
 | JavaScript integration tests under `tests/integration/` | The TypeScript shim, Node HTTP adapter, launch scripts, and JS package surface.     |
-| Elixir smoke tests under `elixir_smoke/`                | BEAM export and wrapper behavior for Elixir callers.                                |
 | Parity specs under `config/parity-specs/`               | Proxy responses compared against captured Shopify behavior.                         |
 | Conformance capture scripts under `scripts/`            | Repeatable live Shopify evidence collection for tricky or newly supported behavior. |
 
 ## Parity Runner
 
-Parity scenarios replay recorded interactions through `draft_proxy.process_request` and compare selected proxy payloads with captured Shopify payloads.
+Parity scenarios replay recorded interactions through the Rust-backed proxy runtime and compare selected proxy payloads with captured Shopify payloads.
 
 The runner uses a cassette-playback model. Captures may include `upstreamCalls` for safe reads that the proxy performs while serving a local operation. Mutations in parity still stage locally; parity tests do not write to Shopify.
 
@@ -47,8 +46,7 @@ Checked-in captures are evidence only when they are connected to an executable s
 corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm test
-corepack pnpm gleam:test
-corepack pnpm elixir:smoke
+corepack pnpm rust:test
 corepack pnpm parity:run
 ```
 

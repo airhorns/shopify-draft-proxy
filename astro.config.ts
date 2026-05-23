@@ -16,9 +16,12 @@ export default defineConfig({
           label: 'API Reference',
           items: [
             { label: 'JavaScript Library', slug: 'api/javascript' },
-            { label: 'Elixir Library', slug: 'api/elixir' },
             { label: 'HTTP Service', slug: 'api/http-service' },
           ],
+        },
+        {
+          label: 'Endpoint Reference',
+          items: [{ autogenerate: { directory: 'endpoints' } }],
         },
         {
           label: 'Operations',

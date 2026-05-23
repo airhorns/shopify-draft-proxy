@@ -3,7 +3,7 @@ title: CLI Guide
 description: Repository command reference for building, running, validating, and recording.
 ---
 
-There is no standalone product CLI binary yet. Day-to-day command-line usage is through root `package.json` scripts and Gleam commands.
+There is no standalone product CLI binary yet. Day-to-day command-line usage is through root `package.json` scripts, Cargo, and TypeScript helper scripts.
 
 Use `corepack pnpm ...` in unattended or CI-like environments.
 
@@ -25,7 +25,7 @@ corepack pnpm build
 corepack pnpm start
 ```
 
-`dev` builds the Gleam JavaScript target and starts the TypeScript watch server under `js/`. `build` compiles the Gleam JavaScript target and the TypeScript shim. `start` runs `js/dist/server.js`, so run `build` first.
+`dev` and `start` run `cargo run --bin shopify-draft-proxy-server --quiet`. `build` compiles the Rust HTTP server and then builds the TypeScript shim under `js/`.
 
 ## Core Validation
 
@@ -35,29 +35,26 @@ corepack pnpm typecheck
 corepack pnpm test
 ```
 
-`lint` runs oxlint, oxfmt, and Gleam format checks. `typecheck` builds the JS shim and runs the root TypeScript check. `test` runs the targeted Vitest integration and unit suite configured for the repository.
+`lint` runs oxlint and oxfmt. `typecheck` builds the JS shim and runs the root TypeScript check. `test` runs the targeted Vitest integration and unit suite configured for the repository.
 
-## Gleam Runtime
-
-```sh
-corepack pnpm gleam:build
-corepack pnpm gleam:test
-corepack pnpm gleam:test:js
-corepack pnpm gleam:test:erlang
-corepack pnpm gleam:format
-corepack pnpm gleam:format:check
-```
-
-The runtime is authored in Gleam under `src/shopify_draft_proxy/` and is expected to compile to both JavaScript and Erlang.
-
-## JavaScript and Elixir Smokes
+## Rust Runtime
 
 ```sh
-corepack pnpm gleam:smoke:js
-corepack pnpm elixir:smoke
+corepack pnpm rust:fmt
+corepack pnpm rust:test
+corepack pnpm rust:check
+corepack pnpm rust:clippy
 ```
 
-The JavaScript smoke validates the package shim. The Elixir smoke exports an Erlang shipment and runs the checked-in wrapper tests under `elixir_smoke/`.
+The runtime is authored in Rust under `src/`. The server entry point is `src/bin/shopify-draft-proxy-server.rs`, and core request handling lives in `src/proxy.rs`, `src/graphql.rs`, and `src/operation_registry.rs`.
+
+## JavaScript Shim
+
+```sh
+corepack pnpm --dir js build
+```
+
+The JavaScript package under `js/` is a thin embeddable shim around the Rust HTTP runtime. Build it directly when you are changing package types or process-launch behavior.
 
 ## Parity and Conformance
 
@@ -69,7 +66,7 @@ corepack pnpm conformance:status
 corepack pnpm conformance:capture
 ```
 
-Parity scenarios in `config/parity-specs/**` replay captured Shopify interactions through the Gleam parity runner. Conformance scripts and captures are used to collect new real-Shopify evidence when a domain needs behavior proof.
+Parity scenarios in `config/parity-specs/**` replay captured Shopify interactions through the parity runner. Conformance scripts and captures are used to collect new real-Shopify evidence when a domain needs behavior proof.
 
 Live capture commands require valid conformance credentials from `scripts/shopify-conformance-auth.mts`; do not read Shopify conformance tokens directly from a repository `.env` file.
 

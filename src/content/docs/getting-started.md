@@ -9,11 +9,10 @@ This guide uses the repository source checkout. Release packaging is still priva
 
 - Node 22 or newer.
 - Corepack with pnpm enabled.
-- Gleam 1.16.0.
-- Erlang/OTP 28 for full BEAM validation.
+- Rust and Cargo for the HTTP runtime.
 - A Shopify dev store and Admin API access token when running live-hybrid flows against a real shop.
 
-The repository includes `.mise.toml` for the Gleam host toolchain. If you use Mise and direnv, run:
+The repository includes `.mise.toml` for the host toolchain. If you use Mise and direnv, run:
 
 ```sh
 mise install
@@ -24,16 +23,15 @@ direnv allow
 
 ```sh
 corepack pnpm install
-gleam deps download
 ```
 
-## Build the JavaScript Runtime
+## Build the Runtime and JavaScript Shim
 
 ```sh
 corepack pnpm build
 ```
 
-The root package builds the Gleam JavaScript target first, then compiles the TypeScript shim under `js/`.
+The root package builds the Rust HTTP server first, then compiles the TypeScript shim under `js/`.
 
 ## Start the Local HTTP Service
 

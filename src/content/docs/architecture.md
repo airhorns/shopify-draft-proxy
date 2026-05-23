@@ -3,13 +3,13 @@ title: Architecture
 description: How the draft proxy routes requests, stages state, and preserves Shopify-like behavior.
 ---
 
-The runtime authority is Gleam under `src/shopify_draft_proxy/`. It compiles to JavaScript and Erlang so JavaScript, TypeScript, Elixir, and Erlang test suites use the same domain model.
+The runtime authority is Rust under `src/`. JavaScript and TypeScript callers use a thin package shim that starts the Rust HTTP runtime and forwards requests to it.
 
 ## Request Flow
 
 ```text
 App or test harness
-  -> DraftProxy value
+  -> DraftProxy instance
   -> operation classifier
     -> query path
       -> optional upstream Shopify read
@@ -22,19 +22,19 @@ App or test harness
       -> health/config/log/state/reset/commit
 ```
 
-The JavaScript HTTP adapter wraps the same `process_request` runtime surface used by embedders.
+The JavaScript package wraps the HTTP surface exposed by `src/bin/shopify-draft-proxy-server.rs`.
 
-## DraftProxy Is a Value
+## DraftProxy Is Instance-Owned
 
-The core API returns the response and the next proxy value:
+The Rust `DraftProxy` owns its store, operation registry, synthetic identity, mutation log, and injectable transports:
 
-```gleam
-let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+```rust
+pub struct DraftProxy {
+    // instance-owned runtime state
+}
 ```
 
-There is no process-wide singleton, ambient context, or module-global store. Domain handlers receive the instance-owned store and synthetic identity through the proxy value passed into them.
-
-JavaScript wraps this in a mutable class for convenience. Elixir and direct Gleam callers thread the next proxy value explicitly.
+There is no process-wide singleton, ambient context, or module-global store. The JavaScript shim owns a child Rust server process per `DraftProxy` instance, preserving isolated staged state for each test session.
 
 ## Read Modes
 

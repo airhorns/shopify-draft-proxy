@@ -14,7 +14,7 @@ The proxy is not a generic mock server. It keeps a local in-memory model of supp
 - Read-after-write overlays for modeled domains.
 - Live-hybrid, snapshot, and passthrough-oriented read modes.
 - Meta endpoints for health, config, logs, state inspection, reset, and commit.
-- JavaScript, Elixir/BEAM, and local HTTP service entry points over the same Gleam runtime.
+- JavaScript and local HTTP service entry points over the Rust runtime.
 
 ## Runtime Rule
 
@@ -25,9 +25,9 @@ Supported mutations should not be forwarded to Shopify during normal proxy runti
 ## Main Paths
 
 - [Getting Started](/getting-started/) walks through installing and making the first local request.
-- [JavaScript Library](/api/javascript/) covers the TypeScript-facing package API.
-- [Elixir Library](/api/elixir/) covers the BEAM wrapper and state-threading pattern.
+- [JavaScript Library](/api/javascript/) covers the TypeScript-facing package shim.
 - [HTTP Service](/api/http-service/) lists the local service routes.
+- [Endpoint Reference](/endpoints/products/) exposes the current domain coverage notes.
 - [CLI Guide](/cli-guide/) documents the repository commands used to build, run, and validate the proxy.
 - [Architecture](/architecture/) explains the request flow and state model.
 - [Robustness](/robustness/) explains the test and conformance strategy.

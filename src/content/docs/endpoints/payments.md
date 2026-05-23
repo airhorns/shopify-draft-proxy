@@ -1,4 +1,9 @@
-# Payments
+---
+title: 'Payments'
+description: 'Coverage notes and fidelity boundaries for Payments.'
+---
+
+<!-- Mirrored from docs/endpoints/payments.md so the Starlight site exposes the canonical endpoint notes. -->
 
 This endpoint group tracks Admin GraphQL payment-area roots whose behavior is sensitive because they can expose payment settings, payment methods, payment status, or Shopify Functions-backed checkout configuration.
 

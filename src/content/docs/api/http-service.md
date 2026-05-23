@@ -1,9 +1,9 @@
 ---
 title: HTTP Service
-description: Local Node HTTP service routes and environment configuration.
+description: Local Rust HTTP service routes and environment configuration.
 ---
 
-The JavaScript target exposes a Node `http` adapter over the Gleam runtime. Start it with the root `dev` script during development or `start` after a build.
+The repository exposes a Rust HTTP service for local proxy runs. Start it with the root `dev` script during development or `start` after a build.
 
 ## Start Commands
 

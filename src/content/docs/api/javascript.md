@@ -3,7 +3,7 @@ title: JavaScript Library
 description: TypeScript and JavaScript API reference for embedding the proxy.
 ---
 
-The npm package entry point is `shopify-draft-proxy`. It exports a TypeScript shim over the Gleam-emitted JavaScript runtime.
+The npm package entry point is `shopify-draft-proxy`. It exports a TypeScript shim that starts and talks to the Rust HTTP runtime.
 
 ## Exports
 
@@ -64,7 +64,7 @@ const response = await proxy.processRequest({
 console.log(response.status, response.body);
 ```
 
-The JavaScript class mutates its private inner proxy value after each request. That keeps JS tests ergonomic while preserving the Gleam runtime invariant: every request produces a next `DraftProxy` state.
+The JavaScript class owns an isolated Rust server process. Each request is forwarded to that process, so staged state, mutation logs, and synthetic IDs stay instance-owned without global proxy state.
 
 ## GraphQL Convenience API
 
