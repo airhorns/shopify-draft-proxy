@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs` plus domain-specific modules under `src/proxy/`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -58,11 +58,21 @@ App/test harness
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, mutation log entries, product/saved-search state, staged delete sets, synthetic identity allocation, and transport injection
-- exposes `process_request(...)` as the central route boundary
-- implements meta routes: health, config, log, state, reset, dump, restore, and commit
-- implements supported GraphQL product and saved-search roots, local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior
-- exposes `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays instance-owned and deterministic
+- owns `DraftProxy`, `Config`, `ReadMode`, normalized staged state, synthetic identity allocation, registry metadata, and injectable transports
+- declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
+
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
+
+- expose `process_request(...)` as the central route boundary
+- implement meta routes: health, config, log, state, reset, dump, restore, and commit
+- keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
+- preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
+
+### `src/proxy/*.rs` domain modules
+
+- group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
+- keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
+- share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`
 
 ### `src/graphql.rs`
 
