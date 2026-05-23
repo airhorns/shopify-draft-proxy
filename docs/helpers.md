@@ -1,135 +1,74 @@
-# Helper Modules
+# Helper Surfaces
 
-This document catalogs shared Gleam helper surfaces that future runtime work should reuse before adding resource-local utility functions. TypeScript helper modules from the retired runtime have been removed; remaining TypeScript under `scripts/` is conformance, capture, and repository tooling.
+This document points at shared Rust helper surfaces to check before adding resource-local parsers, serializers, scalar readers, projection helpers, metafield/search/connection utilities, or Shopify ID helpers.
 
-## `src/shopify_draft_proxy/proxy/graphql_helpers.gleam`
+The proxy is currently implemented in Rust. New runtime behavior belongs in `src/`, and TypeScript under `scripts/` / `js/` should stay limited to conformance tooling and the embeddable package shim.
 
-Shared helpers for GraphQL Admin proxy serializers.
+## `src/graphql.rs`
 
-- cursor windowing, `nodes` / `edges` serialization, and selected `pageInfo` fields
-- selected-field lookup, alias-aware response keys, and connection envelope helpers
-- synthetic cursor generation for local and snapshot-backed connection responses
-- resolved argument readers for common scalar, object, and string-list input shapes
+Use the GraphQL helpers here before adding resource-local document parsing or argument readers.
 
-Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
+- `parse_operation(...)` identifies operation type and top-level roots without depending on operation names.
+- `root_fields(...)` preserves aliases, response keys, selections, and resolved arguments for each root field.
+- `root_field_arguments(...)` resolves literals, enums, lists, objects, variables, and missing variables into `ResolvedValue`.
+- `root_field_selection(...)`, `nested_root_field_selection(...)`, and `nested_root_field_path_selection(...)` expose selected fields for serializers.
 
-## `src/shopify_draft_proxy/proxy/handles.gleam`
+Route behavior by actual root fields and resolved arguments from these helpers, not by raw query string checks, unless a narrowly documented fixture compatibility branch already exists.
 
-Shared helpers for Shopify-like handle normalization.
+## `src/operation_registry.rs`
 
-- lowercases and dash-collapses captured separator runs
-- preserves Shopify-accepted non-Latin handle graphemes and underscores
-- applies captured Latin transliterations for localization handle translations and
-  fulfillment-service generated handles
-- exposes the captured fallback handle used by punctuation-only handle translations
+Use the registry helpers here before adding capability metadata or support discovery logic.
 
-Use this module before adding product-, collection-, localization-, or other resource-local handle slugification helpers. Resource-specific fallback families and uniqueness validation should stay in the owning mutation handler.
+- `default_registry()` is the executable Rust registry.
+- `implemented_entries(...)` filters only locally modeled roots.
+- `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
 
-## `src/shopify_draft_proxy/proxy/app_identity.gleam`
+Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
 
-Shared helper for request-owned app identity.
+## `src/proxy.rs` Selection And Connection Helpers
 
-- reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
-- trims blank values to `None`
-- resolves `$app:<suffix>` namespace shorthands to `app--<api_client_id>--<suffix>` when a request-owned API client ID is available, preserving the suffix bytes captured for webhook subscription namespace allowlists
-- resolves saved-search metafield query namespace shorthands matching Shopify's `$app` input preparation: bare `$app` becomes `app--<api_client_id>`, `$app:<suffix>` becomes `app--<api_client_id>--<suffix>`, and missing API client identity falls back to the deterministic `app--shopify-draft-proxy-local-app` namespace
-- reads the `x-shopify-draft-proxy-internal-visibility` header case-insensitively for local branches that emulate Shopify internal Admin visibility
+Several generic serializers live near the bottom of `src/proxy.rs` and should be reused before adding local copies.
 
-Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
+- `selected_json(...)`, `nullable_selected_json(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)` handle alias-aware selected-field projection.
+- `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_connection_json(...)`, `selected_empty_connection_json(...)`, `connection_edges_with_cursor(...)`, and `connection_page_info(...)` provide common Shopify connection envelopes.
+- `selected_typed_connection(...)` is available when a domain has typed records but needs standard selected connection output.
 
-## `src/shopify_draft_proxy/proxy/phone_numbers.gleam`
+Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
 
-Shared helper for Shopify-like phone number normalization.
+## Resource Identity And Handle Helpers
 
-- normalizes formatted international and national phone inputs to E.164 strings
-- accepts common separators such as spaces, parentheses, dashes, and dots
-- applies compatibility-style handling for full-width plus signs and digits
-- uses the effective shop country as the default territory, falling back to `US`
+Check existing helpers before adding GID, cursor, handle, or slug code.
 
-Use this module when Admin API domain input accepts phone numbers and should stage or compare the normalized value instead of raw input text.
+- `next_proxy_synthetic_gid(...)` allocates stable per-instance synthetic IDs.
+- `owner_type_from_gid(...)`, `is_safe_no_data_node_gid(...)`, and resource-specific ID helpers cover common GID handling.
+- `slugify_handle(...)`, `normalize_localized_handle(...)`, `fulfillment_service_handle(...)`, product handle lookup helpers, and saved-search ID helpers cover existing Shopify-like handle and ID behavior.
 
-## `src/shopify_draft_proxy/proxy/address_names.gleam`
+When a new domain needs ID or handle behavior, prefer extracting a shared helper from the current Rust code over creating another resource-local variant.
 
-Shared helper for Shopify-like address country/province name derivation.
+## Metafields And Custom Data
 
-- maps Shopify `CountryCode` values to English country names for local address staging
-- maps known province/region codes for US states/territories, Canadian provinces/territories, Australian states/territories, UK regions, and German states
-- falls back to the supplied code when a country or province mapping is not known locally
+Check the existing metafield helpers in `src/proxy.rs` before adding metafield-specific parsing or projection.
 
-Use this module when a domain stages Admin address inputs that carry `countryCode` / `provinceCode` but downstream reads expose human-readable `country` / `province` fields.
+- `owner_metafields_set(...)` and `owner_metafields_read(...)` handle owner-scoped metafield staging and reads.
+- `metafield_json_value(...)`, `custom_data_metafield_type_matrix_record(...)`, and `canonical_app_metafield_namespace(...)` cover common custom-data value and app-namespace behavior.
+- Metafield definition helpers around `metafield_definition_*` handle definition IDs, defaults, pinning, and read serialization.
 
-## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
+Owner-specific validation and storage should stay in the owning domain branch, but scalar parsing and projection should reuse shared helpers when possible.
 
-Shared helper for versioned Shopify Admin API route parsing.
+## Search And Query Helpers
 
-- extracts year/month API versions from Shopify-like `/admin/api/<version>/graphql.json` request paths
-- compares a request path version against a minimum Admin API version
+Search behavior is currently domain-local where Shopify semantics differ by resource, but shared patterns already exist.
 
-Use this module when local behavior needs to follow an API-version-specific Shopify contract. Do not add resource-local request-path parsers for Admin API version checks.
+- Product search helpers live around `product_catalog_search_read_data(...)`, product cursor/page-info helpers, and tag search helpers.
+- Saved-search parsing and projection helpers live around `saved_search_query_tokens(...)`, `saved_search_filters(...)`, `saved_search_query_user_errors(...)`, and `canonical_saved_search_query(...)`.
 
-## `src/shopify_draft_proxy/proxy/metafields.gleam`
+Before adding a new search parser, inspect these functions and `docs/hard-and-weird-notes.md` for existing Shopify query grammar decisions.
 
-Shared helpers for owner-scoped metafield serializers and staging input handling.
+## Version And Route Helpers
 
-- owner-scoped metafield normalization
-- metafield input parsing and `(namespace, key)` replacement semantics
-- singular `metafield(...)` and connection-style `metafields(...)` serialization
-- captured Admin metafield type-name list/message used by mutation validators that need Shopify-like `INVALID_TYPE` payloads
+Use the existing route/version helpers before adding local request-path parsing.
 
-Use this module before adding product-, customer-, order-, or metaobject-local metafield helpers. Owner-specific validation, store placement, and captured Shopify quirks belong in the resource module that owns them.
+- `admin_graphql_version(...)` extracts Shopify Admin API versions from Admin GraphQL paths.
+- The route classifier in `DraftProxy::process_request(...)` preserves Shopify-like versioned routes and meta API boundaries.
 
-## `src/shopify_draft_proxy/proxy/metafield_values.gleam`
-
-Shared custom-data value normalization helpers for metafields and metaobject fields.
-
-- Shopify-like `jsonValue` projection for scalar, JSON, measurement, rating, date-time, decimal, reference-list, and list custom-data field types
-- canonicalization for staged custom-data value strings where Shopify rewrites input values
-- Shopify-like metaobject field input validation for scalar, measurement, rating, URL/color/date/time, reference, text min/max, and list custom-data field values
-- measurement type predicates for serializers that need measurement-specific display behavior
-
-Use this module before adding resource-local custom-data parsers or serializers.
-
-## `src/shopify_draft_proxy/search_query_parser.gleam`
-
-Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, parsed field-name collection for allowlist validators, term-list guards, and primitive term matching.
-
-Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
-
-## `src/shopify_draft_proxy/shopify/resource_ids.gleam`
-
-Shared helpers for Shopify resource ID handling.
-
-- canonical Shopify GID construction from full GIDs, numeric tails, and opaque tails
-- GID tail extraction with query suffixes ignored
-- stable Shopify resource ID sorting that compares numeric tails when available
-
-Use this module before adding resource-local GID tail parsers, canonical ID builders, or Shopify resource ID comparators.
-
-## `src/shopify_draft_proxy/state/store.gleam`
-
-Shared in-memory store helpers for cross-domain shop capability reads.
-
-- `shop_sells_subscriptions` reads the effective staged/base `ShopRecord.features.sellsSubscriptions` capability and defaults missing synthetic shop state to `False`
-- `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
-- `shop_discounts_by_market_enabled` reads the effective staged/base `ShopRecord.features.discountsByMarketEnabled` capability and defaults missing synthetic shop state to `False`
-- `set_shop_discounts_by_market_enabled` configures the effective shop discount-market capability for tests and local-runtime scenarios without introducing ambient/global shop state
-- `shop_b2b_deposits_enabled` reads the effective staged/base `ShopRecord.features.b2bDeposits` capability and defaults missing synthetic shop state to `False`
-- `set_shop_b2b_deposits_enabled` configures the effective shop B2B deposits capability for tests and local-runtime scenarios without introducing ambient/global shop state
-- `shop_gift_cards_entitlement_enabled` reads the effective staged/base `ShopRecord.entitlements.giftCards.enabled` entitlement and defaults missing synthetic shop state to `True`
-- `set_shop_gift_cards_entitlement_enabled` configures the effective shop gift-card entitlement for tests and local-runtime scenarios without introducing ambient/global shop state
-- `shop_markets_home_enabled` reads the effective staged/base `ShopRecord.features.unifiedMarkets` capability for Markets Home behavior and defaults missing synthetic shop state to `True`, matching the modern conformance shop posture
-- `shop_market_plan_limit` reads the effective staged/base `ShopRecord.features.marketsGranted` limit used by legacy Markets plan-limit checks and defaults missing synthetic shop state to `50`
-- `payment_gateway_by_id` reads an opt-in synthetic shop payment gateway by ID from effective staged/base `ShopRecord.paymentSettings.paymentGateways`
-- `set_shop_payment_gateways` configures the effective shop payment gateway catalog for tests and local-runtime scenarios without introducing ambient/global shop state
-
-Use these helpers when validation depends on synthetic shop capabilities, Markets plan posture, or installed payment-provider fixtures. Endpoint handlers should not add resource-local copies of shop capability defaults or gateway catalog lookups.
-
-## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
-
-Shared chokepoint for runtime reads that need upstream Shopify data.
-
-- in parity tests, reads from the installed cassette transport
-- in live-hybrid runtime, forwards through the configured upstream client
-- keeps unsupported passthrough and explicit commit replay distinct from supported local staging
-
-Supported mutation branches must still synthesize responses from local state without runtime Shopify writes.
+Endpoint handlers should not add ad hoc Admin path parsing unless the behavior is tightly scoped and documented.
