@@ -5643,8 +5643,10 @@ impl DraftProxy {
             variables,
             "draftOrderCreate",
             vec![id],
-            "staged",
-            "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            (
+                "staged",
+                "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            ),
         );
         selected_json(
             &json!({
@@ -5670,8 +5672,10 @@ impl DraftProxy {
                 variables,
                 "draftOrderInvoiceSend",
                 Vec::new(),
-                "failed",
-                "Locally handled draftOrderInvoiceSend safety validation.",
+                (
+                    "failed",
+                    "Locally handled draftOrderInvoiceSend safety validation.",
+                ),
             );
             return selected_json(
                 &json!({
@@ -5690,8 +5694,10 @@ impl DraftProxy {
                 variables,
                 "draftOrderInvoiceSend",
                 Vec::new(),
-                "failed",
-                "Locally handled draftOrderInvoiceSend safety validation.",
+                (
+                    "failed",
+                    "Locally handled draftOrderInvoiceSend safety validation.",
+                ),
             );
             return selected_json(
                 &json!({
@@ -5716,8 +5722,10 @@ impl DraftProxy {
             variables,
             "draftOrderInvoiceSend",
             vec![id],
-            "staged",
-            "Locally handled draftOrderInvoiceSend safety validation.",
+            (
+                "staged",
+                "Locally handled draftOrderInvoiceSend safety validation.",
+            ),
         );
         selected_json(
             &json!({
@@ -5736,9 +5744,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
         staged_resource_ids: Vec<String>,
-        status: &str,
-        notes: &str,
+        outcome: (&str, &str),
     ) {
+        let (status, notes) = outcome;
         let root_fields = parse_operation(query)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![root_field.to_string()]);
