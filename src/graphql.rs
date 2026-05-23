@@ -53,10 +53,11 @@ pub struct ParsedOperation {
     pub root_fields: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SelectedField {
     pub name: String,
     pub response_key: String,
+    pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
 }
 
@@ -198,7 +199,8 @@ fn first_root_field(query: &str) -> Option<RootFieldSelection> {
 }
 
 fn selected_fields<'a>(
-    selections: &[Selection<'a, &'a str>],
+    selections: &'a [Selection<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
     fragments: &FragmentSelections<'a>,
 ) -> Vec<SelectedField> {
     selections
@@ -207,14 +209,15 @@ fn selected_fields<'a>(
             Selection::Field(field) => vec![SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
-                selection: selected_fields(&field.selection_set.items, fragments),
+                arguments: field_arguments(field, variables),
+                selection: selected_fields(&field.selection_set.items, variables, fragments),
             }],
             Selection::InlineFragment(fragment) => {
-                selected_fields(&fragment.selection_set.items, fragments)
+                selected_fields(&fragment.selection_set.items, variables, fragments)
             }
             Selection::FragmentSpread(fragment) => fragments
                 .get(fragment.fragment_name)
-                .map(|selection_set| selected_fields(selection_set, fragments))
+                .map(|selection_set| selected_fields(selection_set, variables, fragments))
                 .unwrap_or_default(),
         })
         .collect()
@@ -334,7 +337,7 @@ fn collect_root_field_selections<'a>(
                 location: source_location(field.position),
                 raw_arguments: raw_field_arguments(field, variables),
                 arguments: field_arguments(field, variables),
-                selection: selected_fields(&field.selection_set.items, fragments),
+                selection: selected_fields(&field.selection_set.items, variables, fragments),
             }),
             Selection::InlineFragment(fragment) => collect_root_field_selections(
                 &fragment.selection_set.items,

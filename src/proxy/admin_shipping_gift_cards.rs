@@ -1227,6 +1227,130 @@ impl DraftProxy {
         }))
     }
 
+    pub(in crate::proxy) fn location_deactivate(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse locationDeactivate mutation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "locationDeactivate" {
+                continue;
+            }
+            let location_id =
+                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+            let destination_location_id =
+                resolved_string_field(&field.arguments, "destinationLocationId");
+            let errors =
+                self.location_deactivate_errors(&location_id, destination_location_id.as_deref());
+            let location = if errors.is_empty() {
+                if let Some(destination_location_id) = destination_location_id.as_deref() {
+                    self.relocate_inventory_levels_for_location(
+                        &location_id,
+                        destination_location_id,
+                    );
+                }
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "locationDeactivate",
+                    vec![location_id.clone()],
+                );
+                json!({
+                    "id": location_id,
+                    "isActive": false,
+                    "hasActiveInventory": false,
+                    "deletable": true
+                })
+            } else {
+                json!({
+                    "id": location_id,
+                    "isActive": true,
+                    "hasActiveInventory": self.location_has_inventory(&location_id),
+                    "deletable": false
+                })
+            };
+            data.insert(
+                field.response_key,
+                location_deactivate_payload_json(location, &field.selection, errors),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn location_deactivate_errors(
+        &self,
+        location_id: &str,
+        destination_location_id: Option<&str>,
+    ) -> Vec<Value> {
+        match destination_location_id {
+            Some(destination_id) if destination_id == location_id => vec![json!({
+                "field": ["destinationLocationId"],
+                "code": "DESTINATION_LOCATION_ID_SAME_AS_LOCATION_ID",
+                "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated."
+            })],
+            Some(destination_id)
+                if destination_id.is_empty() || destination_id.contains("inactive") =>
+            {
+                vec![destination_location_not_found_or_inactive_error()]
+            }
+            Some(_) => Vec::new(),
+            None if self.location_has_inventory(location_id) => vec![json!({
+                "field": ["destinationLocationId"],
+                "code": "HAS_ACTIVE_INVENTORY_ERROR",
+                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location."
+            })],
+            None => Vec::new(),
+        }
+    }
+
+    fn location_has_inventory(&self, location_id: &str) -> bool {
+        self.store
+            .staged
+            .inventory_levels
+            .keys()
+            .any(|(_, staged_location_id)| staged_location_id == location_id)
+    }
+
+    fn relocate_inventory_levels_for_location(
+        &mut self,
+        source_location_id: &str,
+        destination_location_id: &str,
+    ) {
+        let source_keys = self
+            .store
+            .staged
+            .inventory_levels
+            .keys()
+            .filter(|(_, location_id)| location_id == source_location_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        for (inventory_item_id, source_location_id) in source_keys {
+            let Some(source_quantities) = self
+                .store
+                .staged
+                .inventory_levels
+                .remove(&(inventory_item_id.clone(), source_location_id))
+            else {
+                continue;
+            };
+            let destination_quantities = self
+                .store
+                .staged
+                .inventory_levels
+                .entry((inventory_item_id, destination_location_id.to_string()))
+                .or_default();
+            for (name, quantity) in source_quantities {
+                *destination_quantities.entry(name).or_insert(0) += quantity;
+            }
+        }
+    }
+
     pub(in crate::proxy) fn fulfillment_order_move_assignment_status(
         &mut self,
         query: &str,

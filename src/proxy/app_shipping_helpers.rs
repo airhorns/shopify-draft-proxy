@@ -449,6 +449,30 @@ pub(in crate::proxy) fn location_activate_payload_json(
     Value::Object(payload)
 }
 
+pub(in crate::proxy) fn location_deactivate_payload_json(
+    location: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    for selection in payload_selection {
+        let value = match selection.name.as_str() {
+            "location" => Some(selected_json(&location, &selection.selection)),
+            "locationDeactivateUserErrors" | "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            payload.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(payload)
+}
+
 pub(in crate::proxy) fn location_add_payload_json(
     location: Value,
     payload_selection: &[SelectedField],
@@ -840,6 +864,14 @@ pub(in crate::proxy) fn is_location_activate_limit_relocation_document(query: &s
 
 pub(in crate::proxy) fn is_location_add_resource_limit_document(query: &str) -> bool {
     query.contains("LocationAddResourceLimitReached")
+}
+
+pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Value {
+    json!({
+        "field": ["destinationLocationId"],
+        "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
+        "message": "Location could not be deactivated because the destination location could be not found or is inactive."
+    })
 }
 
 pub(in crate::proxy) fn is_fulfillment_order_move_assignment_status_request(
