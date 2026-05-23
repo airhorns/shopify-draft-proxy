@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::graphql::{
     nested_root_field_path_selection, nested_root_field_selection, parse_operation,
     root_field_arguments, root_field_response_key, root_field_selection, root_fields,
-    OperationType, ResolvedValue, RootFieldSelection, SelectedField,
+    OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection, SelectedField,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -5689,6 +5689,7 @@ impl DraftProxy {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn record_orders_local_log_entry(
         &mut self,
         request: &Request,
@@ -11531,17 +11532,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        if query.contains("productDelete(input: {})") {
-            return product_delete_inline_missing_id_error();
-        }
-        if query.contains("productDelete(input: { id: null })") {
-            return product_delete_inline_null_id_error();
+        if let Some(response) = product_delete_required_id_error(query, variables) {
+            return response;
         }
         let Some(input) = product_input(query, variables) else {
             return product_delete_missing_product(query);
-        };
-        if query.contains("ProductDeleteConformance") && !input.contains_key("id") {
-            return product_delete_variable_missing_id_error();
         };
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_delete_missing_product(query);
@@ -25425,6 +25420,46 @@ fn product_input(
     }
 }
 
+fn product_delete_required_id_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let field = root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == "productDelete")?;
+    let input = field
+        .raw_arguments
+        .get("input")
+        .or_else(|| field.raw_arguments.get("product"))?;
+
+    match input {
+        RawArgumentValue::Object(input) => match input.get("id") {
+            None => Some(product_delete_inline_missing_id_error()),
+            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error()),
+            _ => None,
+        },
+        RawArgumentValue::Variable { name, value: None } => {
+            Some(product_delete_variable_required_id_error(Value::Null, name))
+        }
+        RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(input)),
+        } => match input.get("id") {
+            None => Some(product_delete_variable_required_id_error(
+                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                name,
+            )),
+            Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
+                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                name,
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn product_update_missing_product(query: &str) -> Response {
     let response_key =
         root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
@@ -25498,14 +25533,14 @@ fn product_delete_inline_null_id_error() -> Response {
     }))
 }
 
-fn product_delete_variable_missing_id_error() -> Response {
+fn product_delete_variable_required_id_error(value: Value, variable_name: &str) -> Response {
     ok_json(json!({
         "errors": [{
-            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "message": format!("Variable ${} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)", variable_name),
             "locations": [{"line": 2, "column": 37}],
             "extensions": {
                 "code": "INVALID_VARIABLE",
-                "value": {},
+                "value": value,
                 "problems": [{
                     "path": ["id"],
                     "explanation": "Expected value to not be null"
