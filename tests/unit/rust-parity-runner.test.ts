@@ -9,7 +9,7 @@ describe('Rust parity runner CLI', () => {
       cwd: repoRoot,
       encoding: 'utf8',
     });
-    expect(output).toContain('[parity] 910 spec(s) selected');
+    expect(output).toContain('[parity] 911 spec(s) selected');
   });
 
   it('uses the captured target response as the passthrough cassette fallback for unsupported roots', () => {
@@ -25,6 +25,15 @@ describe('Rust parity runner CLI', () => {
       { cwd: repoRoot, encoding: 'utf8' },
     );
     expect(output).toContain('admin-platform-backup-region-update-access-blocker.json passed');
+  });
+
+  it('unwraps captured response.body payloads for passthrough cassette fallbacks', () => {
+    const output = execFileSync(
+      'corepack',
+      ['pnpm', 'parity', '--', '--spec', 'config/parity-specs/admin-platform/by-id-not-found-read.json'],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    expect(output).toContain('by-id-not-found-read.json passed');
   });
 
   it('does not require local Rust handlers to consume every captured upstream call when output matches', () => {
