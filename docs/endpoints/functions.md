@@ -6,7 +6,7 @@ This endpoint group covers Shopify Function-backed Admin metadata roots for vali
 
 ### Supported roots
 
-Queries:
+Read roots:
 
 - `validation(id:)`
 - `validations(...)`
@@ -14,7 +14,7 @@ Queries:
 - `shopifyFunction(id:)`
 - `shopifyFunctions(...)`
 
-Mutations:
+Mutation roots:
 
 - `validationCreate`
 - `validationUpdate`
@@ -25,79 +25,78 @@ Mutations:
 
 ### Local behavior
 
-Function-backed behavior is modeled as metadata/state only. The proxy records the Function handle or ID attached to validations and cart transforms, preserves or hydrates local `ShopifyFunction` metadata rows for downstream reads, and updates the relevant detail/catalog roots after staged writes.
+Function-backed behavior is modeled as Admin metadata/state only:
 
-The runtime does not execute external Shopify Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only.
+- The proxy records Function handles or IDs attached to validations and cart transforms, preserves or hydrates local `ShopifyFunction` rows, and updates relevant detail/catalog roots after staged writes.
+- Supported mutation roots stage locally, append the original raw GraphQL request body to the mutation log for ordered `__meta/commit` replay, and must not proxy to Shopify at runtime.
+- The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only.
 
-Supported mutation roots stage locally and append the original raw GraphQL request body to the mutation log for ordered `__meta/commit` replay. Runtime requests for these implemented roots must not proxy to Shopify.
+Validation behavior:
 
-When a validation or cart transform references a `ShopifyFunction` already present in local state, the proxy preserves that Function's captured metadata, including `description`, `appKey`, and selected `app` fields. This is ownership evidence for Admin GraphQL metadata reads only. The proxy does not verify that the inbound token belongs to the same installed app or check Partner Dashboard extension release state.
+- `validationCreate` resolves a `ShopifyFunction` from local state or cassette-backed hydration before staging and stores the resolved Function ID regardless of whether input used `functionId` or `functionHandle`.
+- `validationCreate` rejects missing or multiple identifiers, unresolved references, and known non-validation API types without staging.
+- Omitted or explicit `null` title uses the resolved Function-derived title; explicit empty string is preserved.
+- Omitted `enable` / `enabled` defaults to `false`, activation is capped at 25 active validations, and validation-owned metafields persist for downstream reads.
+- `validationUpdate` rejects Function rebinding input shape, applies the same active-validation cap, and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
+- Invalid validation metafields reject the entire mutation before staging with index-scoped userErrors. Downstream `validation`, `validations`, `metafields(...)`, and `metafield(namespace:, key:)` reads expose persisted rows.
 
-`validationCreate` resolves the referenced Function from local state or cassette-backed hydration before staging, and stores the resolved Function id on the staged `Validation` regardless of whether the input used `functionId` or `functionHandle`. It rejects missing or multiple identifiers, unresolved references, and known non-validation API types without staging a `Validation` or inventing a `ShopifyFunction` row. Omitted or explicit `null` `title` input falls back to the resolved Function-derived title used by Shopify's create resolver, while an explicit empty string is preserved. Omitted `enable` / `enabled` input defaults to `false`, activation is capped at 25 active validations across effective state, and validation-owned metafields are persisted for downstream reads.
+Cart transform behavior:
 
-`cartTransformCreate` accepts direct top-level `functionId` / `functionHandle`, `blockOnFailure`, and `metafields` arguments. It does not accept a `cartTransform: { ... }` wrapper and does not accept a `title` argument. The proxy rejects those non-Shopify argument shapes as GraphQL validation errors before staging. For valid input, the mutation resolves the referenced Function from local state or cassette-backed hydration before staging, then persists cart-transform metadata locally. It also persists valid `metafields` inputs onto the staged cart transform in input order. Missing metafield values and malformed JSON values return `INVALID_METAFIELDS` userErrors with `field: ["metafields", index, "value"]` and do not stage a cart transform. Live Shopify Admin `2026-04` accepted an empty metafield namespace during exploratory capture, so the proxy does not reject that branch for cart transforms.
+- `cartTransformCreate` accepts direct top-level `functionId` / `functionHandle`, `blockOnFailure`, and `metafields` arguments.
+- The proxy rejects non-Shopify argument shapes such as a `cartTransform: { ... }` wrapper or `title` argument as GraphQL validation errors before staging.
+- Valid create input resolves the referenced Function, persists cart-transform metadata locally, and stores valid metafields in input order.
+- Missing metafield values and malformed JSON values return `INVALID_METAFIELDS` userErrors without staging.
+- Known non-cart-transform Function references return the captured identifier-specific branch: `FUNCTION_NOT_FOUND` on `functionId`, `FUNCTION_DOES_NOT_IMPLEMENT` on `functionHandle`.
+- `cartTransformDelete` checks ownership against the staged transform's resolved `ShopifyFunction` owner and current app installation when that metadata exists. Missing installation, Function, or owner metadata returns `UNAUTHORIZED_APP_SCOPE`.
+- `CartTransform` reads expose the modeled Admin field set: `id`, `functionId`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and HasMetafields selections. Fabricated scalar fields such as `title`, `functionHandle`, `createdAt`, or `updatedAt` are not projected.
 
-Function create guardrails run after the referenced Function resolves and before any local staging. When a hydrated or seeded `ShopifyFunction` carries internal create-guardrail metadata, `validationCreate` and `cartTransformCreate` return the encoded `userErrors` locally for `FUNCTION_PENDING_DELETION`, `FUNCTION_IS_PLUS_ONLY`, and `REQUIRED_INPUT_FIELD`. Field paths follow the Core resolver shape: validation create errors use `["validation", "functionId" | "functionHandle"]`, while cart transform create errors use `["functionId" | "functionHandle"]`.
+Function catalog and guardrails:
 
-Custom-app plan eligibility is modeled only when the proxy can make the decision from known state. If the Function has owner app metadata and the effective shop is known to be non-Plus and not a partner-development shop, create returns `CUSTOM_APP_FUNCTION_NOT_ELIGIBLE` with Shopify's message text. In LiveHybrid/cassette runs, owner app metadata can trigger a narrow `shop` plan hydration read before the local guardrail decision. If neither local state nor the upstream/cassette response supplies shop plan metadata, the proxy does not guess and leaves the normal create path unchanged.
-
-For known non-cart-transform `ShopifyFunction` references, Shopify distinguishes the two identifier branches even though the message copy is the same: the `functionId` branch returns `FUNCTION_NOT_FOUND` with `field: ["functionId"]`, while the `functionHandle` branch returns `FUNCTION_DOES_NOT_IMPLEMENT` with `field: ["functionHandle"]`. Both branches leave `cartTransforms` unchanged.
-
-`cartTransformDelete` authorizes deletes against the staged cart transform's resolved `ShopifyFunction` owner. A normal delete succeeds only when the current app installation's `appId` matches the owning `ShopifyFunction.app.id`; if that id is absent, the proxy falls back to matching `ShopifyFunction.appKey`/`app.apiKey` through known local app records. Missing current installation, missing Function, or missing owner metadata returns `UNAUTHORIZED_APP_SCOPE` with `field: ["base"]` and message `The app is not authorized to access this Function resource.`. The local `all_cart_transforms` access-scope record and `x-shopify-draft-proxy-internal-visibility` header model Shopify's privileged visibility bypass for admin/internal callers.
-
-HAR-416 added live Shopify evidence for the conformance app's released Function catalog rows. On Admin API `2026-04`, `ShopifyFunction.id` is returned as a raw Function string ID, `apiType` is returned as lowercase strings such as `cart_checkout_validation` and `cart_transform`, and app ownership is exposed through `appKey` plus selected `app` fields. The local model preserves those exact values when they are seeded from conformance evidence; it does not normalize them to synthetic GIDs or enum-like uppercase values.
-
-Local validation guardrails currently cover missing/multiple Function identifiers, unknown or API-mismatched `validationCreate` Function references, unknown validation/cart-transform update or delete IDs, `validationUpdate` attempts to pass non-input Function rebinding fields, and activation beyond the 25-active-validation cap. These branches return GraphQL errors or `userErrors` locally and still avoid runtime Shopify writes.
-
-`validationCreate` persists validation-owned `metafields` inputs into the staged `Validation` record. `validationUpdate` treats omitted or explicit empty `metafields` input as a no-op for existing rows, and treats non-empty input as an upsert by `(namespace, key)`: matching rows keep their original position while value/type/`updatedAt` are updated, unrelated rows are retained, and new rows append after existing rows. Invalid validation metafield inputs reject the entire mutation before staging: missing key/value, missing or blank type, blank or invalid typed value, and the reserved `shopify` namespace return index-scoped `userErrors` with `field: ["validation", "metafields", "<index>"]`, matching the captured resolver shape. Subsequent `validation`, `validations`, and mutation payload reads expose valid rows through `metafields(...)` connection selections, including namespace, key, type, value, timestamps, owner type, and compare digest when selected. `validation.metafield(namespace:, key:)` resolves locally persisted rows.
-
-`cartTransformCreate` persists cart-transform-owned `metafields` inputs into the staged `CartTransform` record. Subsequent mutation payload and `cartTransforms` reads expose those rows through `metafields(...)` connection selections and `cartTransform.metafield(namespace:, key:)`, including namespace, key, type, value, timestamps, `compareDigest`, and Shopify's captured owner type `CARTTRANSFORM` when selected.
-
-`CartTransform` reads expose the Shopify Admin field set modeled by the proxy: `id`, `functionId`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and metafield selections from the HasMetafields surface. The proxy no longer projects fabricated scalar fields such as `title`, `functionHandle`, `createdAt`, or `updatedAt` on `CartTransform`; selecting those fields returns Shopify-like `undefinedField` validation errors.
+- `shopifyFunction` and `shopifyFunctions` preserve captured Function identity, handle, API type, `appKey`, and selected `app` fields from seeded or hydrated metadata.
+- Function create guardrail metadata can locally return `FUNCTION_PENDING_DELETION`, `FUNCTION_IS_PLUS_ONLY`, `REQUIRED_INPUT_FIELD`, and `CUSTOM_APP_FUNCTION_NOT_ELIGIBLE` before staging when the needed Function/shop/app state is known.
+- If neither local state nor an upstream/cassette response supplies shop plan metadata, the proxy does not guess plan eligibility and keeps the normal create path.
 
 ### Boundaries
 
-- `cartTransformDelete` models the local Function-owner access check once the current installation and Function owner metadata are available. Tests should not use this domain to validate real app-extension deployment, released Function availability beyond captured/hydrated Function metadata, FunctionService visibility side effects, or tax app installation authority.
-- Function execution outcomes remain out of scope. A future conformance-backed increment should capture checkout/cart/tax runtime side effects separately if the proxy ever needs to model them.
+- Function execution outcomes, checkout validation behavior, cart transform runtime effects, and tax calculation callbacks are out of scope.
+- Function catalog reads prove Admin metadata shape only; they do not prove that the corresponding extension code can run.
+- Cross-app Function reference behavior is limited to the owner metadata available in local/captured state.
+- Tax-app authority and real tax-service readiness are not emulated beyond local readiness metadata.
+- No root listed here is registry-only. Validation-only behavior is limited to captured input coercion, userErrors, and guardrails that fail before local staging.
 
-### HAR-455 fidelity review notes
+### Evidence
 
-Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform configuration centered on Function references plus metadata such as `blockOnFailure` and optional metafields. The proxy models those Admin metadata rows and downstream catalog/detail reads only; except for `validationCreate` rejecting a known non-validation `ShopifyFunction.apiType` and `cartTransformDelete` checking known local Function owner metadata, it does not validate extension release state or Partner Dashboard deployment authority.
-
-`shopifyFunctions` remains metadata-only evidence. It can prove that Function identity, handle, API type, and app ownership fields are preserved from seeded/captured metadata, but it does not prove that the corresponding Function code can run in checkout, cart transforms, or tax callbacks.
-
-`taxAppConfigure` is intentionally stored as local readiness metadata. Shopify tax-app authority, tax calculation callbacks, and real tax-service readiness are external side effects that the current proxy cannot faithfully emulate without a suitably authorized disposable tax app.
-
-## Historical and developer notes
-
-### Shape evidence
-
-- Root availability is captured in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`.
-- Runtime local-staging evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-metadata-flow.json`.
-- App/owner metadata evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-owner-metadata-flow.json` and the `functions-owner-metadata-local-staging` parity spec; the scenario seeds known `ShopifyFunction` records and verifies validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
-- HAR-698 validation create evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-create-validation.json` and enforced by `config/parity-specs/functions/functions-validation-create-validation.json`; the scenario verifies omitted `enable` defaults to `false`, the 26th active validation returns `MAX_VALIDATIONS_ACTIVATED`, non-validation Function API references return `FUNCTION_DOES_NOT_IMPLEMENT`, validation metafields persist, and a downstream `validations` connection observes the staged rows.
-- Function create guardrail evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-create-guardrails.json` and enforced by `config/parity-specs/functions/functions-create-guardrails.json`; the scenario uses cassette-backed Function and shop-plan hydration to prove `CUSTOM_APP_FUNCTION_NOT_ELIGIBLE`, `REQUIRED_INPUT_FIELD`, `FUNCTION_PENDING_DELETION`, and `FUNCTION_IS_PLUS_ONLY` payload shapes without staging validations or cart transforms. The live `harry-test-heelo.myshopify.com` harness is a partner-development non-Plus shop and accepted custom-app `validationCreate` during the May 8, 2026 probe, so live capture of the custom-app non-Plus rejection branch is currently unavailable there.
-- `validationCreate` userError shape evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json` and enforced by `config/parity-specs/functions/functions-validation-create-error-shape.json`; live Shopify returns `NOT_FOUND` with `field: ["validation", "functionId"]` for unknown Function ids, prefixes Function API mismatches and missing identifiers with `validation`, and returns `field: ["validation"]` for multiple Function identifiers.
-- `validationCreate` title fallback and Function-reference evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json` and enforced by `config/parity-specs/functions/validation-create-title-fallback-parity.json`; live Shopify persists the same Function-derived title for omitted and explicit `null` title input, preserves an explicit empty string, and returns the persisted title and resolved `shopifyFunction { id handle }` through both `validation(id:)` and `validations(first:)` reads. Admin API `2026-04` does not expose `Validation.functionId` or `Validation.functionHandle` scalar fields, so runtime tests cover the proxy-local scalar projections from the same staged resolved Function id.
-- Validation metafield input evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json` and enforced by `config/parity-specs/functions/functions-validation-metafields-input-validation.json`; live Shopify rejects invalid `validationCreate` metafields without staging any validation, rejects invalid `validationUpdate` metafields without mutating the existing validation, and leaves the original validation metafield readable after the rejected update.
-- `validationUpdate` metafield upsert evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json` and enforced by `config/parity-specs/functions/functions-validation-update-metafields-upsert.json`; live Shopify preserves existing validation-owned metafields for title-only and explicit empty-metafields updates, then updates matching `(namespace, key)` rows, appends new rows, and retains unrelated existing rows for partial non-empty updates.
-- `cartTransformCreate` API-mismatch evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json` and enforced by `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`; live Shopify returns `FUNCTION_NOT_FOUND` for the `functionId` branch, `FUNCTION_DOES_NOT_IMPLEMENT` for the `functionHandle` branch, and an empty downstream `cartTransforms` connection after both failed mutations.
-- `cartTransformCreate` metafield and shape evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json` and enforced by `config/parity-specs/functions/functions-cart-transform-create-metafields.json`; live Shopify returns `INVALID_METAFIELDS` for missing metafield value and malformed JSON value branches, persists valid cart-transform metafields in input order, resolves singular `metafield(namespace:, key:)` through the HasMetafields surface, exposes the same rows through downstream `cartTransforms` reads, rejects `cartTransform` wrapper / `title` arguments on `cartTransformCreate`, and rejects `title`, `functionHandle`, `createdAt`, and `updatedAt` selections on `CartTransform`.
-- HAR-703 validation update shape evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-update-shape.json` and enforced by `config/parity-specs/functions/functions-validation-update-shape.json`; the scenario verifies `validationUpdate` rejects Function rebinding input shape, enforces the 25-active-validation cap, persists validation metafields, and returns those metafields through a downstream `validations` connection.
-- HAR-777 max-cap evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-max-cap.json` and enforced by `config/parity-specs/functions/functions-validation-max-cap.json`; the scenario stages 25 active validations locally, verifies the next `validationCreate(enable: true)` and `validationUpdate(enable: true)` return `MAX_VALIDATIONS_ACTIVATED` with `field: []`, and keeps the supported mutations local-only.
-- Live app ownership evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json` and enforced by `config/parity-specs/functions/functions-live-owner-metadata-read.json`. The fixture was captured after deploying the repo-local conformance app with released `conformance-validation` and `conformance-cart-transform` Function extensions, and the parity request verifies `shopifyFunction` / `shopifyFunctions` reads preserve `appKey` and selected `app` fields without Function execution.
-- HAR-416 mutation probes against the live store now reach validation/cart-transform resolver userErrors. The fixture records wrong Function API type, unknown/unowned Function handle, invalid metafield, and duplicate cart-transform registration branches. Shopify allowed duplicate `validationCreate` calls for the same validation Function on this shop, so that branch is recorded as live success evidence plus cleanup rather than a duplicate userError. True cross-app references still require a second installed app; the fixture records unknown/unowned handles as the reachable unattended authority boundary. `taxAppConfigure` remains blocked by tax-calculation-app authority even with the refreshed grant, and the access-denied payload is preserved as blocker evidence.
-- Shopify Admin docs for the current API describe `validationCreate` / `validationUpdate` inputs as Function-handle based validation metadata with `enable`, `blockOnFailure`, `metafields`, and `title`.
-- Shopify Admin docs for `cartTransformCreate` expose direct `functionId` / `functionHandle`, `blockOnFailure`, and optional metafield inputs.
-- Shopify Admin docs for `taxAppConfigure` expose a `ready: Boolean!` mutation returning `taxAppConfiguration` and `userErrors`.
-
-### Follow-up gaps
-
-- Capture true cross-app Function reference behavior only after a second installed conformance app exposes released validation/cart-transform Functions in the same shop.
-- Capture tax app readiness userErrors only with a grant/app that has `write_taxes` and is authorized as a tax calculations app; until then, keep local `taxAppConfigure` as metadata-only readiness staging.
-- Keep checkout cart transform execution, validation execution, and tax calculation callbacks out of this metadata endpoint group until separate runtime side-effect evidence exists.
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-metadata-flow.json`
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-owner-metadata-flow.json`
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-create-guardrails.json`
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-create-validation.json`
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-update-shape.json`
+- `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-max-cap.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
+- `config/parity-specs/functions/functions-metadata-local-staging.json`
+- `config/parity-specs/functions/functions-owner-metadata-local-staging.json`
+- `config/parity-specs/functions/functions-create-guardrails.json`
+- `config/parity-specs/functions/functions-validation-create-validation.json`
+- `config/parity-specs/functions/functions-validation-update-shape.json`
+- `config/parity-specs/functions/functions-validation-max-cap.json`
+- `config/parity-specs/functions/functions-live-owner-metadata-read.json`
+- `config/parity-specs/functions/functions-validation-create-error-shape.json`
+- `config/parity-specs/functions/validation-create-title-fallback-parity.json`
+- `config/parity-specs/functions/functions-validation-metafields-input-validation.json`
+- `config/parity-specs/functions/functions-validation-update-metafields-upsert.json`
+- `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
+- `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
+- `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
 ### Validation
 
+- `corepack pnpm parity -- functions-metadata-local-staging`
+- `corepack pnpm parity -- functions-validation-create-validation`
+- `corepack pnpm parity -- functions-cart-transform-create-metafields`
 - `corepack pnpm conformance:check`
-- `corepack pnpm conformance:parity`
