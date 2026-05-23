@@ -2402,6 +2402,7 @@ impl DraftProxy {
             "path": request.path,
             "query": query,
             "variables": resolved_variables_json(variables),
+            "rawBody": request.body,
             "stagedResourceIds": staged_resource_ids,
             "status": "staged",
             "interpreted": {
@@ -2489,6 +2490,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_resource_ids,
                 "status": "staged",
                 "interpreted": {
@@ -2589,6 +2591,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_ids,
                 "status": "staged",
                 "interpreted": {
@@ -2766,6 +2769,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_ids,
                 "status": "staged",
                 "interpreted": {

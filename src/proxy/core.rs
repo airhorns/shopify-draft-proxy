@@ -288,65 +288,6 @@ impl DraftProxy {
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }
-
-    pub(in crate::proxy) fn commit_staged_mutations(
-        &mut self,
-        commit_request: &Request,
-    ) -> Response {
-        let transport = Arc::clone(&self.commit_transport);
-        let mut committed = 0usize;
-        let mut failed = 0usize;
-
-        for index in 0..self.log_entries.len() {
-            if self.log_entries[index].get("status") != Some(&json!("staged")) {
-                continue;
-            }
-            let log_id = self.log_entries[index]
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_string();
-            let path = self.log_entries[index]
-                .get("path")
-                .and_then(Value::as_str)
-                .unwrap_or("/admin/api/2026-04/graphql.json")
-                .to_string();
-            let query = self.log_entries[index]
-                .get("query")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            let variables = self.log_entries[index]
-                .get("variables")
-                .cloned()
-                .unwrap_or_else(|| json!({}));
-            let replay = Request {
-                method: "POST".to_string(),
-                path,
-                headers: commit_request.headers.clone(),
-                body: json!({ "query": query, "variables": variables }).to_string(),
-            };
-            let outcome = transport(replay);
-            if outcome.status >= 400 || outcome.body.get("errors").is_some() {
-                failed += 1;
-                set_log_status(&mut self.log_entries[index], "failed");
-                return Response {
-                    status: 502,
-                    headers: BTreeMap::new(),
-                    body: json!({
-                        "ok": false,
-                        "committed": committed,
-                        "failed": failed,
-                        "error": format!("Upstream commit failed for {log_id} with status {}", outcome.status)
-                    }),
-                };
-            }
-            committed += 1;
-            set_log_status(&mut self.log_entries[index], "committed");
-        }
-
-        ok_json(json!({ "ok": true, "committed": committed, "failed": failed }))
-    }
 }
 
 fn string_array_from_json(value: &Value) -> Vec<String> {
