@@ -1,298 +1,175 @@
-# Shipping and Fulfillments Endpoint Group
+# Shipping And Fulfillments Endpoint Group
 
-This endpoint group is a coverage map for Admin GraphQL shipping, fulfillment, fulfillment-order, carrier-service, fulfillment-service, and delivery-profile behavior. Keep implementation details for locally staged order fulfillment slices in `docs/endpoints/orders.md`; use this file for broader boundaries and gaps.
+This endpoint group covers Shopify Admin GraphQL shipping, delivery settings,
+carrier service, fulfillment service, delivery profile, fulfillment order,
+fulfillment, local pickup, shipping package, reverse logistics, and
+order-editing shipping-line roots.
 
 ## Current support and limitations
 
-### Implemented roots
+### Supported roots
 
-Local staged mutations currently live under the orders group because they operate on order-scoped fulfillment records and downstream `order(id:)` reads:
+The current Rust operation registry does not mark any shipping/fulfillments root
+as fully implemented. Registry presence is a local-model commitment only; it is
+not a claim that the whole shipping/fulfillments domain is supported for
+arbitrary documents.
+
+The registry-only read roots are:
+
+- `reverseDelivery`
+- `reverseFulfillmentOrder`
+- `fulfillment`
+- `assignedFulfillmentOrders`
+- `fulfillmentOrder`
+- `fulfillmentOrders`
+- `manualHoldsFulfillmentOrders`
+- `fulfillmentService`
+- `availableCarrierServices`
+- `carrierService`
+- `carrierServices`
+- `deliveryCustomization`
+- `deliveryCustomizations`
+- `deliveryPromiseParticipants`
+- `deliveryPromiseProvider`
+- `deliveryPromiseSettings`
+- `deliverySettings`
+- `deliveryProfile`
+- `deliveryProfiles`
+- `locationsAvailableForDeliveryProfilesConnection`
+- `fulfillmentConstraintRules`
+
+The registry-only mutation roots are:
 
 - `fulfillmentCreate`
 - `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
-- `fulfillmentOrderHold`
-- `fulfillmentOrderReleaseHold`
-- `fulfillmentOrderMove`
-- `fulfillmentOrderReschedule`
-- `fulfillmentOrderReportProgress`
-- `fulfillmentOrderOpen`
-- `fulfillmentOrderClose`
-- `fulfillmentOrderCancel`
-- `fulfillmentOrderSubmitFulfillmentRequest`
-- `fulfillmentOrderAcceptFulfillmentRequest`
-- `fulfillmentOrderRejectFulfillmentRequest`
-- `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderAcceptCancellationRequest`
+- `fulfillmentOrderAcceptFulfillmentRequest`
+- `fulfillmentOrderCancel`
+- `fulfillmentOrderClose`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderLineItemsPreparedForPickup`
+- `fulfillmentOrderMerge`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderOpen`
 - `fulfillmentOrderRejectCancellationRequest`
-
-Those roots are implemented in the Rust runtime. Most shipping/fulfillment lifecycle evidence runs through the parity runner and `config/parity-specs/shipping-fulfillments/fulfillment*.json`; `fulfillmentOrderClose` has API-service success parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-close-state.json`, while `fulfillmentOrderReschedule` still has focused local runtime coverage for its scheduled success branch because the checked-in Shopify capture only proves the non-scheduled guardrail. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; HAR-233 adds request/cancellation lifecycle evidence backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`.
-
-Top-level fulfillment and fulfillment-order reads are implemented as snapshot/local reads over the existing order graph:
-
-- `fulfillment`
-- `fulfillmentOrder`
-- `fulfillmentOrders`
-- `assignedFulfillmentOrders`
-- `manualHoldsFulfillmentOrders`
-
-`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. Fulfillment detail reads serialize captured shipment fields including `events`, `deliveredAt`, `estimatedDeliveryAt`, `inTransitAt`, `service`, `location`, `originAddress`, `trackingInfo(first:)`, and fulfillment line items from the same order-backed fulfillment record used by nested `Order.fulfillments`. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
-
-HAR-370 adds an order-backed reverse-logistics slice implemented by the orders dispatcher but documented here because the
-roots live in the shipping/fulfillments API area:
-
-- `reverseDelivery`
-- `reverseFulfillmentOrder`
+- `fulfillmentOrderRejectFulfillmentRequest`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderReschedule`
+- `fulfillmentOrdersReroute`
+- `fulfillmentOrdersSetFulfillmentDeadline`
+- `fulfillmentOrderSplit`
+- `fulfillmentOrderSubmitCancellationRequest`
+- `fulfillmentOrderSubmitFulfillmentRequest`
+- `fulfillmentServiceCreate`
+- `fulfillmentServiceDelete`
+- `fulfillmentServiceUpdate`
+- `carrierServiceCreate`
+- `carrierServiceDelete`
+- `carrierServiceUpdate`
+- `locationLocalPickupDisable`
+- `locationLocalPickupEnable`
+- `shippingPackageDelete`
+- `shippingPackageMakeDefault`
+- `shippingPackageUpdate`
+- `fulfillmentConstraintRuleCreate`
+- `fulfillmentConstraintRuleDelete`
+- `fulfillmentConstraintRuleUpdate`
+- `deliveryProfileCreate`
+- `deliveryProfileRemove`
+- `deliveryProfileUpdate`
+- `deliveryCustomizationActivation`
+- `deliveryCustomizationCreate`
+- `deliveryCustomizationDelete`
+- `deliveryCustomizationUpdate`
+- `deliveryPromiseParticipantsUpdate`
+- `deliveryPromiseProviderUpsert`
+- `deliverySettingUpdate`
+- `orderEditAddShippingLine`
+- `orderEditRemoveShippingLine`
+- `orderEditUpdateShippingLine`
 - `reverseDeliveryCreateWithShipping`
 - `reverseDeliveryShippingUpdate`
 - `reverseFulfillmentOrderDispose`
 
-`reverseFulfillmentOrder(id:)` and `reverseDelivery(id:)` resolve only records staged from local returns and return `null`
-for missing IDs. `returnCreate` and `returnApproveRequest` create local reverse fulfillment order work from returned line
-quantities. `reverseDeliveryCreateWithShipping` stores reverse delivery line items plus local tracking/label metadata;
-when `reverseDeliveryLineItems` is empty, the proxy stages one reverse delivery line for every line item on the reverse
-fulfillment order. `reverseDeliveryShippingUpdate` updates tracking and label metadata, including Shopify's
-`ReverseDeliveryLabelInput.fileUrl` input projected back as downstream `label.publicFileUrl`.
-`reverseFulfillmentOrderDispose` records disposition type/location metadata and reduces remaining local quantities. Captured
-2026-04 behavior leaves the reverse fulfillment order status `OPEN` after a full `NOT_RESTOCKED` disposition on the
-disposable custom-line capture, so local staging no longer closes the reverse fulfillment order solely because all line
-work was disposed. Live-shaped reads expose disposition effects through
-`ReverseFulfillmentOrderLineItem.dispositions { type quantity location { id } }`; legacy local fixture selections for
-`remainingQuantity` / `dispositionType` are still serialized for existing runtime assertions.
-These roots do not call carriers, create real labels, notify customers, move inventory, or mutate locations at runtime.
-Executable parity lives in `config/parity-specs/orders/return-reverse-logistics-local-staging.json` and
-`config/parity-specs/orders/return-reverse-logistics-recorded.json`; live 2026-04 evidence lives in
-`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json` and
-`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
-
-`fulfillmentEventCreate` stages local events against an existing order-backed fulfillment and makes them immediately visible in both top-level and nested fulfillment detail reads. Captured 2026-04 behavior showed an `IN_TRANSIT` event updating `Fulfillment.displayStatus`, `estimatedDeliveryAt`, and `inTransitAt`; local staging mirrors that captured shipment-milestone slice while preserving the original raw mutation for commit replay and without sending the mutation to Shopify at runtime. In LiveHybrid, the handler may issue a narrow `fulfillment(id:)` read to hydrate the parent fulfillment before staging; Snapshot/no-transport mode stays local-only. The local handler now rejects unknown fulfillments with `code: fulfillment_not_found`, rejects `CANCELLED`/`CANCELED` fulfillments before staging, and accepts only the captured `FulfillmentEventStatus` members (`LABEL_PRINTED`, `LABEL_PURCHASED`, `ATTEMPTED_DELIVERY`, `READY_FOR_PICKUP`, `CONFIRMED`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELAYED`, `DELIVERED`, `CARRIER_PICKED_UP`, `FAILURE`). Public Admin GraphQL 2026-04 exposes only `field`/`message` on this mutation's `UserError`; selecting `userErrors.code` returns top-level `undefinedField`, and invalid status variables fail top-level `INVALID_VARIABLE` coercion before resolver execution. Local runtime tests still assert the source-backed `code` values and the source-backed cancellation guard: public 2026-04 accepted a `DELIVERED` event after `fulfillmentCancel`, but the proxy keeps rejecting `CANCELLED`/`CANCELED` fulfillments before staging as the documented internal-service boundary. When the input carries `record_timeline_event: true` or `recordTimelineEvent: true` and the parent order is present in the local shipping order slice, the proxy appends a `BasicEvent` timeline row to that order's `events` connection.
-
-`FulfillmentOrder.deliveryMethod` is an optional local fixture field. When a normalized fulfillment-order record carries delivery-method data, the serializer returns the stored `DeliveryMethod` scalar fields selected by the query; when the record lacks delivery-method data, the field returns `null`. The proxy still does not generate delivery methods from order shipping lines, delivery profiles, or fulfillment-order lifecycle mutations without a captured scenario.
-
-`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` returns held local fulfillment orders after staged `fulfillmentOrderHold` calls and otherwise returns the captured no-hold empty connection. `assignedFulfillmentOrders` exposes local order-backed records for staged request/cancellation workflows so tests can observe request-status transitions without an upstream fulfillment-service callback. The local assignment catalog filters `assignmentStatus: FULFILLMENT_REQUESTED` to submitted request-status rows, `FULFILLMENT_ACCEPTED` to accepted rows without a pending cancellation request, `CANCELLATION_REQUESTED` to accepted rows with a pending cancellation request, and `locationIds` to the stored assigned-location IDs. The HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for live `assignedFulfillmentOrders`, so broader assignment ownership, fulfillment-service association, and cross-service visibility remain explicit access-scoped gaps rather than guessed behavior.
-
-HAR-234/HAR-367 add fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
-
-- `fulfillmentOrderHold` records app-created hold metadata, moves the selected work to `ON_HOLD`, exposes it through `fulfillmentHolds` and `manualHoldsFulfillmentOrders`, and creates an `OPEN` remaining fulfillment order for partial holds. Partial hold inputs honor every submitted `fulfillmentOrderLineItems` entry, reduce each referenced fulfillment-order line item by its requested quantity, omit fully consumed lines from the remaining fulfillment order, and preserve the residual per-line `lineItem.fulfillableQuantity` shape captured from Shopify. Additional successful holds append to `fulfillmentHolds` instead of replacing prior holds. The local model defaults an omitted hold `handle` to `""`, persists optional `externalId` for mutation payloads and read-after-write hold reads, and records `notifyMerchant` as `__draftProxyNotifyMerchant` on the staged hold so local evidence can distinguish notification intent while the real email side effect remains commit-gated/out of scope. It rejects duplicate handles for the requesting app, enforces the captured 64-character handle limit, rejects partial line-item input once the fulfillment order is already `ON_HOLD`, rejects non-positive line-item quantities and duplicate fulfillment-order line-item IDs, and returns the captured null payload objects for validation failures. Live 2026-04 capture on `harry-test-heelo.myshopify.com` showed the requesting app can hold the same fulfillment order 10 active times; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`, and the payload no longer offers `HOLD` in `supportedActions` once that cap is reached.
-- `fulfillmentOrderReleaseHold` honors optional `holdIds`: targeted release removes only those local holds, leaves the fulfillment order `ON_HOLD` while any holds remain, and rejects targeted release of holds owned by a different requesting app with `INVALID_ACCESS`. When `holdIds` is omitted, local staging releases only holds owned by the requesting app. Once no holds remain, the proxy restores `OPEN` status/actions for the held fulfillment order, re-expands the released line items to include the split remainder, and marks the partial-hold remainder order `CLOSED` with zero remaining quantity.
-- `fulfillmentOrderMove` stages full or partial line-item moves by assigning selected work to a replacement fulfillment order at the requested location and leaving remaining quantities on the original order for partial moves. Partial move inputs honor every submitted `fulfillmentOrderLineItems` entry, reduce each referenced fulfillment-order line item independently, omit fully moved lines from the original/remaining order, and classify full-vs-partial moves from aggregate residual work across all submitted lines rather than the first entry alone. Move rejects locally closed fulfillment orders, request-status-blocked fulfillment orders, manually progress-reported fulfillment orders, and unknown/inactive destination locations using the captured Shopify user-error shapes. Assignment status is preserved for assignment-catalog filtering but is not a move precondition; locally hydrated `CANCELLATION_REQUESTED` or `CANCELLATION_REJECTED` assignment statuses still move when `requestStatus` is `UNSUBMITTED`. Full moves return `remainingFulfillmentOrder: null`; partial residual moves continue to expose the original order as the remaining order until true 3-way split behavior is modeled.
-- `fulfillmentOrderReportProgress` accepts `OPEN` or `IN_PROGRESS` local fulfillment orders, changes/restamps them to `IN_PROGRESS`, exposes `MARK_AS_OPEN`, and marks the order as manually progress-reported. Other statuses are rejected with `INVALID_FULFILLMENT_ORDER_STATUS` on `field: ["id"]` without changing `status`, `supportedActions`, `updatedAt`, or `__draftProxyManuallyReportedProgress`.
-- `fulfillmentOrderOpen` accepts `SCHEDULED` fulfillment orders plus the captured `IN_PROGRESS -> OPEN` merchant-managed branch, then changes the order to `OPEN` and clears the local manual-progress guard. Other statuses are rejected with `INVALID_FULFILLMENT_ORDER_STATUS` on `field: ["id"]` without partial staging.
-- `fulfillmentOrderReschedule` stages against local fulfillment orders only when the current status is `SCHEDULED` and the submitted `fulfillAt` is later than the proxy's synthetic current timestamp. Success updates `fulfillAt` and `updatedAt`, and downstream `fulfillmentOrder(id:)` reads observe the refreshed value. Non-scheduled records return `INVALID_FULFILLMENT_ORDER_STATUS` with the captured `Fulfillment order must be scheduled.` message; past, malformed, or missing `fulfillAt` values return a separate `field: ["fulfillAt"]` validation error; unknown IDs return `FULFILLMENT_ORDER_NOT_FOUND` without changing local state.
-- `fulfillmentOrderClose` stages `IN_PROGRESS` fulfillment orders to `status: INCOMPLETE` / `requestStatus: CLOSED`, matching the captured API-service success path after submit/accept. Merchant-managed `OPEN` records keep Shopify's captured `FULFILLMENT_SERVICE_NOT_API_TYPE` guardrail; `OPEN` records assigned to a known API fulfillment service now return Shopify's captured `The fulfillment order is not in an in progress state.` invalid-status guardrail; other non-closeable statuses return `INVALID_FULFILLMENT_ORDER_STATUS`; unknown IDs return `FULFILLMENT_ORDER_NOT_FOUND`. Failed close attempts leave the local record unchanged.
-- `fulfillmentOrderCancel` validates Shopify-like state preconditions before staging: merchant-managed orders must be `OPEN` or `IN_PROGRESS`, third-party request flows may cancel when `requestStatus` is `SUBMITTED` or `CANCELLATION_REQUESTED`, and manually progress-reported orders are rejected with Shopify's captured `field: ["id"]` / `Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.` user error plus the locally selected `code: fulfillment_order_has_manually_reported_progress`. A second cancel against the already-cancelled fulfillment order returns Shopify's captured non-cancelable request-state message and local code. Successful cancel closes the original fulfillment order, clears its line items, and creates an `OPEN` replacement fulfillment order carrying the remaining work.
-- `fulfillmentOrderSplit` processes every submitted split input independently, reduces each original fulfillment-order line item by the requested quantities, and creates one synthetic `remainingFulfillmentOrder` per split for the split-off quantities, including captured `MERGE` supported-action visibility. Local validation now returns indexed `userErrors` for empty `fulfillmentOrderLineItems`, non-positive quantities, and missing fulfillment orders instead of staging partial success.
-- `fulfillmentOrdersSetFulfillmentDeadline` first validates every selected local fulfillment order, then atomically writes the selected deadline to local `fulfillBy` fields only when all selected orders are eligible. Unknown fulfillment order IDs return `success: false` with a base `FULFILLMENT_ORDERS_NOT_FOUND` user error, and `CLOSED`/`CANCELLED` fulfillment orders return `success: false` with a base user error instead of silently changing local state. Downstream `Order.fulfillmentOrders` reads expose the staged deadline after successful calls.
-- `fulfillmentOrderMerge` aggregates split fulfillment-order line quantities back onto the first selected fulfillment order, marks merged sibling fulfillment orders `CLOSED` with zero quantities, and preserves any staged fulfillment deadline. Local validation rejects any merge input that references an unknown fulfillment order with the live-captured result-level shape `field: null`, `code: FULFILLMENT_ORDER_NOT_FOUND`, and `fulfillmentOrderMerges: null`. When callers provide per-intent `fulfillmentOrderLineItems`, non-positive quantities return `code: GREATER_THAN` on the indexed `fulfillmentOrderMergeInputs.*.mergeIntents.*.fulfillmentOrderLineItems.*.quantity` path; schema-invalid local quantities return `INVALID_LINE_ITEM_QUANTITY` on the same indexed branch, while GraphQL variable coercion rejects non-Int values before Shopify's resolver in live captures. Line-item IDs that are not present on the selected fulfillment order return `field: null`, message `Fulfillment order line item does not exist.`, and `code: null`; requested quantities above the fulfillment-order line's available total return `field: null`, message `Invalid fulfillment order line item quantity requested.`, and `code: null`. Mergeable local fulfillment orders are limited to `status: OPEN`; non-open records return Shopify's captured result-level shape with `field: null`, message `Fulfillment order: <id> is currently not in a mergeable state.`, and `code: null`.
-
-HAR-234/HAR-367 captured guardrail branches for `fulfillmentOrderReschedule` and merchant-managed `fulfillmentOrderClose`. `fulfillmentOrderClose` API-service success is captured separately in `fulfillment-order-close-state`; `fulfillmentOrderReschedule` scheduled success remains local-runtime-backed until a real scheduled fulfillment-order setup is available. `fulfillmentOrdersReroute` and `fulfillmentOrderLineItemsPreparedForPickup` remain registry-unimplemented: the current disposable setup returned a Shopify internal error for the attempted included-location reroute success branch and `FULFILLMENT_ORDER_INVALID` for prepared-for-pickup against non-pickup fulfillment orders.
-
-`fulfillmentOrderSubmitFulfillmentRequest` records a `FULFILLMENT_REQUEST` merchant request with message and `notify_customer` request options, transitions the submitted fulfillment order to `requestStatus: SUBMITTED`, and mirrors Shopify's partial-request split by shrinking the submitted line-item quantities and creating an unsubmitted replacement fulfillment order for remaining quantities. `fulfillmentOrderAcceptFulfillmentRequest` moves a submitted request to `status: IN_PROGRESS` / `requestStatus: ACCEPTED`. `fulfillmentOrderRejectFulfillmentRequest` moves it to `requestStatus: REJECTED` while preserving requested quantities.
-
-`fulfillmentOrderSubmitCancellationRequest` appends a `CANCELLATION_REQUEST` merchant request to an accepted fulfillment order while preserving Shopify's captured `requestStatus: ACCEPTED` immediately after submission. `fulfillmentOrderAcceptCancellationRequest` closes the fulfillment order with `requestStatus: CANCELLATION_ACCEPTED` and zeroes the modeled fulfillment-order line-item quantities. `fulfillmentOrderRejectCancellationRequest` keeps the order in progress with `requestStatus: CANCELLATION_REJECTED`. These supported roots append original raw mutations to the meta log and never call Shopify or fulfillment-service notification callbacks during normal runtime staging.
-
-Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json`. HAR-582 validation/event-create evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-event-create-validation.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-event-create-validation.json`. HAR-233 request/cancellation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json`. HAR-552 hold-validation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-hold-validation.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-hold-validation.json`. Fulfillment-order hold input-argument evidence lives at `fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/fulfillment-order-hold-input-arguments-local-runtime.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-hold-input-arguments-local-runtime.json`. Fulfillment-order close API-service success evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-close-state.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-close-state.json`; reschedule scheduled success remains covered by focused runtime tests until a real scheduled-success capture exists. Fulfillment-order open/report-progress status-precondition coverage lives at `fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions-local-runtime.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions-local-runtime.json`. Fulfillment-order move/hold multi-line evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-move-multi-line.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-hold-multi-line.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-move-multi-line.json` and `config/parity-specs/shipping-fulfillments/fulfillment-order-hold-multi-line.json`. Fulfillment-order merge validation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-merge-validation.json` with executable parity in `config/parity-specs/shipping-fulfillments/fulfillment-order-merge-validation.json`.
-
-Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
-
-- `fulfillmentService`
-- `fulfillmentServiceCreate`
-- `fulfillmentServiceUpdate`
-- `fulfillmentServiceDelete`
-
-The current 2026-04 schema exposes detail lookup through top-level `fulfillmentService(id:)`; the list/catalog surface is `shop.fulfillmentServices`, not a separate top-level list root. Local staging stores fulfillment services in normalized state, creates an associated `Location` for new third-party services, keeps `Location.fulfillmentService` linked to the service record, and makes downstream `fulfillmentService(id:)`, `shop.fulfillmentServices`, `location(id:)`, and meta state/log reads observe the staged graph.
-
-Create/update support covers `name`, `callbackUrl`, `trackingSupport`, `inventoryManagement`, and `requiresShippingMethod`. Captured behavior showed create-time handle normalization from the service name and update-time handle stability when the name changes; the associated location name follows the updated service name. Fulfillment-service generated handles lowercase names, transliterate captured Latin diacritics, preserve underscores and non-Latin graphemes, collapse punctuation and whitespace separators into single hyphens, and trim leading/trailing separators. The local model rejects create/update names with leading or trailing whitespace instead of trimming them, returning Shopify's captured `field: ["name"]` messages (`Name cannot begin with a whitespace character` and/or `Name cannot end with a whitespace character`) without staging a service change. Blank names still use the existing `Name can't be blank` branch. The local model rejects create names that case-insensitively match an existing local or upstream `shop.fulfillmentServices` service name, rejects generated-handle collisions with the same `field: ["name"]` userError Shopify returns, rejects generated reserved handles `shopify`, `amazon`, `manual`, and `gift_card` with Shopify's captured `Name is reserved` userError, and rejects update names that collide with any other active service or generate a reserved handle. It accepts no callback URL plus the current app-scoped callback URL family captured from the conformance app: valid `http://` and `https://` URLs whose host starts with `mock.shop`, and valid `http://` or `https://` URLs on the configured shop origin host. Other HTTP(S) hosts return the captured `Callback url is not allowed` userError; unsupported protocols return the captured protocol-specific callbackUrl userError.
-
-Live Admin GraphQL 2026-04 evidence on `harry-test-heelo.myshopify.com` shows the current public schema for this app does not expose `fulfillmentServiceCreate` / `fulfillmentServiceUpdate` arguments named `permitsSkuSharing`, `inventorySyncEnabled`, or `fulfillmentOrdersOptIn`. `FulfillmentService` detail reads expose `inventoryManagement`, but not `permitsSkuSharing`, `inventorySyncEnabled`, or `fulfillmentOrdersOptIn`. Local dispatch mirrors the public schema-validation branch: `permitsSkuSharing: false` on `fulfillmentServiceCreate` returns a top-level GraphQL `argumentNotAccepted` error and does not stage a service. Since the removed fields are not selectable in this public schema, downstream parity for this slice is scoped to `inventoryManagement` create/update read-after-write visibility.
-
-Delete support covers unknown-id userErrors, `inventoryAction`, and `destinationLocationId` validation at the local state level. `TRANSFER` requires an active merchant-managed destination location; missing, inactive, unknown, or fulfillment-service-managed destinations return the captured `Invalid destination location.` userError shape, with `code: null` when callers select the local convenience field. `KEEP` and `DELETE` reject a supplied `destinationLocationId` with `field: ["inventoryAction"]`, `code: DESTINATION_LOCATION_ID_SHOULD_NOT_PRESENT`, Shopify's captured inventory-action message, `deletedId: null`, and no staged state changes. Successful `TRANSFER` removes the fulfillment-service location from local reads and reassigns open local fulfillment orders from that service location to the destination. `KEEP` converts the associated location to merchant-managed by clearing `fulfillmentService` and `isFulfillmentService`, while closing open local fulfillment orders assigned to the deleted service; `DELETE` removes the service location and also closes open local work assigned there. Inventory quantity movement itself remains local bookkeeping only until inventory-level transfer fixtures exist.
-
-Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
-
-Executable parity evidence for the fulfillment-service lifecycle lives in `config/parity-specs/shipping-fulfillments/fulfillment-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream `fulfillmentService(id:)` and `location(id:)` reads, after-delete absence, and validation branches through local proxy requests. `config/parity-specs/shipping-fulfillments/fulfillment-service-name-whitespace-validation.json` records leading/trailing create-name rejection and leading update-name rejection. `config/parity-specs/shipping-fulfillments/fulfillment-service-uniqueness.json` records same-name duplicate create, case-variant duplicate create, generated-handle collision create, diacritic/punctuation handle generation, reserved generated-handle rejection on create, update-to-existing-name rejection, and update-to-reserved-name rejection. Callback URL validation parity lives in `config/parity-specs/shipping-fulfillments/fulfillment-service-callback-url-validation.json`. It compares accepted app-scoped create/update branches and rejected protocol/disallowed-host branches. These specs compare the created service/location directly instead of the full captured `shop.fulfillmentServices` catalog because the disposable live store contained unrelated pre-existing services that are not required preconditions for isolated local staging.
-`config/parity-specs/shipping-fulfillments/fulfillment-service-permits-sku-sharing-validation.json` records the 2026-04 removed-argument branch for `permitsSkuSharing: false` plus `inventoryManagement` create/update downstream read parity.
-
-Carrier service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they affect checkout rate-provider configuration:
-
-- `availableCarrierServices`
-- `carrierService`
-- `carrierServices`
-- `carrierServiceCreate`
-- `carrierServiceUpdate`
-- `carrierServiceDelete`
-
-Live Admin GraphQL 2026-04 schema introspection confirmed the top-level read roots, create/update roots, and `carrierServiceDelete`. HAR-320 safe-read evidence on 2025-01 captured `availableCarrierServices` returning `DeliveryCarrierServiceAndLocations` pairs for active Shopify Shipping carrier services and their available locations. The local state stores carrier services as `DeliveryCarrierService` records with `name`, `formattedName`, `callbackUrl`, `active`, `supportsServiceDiscovery`, and internal created/updated timestamps for local sorting.
-
-Snapshot reads return Shopify-like no-data structures: `carrierService(id:)` returns `null` for a missing service, and `carrierServices(...)` returns an empty connection with empty `nodes`/`edges`, false page booleans, and null cursors. Catalog support covers the captured slice for `query: "active:true|false"` and `query: "id:<numeric id or gid>"`, `sortKey: ID|CREATED_AT|UPDATED_AT`, `reverse`, and standard cursor pagination through the shared connection helpers.
-
-`availableCarrierServices` serializes active local carrier services paired with active merchant-managed local locations. With no local carrier services it returns an empty list. Location selections use the same local `Location` serializer as `location(id:)`, so staged local-pickup settings are visible in the returned location list without calling carrier callbacks or Shopify upstream in snapshot mode.
-
-Create/update support covers `input.name`, `input.callbackUrl`, `input.active`, and `input.supportsServiceDiscovery`. Captured behavior showed Shopify returning `formattedName` as `<name> (Rates provided by app)` for an app carrier service, update-time downstream visibility through both detail and catalog roots, blank-name create as `userErrors[{ field: null, message: "Shipping rate provider name can't be blank" }]`, duplicate active app carrier create as `userErrors[{ field: null, message: "{existing name} is already configured", code: "CARRIER_SERVICE_CREATE_FAILED" }]`, unknown update as `field: null`, and unknown delete as `field: ["id"]` with `The carrier or app could not be found.`.
-
-Delete support is enabled because the 2026-04 schema exposes `carrierServiceDelete(id:)` and the live lifecycle capture verified `deletedId` plus downstream detail/catalog absence after cleanup. Local delete only removes the staged/local record; it does not call Shopify or any external callback.
-
-Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
-
-Executable parity evidence for the carrier-service lifecycle lives in `config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream detail and active-filter catalog reads, after-delete absence, and validation branches through local proxy requests. It omits the captured opaque id-filter cursor branch from the replay comparison because the isolated proxy execution uses synthetic carrier-service IDs, while runtime coverage still exercises id-filter behavior directly.
-
-Delivery-profile reads are implemented as fixture-backed snapshot reads:
-
-- `locationsAvailableForDeliveryProfilesConnection` returns active local locations through the shared connection helpers and supports `first`, `last`, `after`, `before`, and `reverse`.
-- `deliveryProfiles` returns a local connection from normalized `deliveryProfiles` snapshot state and supports `first`, `last`, `after`, `before`, `reverse`, and `merchantOwnedOnly` without contacting upstream Shopify.
-- `deliveryProfile(id:)` returns the normalized profile detail when present and `null` for a missing id.
-- Snapshot mode does not invent shipping profiles. With no normalized delivery-profile fixtures, `deliveryProfiles` returns an empty connection and `deliveryProfile(id:)` returns `null`.
-- Nested profile detail serializes captured scalar counts, profile items, product/variant associations, profile location groups, locations, countries/provinces, zones, method definitions, rate providers, method conditions, selling-plan group connections, and unassigned locations when those fields exist in the normalized fixture.
-- Generic `node(id:)` / `nodes(ids:)` dispatch resolves the modeled nested delivery-profile records already present in the normalized profile graph: `DeliveryLocationGroup`, `DeliveryZone`, `DeliveryCountry`, `DeliveryProvince`, `DeliveryMethodDefinition`, `DeliveryRateDefinition`, `DeliveryParticipant`, and `DeliveryCondition`. Missing IDs and delivery-profile-adjacent records outside that graph still return `null`.
-- Product, variant, and location associations are stored as ids and projected from the existing product/location state. A delivery profile fixture should not duplicate full product, variant, or location blobs.
-- Live read evidence for 2026-04 is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profiles-read.json`. The capture used `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-delivery-profiles`; no access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
-- HAR-462 Node parity for nested delivery-profile records is registered in `config/parity-specs/admin-platform/admin-platform-delivery-profile-node-reads.json` and compares generic `nodes(ids:)` projections against the captured 2026-04 `deliveryProfile(id:)` downstream payload. `DeliveryProfileItem` remains unsupported because the normalized profile item model is product/variant keyed and the current capture does not expose a stable profile-item Node id; order-scoped `DeliveryMethod` records remain under order/fulfillment modeling rather than delivery-profile dispatch.
-
-Delivery-profile writes are implemented for a deliberately bounded, conformance-backed custom-profile subset:
-
-- `deliveryProfileCreate`
-- `deliveryProfileUpdate`
-- `deliveryProfileRemove`
-
-- `deliveryProfileCreate(profile:)` stages a merchant-owned, non-default delivery profile locally. Supported input fields are `name`, `locationGroupsToCreate` / `profileLocationGroups`, nested `locations`, `zonesToCreate`, `countries`, static `rateDefinition` method definitions, weight/price conditions, and `variantsToAssociate`.
-- `deliveryProfileCreate(profile:)` validates create input before staging. Blank names return `PROFILE_CREATE_REQUIRES_NAME`, names of 128 characters or more return `TOO_LONG`, unknown or non-merchant-active location IDs are rejected before synthetic profile creation, and empty or overlapping `zonesToCreate[*].countries` sets return `CANNOT_UPDATE_ZONES`. Create-time update-only keys are rejected before staging: non-empty `variantsToDissociate` returns `cannot_disassociate_variants`, `locationGroupsToCreate[*].zonesToUpdate` returns `cannot_update_zones`, and `locationGroupsToCreate[*].zonesToCreate[*].methodDefinitionsToUpdate` returns `cannot_update_method_definitions` when callers select the proxy's local `code` convenience field. Captured public Admin 2026-04 `field`/`message` responses for those three create-only guards expose `field: null` with Shopify's generic public messages, so requests that select only public `UserError` fields project that captured shape. Indexed location and zone field paths use the local dotted-index format such as `locationGroupsToCreate.0.locations.0` for the older create validation branches when callers select `userErrors.field`.
-- `deliveryProfileUpdate(id:, profile:)` stages profile renames, variant association/dissociation, location-group create/update/delete, location add/remove, zone create/update/delete, method-definition create/update/delete, condition update/delete, and selling-plan group id association bookkeeping.
-- `deliveryProfileUpdate(id:, profile:)` validates newly submitted profile content before staging. Blank names still return `PROFILE_NAME_EMPTY`, names of 128 characters or more return `TOO_LONG`, unknown or non-merchant-active location IDs under `locationGroupsToCreate[*].locations`, `locationGroupsToUpdate[*].locationsToAdd`, and `profileLocationGroups[*].locationsToAdd` return `LOCATION_NOT_FOUND`, and empty or overlapping `zonesToCreate[*].countries` sets return `CANNOT_UPDATE_ZONES` when callers select the proxy's local `code` convenience field. Captured public Admin 2026-04 update evidence rejects oversized names, unknown `locationGroupsToCreate` locations, unknown `locationGroupsToUpdate.locationsToAdd`, and empty countries; public probes accepted `profileLocationGroups.locationsToAdd` unknown-location and duplicate-country overlap updates, so those guardrails are covered by local runtime tests and noted in hard/weird behavior rather than asserted as public parity.
-- `deliveryProfileRemove(id:)` stages custom-profile removal locally and returns a Shopify-like asynchronous `Job` payload with `done: false`; downstream local reads treat the profile as removed immediately so tests can observe the staged graph without waiting for Shopify's background job.
-- Successful create/update/remove mutations append staged mutation-log entries with the original GraphQL request body for commit replay. Validation branches with no state change return local `userErrors` and are not added to the commit log.
-- Variant association moves the variant into the target local profile and removes it from other locally known delivery profiles so downstream `deliveryProfile` / `deliveryProfiles` reads stay single-owner for the modeled variant.
-- Captured 2026-04 write evidence is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-writes.json` and registered by `config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json`. Additional create validation evidence for blank name, oversized name, unknown location, and empty countries lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-validation.json` and `config/parity-specs/shipping-fulfillments/delivery-profile-create-validation.json`; update validation evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-update-validation.json` and `config/parity-specs/shipping-fulfillments/delivery-profile-update-validation.json`. The lifecycle capture covered blank-name validation, nested create, nested update, condition delete, variant dissociation, missing update/remove, default-profile removal denial, async removal job payload, and downstream null read after removal. No access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
-
-Delivery settings and promise settings have a narrow read-only snapshot slice:
-
-- `deliverySettings`
-- `deliveryPromiseSettings`
-
-The HAR-324 live probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01 captured the current empty/no-feature settings branch: `deliverySettings.legacyModeProfiles` is `false`, `legacyModeBlocked.blocked` is `false`, `legacyModeBlocked.reasons` is `null`, `deliveryPromiseSettings.deliveryDatesEnabled` is `false`, and `deliveryPromiseSettings.processingTime` is `null`. Snapshot mode returns that shape locally without hitting upstream Shopify.
-
-`deliverySettingUpdate` remains unsupported. Changing delivery settings can alter shop delivery configuration and legacy-mode behavior, so it must not be marked supported until success, rollback/cleanup, validation errors, and downstream read-after-write effects are captured and modeled locally.
-
-Delivery customization and delivery promise roots remain explicit HAR-324 declared gaps:
-
-- `deliveryCustomization`
-- `deliveryCustomizations`
-- `deliveryCustomizationCreate`
-- `deliveryCustomizationUpdate`
-- `deliveryCustomizationDelete`
-- `deliveryCustomizationActivation`
-- `deliveryPromiseParticipants`
-- `deliveryPromiseParticipantsUpdate`
-- `deliveryPromiseProvider`
-- `deliveryPromiseProviderUpsert`
-
-Current live evidence is blocker-only for these families. The configured conformance credential has `read_shipping` / `write_shipping`, but it does not have `read_delivery_customizations`, `read_delivery_promises`, or the corresponding delivery-write scope families. Probing `deliveryCustomization` and `deliveryCustomizations` returned `ACCESS_DENIED` requiring `read_delivery_customizations`; probing `deliveryPromiseParticipants` and `deliveryPromiseProvider` returned `ACCESS_DENIED` requiring `read_delivery_promises`.
-
-Delivery customization mutations are Shopify Function-backed and depend on external function IDs, activation eligibility, function ownership, and metafields. Delivery promise mutations depend on branded promise handles, participant owner eligibility, provider state by location, and delivery-promise access scopes. Until those branches are captured and locally modeled, they stay on the unsupported mutation passthrough path with registered-operation and safety metadata in the mutation log.
-
-Shipping settings roots implemented by HAR-320:
-
-- `locationLocalPickupEnable`
-- `locationLocalPickupDisable`
-- `shippingPackageUpdate`
-- `shippingPackageMakeDefault`
-- `shippingPackageDelete`
-
-`locationLocalPickupEnable(localPickupSettings:)` locally stores `pickupTime` and `instructions` on the targeted active `Location` and returns the captured `DeliveryLocalPickupSettings` payload shape. The local-pickup standard value allow-list is `ONE_HOUR`, `TWO_HOURS`, `FOUR_HOURS`, `TWENTY_FOUR_HOURS`, `TWO_TO_FOUR_DAYS`, and `FIVE_OR_MORE_DAYS`; Shopify's `CUSTOM` enum value reaches the resolver but returns `CUSTOM_PICKUP_TIME_NOT_ALLOWED`, so the proxy returns the same coded userError without staging settings. Unknown or inactive locations return the captured `ACTIVE_LOCATION_NOT_FOUND` userError field paths: `["localPickupSettings"]` for enable and `["locationId"]` for disable. `locationLocalPickupDisable(locationId:)` clears local settings and returns the disabled `locationId`. Downstream `location(id:)`, `locationsAvailableForDeliveryProfilesConnection`, and `availableCarrierServices.locations` reads observe the staged `localPickupSettingsV2` value.
-
-Shipping package mutations stage against normalized local package records. Seeded and hydrated package records preserve `boxType`; `shippingPackageUpdate` persists name, type, default flag, weight, and dimensions for known custom package IDs, but rejects carrier-supplied `boxType: FLAT_RATE` packages with `CUSTOM_SHIPPING_BOX_NOT_UPDATABLE`. `shippingPackageMakeDefault` clears the previous local default and marks the selected package as default; `shippingPackageDelete` records local deletion and returns `deletedId`. Admin GraphQL 2025-01 exposes no package read root in the captured schema, so immediate visibility is through meta state/log inspection and downstream in-memory package bookkeeping. Unknown package IDs return Shopify's captured top-level `RESOURCE_NOT_FOUND` / `invalid id` GraphQL error instead of a payload `userErrors` array.
-
-HAR-320 fulfillment-constraint evidence is blocker-only. The current conformance credential receives `ACCESS_DENIED` for `fulfillmentConstraintRules` without `read_fulfillment_constraint_rules` and for `fulfillmentConstraintRuleCreate`, `fulfillmentConstraintRuleUpdate`, and `fulfillmentConstraintRuleDelete` without `write_fulfillment_constraint_rules`. These roots are registry-only until a scoped test app can capture Shopify Function ownership, metafield behavior, success payloads, and downstream rule reads.
-
-### HAR-443 review summary
-
-The HAR-443 shipping-settings/service/profile review found the scoped roots already have executable local evidence rather than registry-only placeholders:
-
-- Carrier services and fulfillment services have local lifecycle models, empty/no-data reads, validation branches, downstream detail/catalog reads, meta-log preservation of original raw mutations, and captured parity specs.
-- Delivery profiles have fixture-backed catalog/detail reads plus bounded custom-profile create/update/remove staging with downstream read-after-write behavior and captured parity specs.
-- Delivery settings and delivery promise settings remain intentionally read-only. The local shape is the captured empty/no-feature branch; `deliverySettingUpdate` and delivery customization/promise mutation families remain unsupported until success, rollback/cleanup, validation, access-scope, and downstream read effects are captured.
-- Local pickup and shipping package roots are modeled as shipping-settings local state. Pickup has downstream `Location`, `locationsAvailableForDeliveryProfilesConnection`, and `availableCarrierServices.locations` visibility. Shipping packages have no Admin GraphQL read root in the captured schema, so successful package staging is validated through meta state/logs and unknown-id GraphQL error parity.
-- The highest remaining fidelity gaps are carrier callback/service-discovery side effects, fulfillment-service inventory transfer semantics, carrier-backed delivery-profile participants, delivery-settings mutations, checkout pickup/rate calculation behavior, and package discovery/validation beyond known normalized package records. These are deliberately excluded from supported status until separately captured and modeled.
-
-### HAR-444 review summary
-
-The HAR-444 fulfillment-order review found that the high-risk order-scoped fulfillment lifecycle is already backed by executable fixtures and integration coverage for hold/release, move, report/open, cancel, split/deadline/merge, fulfillment create/event/tracking/cancel, and fulfillment request/cancellation request flows. The additional local gap fixed here was top-level `assignedFulfillmentOrders` argument fidelity: the root previously reused the broader `fulfillmentOrders` catalog preparation and ignored `assignmentStatus` and `locationIds`, so local tests could observe unrelated order-backed fulfillment work in assigned-service request views.
-
-Current executable evidence for the reviewed fulfillment scope:
-
-- `config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json` replays captured lifecycle mutations and downstream fulfillment-order reads against the proxy with strict comparison targets.
-- `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json` replays captured fulfillment request and cancellation request transitions, including downstream direct reads.
-- `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` covers top-level and nested fulfillment event/tracking/cancel detail reads.
-
-Remaining gaps that should not be overclaimed:
-
-- Live `assignedFulfillmentOrders` success capture remains blocked by app-to-fulfillment-service association for the current conformance credential, so the local assignment catalog models only order-backed request statuses and stored assigned-location IDs.
-- Assignment ownership, service callback delivery, service-specific queue semantics, assignment-status values outside the locally staged request/cancellation workflow, and multi-location/service visibility need a live service-associated capture before broader support is claimed.
-- `fulfillmentOrdersReroute` and `fulfillmentOrderLineItemsPreparedForPickup` remain registry-only/full-support gaps except for captured guardrail branches already called out above. `fulfillmentOrderClose` has live API-service success parity; `fulfillmentOrderReschedule` still needs a live scheduled success cassette before its happy path can be described as captured Shopify parity.
-- Fulfillment-order generation from arbitrary order routing, delivery methods from shipping configuration, carrier pickup/preparation effects, notifications, inventory movement, and external fulfillment-service side effects remain outside the local lifecycle model.
-
-### Registry-only coverage map
-
-These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
-
-Fulfillment-order mutations:
-
-- `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrdersReroute`
-
-Fulfillment constraint rules:
-
-- `fulfillmentConstraintRules`
-- `fulfillmentConstraintRuleCreate`
-- `fulfillmentConstraintRuleDelete`
-- `fulfillmentConstraintRuleUpdate`
-
-Delivery customizations and promises:
-
-- `deliveryCustomization`
-- `deliveryCustomizations`
-- `deliveryCustomizationCreate`
-- `deliveryCustomizationUpdate`
-- `deliveryCustomizationDelete`
-- `deliveryCustomizationActivation`
-- `deliveryPromiseParticipants`
-- `deliveryPromiseParticipantsUpdate`
-- `deliveryPromiseProvider`
-- `deliveryPromiseProviderUpsert`
-- `deliverySettingUpdate`
-
-Shipping-line order-edit roots:
-
-- `orderEditAddShippingLine` is implemented through the orders calculated-edit model. It stages shipping lines on `CalculatedOrder.shippingLines`, recalculates totals, and materializes committed shipping lines on `orderEditCommit` without runtime Shopify writes.
-- `orderEditRemoveShippingLine` is implemented through the orders calculated-edit model. It removes locally known calculated shipping lines, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
-- `orderEditUpdateShippingLine` is implemented through the orders calculated-edit model. It updates locally known calculated shipping line title/price, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
-
-### Behavior boundaries
-
-- The proxy must not treat any registry-only root above as supported runtime behavior. Until a root has local state modeling and executable tests, unsupported mutations remain on the generic unsupported path and must stay visible in observability.
-- Top-level `fulfillment(id:)` now has missing-id, tracking-info, line-item, detail, and event-history shape evidence for records already present on the local order graph. Broader access-scope behavior still needs separate captures before expansion.
-- Fulfillment orders are created by Shopify after order routing, not by a direct create mutation. Current local support can split existing order-backed fulfillment orders during fulfillment-request submission, but broader generation from order/draft-order creation, location assignment, line-item grouping, holds, and delivery methods still needs separate coverage.
-- Fulfillment-order visibility is scope-sensitive. `assignedFulfillmentOrders`, `fulfillmentOrders`, and `Order.fulfillmentOrders` can return different subsets depending on assigned, merchant-managed, third-party, and marketplace fulfillment-order scopes.
-- Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
-- Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
-- Broader carrier-service support still depends on app ownership, `write_shipping` access, plan eligibility, available-service/location pairing, and service-discovery callback semantics outside the locally staged catalog/lifecycle slice.
-- Delivery-profile write support is intentionally limited to custom merchant-owned profiles with static rate definitions. Carrier/service participants, callback-backed rates, full selling-plan routing semantics, legacy-mode transitions, default-profile mutation behavior beyond captured remove denial, and Shopify's full delivery-setting eligibility/access matrix remain excluded until separately captured and modeled.
-- Delivery settings read support is read-only and reflects the captured no-legacy-mode/no-promise-settings branch. Do not infer that `deliverySettingUpdate` is safe to stage merely because the read shape is local.
-- Delivery customization roots are Shopify Function-backed. Do not convert validation-only or access-denied evidence into local create/update/delete/activation support without modeling function ownership, function interface eligibility, metafields, activation limits, and downstream reads.
-- Delivery promise provider/participant roots are access-scope and eligibility sensitive. The current credential blocker is evidence for declared-gap status, not evidence for empty successful reads.
-- Local-pickup support is limited to `Location.localPickupSettingsV2` read-after-write behavior. Checkout pickup option ranking, pickup inventory eligibility, notification behavior, and local-delivery coupling require separate captures.
-- Shipping package support is a local staging slice for known package records. Package discovery, carrier package compatibility, checkout rate calculation, and full package validation remain future work because the captured schema has no direct package read root.
-- Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
-
-## Historical and developer notes
-
-### Validation anchors
-
-- Existing fulfillment parity specs and requests: `config/parity-specs/shipping-fulfillments/fulfillment*.json` and matching files under `config/parity-requests/shipping-fulfillments/`
-- Fulfillment-order request/cancellation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`
-- Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-lifecycle.json` and `config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json`
-- Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profiles-read.json`
-- Delivery-profile write capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-writes.json`
-- Delivery settings/customization/promise probe evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/delivery-customization-promise-settings-blockers.json`
-- Shipping settings/package/pickup/constraint evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/shipping-settings-package-pickup-constraints.json` and `config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json`
-- Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
+### Local behavior
+
+The Rust runtime has scenario-backed shipping and fulfillment slices for ported
+parity requests and runtime tests. These slices stage or serialize local state
+only for the request families recognized by the Rust dispatcher.
+
+Fulfillment-service slices cover create, update, delete, downstream
+`fulfillmentService(id:)`, associated `location(id:)`, after-delete absence,
+name/handle validation, callback URL validation, duplicate/reserved handles,
+removed public arguments, and delete inventory-action validation. Creation
+creates a service-managed location in local state, update preserves service and
+location identity, and delete applies the captured local location disposition
+for the scenario. Successful service mutations keep original raw GraphQL input
+for commit replay.
+
+Carrier-service slices cover create, update, delete, downstream
+`carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
+validation, blank names, duplicate active app carriers, callback URL
+validation, selected typed `userErrors.code` branches, and after-delete absence.
+The local model stores service name, formatted name, callback URL, active flag,
+service-discovery flag, and stable synthetic IDs for parity replay.
+
+Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
+detail/event reads, hold/release, move, open/report-progress, close,
+reschedule guardrails, request/cancellation request transitions, split, merge,
+deadline setting, assigned-order filtering, and selected validation branches.
+These slices operate on local order-backed fulfillment records and are not a
+general fulfillment-service execution engine.
+
+Delivery settings and delivery promise settings are read-only in the captured
+empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
+custom-profile write slices for create/update/remove, validation, variant
+dissociation, async removal payloads, and downstream null reads after removal.
+
+Local pickup and shipping package slices stage settings on known local
+locations or package records. Pickup changes are visible through the captured
+`Location`, `locationsAvailableForDeliveryProfilesConnection`, and
+`availableCarrierServices.locations` surfaces. Shipping packages have no direct
+Admin GraphQL package read root in the captured schema, so successful staging is
+verified through local state/log behavior and targeted validation.
+
+Reverse delivery and order-edit shipping-line roots are modeled through the
+orders and returns local graph when covered by their parity specs. Their
+caller-visible order and return effects should be read with
+`docs/endpoints/orders.md` and `docs/endpoints/returns.md`.
+
+### Boundaries
+
+- Shipping/fulfillments roots remain `implemented: false` in the current
+  operation registry. Scenario-backed Rust helpers should not be described as
+  broad root support.
+- Delivery customization and delivery promise mutations are Shopify
+  Function-backed or provider-backed and remain unsupported until function
+  ownership, activation eligibility, metafields, provider state, validation,
+  cleanup, and downstream reads are modeled locally.
+- Fulfillment constraint rules remain registry-only because current evidence is
+  access-scope blocker evidence, not success/read-after-write behavior.
+- Validation-only shipping and fulfillment specs prove guardrail payloads and
+  no-stage behavior for those inputs only. They do not make the corresponding
+  mutation roots generally supported.
+- Fulfillment-service inventory transfer semantics, checkout pickup/rate
+  calculation, carrier callback execution, carrier service-discovery side
+  effects, and full shipping-package discovery/validation remain outside the
+  supported local slices.
+- Unsupported mutation documents outside the ported local slices follow the
+  configured unsupported path and must remain visible in logs/observability.
+
+### Evidence
+
+- Registry status: `config/operation-registry.json`
+- Runtime coverage: `tests/graphql_routes.rs`
+- Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
+- Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
+- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
+
+### Validation
+
+- `corepack pnpm lint`
+- `corepack pnpm rust:test`
