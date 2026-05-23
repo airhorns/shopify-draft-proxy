@@ -407,6 +407,16 @@ function normalizeForTarget(value: unknown, target: ComparisonTarget): unknown {
 }
 
 function captureResponseForTarget(capture: unknown, target: ComparisonTarget): ProxyResponse | null {
+  for (const payloadPrefix of ['.result.body', '.response.body']) {
+    const payloadIndex = target.capturePath.indexOf(payloadPrefix);
+    if (payloadIndex === -1) continue;
+    const payloadPath = target.capturePath.slice(0, payloadIndex + payloadPrefix.length);
+    const payload = getPath(capture, payloadPath);
+    if (payload === undefined) return null;
+    const statusPath = `${target.capturePath.slice(0, payloadIndex)}${payloadPrefix.replace('.body', '.status')}`;
+    const status = getPath(capture, statusPath);
+    return { status: typeof status === 'number' ? status : 200, body: payload };
+  }
   for (const payloadPrefix of ['.result.payload', '.response.payload']) {
     const payloadIndex = target.capturePath.indexOf(payloadPrefix);
     if (payloadIndex === -1) continue;

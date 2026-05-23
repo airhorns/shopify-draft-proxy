@@ -1,0 +1,5 @@
+query ProductInventoryShipmentByIdNotFound($inventoryShipmentId: ID!) {
+  missingInventoryShipment: inventoryShipment(id: $inventoryShipmentId) {
+    __typename
+  }
+}
