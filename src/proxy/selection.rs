@@ -81,6 +81,7 @@ mod tests {
         SelectedField {
             name: name.to_string(),
             response_key: response_key.to_string(),
+            arguments: Default::default(),
             selection,
         }
     }
