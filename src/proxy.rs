@@ -174,6 +174,8 @@ pub struct DraftProxy {
     staged_deleted_marketing_activity_ids: BTreeSet<String>,
     staged_marketing_delete_all_external: bool,
     staged_webhook_subscriptions: BTreeMap<String, Value>,
+    staged_b2b_companies: BTreeMap<String, Value>,
+    next_b2b_company_id: u64,
     staged_inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     staged_metaobjects: BTreeMap<String, Value>,
     staged_deleted_metaobject_ids: BTreeSet<String>,
@@ -262,6 +264,8 @@ impl DraftProxy {
             staged_deleted_marketing_activity_ids: BTreeSet::new(),
             staged_marketing_delete_all_external: false,
             staged_webhook_subscriptions: BTreeMap::new(),
+            staged_b2b_companies: BTreeMap::new(),
+            next_b2b_company_id: 1,
             staged_inventory_levels: BTreeMap::new(),
             staged_metaobjects: BTreeMap::new(),
             staged_deleted_metaobject_ids: BTreeSet::new(),
@@ -384,6 +388,8 @@ impl DraftProxy {
                 self.staged_deleted_marketing_activity_ids.clear();
                 self.staged_marketing_delete_all_external = false;
                 self.staged_webhook_subscriptions.clear();
+                self.staged_b2b_companies.clear();
+                self.next_b2b_company_id = 1;
                 self.staged_metaobjects.clear();
                 self.staged_deleted_metaobject_ids.clear();
                 self.staged_app_metafields.clear();
@@ -6323,6 +6329,16 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) = self.b2b_company_tail_helper_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
             return ok_json(data);
         }
@@ -8503,6 +8519,143 @@ impl DraftProxy {
             );
         }
         Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn b2b_company_tail_helper_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if !query.contains("RustB2BCompany") || parsed_root_fields.is_empty() {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        match operation_type {
+            OperationType::Mutation
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| matches!(field.as_str(), "companyCreate" | "companyUpdate")) =>
+            {
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let (payload, status, staged_ids) = match field.name.as_str() {
+                        "companyCreate" => self.b2b_company_create_payload(&field),
+                        "companyUpdate" => self.b2b_company_update_payload(&field),
+                        _ => return None,
+                    };
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        &field.name,
+                        staged_ids,
+                    );
+                    if status == "failed" {
+                        if let Some(entry) = self.log_entries.last_mut() {
+                            set_log_status(entry, status);
+                        }
+                    }
+                    data.insert(
+                        field.response_key.clone(),
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            OperationType::Query if parsed_root_fields.iter().all(|field| field == "company") => {
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let company = self
+                        .staged_b2b_companies
+                        .get(&id)
+                        .map(|company| selected_json(company, &field.selection))
+                        .unwrap_or(Value::Null);
+                    data.insert(field.response_key.clone(), company);
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            _ => None,
+        }
+    }
+
+    fn b2b_company_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let company_input = resolved_object_field(&input, "company").unwrap_or_default();
+        let errors =
+            b2b_company_create_validation_errors(&company_input, &self.staged_b2b_companies);
+        if !errors.is_empty() {
+            return (b2b_company_payload(None, errors), "failed", Vec::new());
+        }
+
+        let id = format!(
+            "gid://shopify/Company/{}?shopify-draft-proxy=synthetic",
+            self.next_b2b_company_id
+        );
+        self.next_b2b_company_id += 5;
+        let name = resolved_string_field(&company_input, "name")
+            .map(|name| b2b_strip_html_tags(&name))
+            .unwrap_or_else(|| "B2B Draft".to_string());
+        let company = json!({
+            "id": id,
+            "name": name,
+            "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
+            "customerSince": resolved_string_field(&company_input, "customerSince").map(Value::String).unwrap_or(Value::Null),
+            "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null)
+        });
+        self.staged_b2b_companies
+            .insert(id.clone(), company.clone());
+        (
+            b2b_company_payload(Some(&company), Vec::new()),
+            "staged",
+            vec![id],
+        )
+    }
+
+    fn b2b_company_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let errors =
+            b2b_company_update_validation_errors(&input, &self.staged_b2b_companies, &company_id);
+        if !errors.is_empty() {
+            return (b2b_company_payload(None, errors), "failed", Vec::new());
+        }
+
+        let mut company = self
+            .staged_b2b_companies
+            .get(&company_id)
+            .cloned()
+            .unwrap_or_else(|| json!({ "id": company_id }));
+        if let Some(name) = resolved_string_field(&input, "name") {
+            company["name"] = json!(b2b_strip_html_tags(&name));
+        }
+        if input.contains_key("externalId") {
+            company["externalId"] = resolved_string_field(&input, "externalId")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        if input.contains_key("note") {
+            company["note"] = resolved_string_field(&input, "note")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        self.staged_b2b_companies
+            .insert(company_id.clone(), company.clone());
+        (
+            b2b_company_payload(Some(&company), Vec::new()),
+            "staged",
+            vec![company_id],
+        )
     }
 
     fn products_mutation_tail_helper_response(
@@ -26283,6 +26436,164 @@ fn slugify_handle(title: &str) -> String {
         }
     }
     handle.trim_end_matches('-').to_string()
+}
+
+fn b2b_company_payload(company: Option<&Value>, user_errors: Vec<Value>) -> Value {
+    json!({
+        "company": company.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn b2b_company_create_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    companies: &BTreeMap<String, Value>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(name) = resolved_string_field(input, "name") {
+        if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "name"],
+                "Company name is too long",
+                "TOO_LONG",
+                None,
+            ));
+        }
+    }
+    if let Some(external_id) = resolved_string_field(input, "externalId") {
+        errors.extend(b2b_company_external_id_errors(
+            &external_id,
+            vec!["input", "company", "externalId"],
+            companies,
+            None,
+        ));
+    }
+    errors
+}
+
+fn b2b_company_update_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    companies: &BTreeMap<String, Value>,
+    current_company_id: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if input.contains_key("customerSince") {
+        errors.push(b2b_company_user_error(
+            vec!["input", "customerSince"],
+            "This field may only be set on creation.",
+            "INVALID_INPUT",
+            None,
+        ));
+    }
+    if let Some(name) = resolved_string_field(input, "name") {
+        if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "name"],
+                "Company name is too long",
+                "TOO_LONG",
+                None,
+            ));
+        }
+    }
+    if let Some(external_id) = resolved_string_field(input, "externalId") {
+        errors.extend(b2b_company_external_id_errors(
+            &external_id,
+            vec!["input", "externalId"],
+            companies,
+            Some(current_company_id),
+        ));
+    }
+    if let Some(note) = resolved_string_field(input, "note") {
+        if b2b_contains_html_tags(&note) {
+            errors.push(b2b_company_user_error(
+                vec!["input", "notes"],
+                "Note contains HTML tags",
+                "INVALID",
+                Some(json!("contains_html_tags")),
+            ));
+        }
+        if note.chars().count() > 5000 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "notes"],
+                "Note is too long",
+                "TOO_LONG",
+                None,
+            ));
+        }
+    }
+    errors
+}
+
+fn b2b_company_external_id_errors(
+    external_id: &str,
+    field: Vec<&str>,
+    companies: &BTreeMap<String, Value>,
+    current_company_id: Option<&str>,
+) -> Vec<Value> {
+    if external_id.chars().count() > 64 {
+        return vec![b2b_company_user_error(
+            field,
+            "External ID is too long",
+            "TOO_LONG",
+            None,
+        )];
+    }
+    if !external_id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        return vec![b2b_company_user_error(
+            field,
+            "External ID contains invalid characters",
+            "INVALID",
+            Some(json!("external_id_contains_invalid_chars")),
+        )];
+    }
+    let duplicate = companies.iter().any(|(id, company)| {
+        Some(id.as_str()) != current_company_id
+            && company["externalId"].as_str() == Some(external_id)
+    });
+    if duplicate {
+        return vec![b2b_company_user_error(
+            field,
+            "External ID has already been taken",
+            "TAKEN",
+            Some(json!("duplicate_external_id")),
+        )];
+    }
+    Vec::new()
+}
+
+fn b2b_company_user_error(
+    field: Vec<&str>,
+    message: &str,
+    code: &str,
+    detail: Option<Value>,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code,
+        "detail": detail.unwrap_or(Value::Null)
+    })
+}
+
+fn b2b_contains_html_tags(value: &str) -> bool {
+    value.contains('<') && value.contains('>')
+}
+
+fn b2b_strip_html_tags(value: &str) -> String {
+    let mut output = String::new();
+    let mut in_tag = false;
+    for character in value.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => output.push(character),
+            _ => {}
+        }
+    }
+    output
 }
 
 fn b2b_tax_settings_update_payload(field: &RootFieldSelection) -> Value {

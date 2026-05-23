@@ -6,9 +6,9 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
   - `implementation_unit_replaced_needs_review`: 117
-  - `needs_manual_review`: 358
+  - `needs_manual_review`: 353
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1683
+  - `represented_by_rust_root_tests`: 1688
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -18,10 +18,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Domains with unresolved/manual-review entries
 
-- `products_mutation`: 29
-- `b2b`: 33
 - `store_properties`: 33
 - `online_store`: 32
+- `products_mutation`: 29
+- `b2b`: 28
 - `localization_mutation`: 26
 - `metaobject_definitions`: 26
 - `mutation_helpers`: 22
@@ -61,6 +61,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- B2B company create/update validation helper behavior from `b2b_test.gleam` is now represented by `tests/graphql_routes.rs::b2b_company_identity_validation_tail_helpers_port_old_gleam_tests` and `tests/graphql_routes.rs::b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests`, covering name length checks, HTML-name sanitization, externalId length/character/duplicate guards, self-update duplicate exemption, immutable `customerSince` rejection with unchanged readback, and note HTML/length errors.
 - B2B company-location tax-settings update helper behavior from `b2b_test.gleam` is now represented by `tests/graphql_routes.rs::b2b_tax_settings_update_tail_helpers_port_old_gleam_tests`, covering omitted tax inputs, explicit null `taxExempt`, invalid `TaxExemption` literal/variable coercion errors, and assign/remove exemption staging/logging.
 - Product publication target/default-state validation, product full-sync feed/job lifecycle, and product/shop resource-feedback validation/coercion tails from `products_mutation_test.gleam` are now represented by `tests/graphql_routes.rs::product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests` and `tests/graphql_routes.rs::product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log`, covering publication create/update/delete validation errors and failed logs, invalid default-state enum top-level errors without logs, product feed create/full-sync job polling only after staging the feed, unknown-feed errors, product/shop feedback validation branches with failed logs, and product/shop invalid `ResourceFeedbackState` coercion errors.
 - Product media deprecated user-error mirroring and product-variant media guard helper behavior from `products_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers`, covering mirrored `userErrors`/`mediaUserErrors` for create/update/delete/reorder media validation, non-ready media append rejection, and unattached detach rejection.

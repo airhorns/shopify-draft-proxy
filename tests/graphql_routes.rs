@@ -3736,6 +3736,343 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
 }
 
 #[test]
+fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+
+    let long_name = "x".repeat(300);
+    let long_name_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNameValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": long_name } }),
+    ));
+    assert_eq!(long_name_response.status, 200);
+    assert_eq!(
+        long_name_response.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "name"],
+                "message": "Company name is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }]
+        })
+    );
+
+    let html_name_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNameValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "<b>B2B Draft</b>" } }),
+    ));
+    assert_eq!(html_name_response.status, 200);
+    assert_eq!(
+        html_name_response.body["data"]["companyCreate"],
+        json!({
+            "company": {
+                "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
+                "name": "B2B Draft"
+            },
+            "userErrors": []
+        })
+    );
+
+    let long_external_id = "x".repeat(65);
+    let long_external = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "B2B Draft", "externalId": long_external_id } }),
+    ));
+    assert_eq!(long_external.status, 200);
+    assert_eq!(
+        long_external.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }]
+        })
+    );
+
+    let invalid_external = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "B2B Draft", "externalId": "has spaces" } }),
+    ));
+    assert_eq!(invalid_external.status, 200);
+    assert_eq!(
+        invalid_external.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID contains invalid characters",
+                "code": "INVALID",
+                "detail": "external_id_contains_invalid_chars"
+            }]
+        })
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Duplicate One", "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(first.body["data"]["companyCreate"]["userErrors"], json!([]));
+    let first_id = first.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Duplicate Two", "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID has already been taken",
+                "code": "TAKEN",
+                "detail": "duplicate_external_id"
+            }]
+        })
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Second", "externalId": "ACME-2" } }),
+    ));
+    let second_id = second.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let self_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": first_id, "input": { "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        self_update.body["data"]["companyUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": second_id, "input": { "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "externalId"],
+                "message": "External ID has already been taken",
+                "code": "TAKEN",
+                "detail": "duplicate_external_id"
+            }]
+        })
+    );
+}
+
+#[test]
+fn b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceCreate($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Original", "customerSince": "2024-01-01T00:00:00Z" } }),
+    ));
+    assert_eq!(create.status, 200);
+    let company_id = create.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let customer_since_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": company_id, "input": { "customerSince": "2020-01-01T00:00:00Z" } }),
+    ));
+    assert_eq!(
+        customer_since_only.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "customerSince"],
+                "message": "This field may only be set on creation.",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+
+    let read_after_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyCustomerSinceRead($id: ID!) {
+          company(id: $id) { name customerSince }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_reject.body["data"]["company"],
+        json!({ "name": "Original", "customerSince": "2024-01-01T00:00:00Z" })
+    );
+
+    let mixed_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "name": "Mixed Changed", "customerSince": "2020-02-01T00:00:00Z" } }),
+    ));
+    assert_eq!(
+        mixed_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        mixed_reject.body["data"]["companyUpdate"]["userErrors"][0]["code"],
+        json!("INVALID_INPUT")
+    );
+
+    let read_after_mixed_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyCustomerSinceRead($id: ID!) {
+          company(id: $id) { name customerSince }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_mixed_reject.body["data"]["company"],
+        json!({ "name": "Original", "customerSince": "2024-01-01T00:00:00Z" })
+    );
+
+    let null_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "customerSince": Value::Null } }),
+    ));
+    assert_eq!(
+        null_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        null_reject.body["data"]["companyUpdate"]["userErrors"][0]["field"],
+        json!(["input", "customerSince"])
+    );
+
+    let invalid_note = format!("<script>{}</script>", "x".repeat(6000));
+    let note_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id note }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "note": invalid_note } }),
+    ));
+    assert_eq!(
+        note_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        note_reject.body["data"]["companyUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "notes"],
+                "message": "Note contains HTML tags",
+                "code": "INVALID",
+                "detail": "contains_html_tags"
+            },
+            {
+                "field": ["input", "notes"],
+                "message": "Note is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }
+        ])
+    );
+}
+
+#[test]
 fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
 
