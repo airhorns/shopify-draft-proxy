@@ -86,16 +86,6 @@ pub struct Request {
     pub body: String,
 }
 
-struct OrdersLocalLogEntry<'a> {
-    request: &'a Request,
-    query: &'a str,
-    variables: &'a BTreeMap<String, ResolvedValue>,
-    root_field: &'a str,
-    staged_resource_ids: Vec<String>,
-    status: &'a str,
-    notes: &'a str,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Response {
     pub status: u16,
@@ -131,6 +121,11 @@ type ProxyTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 
 type CommitTransport = ProxyTransport;
 type UpstreamTransport = ProxyTransport;
+
+pub(in crate::proxy) struct OrdersLocalLogOutcome<'a> {
+    status: &'a str,
+    notes: &'a str,
+}
 
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")

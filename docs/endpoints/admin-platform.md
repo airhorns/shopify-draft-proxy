@@ -1,56 +1,101 @@
 # Admin Platform Utility Roots
 
-This endpoint group covers Admin GraphQL platform/utility roots that do not belong to a merchant resource family yet:
-
-- queries: `publicApiVersions`, `node`, `nodes`, `job`, `taxonomy`, `domain`, `backupRegion`, `staffMember`, `staffMembers`
-- mutations: `backupRegionUpdate`, `flowGenerateSignature`, `flowTriggerReceive`
-
-HAR-315/HAR-418 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`.
+This endpoint group covers Shopify Admin GraphQL platform and utility roots that are not owned by a single merchant resource family: `publicApiVersions`, generic Node dispatch, jobs, taxonomy, domains, backup regions, staff access, and Flow helper mutations.
 
 ## Current support and limitations
 
-### Snapshot Read Behavior
+### Supported roots
 
-The local snapshot handler is intentionally conservative and only models shapes backed by the HAR-315 capture:
+Read roots:
 
-- `publicApiVersions` returns the captured 2026-04 version window. Refresh the fixture and constant when Shopify rotates supported Admin API versions.
-- `node(id:)` resolves locally modeled resource GIDs by dispatching the GID type to the existing local detail handler or direct serializer for that resource family. This includes product/catalog/inventory records, product options and option values, effective owner-scoped metafields, selling-plan groups and nested selling plans, customer and payment-method records, B2B Company records plus modeled `CompanyAddress` and `CompanyContactRoleAssignment` rows, app billing/access records, store/shop/location/business-entity records including effective `ShopAddress` and `ShopPolicy` rows, Files API records, saved searches, payment terms templates/customizations, captured-safe finance/POS/dispute no-data roots, BulkOperation, metafield/metaobject definitions, order/fulfillment/return/draft-order records, GiftCard, DeliveryProfile and modeled nested delivery-profile records, discount owner and `DiscountNode` wrapper reads, marketing/event/webhook/segment records, Market/MarketRegionCountry/MarketCatalog/MarketWebPresence/PriceList records, captured taxonomy category records, and supported online-store content/integration records when those records are already present in local state.
-- `nodes(ids:)` applies the same GID-type dispatch per input id, preserves input order, and returns `null` entries for malformed, missing, or unsupported ids.
-- HAR-418 records the live Shopify `Node` interface `possibleTypes` in the admin-platform conformance fixture. Local Node coverage verifies every locally supported resolver maps to a live Node implementor and snapshots unsupported implementors plus implemented singular roots that still intentionally return `null` through generic Node dispatch. HAR-424 tracks reducing that unsupported snapshot.
-- `job(id:)` first resolves staged or fixture-backed generic `Job` nodes. Collection product-membership jobs staged by `collectionAddProductsV2` and `collectionRemoveProducts` read back as completed with a selected `query { __typename }` QueryRoot link, matching the 2026-04 collection membership capture. Unknown arbitrary Job GIDs still fall back to the older captured compatibility behavior: a completed job payload with that id and a selected `query { __typename }` QueryRoot link.
-- `domain(id:)` resolves the effective snapshot shop `primaryDomain` by id when one is present; unknown ids return `null`.
-- `backupRegion` first returns any explicitly staged or snapshot `backupRegion`, then derives a store-specific `MarketRegionCountry` from the effective shop's `myshopifyDomain` and `shopAddress.countryCodeV2` when that domain/country pair is backed by checked-in conformance evidence. Generic Node dispatch resolves that same effective `MarketRegionCountry` record by GID. The captured `MarketRegionCountry` ids are treated as shop-domain-scoped evidence, not as platform-global ids for a country. The current backed domain/country boundary is `harry-test-heelo.myshopify.com` for `CA`, `AE`, `AT`, `AU`, `BE`, `CH`, `CZ`, `DE`, `DK`, `ES`, `FI`, and `MX`, plus `very-big-test-store.myshopify.com` for `CA` and `US`. Snapshot parity requests that do not include shop state still preserve the HAR-315 captured Canada fallback, while an effective shop with an unbacked domain/country returns `null` instead of receiving the captured Canada region.
-- `taxonomy.categories(...)` is backed by normalized taxonomy category records in snapshot/local state. HAR-414 captures representative 2026-04 taxonomy catalog pages and an `apparel` search slice, including hierarchy fields (`fullName`, `isRoot`, `isLeaf`, `level`, `parentId`, `ancestorIds`, `childrenIds`, `isArchived`), raw Shopify cursors, and selected `pageInfo`. Search support is intentionally limited to simple term matching over captured `id`, `name`, and `fullName` values; unmatched searches return the captured empty connection shape. Hierarchy filters (`childrenOf`, `descendantsOf`, and `siblingsOf`) select only categories already present in local state, so missing parents or uncaptured child rows produce Shopify-like empty connections instead of fabricated taxonomy data. Generic Node dispatch resolves those same local `TaxonomyCategory` records by GID. The proxy does not invent taxonomy categories and does not claim exhaustive global catalog coverage beyond records present in snapshot/local state.
-- `staffMember` and `staffMembers` return the captured field-level `ACCESS_DENIED` blocker locally. Authorized staff identity/catalog reads require an eligible app/store and a separate local staff model before support can broaden.
+- `publicApiVersions`
+- `node(id:)`
+- `nodes(ids:)`
+- `job(id:)`
+- `taxonomy`
+- `domain(id:)`
+- `backupRegion`
+- `staffMember`
+- `staffMembers`
 
-### Access-Scoped Behavior
+Mutation roots:
 
-- `staffMember` requires `read_users` access and additional Shopify app/store eligibility. The checked-in conformance fixture captures the current credential's `ACCESS_DENIED` response, so snapshot mode mirrors that blocker instead of inventing staff identities.
-- `staffMembers` is treated as the same restricted staff surface. The local handler returns `null` plus the captured access error until authorized staff catalog evidence and a staff state model exist.
-- `backupRegionUpdate` mirrors Shopify's pre-resolve Markets access blocker only when the proxy has explicit local evidence that the caller or shop is ineligible. A modeled current app installation must include both `read_markets` and `write_markets` for this mutation; an active delegated access token without Markets scopes and a modeled shop with Markets Home disabled are also denied. In those cases the mutation returns Shopify's top-level `ACCESS_DENIED` envelope with `data.backupRegionUpdate: null` before any local state is staged. When no app installation, delegated token, or stricter shop access posture has been modeled, the proxy keeps the existing conservative local staging behavior instead of inventing missing credential state.
-- Generic `node` / `nodes` dispatch is intentionally limited to resource families whose serializers already project local state through the requested selection set. The admin-platform handler does not create new domain support by itself; unsupported GID families return Shopify-like `null` entries rather than partially fabricated objects. The unsupported list is executable test evidence, not a permanent support claim.
+- `backupRegionUpdate`
+- `flowGenerateSignature`
+- `flowTriggerReceive`
 
-### LiveHybrid Cassette Behavior
+### Local behavior
 
-HAR-525 migrates the remaining admin-platform parity scenarios to cassette-backed LiveHybrid execution with Pattern 1 passthrough for cold platform reads. When the proxy has no local admin-platform taxonomy/generic-node state and no staged resource records owned by the supported Node serializers, `publicApiVersions`, `taxonomy`, and selected `node` / `nodes` reads forward to the cassette/upstream response verbatim. Once local state exists, the handler stays on the local serializer path so snapshot behavior and read-after-write effects remain local.
+Snapshot reads are conservative and only model shapes backed by checked-in evidence:
 
-The migrated cassette-backed specs are `admin-platform-delivery-profile-node-reads.json`, `admin-platform-market-web-presence-node-read.json`, `admin-platform-metafield-node-reads.json`, `admin-platform-product-option-node-reads.json`, `admin-platform-selling-plan-node-reads.json`, `admin-platform-store-property-node-reads.json`, `admin-platform-supported-node-reads.json`, `admin-platform-taxonomy-hierarchy-node-reads.json`, and `admin-platform-utility-reads.json`.
+- `publicApiVersions` returns the captured Admin API version window.
+- `node(id:)` and `nodes(ids:)` dispatch by GID type to an existing local detail handler or serializer. They preserve input order for `nodes(ids:)`, return `null` for malformed/missing/unsupported IDs, and do not create domain support by themselves.
+- Supported generic Node families include records that already exist in normalized local state for products, product options and option values, product variants, catalog/inventory records, metafields, selling plans, customers and payment methods, B2B companies and selected nested records, app billing/access records, store/shop/location/business-entity records, files, saved searches, payment terms, finance/POS/dispute no-data records, bulk operations, metafield/metaobject definitions, orders/fulfillments/returns/draft orders, gift cards, delivery profiles and selected nested records, discount wrappers, marketing/events/webhooks/segments, markets and price lists, taxonomy categories, and supported online-store records.
+- Unsupported generic Node implementors and resource families without a local lifecycle/read model return Shopify-like `null` entries instead of partial fabricated objects.
+- `job(id:)` resolves staged or fixture-backed generic `Job` nodes. Collection product-membership jobs staged by supported collection mutations read back as completed with a selected `query { __typename }` QueryRoot link. Unknown arbitrary Job GIDs preserve the captured compatibility payload shape.
+- `domain(id:)` resolves the effective snapshot shop `primaryDomain` by ID when present; unknown IDs return `null`.
+- `backupRegion` returns staged or snapshot backup-region state, then derives a shop-domain-scoped `MarketRegionCountry` from effective shop country data when checked-in evidence backs that shop/country pair. Unbacked domain/country combinations return `null`.
+- `taxonomy.categories(...)` reads normalized taxonomy category records from snapshot/local state. It supports captured hierarchy fields, raw Shopify cursors, selected `pageInfo`, simple term matching over captured `id`, `name`, and `fullName`, and hierarchy filters limited to categories already present in local state. The proxy does not invent taxonomy rows.
+- `staffMember` and `staffMembers` return the captured field-level `ACCESS_DENIED` blocker for the current credential posture.
+- The by-id not-found parity scenario records implemented singular `id:` read roots returning `null` for non-existent GIDs. Credential-restricted roots preserve their captured Shopify error envelopes without expanding local support for those domains.
 
-HAR-249 retry coverage adds `by-id-not-found-read.json` as a cross-domain, read-only 2026-04 fixture for implemented singular `id:` roots that were added after the original product/draft-order not-found pass. The strict comparison pins the shared absent-resource contract that each probed root returns `null` data for a non-existent GID. The fixture also preserves the current conformance credential's Shopify error envelopes for `customerPaymentMethod`, `customerSegmentMembersQuery`, `scriptTag`, and `theme`, but those credential-specific errors are recorded as evidence rather than broadened into new domain support.
+LiveHybrid/cassette behavior:
 
-### Mutation Behavior
+- Cold `publicApiVersions`, `taxonomy`, and selected `node` / `nodes` reads can forward to cassette/upstream responses when no local platform state or staged serializer-owned resource is available.
+- Once local state exists, supported reads use the local serializer path so snapshot behavior and read-after-write effects remain local.
 
-`backupRegionUpdate` stages the selected fallback region in the in-memory admin platform state and updates downstream snapshot `backupRegion` reads without mutating Shopify at runtime when the modeled caller/shop is Markets-eligible or when no stricter access model exists. Omitted `region` and explicit `region: null` are modeled as idempotent current backup-region reads with `userErrors: []`, matching the HAR-737 source resolver contract. When an explicit current app installation lacks either `read_markets` or `write_markets`, an active delegated access token lacks Markets scopes, or an explicit shop model has Markets Home disabled, the mutation returns the captured top-level `ACCESS_DENIED` error and `data.backupRegionUpdate: null` without staging a backup region. When `region` is present, its `countryCode` field is schema-required: `region: {}`, `region: { countryCode: null }`, and non-enum literals such as `region: { countryCode: 42 }` fail with top-level GraphQL input-object errors before resolver execution. Country updates require both shop-domain-scoped country evidence and an active non-legacy region-type market that covers the country in local/captured market state. Local market records take precedence when present; otherwise the proxy falls back to the checked-in shop-domain evidence for currently backed region-market coverage. `harry-test-heelo.myshopify.com` backs `CA`, `AE`, `AT`, `AU`, `BE`, `CH`, `CZ`, `DE`, `DK`, `ES`, `FI`, and `MX`, while `very-big-test-store.myshopify.com` backs `CA` for region-market coverage and still carries `US` only as country evidence. Unknown countries and countries with no covering non-legacy region market return the captured `REGION_NOT_FOUND` `MarketUserError` without staging a backup-region record. HAR-737 adds executable parity for the harry-test `AE` success branch and read-after-write behavior; HAR-745 adds executable parity for `MarketUserError` typename and `countryCode` input-object coercion; `admin-platform-backup-region-update-no-region-market.json` captures Shopify returning `REGION_NOT_FOUND` after `AT` is removed from its active region market; `admin-platform-backup-region-update-access-blocker.json` captures the Markets access denial through a delegated token lacking Markets scopes. The live omitted/null-region calls currently return Shopify `INTERNAL_SERVER_ERROR` on that store/API, so the HAR-737 parity expected envelope derives from the captured current `backupRegion` plus captured empty success `userErrors`.
+Mutation behavior:
 
-`flowGenerateSignature` is locally short-circuited for proxy-local Flow trigger IDs. The proxy returns a deterministic local signature, stores only payload/signature SHA-256 hashes in meta state, and keeps the original raw mutation in the mutation log for eventual commit replay. Unknown Flow trigger IDs mirror the captured Shopify `RESOURCE_NOT_FOUND` top-level error. Omitted `id` / `payload` arguments and literal `null` for either required argument are rejected before resolver execution with Shopify's top-level GraphQL coercion envelopes (`missingRequiredArguments` / `argumentLiteralsIncompatible`) and do not stage Flow signature records.
+- `backupRegionUpdate` stages the selected fallback region in local admin-platform state and updates downstream `backupRegion` reads without mutating Shopify at runtime when the modeled caller/shop is Markets-eligible or when no stricter access model exists.
+- `backupRegionUpdate` returns the captured `ACCESS_DENIED` top-level envelope without staging when modeled app installation, delegated-token, or shop state proves Markets access is unavailable.
+- Explicit country updates require backed country evidence plus an active non-legacy region-type market covering that country. Unknown countries and uncovered countries return captured `REGION_NOT_FOUND` `MarketUserError` payloads without staging.
+- Omitted or explicit `null` `region` inputs behave as idempotent current backup-region reads with `userErrors: []` in local parity.
+- `flowGenerateSignature` short-circuits proxy-local Flow trigger IDs, returns a deterministic local signature, stores only payload/signature SHA-256 hashes in meta state, and keeps the raw mutation in the mutation log for commit replay. Unknown Flow trigger IDs return Shopify's captured `RESOURCE_NOT_FOUND` top-level error.
+- `flowTriggerReceive` records proxy-local trigger receipts for non-blank handles, stores compact payload metadata and hashes, and does not deliver an external Flow trigger at runtime. Body-only requests must match the captured body schema and a shop-scoped Flow trigger registration model; because that registration bucket is not modeled, body-only trigger references are rejected conservatively.
 
-`flowTriggerReceive` records proxy-local trigger receipts for non-blank handles without requiring the historical `local-` / HAR-374 local prefix. It does not deliver any external Flow trigger at runtime. Handle/payload-path staged meta state records only the handle, JSON-encoded UTF-8 payload byte count, and payload hash. The raw mutation body remains in the mutation log request body for commit replay. Body-only requests first parse the body as JSON, validate the captured Flow body schema shape, measure the 50000-byte properties limit against the compact JSON encoding of the parsed `properties` subtree rather than the whole body envelope, and then require a trigger reference that matches a shop-scoped Flow trigger registration model. The current proxy has no local or captured Flow trigger registration bucket, so body-only `trigger_id` / `trigger_title` values are rejected conservatively instead of staging a receipt. Captured validation branches include legacy `body` conflict handling, omitted/null/empty handle errors, body-only invalid JSON, required `properties`, required `trigger_id` when both trigger reference fields are absent, unknown `trigger_id` / `trigger_title`, invalid unknown root fields, `resources` object/string requirements, absolute `resources[].url` validation, the known unregistered `har-374-missing` handle, handle payloads whose compact JSON representation exceeds 50000 bytes, and body properties whose compact JSON representation exceeds 50000 bytes. When multiple body schema violations apply, the proxy returns one `field: ["body"]` user error whose message joins each line under `Errors validating schema:` in Shopify order.
+### Boundaries
 
-## Historical and developer notes
+- Generic Node dispatch remains unsupported for families without an owning local lifecycle/read model, including product taxonomy, product variant components, quantity price breaks, delivery profile item IDs, order delivery methods, B2B staff/catalog nested records, and non-empty finance/POS/dispute records.
+- `staffMember` and `staffMembers` are access-blocked only; authorized staff catalog behavior requires separate staff identity evidence and a staff state model.
+- `backupRegion` country support is limited to shop-domain/country pairs backed by checked-in market-region evidence.
+- `taxonomy.categories(...)` is not exhaustive global taxonomy coverage; missing captured rows produce Shopify-like empty connections.
+- Flow helper mutations record local metadata only. They do not deliver Flow triggers or prove external Flow automation execution.
+- No root listed here is registry-only. Validation-only branches include GraphQL input coercion for required arguments and captured local guardrails that fail before staging.
 
-- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`, plus market-region country evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-baseline.json` and `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/markets-baseline.json`.
-- HAR-400 expanded executable runtime coverage for local Product and primary Domain resolution through the generic `Node` interface.
-- HAR-413 added generic `node` / `nodes` dispatch for the discount `DiscountNode` wrapper when a requested `DiscountCodeNode` or `DiscountAutomaticNode` id already exists in normalized discount state; missing discount ids and unrelated unsupported GID families still return `null`.
-- HAR-414 expanded taxonomy category coverage from empty/no-data only to captured non-empty catalog/search slices with hierarchy-field, cursor, and `pageInfo` parity. HAR-459 adds executable parity for hierarchy-filtered category reads and `TaxonomyCategory` generic Node dispatch against captured/local taxonomy rows; exhaustive global taxonomy catalog coverage remains out of scope.
-- HAR-418 expanded generic Node dispatch to existing supported local detail handlers/direct serializers, added executable parity for captured Product, Collection, Customer, and Location `nodes(ids:)` reads, and added an introspection-backed unsupported Node implementor snapshot. HAR-424 adds ProductOption/ProductOptionValue Node dispatch on top of the existing product option lifecycle model; rework also adds owner-scoped Metafield Node reads, effective backup-region `MarketRegionCountry`, staged/captured `MarketWebPresence`, and captured-safe no-data dispatch for `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute`. HAR-462 adds delivery-profile nested Node dispatch for `DeliveryLocationGroup`, `DeliveryZone`, `DeliveryCountry`, `DeliveryProvince`, `DeliveryMethodDefinition`, `DeliveryRateDefinition`, `DeliveryParticipant`, and `DeliveryCondition` when those records are already present in normalized delivery-profile state. HAR-466 adds `ShopAddress`, `ShopPolicy`, and nested `SellingPlan` Node dispatch when those records are present in the effective shop or selling-plan group state. HAR-467 adds app billing/access Node dispatch for `App`, `AppInstallation`, `AppSubscription`, `AppPurchaseOneTime`, and `AppUsageRecord`, plus B2B nested dispatch for `CompanyAddress` and `CompanyContactRoleAssignment`. Current coverage also wires additional modeled records into generic Node dispatch when their owning local state already exists: `BulkOperation`, `GiftCard`, `ProductVariant`, `MetaobjectDefinition`, `Metaobject`, `Market`, `MarketCatalog`, `PriceList`, `WebhookSubscription`, `SavedSearch`, `Segment`, `PaymentCustomization`, `PaymentTerms`, `PaymentSchedule`, `CustomerPaymentMethod`, `StoreCreditAccount`, `CustomerAccountNativePage`, B2B `Company` / `CompanyContact` / `CompanyContactRole` / `CompanyLocation`, `Validation`, `MarketingActivity`, `MarketingEvent`, `UrlRedirect`, and product async operation records. Product taxonomy, product variant component, quantity price break, delivery profile item IDs, order delivery methods, B2B staff/catalog nested records, non-empty finance/POS/dispute, and any resource family without a local lifecycle/read model remain unsupported until their owning lifecycle/read models have executable Node evidence.
-- Executable parity specs: `admin-platform-supported-node-reads.json`, `admin-platform-product-option-node-reads.json`, `admin-platform-metafield-node-reads.json`, `admin-platform-market-region-node-read.json`, `admin-platform-market-web-presence-node-read.json`, `admin-platform-finance-risk-node-no-data.json`, `admin-platform-store-property-node-reads.json`, `admin-platform-selling-plan-node-reads.json`, `by-id-not-found-read.json`, `app-billing-access-local-staging.json`, `b2b-contact-location-assignments-tax.json`, `gift-card-lifecycle.json`, `productVariantsBulkReorder-parity.json`, `segment-create-update-query-grammar.json`, `admin-platform-utility-reads.json`, `admin-platform-backup-region-update.json`, `admin-platform-backup-region-update-extended.json`, `admin-platform-backup-region-update-no-region-market.json`, `admin-platform-flow-generate-signature.json`, `admin-platform-flow-generate-signature-required-args.json`, `admin-platform-flow-trigger-receive.json`, `admin-platform-flow-trigger-receive-validation.json`, `admin-platform-flow-trigger-receive-body-validation.json`, and `admin-platform-flow-trigger-receive-body-schema-gaps.json`.
+### Evidence
+
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-baseline.json`
+- `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/markets-baseline.json`
+- `config/parity-specs/admin-platform/admin-platform-utility-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-supported-node-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-metafield-node-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-market-region-node-read.json`
+- `config/parity-specs/admin-platform/admin-platform-market-web-presence-node-read.json`
+- `config/parity-specs/admin-platform/admin-platform-finance-risk-node-no-data.json`
+- `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
+- `config/parity-specs/admin-platform/by-id-not-found-read.json`
+- `config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json`
+- `config/parity-specs/admin-platform/admin-platform-backup-region-update.json`
+- `config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json`
+- `config/parity-specs/admin-platform/admin-platform-backup-region-update-no-region-market.json`
+- `config/parity-specs/admin-platform/admin-platform-backup-region-update-access-blocker.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-generate-signature.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-generate-signature-required-args.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-trigger-receive.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-validation.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-validation.json`
+- `config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-schema-gaps.json`
+- `tests/unit/__snapshots__/admin-platform-node-coverage.test.ts.snap`
+
+### Validation
+
+- `corepack pnpm parity -- admin-platform-utility-reads`
+- `corepack pnpm parity -- admin-platform-supported-node-reads`
+- `corepack pnpm parity -- admin-platform-by-id-not-found-read`
+- `corepack pnpm parity -- admin-platform-backup-region-update`
+- `corepack pnpm parity -- admin-platform-flow-generate-signature`
+- `corepack pnpm parity -- admin-platform-flow-trigger-receive`
+- `corepack pnpm conformance:check`

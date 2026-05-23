@@ -1206,15 +1206,17 @@ impl DraftProxy {
             "lineItems": { "nodes": [draft_order_invoice_line_item()] }
         });
         self.staged_draft_orders.insert(id.clone(), record.clone());
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_orders_local_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderCreate",
-            staged_resource_ids: vec![id],
-            status: "staged",
-            notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
-        });
+            "draftOrderCreate",
+            vec![id],
+            OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            },
+        );
         selected_json(
             &json!({
                 "draftOrder": record,
@@ -1233,15 +1235,17 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let Some(draft_order) = self.staged_draft_orders.get(&id).cloned() else {
-            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            self.record_orders_local_log_entry(
                 request,
                 query,
                 variables,
-                root_field: "draftOrderInvoiceSend",
-                staged_resource_ids: Vec::new(),
-                status: "failed",
-                notes: "Locally handled draftOrderInvoiceSend safety validation.",
-            });
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                OrdersLocalLogOutcome {
+                    status: "failed",
+                    notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                },
+            );
             return selected_json(
                 &json!({
                     "draftOrder": Value::Null,
@@ -1253,15 +1257,17 @@ impl DraftProxy {
         };
 
         if draft_order_invoice_recipient(&field.arguments, &draft_order).is_none() {
-            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            self.record_orders_local_log_entry(
                 request,
                 query,
                 variables,
-                root_field: "draftOrderInvoiceSend",
-                staged_resource_ids: Vec::new(),
-                status: "failed",
-                notes: "Locally handled draftOrderInvoiceSend safety validation.",
-            });
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                OrdersLocalLogOutcome {
+                    status: "failed",
+                    notes: "Locally handled draftOrderInvoiceSend safety validation.",
+                },
+            );
             return selected_json(
                 &json!({
                     "draftOrder": draft_order,
@@ -1279,15 +1285,17 @@ impl DraftProxy {
         updated["__draftProxyInvoiceSend"] =
             draft_order_invoice_send_metadata(&field.arguments, &draft_order);
         self.staged_draft_orders.insert(id.clone(), updated);
-        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+        self.record_orders_local_log_entry(
             request,
             query,
             variables,
-            root_field: "draftOrderInvoiceSend",
-            staged_resource_ids: vec![id],
-            status: "staged",
-            notes: "Locally handled draftOrderInvoiceSend safety validation.",
-        });
+            "draftOrderInvoiceSend",
+            vec![id],
+            OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally handled draftOrderInvoiceSend safety validation.",
+            },
+        );
         selected_json(
             &json!({
                 "draftOrder": draft_order,
@@ -1298,30 +1306,38 @@ impl DraftProxy {
         )
     }
 
-    fn record_orders_local_log_entry(&mut self, entry: OrdersLocalLogEntry<'_>) {
-        let root_fields = parse_operation(entry.query)
+    fn record_orders_local_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+        outcome: OrdersLocalLogOutcome<'_>,
+    ) {
+        let root_fields = parse_operation(query)
             .map(|operation| operation.root_fields)
-            .unwrap_or_else(|| vec![entry.root_field.to_string()]);
+            .unwrap_or_else(|| vec![root_field.to_string()]);
         self.log_entries.push(json!({
             "id": format!("gid://shopify/MutationLogEntry/{}", self.log_entries.len() + 1),
-            "operationName": entry.root_field,
-            "path": &entry.request.path,
-            "query": entry.query,
-            "variables": resolved_variables_json(entry.variables),
-            "stagedResourceIds": entry.staged_resource_ids,
-            "status": entry.status,
+            "operationName": root_field,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": outcome.status,
             "interpreted": {
                 "operationType": "mutation",
-                "operationName": entry.root_field,
+                "operationName": root_field,
                 "rootFields": root_fields,
-                "primaryRootField": entry.root_field,
+                "primaryRootField": root_field,
                 "capability": {
-                    "operationName": entry.root_field,
+                    "operationName": root_field,
                     "domain": "orders",
                     "execution": "stage-locally"
                 }
             },
-            "notes": entry.notes
+            "notes": outcome.notes
         }));
     }
 
