@@ -48,6 +48,16 @@ interface ArtifactsResponse {
   artifacts?: Artifact[];
 }
 
+class GithubApiError extends Error {
+  readonly status: number;
+
+  constructor(pathname: string, status: number, body: string) {
+    super(`GitHub API ${pathname} failed with ${status}: ${body}`);
+    this.name = 'GithubApiError';
+    this.status = status;
+  }
+}
+
 function parseArgs(argv: string[]): Map<string, string> {
   const args = new Map<string, string>();
 
@@ -86,7 +96,7 @@ async function githubRequest<T>(pathname: string, token: string): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`GitHub API ${pathname} failed with ${response.status}: ${body}`);
+    throw new GithubApiError(pathname, response.status, body);
   }
 
   return (await response.json()) as T;
@@ -99,16 +109,35 @@ export async function findMainConformanceBaseline({
   branch = defaultBranch,
   artifactName = defaultArtifactName,
 }: FindMainConformanceBaselineInput): Promise<BaselineSearchResult> {
-  const workflowRuns = await githubRequest<WorkflowRunsResponse>(
-    `/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/runs?branch=${encodeURIComponent(branch)}&event=push&status=success&per_page=20`,
-    token,
-  );
+  let workflowRuns: WorkflowRunsResponse;
 
-  for (const run of workflowRuns.workflow_runs ?? []) {
-    const artifacts = await githubRequest<ArtifactsResponse>(
-      `/repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`,
+  try {
+    workflowRuns = await githubRequest<WorkflowRunsResponse>(
+      `/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/runs?branch=${encodeURIComponent(branch)}&event=push&status=success&per_page=20`,
       token,
     );
+  } catch (error) {
+    if (error instanceof GithubApiError) {
+      return { found: false };
+    }
+    throw error;
+  }
+
+  for (const run of workflowRuns.workflow_runs ?? []) {
+    let artifacts: ArtifactsResponse;
+
+    try {
+      artifacts = await githubRequest<ArtifactsResponse>(
+        `/repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`,
+        token,
+      );
+    } catch (error) {
+      if (error instanceof GithubApiError) {
+        continue;
+      }
+      throw error;
+    }
+
     const artifact = (artifacts.artifacts ?? []).find((candidate) => {
       return candidate.name === artifactName && candidate.expired === false;
     });
