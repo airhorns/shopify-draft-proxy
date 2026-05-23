@@ -4411,6 +4411,48 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
 }
 
 #[test]
+fn bulk_operation_empty_connection_preserves_selection_aliases() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationStatusParityRead {
+          ops: bulkOperations(first: 5) {
+            aliasedNodes: nodes { id }
+            aliasedEdges: edges { cursor node { id } }
+            info: pageInfo {
+              next: hasNextPage
+              previous: hasPreviousPage
+              start: startCursor
+              end: endCursor
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "ops": {
+                    "aliasedNodes": [],
+                    "aliasedEdges": [],
+                    "info": {
+                        "next": false,
+                        "previous": false,
+                        "start": null,
+                        "end": null
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);

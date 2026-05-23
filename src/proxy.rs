@@ -3182,7 +3182,7 @@ impl DraftProxy {
                     .unwrap_or(Value::Null),
                 "webhookSubscriptions" => {
                     let records = self.webhook_subscription_records_for_connection(field);
-                    selected_json(&connection_json(records), &field.selection)
+                    selected_connection_json(records, &field.selection)
                 }
                 "webhookSubscriptionsCount" => {
                     let records = self.webhook_subscription_records_for_filter_args(field);
@@ -4646,7 +4646,7 @@ impl DraftProxy {
                             nodes.truncate(*first as usize);
                         }
                     }
-                    selected_json(&connection_json(nodes), &field.selection)
+                    selected_connection_json(nodes, &field.selection)
                 }
                 "mobilePlatformApplications" => {
                     let nodes: Vec<Value> = self
@@ -4662,7 +4662,7 @@ impl DraftProxy {
                             selected_json(record, &nested_node_selection(&field.selection))
                         })
                         .collect();
-                    selected_json(&connection_json(nodes), &field.selection)
+                    selected_connection_json(nodes, &field.selection)
                 }
                 _ => Value::Null,
             };
@@ -10825,9 +10825,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-        let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
         let limit = match arguments.get("first") {
             Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
             _ => None,
@@ -10863,35 +10860,13 @@ impl DraftProxy {
             products.truncate(limit);
         }
 
-        let mut connection = serde_json::Map::new();
-        for selection in root_selection {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    products
-                        .iter()
-                        .map(|product| product_json(product, &node_selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    products
-                        .iter()
-                        .map(|product| {
-                            json!({
-                                "cursor": product_cursor(product),
-                                "node": product_json(product, &edge_node_selection)
-                            })
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(products_page_info_json(&products, &page_info_selection)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                connection.insert(selection.response_key.clone(), value);
-            }
-        }
-
-        Value::Object(connection)
+        selected_typed_connection(
+            &products,
+            root_selection,
+            product_json,
+            |product| product_cursor(product).to_string(),
+            |page_info_selection| products_page_info_json(&products, page_info_selection),
+        )
     }
 
     fn products_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -15011,16 +14986,7 @@ fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
 }
 
 fn gift_card_connection_json(cards: &[Value], selections: &[SelectedField]) -> Value {
-    let full = json!({
-        "nodes": cards,
-        "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
+    let full = connection_json_with_empty_edges(cards.to_vec());
     selected_json(&full, selections)
 }
 
@@ -15272,16 +15238,7 @@ fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
 }
 
 fn empty_nodes_edges_connection() -> Value {
-    json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
-    })
+    connection_json_with_empty_edges(Vec::new())
 }
 
 fn resolved_value_json(value: &ResolvedValue) -> Value {
@@ -19331,12 +19288,67 @@ fn webhook_subscription_matches_query_term(record: &Value, field: &str, value: &
     }
 }
 
-fn connection_json(nodes: Vec<Value>) -> Value {
-    let edges: Vec<Value> = nodes
+fn connection_page_info(
+    has_next_page: bool,
+    has_previous_page: bool,
+    start_cursor: Option<String>,
+    end_cursor: Option<String>,
+) -> Value {
+    json!({
+        "hasNextPage": has_next_page,
+        "hasPreviousPage": has_previous_page,
+        "startCursor": start_cursor,
+        "endCursor": end_cursor
+    })
+}
+
+fn connection_edges_with_cursor<F>(nodes: &[Value], cursor_for: F) -> Vec<Value>
+where
+    F: Fn(usize, &Value) -> String,
+{
+    nodes
         .iter()
-        .map(|node| json!({"cursor": node.get("id").and_then(Value::as_str).unwrap_or_default(), "node": node}))
-        .collect();
-    json!({"nodes": nodes, "edges": edges, "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+        .enumerate()
+        .map(|(index, node)| {
+            json!({
+                "cursor": cursor_for(index, node),
+                "node": node
+            })
+        })
+        .collect()
+}
+
+fn connection_json_with_cursor<F>(nodes: Vec<Value>, cursor_for: F, page_info: Value) -> Value
+where
+    F: Fn(usize, &Value) -> String,
+{
+    let edges = connection_edges_with_cursor(&nodes, cursor_for);
+    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
+}
+
+fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
+    json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
+}
+
+fn connection_json(nodes: Vec<Value>) -> Value {
+    connection_json_with_cursor(
+        nodes,
+        |_, node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        },
+        empty_page_info(),
+    )
+}
+
+fn selected_connection_json(nodes: Vec<Value>, selections: &[SelectedField]) -> Value {
+    selected_json(&connection_json(nodes), selections)
+}
+
+fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
+    selected_connection_json(Vec::new(), selections)
 }
 
 fn resolved_value_to_json(value: &ResolvedValue) -> Value {
@@ -19453,25 +19465,11 @@ fn is_ported_marketing_document(query: &str) -> bool {
 }
 
 fn marketing_connection(records: Vec<Value>, selection: &[SelectedField]) -> Value {
-    let edges = records
-        .iter()
-        .map(|record| {
-            json!({
-                "cursor": format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
-                "node": record
-            })
-        })
-        .collect::<Vec<_>>();
-    let full = json!({
-        "nodes": records,
-        "edges": edges,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
+    let full = connection_json_with_cursor(
+        records,
+        |_, record| format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
+        empty_page_info(),
+    );
     selected_json(&full, selection)
 }
 
@@ -19845,17 +19843,7 @@ fn bulk_operation_record_with(
 }
 
 fn empty_bulk_operation_connection(selection: &[SelectedField]) -> Value {
-    let full = json!({
-        "edges": [],
-        "nodes": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
-    selected_json(&full, selection)
+    selected_empty_connection_json(selection)
 }
 
 fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value {
@@ -19894,7 +19882,7 @@ fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
 }
 
 fn empty_page_info() -> Value {
-    json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null})
+    connection_page_info(false, false, None, None)
 }
 
 fn default_metafield_definition_name(namespace: &str, key: &str) -> String {
@@ -21059,12 +21047,7 @@ fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
 }
 
 fn customer_connection_empty(selection: &[SelectedField]) -> Value {
-    let record = json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
-    });
-    selected_json(&record, selection)
+    selected_empty_connection_json(selection)
 }
 
 fn customer_loyalty_metafield(input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -21598,21 +21581,13 @@ fn payment_customization_fixture_data(
 }
 
 fn payment_customization_connection(records: &[Value], selections: &[SelectedField]) -> Value {
-    let edges = records
-        .iter()
-        .enumerate()
-        .map(|(index, record)| json!({ "cursor": format!("cursor{}", index + 1), "node": record }))
-        .collect::<Vec<_>>();
-    let connection = json!({
-        "nodes": records,
-        "edges": edges,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if records.is_empty() { Value::Null } else { json!("cursor1") },
-            "endCursor": if records.is_empty() { Value::Null } else { json!(format!("cursor{}", records.len())) }
-        }
-    });
+    let start_cursor = (!records.is_empty()).then(|| "cursor1".to_string());
+    let end_cursor = (!records.is_empty()).then(|| format!("cursor{}", records.len()));
+    let connection = connection_json_with_cursor(
+        records.to_vec(),
+        |index, _| format!("cursor{}", index + 1),
+        connection_page_info(false, false, start_cursor, end_cursor),
+    );
     selected_json(&connection, selections)
 }
 
@@ -21653,11 +21628,8 @@ fn payment_customization_metafields(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn payment_customization_set_metafields(record: &mut Value, metafields: Vec<Value>) {
-    let edges = metafields
-        .iter()
-        .enumerate()
-        .map(|(index, metafield)| json!({ "cursor": format!("cursor{}", index + 1), "node": metafield }))
-        .collect::<Vec<_>>();
+    let edges =
+        connection_edges_with_cursor(&metafields, |index, _| format!("cursor{}", index + 1));
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
     record["metafields"] = json!({ "edges": edges, "nodes": metafields });
 }
@@ -23973,6 +23945,51 @@ fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<Se
         .unwrap_or_default()
 }
 
+fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
+    records: &[T],
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+    cursor: Cursor,
+    page_info: PageInfo,
+) -> Value
+where
+    NodeJson: Fn(&T, &[SelectedField]) -> Value,
+    Cursor: Fn(&T) -> String,
+    PageInfo: Fn(&[SelectedField]) -> Value,
+{
+    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
+    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
+    let mut connection = serde_json::Map::new();
+    for selection in root_selection {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| node_json(record, &node_selection))
+                    .collect(),
+            )),
+            "edges" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| {
+                        json!({
+                            "cursor": cursor(record),
+                            "node": node_json(record, &edge_node_selection)
+                        })
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(page_info(&page_info_selection)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            connection.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(connection)
+}
+
 fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
     if id != "gid://shopify/Product/10173064872242" {
         return None;
@@ -24283,22 +24300,15 @@ fn product_cursor(product: &ProductRecord) -> &str {
 }
 
 fn products_page_info_json(products: &[ProductRecord], selections: &[SelectedField]) -> Value {
-    let start_cursor = products.first().map(product_cursor);
-    let end_cursor = products.last().map(product_cursor);
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" => Some(json!(false)),
-            "hasPreviousPage" => Some(json!(false)),
-            "startCursor" => Some(json!(start_cursor)),
-            "endCursor" => Some(json!(end_cursor)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_json(
+        &connection_page_info(
+            false,
+            false,
+            products.first().map(product_cursor).map(str::to_string),
+            products.last().map(product_cursor).map(str::to_string),
+        ),
+        selections,
+    )
 }
 
 fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
@@ -24322,42 +24332,20 @@ fn saved_search_connection_json(
     has_next_page: bool,
     has_previous_page: bool,
 ) -> Value {
-    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in root_selection {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| saved_search_read_json(record, &node_selection))
-                    .collect(),
-            )),
-            "edges" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| {
-                        json!({
-                            "cursor": saved_search_cursor(record),
-                            "node": saved_search_read_json(record, &edge_node_selection)
-                        })
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(saved_search_page_info_json(
+    selected_typed_connection(
+        records,
+        root_selection,
+        saved_search_read_json,
+        saved_search_cursor,
+        |page_info_selection| {
+            saved_search_page_info_json(
                 records,
-                &page_info_selection,
+                page_info_selection,
                 has_next_page,
                 has_previous_page,
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
+            )
+        },
+    )
 }
 
 fn saved_search_read_json(record: &SavedSearchRecord, selections: &[SelectedField]) -> Value {
@@ -24466,22 +24454,15 @@ fn saved_search_page_info_json(
     has_next_page: bool,
     has_previous_page: bool,
 ) -> Value {
-    let start_cursor = records.first().map(saved_search_cursor);
-    let end_cursor = records.last().map(saved_search_cursor);
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" => Some(json!(has_next_page)),
-            "hasPreviousPage" => Some(json!(has_previous_page)),
-            "startCursor" => Some(json!(start_cursor)),
-            "endCursor" => Some(json!(end_cursor)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_json(
+        &connection_page_info(
+            has_next_page,
+            has_previous_page,
+            records.first().map(saved_search_cursor),
+            records.last().map(saved_search_cursor),
+        ),
+        selections,
+    )
 }
 
 fn saved_search_mutation_payload_json(
@@ -26370,18 +26351,10 @@ fn carrier_service_page_info_json(services: &[Value], selections: &[SelectedFiel
         .and_then(|service| service.get("id"))
         .and_then(Value::as_str)
         .map(|id| format!("cursor:{id}"));
-    let mut page_info = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" | "hasPreviousPage" => Some(json!(false)),
-            "startCursor" | "endCursor" => Some(cursor.clone().map_or(Value::Null, Value::String)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            page_info.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(page_info)
+    selected_json(
+        &connection_page_info(false, false, cursor.clone(), cursor),
+        selections,
+    )
 }
 
 fn carrier_service_payload_json(
