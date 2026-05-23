@@ -14,55 +14,24 @@ type OperationRegistryEntry = {
 };
 
 describe('order editing live support registry/docs', () => {
-  it('promotes the first four order-edit roots to covered once captured missing-id GraphQL validation branches land and keeps the order-edit notes anchored to that evidence', () => {
+  it('keeps the first four order-edit roots as declared gaps while the notes stay anchored to captured validation evidence', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const registry = listOperationRegistryEntries() as OperationRegistryEntry[];
     const weirdNotes = readFileSync(resolve(repoRoot, 'docs/hard-and-weird-notes.md'), 'utf8');
 
-    expect(registry).toContainEqual(
-      expect.objectContaining({
-        name: 'orderEditBegin',
-        domain: 'orders',
-        execution: 'stage-locally',
-        implemented: true,
-        runtimeTests: ['test/parity_test.gleam'],
-      }),
-    );
+    for (const name of ['orderEditBegin', 'orderEditAddVariant', 'orderEditSetQuantity', 'orderEditCommit']) {
+      expect(registry).toContainEqual(
+        expect.objectContaining({
+          name,
+          domain: 'orders',
+          execution: 'stage-locally',
+          implemented: false,
+          runtimeTests: [],
+        }),
+      );
+      expect(weirdNotes).toContain(name);
+    }
 
-    expect(registry).toContainEqual(
-      expect.objectContaining({
-        name: 'orderEditAddVariant',
-        domain: 'orders',
-        execution: 'stage-locally',
-        implemented: true,
-        runtimeTests: ['test/parity_test.gleam'],
-      }),
-    );
-
-    expect(registry).toContainEqual(
-      expect.objectContaining({
-        name: 'orderEditSetQuantity',
-        domain: 'orders',
-        execution: 'stage-locally',
-        implemented: true,
-        runtimeTests: ['test/parity_test.gleam'],
-      }),
-    );
-
-    expect(registry).toContainEqual(
-      expect.objectContaining({
-        name: 'orderEditCommit',
-        domain: 'orders',
-        execution: 'stage-locally',
-        implemented: true,
-        runtimeTests: ['test/parity_test.gleam'],
-      }),
-    );
-
-    expect(weirdNotes).toContain('orderEditBegin');
-    expect(weirdNotes).toContain('orderEditAddVariant');
-    expect(weirdNotes).toContain('orderEditSetQuantity');
-    expect(weirdNotes).toContain('orderEditCommit');
     expect(weirdNotes).toContain('Variable $id of type ID! was provided invalid value');
   });
 });

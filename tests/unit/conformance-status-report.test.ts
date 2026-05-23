@@ -90,8 +90,10 @@ describe('conformance status reporting', () => {
     });
 
     expect(renderConformanceComment(report)).toContain('<!-- shopify-draft-proxy-conformance-status -->');
-    expect(renderConformanceComment(report)).toContain('Current branch: 1 / 3 scenarios prove strict proxy parity');
-    expect(renderConformanceComment(report)).toContain('Improvement over main: 0 strict parity scenarios');
+    expect(renderConformanceComment(report)).toContain(
+      'Current branch: 1 / 3 scenarios have executable conformance evidence',
+    );
+    expect(renderConformanceComment(report)).toContain('Improvement over main: 0 conformance-evidenced scenarios');
     expect(renderConformanceComment(report)).toContain(
       'Capture-only scenarios: 1 not counted as strict parity (main: 0, delta: +1)',
     );
