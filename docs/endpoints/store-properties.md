@@ -56,7 +56,11 @@ errors. Successful location mutation slices stage local state, preserve the raw
 GraphQL request for commit replay, and expose read-after-write behavior through
 `location`, `locationByIdentifier`, `locations`, inventory-level location
 projection, and meta state/log inspection when those surfaces are part of the
-checked-in scenario.
+checked-in scenario. Successful `locationDeactivate` calls with a
+`destinationLocationId` relocate source-location inventory levels into the
+destination in the modeled slice, merge same-name quantity rows when a
+destination level already exists, remove the source level from downstream
+inventory reads, and leave guard/userError branches without relocation.
 
 Generic publishable mutation slices cover Product and Collection publish/unpublish
 behavior where backed by parity specs. Product current-channel helpers update

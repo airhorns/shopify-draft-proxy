@@ -1464,6 +1464,126 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
     )
 }
 
+pub(in crate::proxy) fn inventory_levels_connection_selected_json(
+    inventory_item_id: &str,
+    levels: &[(String, BTreeMap<String, i64>)],
+    selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                levels
+                    .iter()
+                    .map(|(location_id, quantities)| {
+                        inventory_level_selected_json(
+                            inventory_item_id,
+                            location_id,
+                            quantities,
+                            &selection.selection,
+                        )
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(selected_json(
+                &json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                }),
+                &selection.selection,
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+pub(in crate::proxy) fn inventory_level_selected_json(
+    inventory_item_id: &str,
+    location_id: &str,
+    quantities: &BTreeMap<String, i64>,
+    selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "id" => Some(json!(inventory_level_id(inventory_item_id, location_id))),
+            "isActive" => Some(json!(true)),
+            "item" => Some(selected_json(
+                &json!({ "id": inventory_item_id }),
+                &selection.selection,
+            )),
+            "location" => Some(selected_json(
+                &json!({
+                    "id": location_id,
+                    "name": inventory_location_name(location_id)
+                }),
+                &selection.selection,
+            )),
+            "quantities" => Some(Value::Array(
+                inventory_quantity_names(&selection.arguments)
+                    .into_iter()
+                    .map(|name| {
+                        selected_json(
+                            &json!({
+                                "name": name,
+                                "quantity": quantities.get(&name).copied().unwrap_or(0),
+                                "updatedAt": null
+                            }),
+                            &selection.selection,
+                        )
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    match arguments.get("names") {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => vec![
+            "available".to_string(),
+            "on_hand".to_string(),
+            "damaged".to_string(),
+        ],
+    }
+}
+
+fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
+    format!(
+        "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
+        resource_id_tail(inventory_item_id),
+        resource_id_tail(location_id),
+        inventory_item_id
+    )
+}
+
+fn resource_id_tail(id: &str) -> &str {
+    id.rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .split('?')
+        .next()
+        .unwrap_or(id)
+}
+
 pub(in crate::proxy) fn inventory_properties_json() -> Value {
     json!({
         "quantityNames": [
@@ -1499,6 +1619,8 @@ pub(in crate::proxy) fn inventory_change_json(
 
 pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static str {
     match location_id {
+        "gid://shopify/Location/1" => "Source location",
+        "gid://shopify/Location/2" => "Destination location",
         "gid://shopify/Location/106318430514" => "Shop location",
         "gid://shopify/Location/106318463282" => "My Custom Location",
         _ => "Shop location",
