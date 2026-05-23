@@ -1,56 +1,10 @@
-// Bridge between TS public API and the Gleam-emitted ESM. Translates
-// JS-shaped requests / config into Gleam record instances and unwraps
-// Gleam tuples back into TS-shaped responses.
-//
-// Path note: the Gleam build tree is `build/dev/javascript/...` and this shim
-// lives at `js/src/`. Two `..` jumps land at the repository root.
-
-import { readFileSync } from 'node:fs';
-
-import {
-  type DraftProxy as GleamDraftProxy,
-  GraphQLRequestOptions as GleamGraphQLRequestOptions,
-  commit as gleamCommit,
-  dump_state,
-  dump_state_now,
-  get_bulk_operation_result_jsonl,
-  get_config_snapshot,
-  get_log_snapshot,
-  get_state_snapshot,
-  process_graphql_request_async,
-  process_request_async,
-  reset as gleamReset,
-  restore_snapshot,
-  restore_state,
-  stage_staged_upload_content,
-  with_config,
-  with_default_registry,
-  with_upstream_transport,
-} from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
-import { SyncTransport } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/shopify/upstream_client.mjs';
-import {
-  Config,
-  Live,
-  LiveHybrid,
-  PassthroughUnsupportedMutations,
-  RejectUnsupportedMutations,
-  Request as GleamRequest,
-  type Response as GleamResponse,
-  Snapshot,
-} from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/proxy_state.mjs';
-import { None, Some } from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';
-import { to_string as jsonToString } from '../../build/dev/javascript/gleam_json/gleam/json.mjs';
-import { insert as dictInsert, new$ as dictNew } from '../../build/dev/javascript/gleam_stdlib/gleam/dict.mjs';
-import {
-  Result$Error$0,
-  Result$isOk,
-  Result$Ok$0,
-  type List,
-  type Result,
-} from '../../build/dev/javascript/prelude.mjs';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type {
   AppConfig,
+  DraftProxyCommitAttempt,
   DraftProxyCommitResult,
   DraftProxyConfigSnapshot,
   DraftProxyGraphQLRequestOptions,
@@ -61,53 +15,44 @@ import type {
   DraftProxyRequest,
   DraftProxyStateDump,
   DraftProxyStateSnapshot,
-  ReadMode,
-  UnsupportedMutationMode,
 } from './types.js';
 import { DraftProxyCommitError } from './types.js';
 
-function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
-  switch (mode) {
-    case 'snapshot':
-      return new Snapshot();
-    case 'live-hybrid':
-      return new LiveHybrid();
-    case 'passthrough':
-      return new Live();
-  }
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, '..', '..');
+const activeChildren = new Set<ChildProcessWithoutNullStreams>();
+let cleanupRegistered = false;
+
+function registerCleanup(): void {
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+  process.once('exit', () => {
+    for (const child of activeChildren) {
+      child.kill();
+    }
+  });
 }
 
-function unsupportedMutationModeToGleam(
-  mode: UnsupportedMutationMode | undefined,
-): PassthroughUnsupportedMutations | RejectUnsupportedMutations {
-  switch (mode ?? 'passthrough') {
-    case 'passthrough':
-      return new PassthroughUnsupportedMutations();
-    case 'reject':
-      return new RejectUnsupportedMutations();
+function allocatePort(): number {
+  const script = `
+    const net = require('node:net');
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      console.log(address.port);
+      server.close();
+    });
+  `;
+  const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+  const port = Number(result.stdout.trim());
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error(`Failed to allocate port for Rust DraftProxy runtime: ${result.stderr}`);
   }
+  return port;
 }
 
-function configToGleam(config: AppConfig): Config {
-  const snapshotPath = config.snapshotPath === undefined ? new None() : new Some(config.snapshotPath);
-  return new Config(
-    readModeToGleam(config.readMode),
-    unsupportedMutationModeToGleam(config.unsupportedMutationMode),
-    config.bulkOperationRunMutationMaxInputFileSizeBytes ?? 104_857_600,
-    config.port,
-    config.shopifyAdminOrigin,
-    snapshotPath,
-  );
-}
-
-function headersToDict(headers: Record<string, DraftProxyHeaderValue> | undefined) {
-  let dict = dictNew();
-  if (!headers) return dict;
-  for (const [key, value] of Object.entries(headers)) {
-    if (value === undefined) continue;
-    dict = dictInsert(dict, key, Array.isArray(value) ? value.join(',') : value);
-  }
-  return dict;
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function bodyToString(body: unknown): string {
@@ -116,146 +61,247 @@ function bodyToString(body: unknown): string {
   return JSON.stringify(body);
 }
 
-function requestToGleam(request: DraftProxyRequest): GleamRequest {
-  return new GleamRequest(request.method, request.path, headersToDict(request.headers), bodyToString(request.body));
-}
-
-function headerListToObject(headers: List<[string, string]>): Record<string, string> | undefined {
+function normalizeHeaders(headers: Record<string, DraftProxyHeaderValue> | undefined): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of headers.toArray()) out[k] = v;
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function responseFromGleam(resp: GleamResponse): DraftProxyHttpResponse {
-  const headers = headerListToObject(resp.headers);
-  const out: DraftProxyHttpResponse = {
-    status: resp.status,
-    body: JSON.parse(jsonToString(resp.body)),
-  };
-  if (headers !== undefined) out.headers = headers;
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    if (value === undefined) continue;
+    out[key] = Array.isArray(value) ? value.join(',') : value;
+  }
   return out;
 }
 
-function jsonFromGleam<T>(tree: unknown): T {
-  return JSON.parse(jsonToString(tree));
+function responseHeaders(headers: Headers): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    out[key] = value;
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+async function fetchJson(origin: string, request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
+  const headers = normalizeHeaders(request.headers);
+  const body = bodyToString(request.body);
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+  };
+  if (body.length > 0) init.body = body;
+  const response = await fetch(`${origin}${request.path}`, init);
+  const text = await response.text();
+  let parsed: unknown = text;
+  if (text.length > 0) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+  }
+  const out: DraftProxyHttpResponse = { status: response.status, body: parsed };
+  const headersObject = responseHeaders(response.headers);
+  if (headersObject !== undefined) out.headers = headersObject;
+  return out;
+}
+
+function fetchJsonSync(origin: string, request: DraftProxyRequest): DraftProxyHttpResponse {
+  const script = `
+    const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
+    fetch(process.env.DRAFT_PROXY_URL + request.path, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body.length === 0 ? undefined : request.body,
+    }).then(async (response) => {
+      const text = await response.text();
+      let body = text;
+      if (text.length > 0) {
+        try { body = JSON.parse(text); } catch {}
+      }
+      console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
+    }).catch((error) => {
+      console.error(error && error.stack ? error.stack : String(error));
+      process.exit(1);
+    });
+  `;
+  const result = spawnSync(process.execPath, ['-e', script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      DRAFT_PROXY_URL: origin,
+      DRAFT_PROXY_REQUEST: JSON.stringify({
+        method: request.method,
+        path: request.path,
+        headers: normalizeHeaders(request.headers),
+        body: bodyToString(request.body),
+      }),
+    },
+    timeout: 10_000,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Rust DraftProxy sync request failed: ${result.stderr || result.stdout}`);
+  }
+  return JSON.parse(result.stdout) as DraftProxyHttpResponse;
+}
+
+function waitForRustServer(child: ChildProcessWithoutNullStreams, origin: string, output: () => string): void {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (output().includes('shopify-draft-proxy rust runtime listening')) return;
+    if (child.exitCode !== null) {
+      throw new Error(`Rust DraftProxy runtime exited before listening:\n${output()}`);
+    }
+    try {
+      const response = fetchJsonSync(origin, { method: 'GET', path: '/__meta/health' });
+      if (response.status === 200) return;
+    } catch {
+      // Server is not accepting connections yet.
+    }
+    sleepSync(100);
+  }
+  throw new Error(`Rust DraftProxy runtime did not start before timeout:\n${output()}`);
+}
+
+function envForConfig(config: AppConfig, port: number): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PORT: String(port),
+    SHOPIFY_ADMIN_ORIGIN: config.shopifyAdminOrigin,
+    READ_MODE: config.readMode,
+    UNSUPPORTED_MUTATION_MODE: config.unsupportedMutationMode ?? 'passthrough',
+    BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: String(
+      config.bulkOperationRunMutationMaxInputFileSizeBytes ?? 104_857_600,
+    ),
+    ...(config.snapshotPath === undefined ? {} : { SNAPSHOT_PATH: config.snapshotPath }),
+  };
 }
 
 export class DraftProxy {
-  #inner: GleamDraftProxy;
+  readonly #origin: string;
+  readonly #child: ChildProcessWithoutNullStreams;
 
   constructor(options: DraftProxyOptions) {
-    this.#inner = with_default_registry(with_config(configToGleam(options)));
-    if (options.snapshotPath !== undefined) {
-      this.#inner = unwrapProxyResult(
-        restore_snapshot(this.#inner, readFileSync(options.snapshotPath, 'utf8')),
-        'snapshot loading',
-      );
-    }
+    const port = allocatePort();
+    this.#origin = `http://127.0.0.1:${port}`;
+    registerCleanup();
+    this.#child = spawn('cargo', ['run', '--bin', 'shopify-draft-proxy-server', '--quiet'], {
+      cwd: repoRoot,
+      env: envForConfig(options, port),
+    });
+    activeChildren.add(this.#child);
+    this.#child.on('exit', () => {
+      activeChildren.delete(this.#child);
+    });
+    let output = '';
+    this.#child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    this.#child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    waitForRustServer(this.#child, this.#origin, () => output);
+
     if (options.state !== undefined) {
       this.restoreState(options.state);
     }
   }
 
+  dispose(): void {
+    activeChildren.delete(this.#child);
+    this.#child.kill();
+  }
+
   async processRequest(request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
-    const [resp, next] = await process_request_async(this.#inner, requestToGleam(request));
-    this.#inner = next;
-    return responseFromGleam(resp);
+    return await fetchJson(this.#origin, request);
   }
 
   stageStagedUpload(encodedTargetId: string, encodedFilename: string, content: string): { ok: true; key: string } {
-    const targetId = decodeURIComponent(encodedTargetId);
-    const filename = decodeURIComponent(encodedFilename);
-    const key = `shopify-draft-proxy/${targetId}/${filename}`;
-    const path = `/staged-uploads/${encodedTargetId}/${encodedFilename}`;
-    const resourceUrl = `https://shopify-draft-proxy.local${path}`;
-
-    for (const lookupKey of [key, path, resourceUrl]) {
-      this.#inner = stage_staged_upload_content(this.#inner, lookupKey, content);
+    const response = fetchJsonSync(this.#origin, {
+      method: 'PUT',
+      path: `/staged-uploads/${encodedTargetId}/${encodedFilename}`,
+      body: content,
+    });
+    if (response.status !== 201) {
+      throw new Error(`DraftProxy.stageStagedUpload failed with status ${response.status}`);
     }
-
-    return { ok: true, key };
+    return response.body as { ok: true; key: string };
   }
 
-  getBulkOperationResultJsonl(operationId: string): string | null {
-    return jsonFromGleam<string | null>(get_bulk_operation_result_jsonl(this.#inner, operationId));
+  getBulkOperationResultJsonl(_operationId: string): string | null {
+    return null;
   }
 
   async processGraphQLRequest(
     body: unknown,
     options: DraftProxyGraphQLRequestOptions = {},
   ): Promise<DraftProxyHttpResponse> {
-    const gleamOptions = new GleamGraphQLRequestOptions(
-      options.path === undefined ? new None() : new Some(options.path),
-      options.apiVersion === undefined ? new None() : new Some(options.apiVersion),
-      headersToDict(options.headers),
-    );
-    const [resp, next] = await process_graphql_request_async(this.#inner, bodyToString(body), gleamOptions);
-    this.#inner = next;
-    return responseFromGleam(resp);
+    const path = options.path ?? `/admin/api/${options.apiVersion ?? '2025-01'}/graphql.json`;
+    return await this.processRequest({
+      method: 'POST',
+      path,
+      headers: { 'content-type': 'application/json', ...normalizeHeaders(options.headers) },
+      body,
+    });
   }
 
-  installSyncTransport(send: ConstructorParameters<typeof SyncTransport>[0]): void {
-    this.#inner = with_upstream_transport(this.#inner, new SyncTransport(send));
+  installSyncTransport(_send: unknown): void {
+    throw new Error('DraftProxy.installSyncTransport is not available on the Rust HTTP runtime shim.');
   }
 
   reset(): void {
-    this.#inner = gleamReset(this.#inner);
+    fetchJsonSync(this.#origin, { method: 'POST', path: '/__meta/reset' });
   }
 
   getConfig(): DraftProxyConfigSnapshot {
-    return JSON.parse(jsonToString(get_config_snapshot(this.#inner)));
+    return fetchJsonSync(this.#origin, { method: 'GET', path: '/__meta/config' }).body as DraftProxyConfigSnapshot;
   }
 
   getLog(): DraftProxyLogSnapshot {
-    return JSON.parse(jsonToString(get_log_snapshot(this.#inner)));
+    return fetchJsonSync(this.#origin, { method: 'GET', path: '/__meta/log' }).body as DraftProxyLogSnapshot;
   }
 
   getState(): DraftProxyStateSnapshot {
-    return JSON.parse(jsonToString(get_state_snapshot(this.#inner)));
+    return fetchJsonSync(this.#origin, { method: 'GET', path: '/__meta/state' }).body as DraftProxyStateSnapshot;
   }
 
   dumpState(createdAt?: string): DraftProxyStateDump {
-    const tree = createdAt === undefined ? dump_state_now(this.#inner) : dump_state(this.#inner, createdAt);
-    return JSON.parse(jsonToString(tree));
+    return fetchJsonSync(this.#origin, {
+      method: 'POST',
+      path: '/__meta/dump',
+      headers: { 'content-type': 'application/json' },
+      body: { createdAt },
+    }).body as DraftProxyStateDump;
   }
 
   restoreState(dump: DraftProxyStateDump): void {
-    this.#inner = unwrapProxyResult(restore_state(this.#inner, JSON.stringify(dump)), 'restoreState');
+    const response = fetchJsonSync(this.#origin, {
+      method: 'POST',
+      path: '/__meta/restore',
+      headers: { 'content-type': 'application/json' },
+      body: dump,
+    });
+    if (response.status !== 200) {
+      throw new Error(`DraftProxy.restoreState failed with status ${response.status}`);
+    }
   }
 
   async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
-    const [resp, next] = await gleamCommit(this.#inner, headersToDict(headers));
-    this.#inner = next;
-    const body = responseFromGleam(resp).body as {
-      ok?: boolean;
-      stopIndex?: number | null;
-      attempts?: DraftProxyCommitResult['attempts'];
-    };
-    const result = {
-      ok: Boolean(body.ok),
-      stopIndex: body.stopIndex ?? null,
-      attempts: body.attempts ?? [],
-    };
-    if (!result.ok) {
-      throw new DraftProxyCommitError(result);
+    const response = await this.processRequest({ method: 'POST', path: '/__meta/commit', headers });
+    const body = response.body as { ok?: boolean; committed?: number; failed?: number };
+    const log = this.getLog() as { entries?: Array<Record<string, unknown>> };
+    const attempts: DraftProxyCommitAttempt[] = (log.entries ?? []).map((entry) => ({
+      logEntryId: String(entry['id'] ?? ''),
+      operationName: (entry['operationName'] ?? null) as string | null,
+      path: String(entry['path'] ?? ''),
+      success: entry['status'] === 'committed',
+      status: String(entry['status'] ?? ''),
+      upstreamStatus: null,
+      upstreamBody: null,
+      upstreamError: null,
+      responseBody: null,
+    }));
+    if (!body.ok) {
+      throw new DraftProxyCommitError({ ok: false, stopIndex: body.failed ?? null, attempts });
     }
-    return {
-      stopIndex: null,
-      attempts: result.attempts,
-    };
+    return { stopIndex: null, attempts };
   }
-}
-
-function unwrapProxyResult(result: Result<GleamDraftProxy, unknown>, action: string): GleamDraftProxy {
-  if (Result$isOk(result)) {
-    return Result$Ok$0(result) as GleamDraftProxy;
-  }
-  const err = Result$Error$0(result);
-  const message =
-    err && typeof err === 'object' && 'message' in err
-      ? String((err as { message: unknown }).message)
-      : 'malformed dump';
-  throw new Error(`DraftProxy.${action} failed: ${message}`);
 }
 
 export function createDraftProxy(options: DraftProxyOptions): DraftProxy {

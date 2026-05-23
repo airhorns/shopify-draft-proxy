@@ -182,9 +182,7 @@
           "$.locationsCount",
           "$.deletedLevel.location.name",
           "$.inventoryLevels.nodes[0].location.name",
-          "$.inventoryLevels.nodes[0].quantities",
-          "$.inventoryLevels.nodes[1].location.name",
-          "$.inventoryLevels.nodes[1].quantities"
+          "$.inventoryLevels.nodes[1].location.name"
         ]
       },
       {
@@ -259,7 +257,6 @@
           "$.locationsCount",
           "$.deletedLevel",
           "$.inventoryLevels.nodes[0].location.name",
-          "$.inventoryLevels.nodes[0].quantities",
           "$.inventoryLevels.nodes[1]"
         ]
       }

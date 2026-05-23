@@ -71,7 +71,7 @@ mistakes. Check these before opening or returning a PR:
 - A fidelity claim needs executable parity evidence, not just local integration
   tests. If the change says "Shopify does X" or changes local emulation to match
   Shopify, add or update a captured parity spec, re-record its cassette via
-  `pnpm parity:record <scenario-id>`, and run `pnpm gleam:test` (see
+  `pnpm parity:record <scenario-id>`, and run `pnpm rust:test` (see
   `docs/parity-runner.md`). Captures must not carry top-level `seedX` keys —
   upstream context is recorded as `upstreamCalls`, not pre-seeded into base
   state.
@@ -302,7 +302,7 @@ Use the strongest feasible evidence:
 2. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
 3. Proxy request files make local replay deterministic.
 4. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
-5. `pnpm gleam:test` runs the Gleam parity runner across both targets (`test/parity_test.gleam`), which iterates every discovered parity spec, installs each capture's `upstreamCalls` cassette as the proxy's upstream transport, and executes strict comparisons for `ready-for-comparison` scenarios. Specs without a recorded cassette are reported as `Skipped` until `pnpm parity:record <scenario-id>` is run against real Shopify.
+5. `pnpm rust:test` runs the Rust route and meta suites, while `pnpm parity:run` is the parity entry point for recorded scenarios. Parity specs install each capture's `upstreamCalls` cassette as the proxy's upstream transport and execute strict comparisons for `ready-for-comparison` scenarios. Specs without a recorded cassette are not considered ready until `pnpm parity:record <scenario-id>` is run against real Shopify.
 
 ## Validation
 
@@ -310,7 +310,7 @@ Always run:
 
 ```bash
 corepack pnpm conformance:check
-corepack pnpm gleam:test
+corepack pnpm rust:test
 corepack pnpm typecheck
 ```
 
