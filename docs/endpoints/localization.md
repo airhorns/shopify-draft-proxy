@@ -1,102 +1,89 @@
 # Localization
 
-HAR-314 adds the first local localization slice for Admin GraphQL locale and translation roots.
+This endpoint group covers Shopify Admin GraphQL locale, shop-locale,
+translatable-resource, and translation roots.
 
 ## Current support and limitations
 
-### Implemented roots
+### Supported roots
+
+The current Rust operation registry does not mark any localization root as fully
+implemented. Registry presence is a local-model commitment only; it is not a
+claim that the whole localization lifecycle is supported for arbitrary
+documents.
+
+The registry-only read roots are:
 
 - `availableLocales`
 - `shopLocales`
 - `translatableResource`
 - `translatableResources`
 - `translatableResourcesByIds`
+
+The registry-only mutation roots are:
+
 - `shopLocaleEnable`
 - `shopLocaleUpdate`
 - `shopLocaleDisable`
 - `translationsRegister`
 - `translationsRemove`
 
-### Local model
+### Local behavior
 
-Locale state is normalized in memory as available locale records, shop locale records, and owner-scoped translation records keyed by resource, locale, optional market, and translation key.
+The Rust runtime has a scenario-backed localization slice for ported parity
+requests and runtime tests. It serializes a baseline available-locale and
+shop-locale catalog, stages selected `shopLocaleEnable`,
+`shopLocaleUpdate`, and `shopLocaleDisable` requests locally, and exposes
+downstream `shopLocales` read-after-write behavior for the staged locale rows.
+Supported staged shop-locale mutations append replay-ready mutation-log entries
+with the original raw GraphQL request.
 
-The implemented translatable-resource owner slice is intentionally narrow:
+The staged shop-locale slice rejects primary-locale mutation attempts,
+unsupported locale codes, duplicate enables, missing locales for published
+updates, and disables for non-enabled locales with captured Shopify-like
+`userErrors`. Market-web-presence IDs are filtered to known local or captured
+WebPresence IDs, and accepted rows project selected
+`marketWebPresences`, `defaultLocale`, and locale scalar fields.
 
-- `PRODUCT` resources are derived from locally known `ProductRecord` rows.
-- `COLLECTION` resources are derived from locally known `CollectionRecord` rows or capture-backed source markers.
-- `METAFIELD` resources are derived from product-owned metafields.
-- Unsupported `TranslatableResourceType` branches return an empty connection.
-- Unknown singular resource IDs return `null` for reads and `RESOURCE_NOT_FOUND` `TranslationUserError` payloads for translation mutations.
-- Recognized Shopify translatable GID families that are not locally modeled yet, such as `Metaobject`, `OnlineStorePage`, article/blog/theme, menu/link, policy, email/SMS template, payment gateway attribute, filter, shipping zone, and shop resources, return an explicit local `UNSUPPORTED_TRANSLATABLE_RESOURCE_TYPE` mutation error instead of pretending Shopify reported the resource missing.
+`translationsRegister` and `translationsRemove` are locally modeled for the
+ported product, collection, product-metafield, and market-scoped translation
+scenarios. The local slice validates unknown resources, enabled non-primary
+locale requirements, translatable keys, digest mismatches, non-blank values,
+the 100-key mutation limit, market scope, and selected handle-normalization
+branches. Successful translations are staged in local translation state so
+subsequent `translatableResource.translations(...)` reads observe the staged or
+removed rows.
 
-Product translatable content currently includes `title`, `handle`, optional `body_html`, optional `product_type`, and optional SEO `meta_title` / `meta_description` keys when the normalized product has default SEO values. Product SEO keys are modeled as fields on the product translatable resource, not as standalone metafield resources. Content digests use Shopify's observed SHA-256 value digest behavior for those scalar values.
+Collection translation lifecycle support is fixture-backed. Product and
+product-metafield translation behavior has runtime coverage for guardrails that
+the generic parity replay cannot isolate cleanly.
 
-Collection translatable content currently includes `title`, `handle`, optional `body_html`, and optional SEO `meta_title` / `meta_description` keys when the normalized collection has those values. Live-hybrid collection localization parity hydrates captured source markers from Shopify before local translation mutations run, so subsequent Collection register/remove/read-after-write behavior stays local.
+### Boundaries
 
-Product metafield translatable content is limited to product-owned metafields and exposes the Shopify `value` key. Broader metafield owners and special SEO-like metafield behavior remain out of scope until separately captured.
+- Localization roots are not marked implemented in the operation registry.
+  Unsupported documents outside the ported request families should not be
+  treated as broad local support.
+- `TranslatableResource` support is limited to product, collection, and
+  product-metafield evidence. Other resource families return null/empty results
+  or remain unsupported until local lifecycle behavior is modeled.
+- Validation-only localization specs prove guardrail payloads and no-stage
+  behavior for those inputs only. They do not make unmodeled translation or
+  resource families generally supported.
+- Digest sanitization for complex HTML remains bounded by checked-in capture
+  evidence and runtime guardrails; the proxy does not claim complete Shopify
+  sanitizer fidelity.
+- Supported mutation slices stage locally and do not update Shopify at runtime;
+  unmatched unsupported mutation documents follow the configured unsupported
+  path.
 
-In LiveHybrid mode, cold localization reads use the cassette-backed upstream
-read as the authoritative locale and source-content slice, then hydrate
-available locales, shop locales, markets selected by the read, and source-content
-markers into base state. Follow-up localization mutations still stage locally and never replay to
-Shopify at runtime; the hydrated source markers only let local
-`translationsRegister` / `translationsRemove` validate the captured resource,
-market, and digest.
+### Evidence
 
-### Mutation behavior
+- Registry status: `config/operation-registry.json`
+- Runtime coverage: `tests/graphql_routes.rs`
+- Parity specs: `config/parity-specs/localization/*.json`
+- Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 
-`shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales. `shopLocaleEnable` always stages the enabled locale as unpublished, including when a stale local record previously had `published: true`; publishing remains a `shopLocaleUpdate` concern. Enable validation follows Shopify's observed alternate-locale model: unsupported locale codes return `INVALID` on `field: ["locale"]`, duplicate enables return `TAKEN`, and stores with 20 alternate locales return `LIMIT_REACHED` on `field: ["base"]`. Submitted `marketWebPresenceIds` are silently filtered to WebPresences already known for the shop from local or hydrated state before staging, matching Shopify's behavior for fabricated or cross-shop IDs. When `shopLocaleEnable` receives WebPresence IDs, the proxy also stages the locale onto those WebPresences' `alternateLocales` and recomputes derived `rootUrls`; when `shopLocaleUpdate` changes WebPresence IDs, the proxy removes the locale from previous WebPresences and adds it to the new targets. This mirrors Shopify Core's synchronous WebPresence side effects, so downstream `webPresences { alternateLocales rootUrls }` reads observe the mutation immediately. `ShopLocale.marketWebPresences` reads and mutation payloads project from the staged market web presence IDs and preserve selected `id`, `__typename`, and `defaultLocale` fields. Attempts to enable the primary locale, unpublish the primary locale, or disable the primary locale return a `CAN_NOT_MUTATE_PRIMARY_LOCALE` shop-locale user error, and failed disable payloads return `locale: null`. `shopLocaleUpdate` returns `SHOP_LOCALE_DOES_NOT_EXIST` for a missing locale only when `published` is supplied; market-web-presence-only updates follow Shopify's partial-update path and stage an existing-or-default shop-locale row even when the locale was not previously enabled. Disabling a locale that is not enabled returns `SHOP_LOCALE_DOES_NOT_EXIST`. Disabling a locale also removes locally staged/base translations for that locale, matching Shopify's documented destructive locale-delete behavior.
+### Validation
 
-The local `ShopLocaleError` serializer emits SCREAMING_SNAKE `code` values when a client selects `userErrors.code`. The current public Admin GraphQL 2026-04 schema exposes these shop-locale payload fields as plain `UserError` with only `field` and `message`, so the live parity fixture compares the public field/message shape while unit tests cover the proxy's local `code` selection behavior.
-
-`translationsRegister` stages translations for locally known product, collection, and product-metafield resources after validating resource existence, enabled non-primary shop locale, translatable key, non-blank value, digest match, optional market scope, and Shopify's 100-key mutation limit. Locale validation uses enabled `shopLocales`, not the broader `availableLocales` catalog, but still rejects the shop primary locale instead of treating it as a valid translation target. Older versioned routes emit `SAME_LOCALE_AS_SHOP_PRIMARY` for that primary-locale branch; Admin GraphQL 2026-04 parity captures Shopify's API-change fallback as `INVALID_LOCALE_FOR_SHOP` with the same indexed field path. Empty `translations` inputs no-op with `translations: []` and no user errors. Blank values return a `FAILS_RESOURCE_VALIDATION` `TranslationUserError` with `translations: []`; more than 100 inputs return `TOO_MANY_KEYS_FOR_RESOURCE` on `field: ["resourceId"]` with `translations: null`. Handle translations normalize accepted values before staging, matching captured Shopify behavior for spaces, uppercase letters, leading/trailing/double dashes, punctuation-only input, and slash separators; over-255-character handle translations return `FAILS_RESOURCE_VALIDATION` with Shopify's handle-too-long resource-validation message and are not staged. Digest mismatch is checked only after the requested key resolves to translatable content, so invalid-key errors are not polluted by stale-digest errors. Mixed valid/invalid rows persist and return the successfully staged translations alongside indexed `userErrors`. `TranslationInput.marketId` must resolve to a known hydrated/staged market before the row is staged; unknown market GIDs return `MARKET_DOES_NOT_EXIST` on `field: ["translations", <index>, "marketId"]` with Shopify's captured message. Packing slip template body translations reject market-scoped content with `RESOURCE_NOT_MARKET_CUSTOMIZABLE` on `field: ["translations", <index>, "key"]`, matching the current conformance store. Valid market-scoped rows are stored as part of the translation key so downstream `translatableResource.translations(locale:, marketId:)` reads return the market-scoped value and serialize captured `Translation.market` fields when selected.
-
-`translationsRemove` removes matching local/base translations and returns the removed translation payloads when at least one row was removed. It validates the resource, then treats each requested `(resourceId, key, locale, marketId)` combination as a deletion target without checking that the key is in current translatable content, that the locale is currently enabled, or that each supplied market ID resolves. Unknown keys, disabled/orphaned locales, and unknown market IDs therefore succeed as no-ops when no row matches, returning `translations: null` and `userErrors: []`. Empty `translationKeys` or `locales` inputs no-op with `translations: null` and no synthetic blank-field user error. When `marketIds` is supplied, removal is scoped by `(resourceId, key, locale, marketId)`; when it is omitted or empty, the unscoped translation branch is removed. Subsequent `translatableResource.translations(locale:, marketId:)` reads observe these staged changes.
-
-## Historical and developer notes
-
-### Conformance evidence
-
-Live Admin GraphQL 2026-04 evidence was captured against `harry-test-heelo.myshopify.com` in:
-
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-disable-clears-translations.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-primary-guards.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-error-codes.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-payload-shapes.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-mutation-noop-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-enable-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-market-web-presence-filter.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-enable-web-presence-sync.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-update-web-presence-sync.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json`
-
-The capture includes:
-
-- root introspection for all HAR-314 roots
-- locale and product translatable-resource reads
-- unknown resource validation for `translationsRegister` and `translationsRemove`
-- a safe `fr` shop-locale enable/update/disable lifecycle with cleanup
-- primary-locale validation for `shopLocaleEnable`, primary-unpublish validation for `shopLocaleUpdate`, primary-locale validation for `shopLocaleDisable`, and missing-locale validation for `shopLocaleUpdate`
-- `shopLocaleEnable` unsupported-locale `INVALID`, duplicate-locale `TAKEN`, maximum-locale limit text, and `shopLocaleUpdate` market-web-presence-only success for an otherwise missing locale
-- `TranslationErrorCode` parity for `translationsRegister` empty-list no-op, blank-value `FAILS_RESOURCE_VALIDATION`, 101-key `TOO_MANY_KEYS_FOR_RESOURCE`, and `translationsRemove` empty-locales no-op behavior
-- handle translation value normalization, over-length validation, and downstream read-after-write behavior
-- a product title `translationsRegister` / downstream read / `translationsRemove` / downstream empty read lifecycle with cleanup
-- a market-scoped product title `translationsRegister` / downstream `translatableResource.translations(locale:, marketId:)` read / `translationsRemove(marketIds:)` / downstream empty read lifecycle with cleanup, plus fabricated-market `translationsRegister` rejection, fabricated-market `translationsRemove` no-op behavior, and PackingSlipTemplate market-custom-content rejection
-- a Collection title `translationsRemove` no-op / `translationsRegister` / downstream `translatableResource(s)` reads / `translationsRemove` / downstream empty read lifecycle with cleanup
-- a product title `translationsRegister` / `shopLocaleDisable` / downstream empty read lifecycle proving Shopify removes translations for the disabled locale
-- `ShopLocale.marketWebPresences` payload and downstream read projection, failed primary-locale disable payloads with `locale: null`, and mixed `translationsRegister` partial-success payloads
-- `shopLocaleEnable` and `shopLocaleUpdate` silently filtering fabricated market-web-presence IDs while retaining a valid WebPresence association in mutation payloads and downstream `shopLocales` reads
-- `shopLocaleEnable` adding a locale to a targeted WebPresence's `alternateLocales` and `rootUrls`, and `shopLocaleUpdate` moving that locale from a source WebPresence to a target WebPresence
-- `translationsRemove` unknown-key and disabled-locale no-op success behavior with empty `userErrors`
-- `translationsRegister` primary-locale rejection, including the Admin GraphQL 2026-04 `INVALID_LOCALE_FOR_SHOP` fallback code and indexed locale field path
-
-The parity runner replays the captured read, unknown-resource validation, locale lifecycle, shop-locale primary guard validation, shop-locale enable/update validation, market-web-presence filtering, WebPresence alternate-locale synchronization, translation error-code validation, product-title translation lifecycle, locale-disable translation cleanup lifecycle, mutation no-op validation, and HAR-711 payload-shape scenario through the local proxy. Focused Rust runtime tests cover local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and the local no-upstream execution path for locale-disable translation cleanup.
-
-### HAR-449 gap review
-
-The current localization model intentionally preserves dedicated `availableLocales`, `shopLocales`, and `translations` state buckets. The reviewed Shopify docs and public examples reinforce those as separate locale lifecycle, translatable-resource, and owner-scoped translation concepts rather than evidence for a shared abstraction.
-
-High-risk paths now have executable evidence through the captured localization parity fixture plus integration coverage for guardrails that the generic fixture replay does not isolate. Remaining known boundaries are unsupported resource families beyond product, collection, and product-metafield `TranslatableResource` rows and Shopify-specific digest sanitizer edge cases for complex HTML. Those stay documented as unsupported or capture-driven future work rather than claimed full localization coverage.
+- `corepack pnpm lint`
+- `corepack pnpm rust:test`
