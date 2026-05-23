@@ -1664,17 +1664,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        if query.contains("productDelete(input: {})") {
-            return product_delete_inline_missing_id_error();
-        }
-        if query.contains("productDelete(input: { id: null })") {
-            return product_delete_inline_null_id_error();
+        if let Some(response) = product_delete_required_id_error(query, variables) {
+            return response;
         }
         let Some(input) = product_input(query, variables) else {
             return product_delete_missing_product(query);
-        };
-        if query.contains("ProductDeleteConformance") && !input.contains_key("id") {
-            return product_delete_variable_missing_id_error();
         };
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_delete_missing_product(query);

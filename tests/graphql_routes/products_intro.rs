@@ -86,3 +86,51 @@ fn product_create_preserves_parity_fields_and_downstream_read() {
         create.body["data"]["productCreate"]["product"]
     );
 }
+
+#[test]
+fn supported_mutation_projection_includes_fragment_alias_selections() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+            mutation CreateWithFragments($product: ProductCreateInput!) {
+              createAlias: productCreate(product: $product) {
+                ...PayloadFields
+              }
+            }
+
+            fragment PayloadFields on ProductCreatePayload {
+              madeProduct: product {
+                ...ProductFields
+              }
+              problems: userErrors {
+                field
+                message
+              }
+            }
+
+            fragment ProductFields on Product {
+              productId: id
+              productTitle: title
+              productHandle: handle
+            }
+        "#,
+        json!({ "product": { "title": "Fragment alias product" } }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["createAlias"]["madeProduct"]["productTitle"],
+        json!("Fragment alias product")
+    );
+    assert!(
+        response.body["data"]["createAlias"]["madeProduct"]["productId"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/Product/"))
+    );
+    assert_eq!(
+        response.body["data"]["createAlias"]["madeProduct"]["productHandle"],
+        json!("fragment-alias-product")
+    );
+    assert_eq!(response.body["data"]["createAlias"]["problems"], json!([]));
+}
