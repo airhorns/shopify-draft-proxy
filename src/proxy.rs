@@ -122,6 +122,11 @@ type ProxyTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 type CommitTransport = ProxyTransport;
 type UpstreamTransport = ProxyTransport;
 
+pub(in crate::proxy) struct OrdersLocalLogOutcome<'a> {
+    status: &'a str,
+    notes: &'a str,
+}
+
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")
 }
