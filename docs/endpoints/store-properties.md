@@ -1,21 +1,27 @@
 # Store Properties Endpoint Group
 
-The store-properties group has implemented local slices, but the whole registry domain is not complete yet. Keep shop, location, business-entity, policy, and generic publishable minutia here instead of in `docs/architecture.md`.
+This endpoint group covers shop-level Admin GraphQL roots for shop metadata,
+locations, business entities, legal shop policies, generic publishable
+operations, and related store-property utility reads.
 
 ## Current support and limitations
 
-### Implemented roots
+### Supported roots
 
-Overlay reads:
+The current Rust operation registry does not mark any store-properties root as
+fully implemented. Registry presence is a local-model commitment only; it is
+not a supported-runtime claim for the whole store-properties domain.
+
+The registry-only read roots are:
 
 - `shop`
 - `location`
 - `locationByIdentifier`
 - `businessEntities`
 - `businessEntity`
-- `shopifyPaymentsAccount`
+- `cashManagementLocationSummary`
 
-Local staged mutations:
+The registry-only mutation roots are:
 
 - `locationAdd`
 - `locationEdit`
@@ -28,49 +34,69 @@ Local staged mutations:
 - `publishableUnpublishToCurrentChannel`
 - `shopPolicyUpdate`
 
-### Unsupported roots still tracked by the registry
+### Local behavior
 
-- `cashManagementLocationSummary`
+The Rust runtime has scenario-backed store-properties slices for ported parity
+requests and runtime tests. These slices are not general registry support for
+every store-property document.
 
-### Behavior notes
+Shop reads have a baseline fixture-backed slice for selected shop metadata,
+including shop policies, publication aggregates, primary domain, and safe empty
+or null shapes. `shopPolicyUpdate` has local staging evidence for policy body,
+title, URL, migrated-HTML behavior, user-error codes, blank subscription-policy
+validation, downstream `shop.shopPolicies` reads, and generic `node(id:)` /
+`nodes(ids:)` policy dispatch.
 
-- `baseState` includes a nullable normalized `shop` slice. Snapshot mode returns `shop: null` when no shop slice is present instead of inventing store identity; live-hybrid can serve a locally staged shop overlay when one exists.
-- `shop.fulfillmentServices` is serialized from the normalized fulfillment-service graph owned by `docs/endpoints/shipping-fulfillments.md`; the field returns an empty list when no services are staged or snapshotted.
-- `shopPolicyUpdate` stages legal policy writes into the shop slice by `ShopPolicyType`. New staged policies use Shopify's deprecated title casing (`Privacy Policy`, `Terms of Service`, etc.), enforce Shopify's 524287-byte body limit, reject blank or whitespace-only `SUBSCRIPTION_POLICY` bodies with Shopify's captured purchase-options cancellation policy userError, are tagged as migrated HTML, and therefore return their body verbatim. Variable-bound invalid `ShopPolicyType` values and missing/null `ShopPolicyInput.body` fail through Shopify-like top-level `INVALID_VARIABLE` coercion before the mutation handler runs; captured public 2026-04 accepts a blank `REFUND_POLICY` body. Downstream `shop.shopPolicies` reads in snapshot and live-hybrid modes observe staged body, identity, URL, title, timestamps, and empty translations shape without sending supported policy mutations upstream at runtime.
-- Shop policy URLs are built from the effective shop domain instead of a literal `checkout.shopify.com` host. The proxy prefers `shop.primaryDomain.url`, then `shop.primaryDomain.host`, then `shop.url`, and finally `https://<myshopifyDomain>` when no richer checkout host is available; with numeric shop/policy GIDs it keeps Shopify's `/shop-id/policies/policy-id.html?locale=en` path shape.
-- `ShopPolicyRecord.migratedToHtml` is local state metadata, not a GraphQL field. Snapshot or state fixtures can set it to `false` for legacy plain-text policies, in which case `ShopPolicy.body` is rendered with a narrow `simple_format` equivalent on `shop.shopPolicies` and Admin `node` / `nodes` reads. Public Shopify capture hydration defaults this flag to `true` because the Admin response body has already passed through Shopify's resolver.
-- Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves `ShopAddress` from the effective `shop.shopAddress` row and `ShopPolicy` from the effective `shop.shopPolicies` list. Missing address/policy IDs still return `null`; this does not broaden unsupported store-property roots beyond the already modeled shop/policy state.
-- Snapshot `location` and `locationByIdentifier` detail reads use the Store properties overlay. They combine narrow normalized location metadata for captured address/lifecycle scalars with nested inventory-level connections derived from the effective inventory-level graph.
-- Top-level `locations` is still dispatched through the product/inventory read path, but it serializes each `Location` node with the Store properties location serializer. Selected lifecycle, address, metafield, local-pickup, and inventory-level fields therefore stay aligned with `location`, `locationByIdentifier`, and staged location lifecycle mutations instead of being limited to catalog `id` / `name`.
-- The first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location `null` behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections.
-- `locationAdd` stages new normalized locations with proxy-synthetic `Location` IDs, stable timestamps, address metadata, `fulfillsOnlineOrders`, and owner-scoped metafields. When `address.countryCode` is supplied, local staging derives `address.country` from the shared address-name table; when `address.provinceCode` is supplied, it derives `address.province` for known country/province pairs including US, CA, AU, GB, and captured DE states. Unknown local mappings fall back to the supplied code instead of dropping the human-readable field. Admin GraphQL 2026-04 does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; those input fields are rejected through Shopify-like schema validation instead of being staged locally. Inline inputs missing required `LocationAddInput.address` or nested `LocationAddAddressInput.countryCode` return Shopify's top-level parser error shapes; variable inputs missing those required fields return `INVALID_VARIABLE`; blank names return mutation `userErrors` with Shopify's captured `BLANK` code; invalid `CountryCode` values are rejected through the schema enum validator while Shopify enum members such as `ZZ` are accepted. Captured public Admin GraphQL 2026-04 behavior accepts omitted `address1`/`city`/`zip`, blank `zip`, and nonstandard US ZIP strings on `locationAdd`, so the proxy stages those inputs instead of manufacturing Core-only validation errors. Duplicate active location names return `TAKEN`, oversized `name`, `address.address1`, `address.city`, and `address.zip` return captured `TOO_LONG` userErrors, and captured location-limit state (`reachedLocationLimit`, `locationLimitReached`, or `shop.resourceLimits.locationLimitReached`) returns the live public Admin API limit error shape with field `["input"]`, code `INVALID`, and message `You have reached the maximum number of locations (<limit>)`; these rejected mutations do not stage or log. Downstream `location`, `locationByIdentifier`, top-level `locations`, and meta state/log inspection observe the staged location without sending the write upstream at runtime.
-- `locationEdit` stages updates against base or synthetic locations for `name`, partial `address`, `fulfillsOnlineOrders`, and owner-scoped `metafields`, preserving unspecified address fields and updating inventory-level location name serialization through the effective location record. Partial address edits use the same country/province derivation as `locationAdd`: supplied `countryCode` refreshes `country`, and supplied `provinceCode` refreshes `province` using the supplied or existing `countryCode` before falling back to the raw code when the pair is not mapped. Location-owned `metafield(...)` / `metafields(...)` reads observe staged edit metafields after the mutation. Captured validation branches include blank-name `LocationEditUserError` payloads, duplicate active location names with `TAKEN`, oversized `name`/`address.city`/`address.zip` with `TOO_LONG`, invalid `CountryCode` variable errors, invalid metafield type `LocationEditUserError` payloads, missing-location `userErrors`, and online-order fulfillment state-machine blockers for the only active online-fulfilling location, pending-order locations, fulfillment-service locations, and delivery-profile-bound locations represented in local state.
-- `locationActivate` and `locationDeactivate` stage lifecycle state locally. Numeric Admin API routes `>= 2026-04` require an `@idempotent(key: "...")` directive on the lifecycle field and return Shopify's top-level `BAD_REQUEST` GraphQL error plus `data.<root>: null` when it is absent; numeric routes before `2026-04` keep the pre-required behavior and stage locally without the directive. Live 2026-04 evidence rejects operation-level `@idempotent`, so the local required-directive check treats it as absent. The `location-activate-deactivate-with-idempotency-directive` parity spec replays both lifecycle roots through captured field-level `@idempotent(key:)` documents, and sibling inventory specs cover the same directive shape across product inventory mutation roots.
-- `locationDeactivate` validates against the effective local `Location` state before staging. Destination relocation validates `destinationLocationId` for same-location, inactive/not-found, and fulfillment-service-managed destinations. No-destination deactivation blocks stocked inventory, fulfillment orders, open purchase orders, and active transfers when those flags or derived state are present. Common source guards short-circuit inventory relocation checks for the only active online-fulfilling location, primary/permanently blocked locations, temporary deactivation blocks, active retail subscriptions, and incoming external document sources. Successful deactivation then sets `isActive: false`, records a synthetic `deactivatedAt`, preserves Shopify's `activatable`/`deactivatable` lifecycle flags for the captured unstocked disposable-location branch, clears local stockability flags, and keeps the raw mutation for commit replay. `locationActivate` first scopes lookup to merchant-managed locations: fulfillment-service-managed locations return `LOCATION_NOT_FOUND` on `field: ["locationId"]` and do not stage, even when local state exposes inactive/activatable/limit/relocation/duplicate-name flags. Merchant-managed inactive activation then blocks before duplicate-name validation when local state exposes a reached location limit (`reachedLocationLimit`, `locationLimitReached`, or `shop.resourceLimits.locationLimitReached`) or incomplete mass relocation (`hasIncompleteMassRelocation`), then otherwise restores `isActive: true`, clears `deactivatedAt`, preserves the captured lifecycle flags, and does not invent stockability. Downstream top-level `locations` and singular location reads observe the staged lifecycle state.
-- `locationDelete` stages a tombstone after deactivation. Delete guard userErrors are computed from the effective local `Location` record instead of being hardcoded: active locations return `LOCATION_IS_ACTIVE`, stocked locations return `LOCATION_HAS_INVENTORY`, pending-order fixture state returns `LOCATION_HAS_PENDING_ORDERS`, active retail subscription fixture state returns `LOCATION_HAS_ACTIVE_RETAIL_SUBSCRIPTION`, non-deletable locations return `LOCATION_NOT_DELETABLE`, and fulfillment-service-managed locations are scoped out with Shopify's captured `LOCATION_NOT_FOUND` shape. The proxy does not emit a primary-location-specific delete code; captured Shopify primary-location delete evidence returns the normal active/inventory/pending-order guards rather than a `LOCATION_IS_PRIMARY` enum value. Successful deletes remove the location from `location`, `locationByIdentifier`, top-level `locations`, and inventory-level reads while keeping the raw mutation in the commit log.
-- Fulfillment-service lifecycle support can create, update, keep, or delete service-managed locations as a side effect. Direct `locationEdit` continues to reject existing fulfillment-service locations unless a separate app-owned editable branch is captured.
-- Snapshot `shopifyPaymentsAccount` reads are backed by the same normalized safe account fixture used by `BusinessEntity.shopifyPaymentsAccount`. When no account fixture is present, the direct root returns `null`, matching the current access-denied capture's data shape. When a safe account fixture is present, scalar identity/setup fields are exposed and `payouts`, `disputes`, and `balanceTransactions` return empty no-data connections with selected `edges`, `nodes`, and `pageInfo`.
-- Shopify Payments fields that can reveal balances, bank accounts, statement descriptors, payout schedules, or other account-specific financial data remain unavailable unless captured and modeled explicitly; snapshot reads return `null` for those selections with `UNSUPPORTED_FIELD` diagnostics.
-- Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Product publishable mutation payloads can select `shop.publicationCount`, which is derived from the same normalized publication catalog used by product and publication reads. Current-channel product placeholders are excluded from the shop publication catalog so `shop.publicationCount` does not grow just because a local current-channel membership marker was staged. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
+Location reads and lifecycle mutations have fixture-backed local slices for
+detail reads, unknown-ID null behavior, `locationByIdentifier` selected cases,
+address/country/province derivation, create/edit validation, metafields on
+location add/edit, activate/deactivate state transitions, delete tombstones,
+idempotency directives, resource-limit validation, and selected lifecycle guard
+errors. Successful location mutation slices stage local state, preserve the raw
+GraphQL request for commit replay, and expose read-after-write behavior through
+`location`, `locationByIdentifier`, `locations`, inventory-level location
+projection, and meta state/log inspection when those surfaces are part of the
+checked-in scenario.
 
-### HAR-460 fidelity review summary
+Generic publishable mutation slices cover Product and Collection publish/unpublish
+behavior where backed by parity specs. Product current-channel helpers update
+publication aggregates such as `shop.publicationCount` for the modeled
+publication catalog. Unsupported publishable target types return local
+userErrors in the documented scenarios instead of being treated as full support
+for every publishable object.
 
-The April 2026 review compared the implemented Store properties slice with the Admin GraphQL docs/examples and public usage examples for shop, location, business entity, generic publishable, and shop policy roots. The current executable evidence is concentrated in strict store-properties parity specs plus targeted integration tests rather than broad schema-shape assertions:
+Business entity reads have safe fixture-backed catalog and fallback behavior,
+including ordered `businessEntities`, primary `businessEntity` fallback,
+known/unknown ID lookup, empty structures, and safe Shopify Payments account
+fields only where captured.
 
-- Shop and policy evidence covers baseline `shop` reads, snapshot no-shop `null`, live-hybrid staged overlays, `shopPolicyUpdate` local staging, invalid enum/missing body `INVALID_VARIABLE` coercion, oversized policy body `TOO_BIG` userErrors, blank/whitespace subscription-policy body userErrors, captured blank refund body success, and downstream `shop.shopPolicies` read-after-write plus rejected-validation non-presence.
-- Location evidence covers top-level empty `locations` behavior, `location` primary fallback, `location(id:)`, `locationByIdentifier(identifier: { id })`, `locationByIdentifier(identifier: { customId })` missing-definition `NOT_FOUND` behavior, invalid empty identifier errors, captured address/lifecycle/metafield/suggested-address shapes, local add/edit/activate/deactivate/delete staging, missing idempotency guardrails, destination and source state-machine guards for deactivation, state-aware delete guardrails, fulfillment-service delete scoping, and downstream inventory-level/location reads after lifecycle writes.
-- Business entity evidence covers captured ordered `businessEntities`, primary `businessEntity` fallback, known/unknown ID lookup, empty/no-data structures, and safe Shopify Payments account fields only when explicitly fixture-backed.
-- Publishable evidence covers Product generic publish/unpublish, Product current-channel publish/unpublish, Collection generic publish/unpublish, downstream publication aggregates, `shop.publicationCount`, and local userErrors for unsupported publishable target types instead of supported-runtime passthrough.
+### Boundaries
 
-Remaining gaps are intentional rather than silent support claims:
+- Store-properties roots remain `implemented: false` in the current operation
+  registry. Scenario-backed Rust helpers should not be described as broad root
+  support.
+- Location lifecycle support is bounded to the captured local state-machine and
+  validation branches. Open purchase order, transfer, temporary block, retail
+  subscription, external document, and fulfillment-service branches remain
+  fixture or runtime-slice evidence unless separately captured for a public
+  setup path.
+- Validation-only store-properties specs prove guardrail payloads and no-stage
+  behavior for those inputs only. They do not make the corresponding mutation
+  roots generally supported.
+- Shipping package and local pickup behavior are documented under
+  `docs/endpoints/shipping-fulfillments.md` because their caller-visible effects
+  live in shipping and delivery settings.
+- Unsupported mutation documents outside the ported local slices follow the
+  configured unsupported path and must remain visible in logs/observability.
 
-- `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` stay Product-scoped until Collection current-channel behavior has separate captured evidence.
-- `LocationIdentifierInput.customId` currently returns `null` plus Shopify's captured top-level `NOT_FOUND` error when there is no id-typed location metafield definition; do not synthesize custom identifier matches from arbitrary metafields.
-- Location lifecycle happy paths are covered by runtime tests and disposable-location parity captures. Guard parity for `locationDeactivate` is strongest for the captured destination same-id, inactive destination, active inventory, only-online-fulfiller, and primary permanent-block branches; open purchase order, transfer, temporary block, retail subscription, and external-document flags remain runtime-fixture-backed until those states have safe public Admin setup paths.
-- Business entity reads must not expose or synthesize Shopify Payments balances, bank accounts, payout schedules, statement descriptors, or other financial data unless those exact fields are captured and modeled safely.
+### Evidence
 
-## Historical and developer notes
+- Registry status: `config/operation-registry.json`
+- Runtime coverage: `tests/graphql_routes.rs`
+- Store-properties parity specs: `config/parity-specs/store-properties/*.json`
+- Store-properties fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
 
-### Validation anchors
+### Validation
 
-- Conformance fixtures and requests: `config/parity-specs/store-properties/shop*.json`, `config/parity-specs/store-properties/location*.json`, `config/parity-specs/store-properties/locations*.json`, `config/parity-specs/store-properties/business*.json`, `config/parity-specs/store-properties/publishable*.json`, and matching files under `config/parity-requests/store-properties/`
+- `corepack pnpm lint`
+- `corepack pnpm rust:test`
