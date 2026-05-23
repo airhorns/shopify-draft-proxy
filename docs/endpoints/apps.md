@@ -127,7 +127,7 @@ HAR-749 captured live 2026-04 `delegateAccessTokenCreate` validation against
 successful `read_products` delegated token create with immediate cleanup. The
 generic parity runner cannot yet replay a later request with the newly returned
 delegate token as its active auth header, so parent-is-delegate validation is
-covered by focused Gleam runtime tests until auth swapping lands in the harness.
+covered by focused Rust runtime tests until auth swapping lands in the harness.
 
 HAR-1034 captured live 2026-04 `delegateAccessTokenCreate` validation against
 `harry-test-heelo.myshopify.com` on 2026-05-07 with the expiring conformance

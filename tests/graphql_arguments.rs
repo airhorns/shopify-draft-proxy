@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
-use shopify_draft_proxy::graphql::{root_field_arguments, ResolvedValue};
+use shopify_draft_proxy::graphql::{
+    parsed_document, root_field_arguments, root_fields, RawArgumentValue, ResolvedValue,
+};
 
 #[test]
 fn root_field_arguments_resolve_literals_and_enums() {
@@ -38,7 +40,7 @@ fn root_field_arguments_resolve_literals_and_enums() {
 }
 
 #[test]
-fn root_field_arguments_resolve_variables_and_missing_variables_as_null() {
+fn root_field_arguments_keep_resolved_compatibility_while_raw_arguments_track_unbound_variables() {
     let variables = BTreeMap::from([
         ("first".to_string(), ResolvedValue::Int(25)),
         (
@@ -59,4 +61,103 @@ fn root_field_arguments_resolve_variables_and_missing_variables_as_null() {
         Some(&ResolvedValue::String("cursor-1".to_string()))
     );
     assert_eq!(args.get("missing"), Some(&ResolvedValue::Null));
+
+    let fields = root_fields(
+        "query Q($first: Int!, $after: String, $missing: String) { products(first: $first, after: $after, missing: $missing) { id } }",
+        &variables,
+    )
+    .expect("root fields should parse");
+    let products = fields.first().expect("products root field");
+    assert_eq!(
+        products.raw_arguments.get("missing"),
+        Some(&RawArgumentValue::Variable {
+            name: "missing".to_string(),
+            value: None
+        })
+    );
+    assert_eq!(
+        products.raw_arguments.get("after"),
+        Some(&RawArgumentValue::Variable {
+            name: "after".to_string(),
+            value: Some(ResolvedValue::String("cursor-1".to_string()))
+        })
+    );
+}
+
+#[test]
+fn parsed_document_preserves_operation_metadata_aliases_fragments_and_locations() {
+    let document = parsed_document(
+        r#"
+        fragment ProductFields on Product {
+          titleAlias: title
+        }
+
+        query ProductLookup {
+          productAlias: product(id: "gid://shopify/Product/1") {
+            id
+            ...ProductFields
+            ... on Product {
+              handleAlias: handle
+            }
+          }
+        }
+        "#,
+        &BTreeMap::new(),
+    )
+    .expect("document should parse");
+
+    assert_eq!(document.operation_name.as_deref(), Some("ProductLookup"));
+    assert_eq!(document.operation_path, "query ProductLookup");
+    assert_eq!(document.location.line, 6);
+    assert_eq!(document.root_fields.len(), 1);
+
+    let product = &document.root_fields[0];
+    assert_eq!(product.name, "product");
+    assert_eq!(product.response_key, "productAlias");
+    assert_eq!(product.location.line, 7);
+    assert_eq!(
+        product.raw_arguments.get("id"),
+        Some(&RawArgumentValue::String(
+            "gid://shopify/Product/1".to_string()
+        ))
+    );
+    assert_eq!(product.selection[0].name, "id");
+    assert_eq!(product.selection[1].name, "title");
+    assert_eq!(product.selection[1].response_key, "titleAlias");
+    assert_eq!(product.selection[2].name, "handle");
+    assert_eq!(product.selection[2].response_key, "handleAlias");
+}
+
+#[test]
+fn root_fields_preserve_omitted_null_and_unbound_nested_arguments() {
+    let fields = root_fields(
+        r#"
+        mutation DeleteProduct($id: ID) {
+          productDelete(input: { id: $id, reason: null }) {
+            deletedProductId
+          }
+        }
+        "#,
+        &BTreeMap::new(),
+    )
+    .expect("root fields should parse");
+
+    let product_delete = fields.first().expect("productDelete root field");
+    let RawArgumentValue::Object(input) = product_delete
+        .raw_arguments
+        .get("input")
+        .expect("input arg should be present")
+    else {
+        panic!("input should be an object literal");
+    };
+
+    assert!(!input.contains_key("omitted"));
+    assert_eq!(input.get("reason"), Some(&RawArgumentValue::Null));
+    assert_eq!(
+        input.get("id"),
+        Some(&RawArgumentValue::Variable {
+            name: "id".to_string(),
+            value: None
+        })
+    );
 }
