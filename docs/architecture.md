@@ -52,13 +52,13 @@ App/test harness
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its store, staged overlays, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, remaining staged overlays, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, mutation log entries, product/saved-search state, staged delete sets, synthetic identity allocation, and transport injection
+- owns `DraftProxy`, `Config`, `ReadMode`, mutation log entries, the normalized product/saved-search `Store`, remaining staged domain overlays, synthetic identity allocation, and transport injection
 - exposes `process_request(...)` as the central route boundary
 - implements meta routes: health, config, log, state, reset, dump, restore, and commit
 - implements supported GraphQL product and saved-search roots, local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior
@@ -114,6 +114,13 @@ The TypeScript package is not a second proxy implementation. New runtime behavio
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
+`DraftProxy` owns a typed Rust `Store` for the domains migrated to normalized storage. The current Store covers products and saved searches with:
+
+- `BaseState` for snapshot, fixture, or restored upstream state
+- `StagedState` for local inserts and updates
+- ordered ID arrays for deterministic effective lists and dump/restore round trips
+- tombstone sets for staged deletes
+
 Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
@@ -121,7 +128,7 @@ Core state categories:
 - ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
 - synthetic identity counters scoped to a `DraftProxy` instance
 
-Effective reads merge base state and staged state, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
+Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
 
 ## Public route contract
 

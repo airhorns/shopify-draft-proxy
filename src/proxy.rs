@@ -117,6 +117,361 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
+#[derive(Clone, Default)]
+struct Store {
+    base: BaseState,
+    staged: StagedState,
+}
+
+#[derive(Clone, Default)]
+struct BaseState {
+    products: OrderedRecords<ProductRecord>,
+    saved_searches: OrderedRecords<SavedSearchRecord>,
+}
+
+#[derive(Clone, Default)]
+struct StagedState {
+    products: StagedRecords<ProductRecord>,
+    saved_searches: StagedRecords<SavedSearchRecord>,
+}
+
+#[derive(Clone)]
+struct OrderedRecords<T> {
+    records: BTreeMap<String, T>,
+    order: Vec<String>,
+}
+
+#[derive(Clone)]
+struct StagedRecords<T> {
+    records: BTreeMap<String, T>,
+    order: Vec<String>,
+    tombstones: BTreeSet<String>,
+}
+
+impl<T> Default for OrderedRecords<T> {
+    fn default() -> Self {
+        Self {
+            records: BTreeMap::new(),
+            order: Vec::new(),
+        }
+    }
+}
+
+impl<T> Default for StagedRecords<T> {
+    fn default() -> Self {
+        Self {
+            records: BTreeMap::new(),
+            order: Vec::new(),
+            tombstones: BTreeSet::new(),
+        }
+    }
+}
+
+impl<T> OrderedRecords<T> {
+    fn replace_ordered<I>(&mut self, records: I)
+    where
+        I: IntoIterator<Item = (String, T)>,
+    {
+        self.records.clear();
+        self.order.clear();
+        for (id, record) in records {
+            self.insert(id, record);
+        }
+    }
+
+    fn replace_with_order(&mut self, records: BTreeMap<String, T>, order: Vec<String>) {
+        self.records = records;
+        self.order = normalized_order(self.records.keys(), order);
+    }
+
+    fn insert(&mut self, id: String, record: T) {
+        if !self.records.contains_key(&id) {
+            self.order.push(id.clone());
+        }
+        self.records.insert(id, record);
+    }
+
+    fn get(&self, id: &str) -> Option<&T> {
+        self.records.get(id)
+    }
+
+    fn ordered_values(&self) -> Vec<&T> {
+        self.order
+            .iter()
+            .filter_map(|id| self.records.get(id))
+            .collect()
+    }
+}
+
+impl<T> StagedRecords<T> {
+    fn clear(&mut self) {
+        self.records.clear();
+        self.order.clear();
+        self.tombstones.clear();
+    }
+
+    fn replace_with_order(&mut self, records: BTreeMap<String, T>, order: Vec<String>) {
+        self.records = records;
+        self.order = normalized_order(self.records.keys(), order);
+    }
+
+    fn stage(&mut self, id: String, record: T) {
+        self.tombstones.remove(&id);
+        if !self.records.contains_key(&id) {
+            self.order.push(id.clone());
+        }
+        self.records.insert(id, record);
+    }
+
+    fn remove_staged(&mut self, id: &str) -> Option<T> {
+        self.order.retain(|ordered_id| ordered_id != id);
+        self.records.remove(id)
+    }
+
+    fn tombstone(&mut self, id: String) {
+        self.tombstones.insert(id);
+    }
+
+    fn get(&self, id: &str) -> Option<&T> {
+        self.records.get(id)
+    }
+
+    fn contains_staged(&self, id: &str) -> bool {
+        self.records.contains_key(id)
+    }
+
+    fn is_tombstoned(&self, id: &str) -> bool {
+        self.tombstones.contains(id)
+    }
+}
+
+fn effective_get<'a, T>(
+    base: &'a OrderedRecords<T>,
+    staged: &'a StagedRecords<T>,
+    id: &str,
+) -> Option<&'a T> {
+    if staged.is_tombstoned(id) {
+        return None;
+    }
+    staged.get(id).or_else(|| base.get(id))
+}
+
+fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> Vec<T> {
+    let mut records = Vec::new();
+    for (id, record) in base
+        .order
+        .iter()
+        .filter_map(|id| base.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) || staged.contains_staged(id) {
+            continue;
+        }
+        records.push(record.clone());
+    }
+    for (id, record) in staged
+        .order
+        .iter()
+        .filter_map(|id| staged.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) {
+            continue;
+        }
+        records.push(record.clone());
+    }
+    records
+}
+
+fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> usize {
+    base.records
+        .keys()
+        .filter(|id| !staged.is_tombstoned(id) && !staged.contains_staged(id))
+        .count()
+        + staged
+            .records
+            .keys()
+            .filter(|id| !staged.is_tombstoned(id))
+            .count()
+}
+
+fn normalized_order<'a, I>(record_ids: I, order: Vec<String>) -> Vec<String>
+where
+    I: IntoIterator<Item = &'a String>,
+{
+    let ids = record_ids.into_iter().cloned().collect::<BTreeSet<_>>();
+    let mut normalized = Vec::new();
+    for id in order {
+        if ids.contains(&id) && !normalized.contains(&id) {
+            normalized.push(id);
+        }
+    }
+    for id in ids {
+        if !normalized.contains(&id) {
+            normalized.push(id);
+        }
+    }
+    normalized
+}
+
+impl Store {
+    fn clear_staged(&mut self) {
+        self.staged.products.clear();
+        self.staged.saved_searches.clear();
+    }
+
+    fn replace_base_products(&mut self, products: Vec<ProductRecord>) {
+        self.base.products.replace_ordered(
+            products
+                .into_iter()
+                .map(|product| (product.id.clone(), product)),
+        );
+    }
+
+    fn replace_base_products_map_with_order(
+        &mut self,
+        products: BTreeMap<String, ProductRecord>,
+        order: Vec<String>,
+    ) {
+        self.base.products.replace_with_order(products, order);
+    }
+
+    fn replace_staged_products_map_with_order(
+        &mut self,
+        products: BTreeMap<String, ProductRecord>,
+        order: Vec<String>,
+    ) {
+        self.staged.products.replace_with_order(products, order);
+    }
+
+    fn replace_base_saved_searches_map_with_order(
+        &mut self,
+        saved_searches: BTreeMap<String, SavedSearchRecord>,
+        order: Vec<String>,
+    ) {
+        self.base
+            .saved_searches
+            .replace_with_order(saved_searches, order);
+    }
+
+    fn replace_staged_saved_searches_map_with_order(
+        &mut self,
+        saved_searches: BTreeMap<String, SavedSearchRecord>,
+        order: Vec<String>,
+    ) {
+        self.staged
+            .saved_searches
+            .replace_with_order(saved_searches, order);
+    }
+
+    fn replace_product_tombstones(&mut self, ids: BTreeSet<String>) {
+        self.staged.products.tombstones = ids;
+    }
+
+    fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
+        self.staged.saved_searches.tombstones = ids;
+    }
+
+    fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {
+        effective_get(&self.base.products, &self.staged.products, id)
+    }
+
+    fn product_by_handle(&self, handle: &str) -> Option<&ProductRecord> {
+        self.staged
+            .products
+            .order
+            .iter()
+            .filter(|id| !self.staged.products.is_tombstoned(id))
+            .filter_map(|id| self.staged.products.get(id))
+            .find(|product| product.handle == handle)
+            .or_else(|| {
+                self.base
+                    .products
+                    .order
+                    .iter()
+                    .filter(|id| {
+                        !self.staged.products.is_tombstoned(id)
+                            && !self.staged.products.contains_staged(id)
+                    })
+                    .filter_map(|id| self.base.products.get(id))
+                    .find(|product| product.handle == handle)
+            })
+    }
+
+    fn products(&self) -> Vec<ProductRecord> {
+        effective_records(&self.base.products, &self.staged.products)
+    }
+
+    fn product_count(&self) -> usize {
+        effective_count(&self.base.products, &self.staged.products)
+    }
+
+    fn has_product(&self, id: &str) -> bool {
+        self.product_by_id(id).is_some()
+    }
+
+    fn stage_product(&mut self, product: ProductRecord) {
+        self.staged.products.stage(product.id.clone(), product);
+    }
+
+    fn delete_product(&mut self, id: &str) {
+        self.staged.products.remove_staged(id);
+        self.staged.products.tombstone(id.to_string());
+    }
+
+    fn product_staged_or_base(&self, id: &str) -> Option<ProductRecord> {
+        self.product_by_id(id).cloned()
+    }
+
+    fn saved_search_base_with_defaults(
+        &self,
+        resource_type: &str,
+    ) -> OrderedRecords<SavedSearchRecord> {
+        let mut base = OrderedRecords::default();
+        for record in default_saved_searches(resource_type) {
+            base.insert(record.id.clone(), record);
+        }
+        for record in self.base.saved_searches.ordered_values() {
+            if record.resource_type == resource_type {
+                base.insert(record.id.clone(), record.clone());
+            }
+        }
+        base
+    }
+
+    fn saved_search_by_id(&self, id: &str) -> Option<SavedSearchRecord> {
+        if self.staged.saved_searches.is_tombstoned(id) {
+            return None;
+        }
+        self.staged
+            .saved_searches
+            .get(id)
+            .cloned()
+            .or_else(|| self.base.saved_searches.get(id).cloned())
+            .or_else(|| default_saved_search_by_id(id))
+    }
+
+    fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
+        let base = self.saved_search_base_with_defaults(resource_type);
+        effective_records(&base, &self.staged.saved_searches)
+            .into_iter()
+            .filter(|record| record.resource_type == resource_type)
+            .collect()
+    }
+
+    fn stage_saved_search(&mut self, record: SavedSearchRecord) {
+        self.staged.saved_searches.stage(record.id.clone(), record);
+    }
+
+    fn delete_saved_search(&mut self, id: &str) -> bool {
+        let had_staged = self.staged.saved_searches.remove_staged(id).is_some();
+        let has_base =
+            self.base.saved_searches.get(id).is_some() || default_saved_search_by_id(id).is_some();
+        if has_base {
+            self.staged.saved_searches.tombstone(id.to_string());
+        }
+        had_staged || has_base
+    }
+}
+
 type ProxyTransport = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 
 type CommitTransport = ProxyTransport;
@@ -135,12 +490,8 @@ pub struct DraftProxy {
     config: Config,
     log_entries: Vec<Value>,
     registry: Vec<OperationRegistryEntry>,
-    base_products: BTreeMap<String, ProductRecord>,
-    staged_products: BTreeMap<String, ProductRecord>,
+    store: Store,
     staged_product_search_tags: BTreeMap<String, BTreeSet<String>>,
-    staged_deleted_product_ids: BTreeSet<String>,
-    staged_saved_searches: BTreeMap<String, SavedSearchRecord>,
-    staged_deleted_saved_search_ids: BTreeSet<String>,
     staged_shipping_packages: BTreeMap<String, Value>,
     staged_deleted_shipping_package_ids: BTreeSet<String>,
     staged_customers: BTreeMap<String, Value>,
@@ -228,12 +579,8 @@ impl DraftProxy {
             config,
             log_entries: Vec::new(),
             registry: default_registry(),
-            base_products: BTreeMap::new(),
-            staged_products: BTreeMap::new(),
+            store: Store::default(),
             staged_product_search_tags: BTreeMap::new(),
-            staged_deleted_product_ids: BTreeSet::new(),
-            staged_saved_searches: BTreeMap::new(),
-            staged_deleted_saved_search_ids: BTreeSet::new(),
             staged_shipping_packages: BTreeMap::new(),
             staged_deleted_shipping_package_ids: BTreeSet::new(),
             staged_customers: BTreeMap::new(),
@@ -322,10 +669,7 @@ impl DraftProxy {
     }
 
     pub fn with_base_products(mut self, products: Vec<ProductRecord>) -> Self {
-        self.base_products = products
-            .into_iter()
-            .map(|product| (product.id.clone(), product))
-            .collect();
+        self.store.replace_base_products(products);
         self
     }
 
@@ -356,11 +700,8 @@ impl DraftProxy {
             Route::MetaState => ok_json(self.state_snapshot()),
             Route::MetaReset => {
                 self.log_entries.clear();
-                self.staged_products.clear();
+                self.store.clear_staged();
                 self.staged_product_search_tags.clear();
-                self.staged_deleted_product_ids.clear();
-                self.staged_saved_searches.clear();
-                self.staged_deleted_saved_search_ids.clear();
                 self.staged_shipping_packages.clear();
                 self.staged_deleted_shipping_package_ids.clear();
                 self.staged_customers.clear();
@@ -489,13 +830,18 @@ impl DraftProxy {
     fn state_snapshot(&self) -> Value {
         let mut snapshot = json!({
             "baseState": {
-                "products": product_state_map_json(&self.base_products),
-                "savedSearches": {}
+                "products": product_state_map_json(&self.store.base.products.records),
+                "productOrder": self.store.base.products.order.clone(),
+                "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
+                "savedSearchOrder": self.store.base.saved_searches.order.clone()
             },
             "stagedState": {
-                "products": product_state_map_json(&self.staged_products),
-                "deletedProductIds": self.staged_deleted_product_ids.iter().cloned().collect::<Vec<_>>(),
-                "savedSearches": saved_search_state_map_json(&self.staged_saved_searches),
+                "products": product_state_map_json(&self.store.staged.products.records),
+                "productOrder": self.store.staged.products.order.clone(),
+                "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
+                "savedSearchOrder": self.store.staged.saved_searches.order.clone(),
+                "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.staged_shipping_packages.clone(),
                 "deletedShippingPackageIds": self.staged_deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
                 "delegatedAccessTokens": self.staged_delegate_access_tokens.clone(),
@@ -556,11 +902,16 @@ impl DraftProxy {
         for path in [
             "state.baseState",
             "state.baseState.products",
+            "state.baseState.productOrder",
             "state.baseState.savedSearches",
+            "state.baseState.savedSearchOrder",
             "state.stagedState",
             "state.stagedState.products",
+            "state.stagedState.productOrder",
             "state.stagedState.deletedProductIds",
             "state.stagedState.savedSearches",
+            "state.stagedState.savedSearchOrder",
+            "state.stagedState.deletedSavedSearchIds",
             "state.stagedState.shippingPackages",
             "state.stagedState.deletedShippingPackageIds",
             "state.stagedState.delegatedAccessTokens",
@@ -580,16 +931,38 @@ impl DraftProxy {
             return json_error(400, "Invalid Rust synthetic identity");
         }
 
-        self.base_products = product_state_map_from_json(&state["baseState"]["products"]);
-        self.staged_products = product_state_map_from_json(&state["stagedState"]["products"]);
-        self.staged_deleted_product_ids = state["stagedState"]["deletedProductIds"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|value| value.as_str().map(str::to_string))
-            .collect();
-        self.staged_saved_searches =
-            saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]);
+        self.store.replace_base_products_map_with_order(
+            product_state_map_from_json(&state["baseState"]["products"]),
+            string_array_from_json(&state["baseState"]["productOrder"]),
+        );
+        self.store.replace_base_saved_searches_map_with_order(
+            saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
+            string_array_from_json(&state["baseState"]["savedSearchOrder"]),
+        );
+        self.store.replace_staged_products_map_with_order(
+            product_state_map_from_json(&state["stagedState"]["products"]),
+            string_array_from_json(&state["stagedState"]["productOrder"]),
+        );
+        self.store.replace_product_tombstones(
+            state["stagedState"]["deletedProductIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect(),
+        );
+        self.store.replace_staged_saved_searches_map_with_order(
+            saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
+            string_array_from_json(&state["stagedState"]["savedSearchOrder"]),
+        );
+        self.store.replace_saved_search_tombstones(
+            state["stagedState"]["deletedSavedSearchIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect(),
+        );
         self.staged_shipping_packages = state["stagedState"]["shippingPackages"]
             .as_object()
             .map(|packages| {
@@ -5689,6 +6062,7 @@ impl DraftProxy {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn record_orders_local_log_entry(
         &mut self,
         request: &Request,
@@ -11033,31 +11407,11 @@ impl DraftProxy {
     }
 
     fn product_record_by_id(&self, id: &str) -> Option<&ProductRecord> {
-        if self.staged_deleted_product_ids.contains(id) {
-            return None;
-        }
-        self.staged_products
-            .get(id)
-            .or_else(|| self.base_products.get(id))
+        self.store.product_by_id(id)
     }
 
     fn product_record_by_handle(&self, handle: &str) -> Option<&ProductRecord> {
-        self.staged_products
-            .iter()
-            .find(|(id, product)| {
-                !self.staged_deleted_product_ids.contains(*id) && product.handle == handle
-            })
-            .map(|(_, product)| product)
-            .or_else(|| {
-                self.base_products
-                    .iter()
-                    .find(|(id, product)| {
-                        !self.staged_deleted_product_ids.contains(*id)
-                            && !self.staged_products.contains_key(*id)
-                            && product.handle == handle
-                    })
-                    .map(|(_, product)| product)
-            })
+        self.store.product_by_handle(handle)
     }
 
     fn products_connection_field(&self, field: &RootFieldSelection) -> Value {
@@ -11073,21 +11427,7 @@ impl DraftProxy {
             Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
             _ => None,
         };
-        let mut products: Vec<ProductRecord> = Vec::new();
-
-        for (id, product) in &self.base_products {
-            if self.staged_deleted_product_ids.contains(id) || self.staged_products.contains_key(id)
-            {
-                continue;
-            }
-            products.push(product.clone());
-        }
-        for (id, product) in &self.staged_products {
-            if self.staged_deleted_product_ids.contains(id) {
-                continue;
-            }
-            products.push(product.clone());
-        }
+        let mut products = self.store.products();
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
             if query.contains("status:") {
                 products.clear();
@@ -11136,36 +11476,11 @@ impl DraftProxy {
     }
 
     fn effective_products(&self) -> Vec<ProductRecord> {
-        let mut products = Vec::new();
-        for (id, product) in &self.base_products {
-            if self.staged_deleted_product_ids.contains(id) || self.staged_products.contains_key(id)
-            {
-                continue;
-            }
-            products.push(product.clone());
-        }
-        for (id, product) in &self.staged_products {
-            if self.staged_deleted_product_ids.contains(id) {
-                continue;
-            }
-            products.push(product.clone());
-        }
-        products
+        self.store.products()
     }
 
     fn effective_product_count(&self) -> usize {
-        self.base_products
-            .keys()
-            .filter(|id| {
-                !self.staged_deleted_product_ids.contains(*id)
-                    && !self.staged_products.contains_key(*id)
-            })
-            .count()
-            + self
-                .staged_products
-                .keys()
-                .filter(|id| !self.staged_deleted_product_ids.contains(*id))
-                .count()
+        self.store.product_count()
     }
 
     fn product_set_fixture_backed_mutation_data(
@@ -11399,7 +11714,7 @@ impl DraftProxy {
             seo_description: resolved_object_string_field(&input, "seo", "description")
                 .unwrap_or_default(),
         };
-        self.staged_products.insert(id.clone(), product.clone());
+        self.store.stage_product(product.clone());
         self.record_mutation_log_entry(request, query, variables, "productCreate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
@@ -11453,12 +11768,7 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_update_missing_product(query);
         };
-        let Some(existing) = self
-            .staged_products
-            .get(&id)
-            .or_else(|| self.base_products.get(&id))
-            .cloned()
-        else {
+        let Some(existing) = self.store.product_staged_or_base(&id) else {
             return product_update_missing_product(query);
         };
 
@@ -11511,7 +11821,7 @@ impl DraftProxy {
             seo_description: resolved_object_string_field(&input, "seo", "description")
                 .unwrap_or(existing.seo_description),
         };
-        self.staged_products.insert(id.clone(), product.clone());
+        self.store.stage_product(product.clone());
         self.record_mutation_log_entry(request, query, variables, "productUpdate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
@@ -11546,7 +11856,7 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return product_delete_missing_product(query);
         };
-        if !self.staged_products.contains_key(&id) && !self.base_products.contains_key(&id) {
+        if !self.store.has_product(&id) {
             return product_delete_missing_product(query);
         }
 
@@ -11579,8 +11889,7 @@ impl DraftProxy {
             }));
         }
 
-        self.staged_products.remove(&id);
-        self.staged_deleted_product_ids.insert(id.clone());
+        self.store.delete_product(&id);
         self.record_mutation_log_entry(
             request,
             query,
@@ -11610,8 +11919,8 @@ impl DraftProxy {
                 .clone();
         }
         if self
-            .staged_products
-            .get(&product_id)
+            .store
+            .product_by_id(&product_id)
             .map(|product| product.title.contains("product-options-reorder-validation"))
             .unwrap_or(false)
         {
@@ -11647,7 +11956,7 @@ impl DraftProxy {
             seo_title: String::new(),
             seo_description: String::new(),
         };
-        self.staged_products.insert(id.clone(), product.clone());
+        self.store.stage_product(product.clone());
         self.record_mutation_log_entry(request, query, variables, "productSet", vec![id]);
 
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -11713,10 +12022,8 @@ impl DraftProxy {
             return json_error(400, "productChangeStatus requires status");
         };
         let Some(mut product) = self
-            .staged_products
-            .get(id)
-            .cloned()
-            .or_else(|| self.base_products.get(id).cloned())
+            .store
+            .product_staged_or_base(id)
             .or_else(|| known_product_change_status_seed(id))
         else {
             let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -11733,7 +12040,7 @@ impl DraftProxy {
             }));
         };
         product.status = status;
-        self.staged_products.insert(id.clone(), product.clone());
+        self.store.stage_product(product.clone());
         self.record_mutation_log_entry(
             request,
             query,
@@ -11777,10 +12084,8 @@ impl DraftProxy {
         }
 
         let Some(mut product) = self
-            .staged_products
-            .get(id)
-            .cloned()
-            .or_else(|| self.base_products.get(id).cloned())
+            .store
+            .product_staged_or_base(id)
             .or_else(|| known_tags_product_seed(id, root_field))
         else {
             return json_error(
@@ -11814,7 +12119,7 @@ impl DraftProxy {
             _ => {}
         }
 
-        self.staged_products.insert(id.clone(), product.clone());
+        self.store.stage_product(product.clone());
         self.record_mutation_log_entry(request, query, variables, root_field, vec![id.clone()]);
 
         let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();
@@ -11916,24 +12221,7 @@ impl DraftProxy {
     }
 
     fn saved_search_records_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
-        let mut records: Vec<_> = default_saved_searches(resource_type)
-            .into_iter()
-            .filter(|record| !self.staged_deleted_saved_search_ids.contains(&record.id))
-            .map(|record| {
-                self.staged_saved_searches
-                    .get(&record.id)
-                    .cloned()
-                    .unwrap_or(record)
-            })
-            .collect();
-        records.extend(
-            self.staged_saved_searches
-                .values()
-                .filter(|record| record.resource_type == resource_type)
-                .filter(|record| default_saved_search_by_id(&record.id).is_none())
-                .cloned(),
-        );
-        records
+        self.store.saved_searches_for_resource(resource_type)
     }
 
     fn saved_search_name_exists(
@@ -12051,8 +12339,7 @@ impl DraftProxy {
             query: normalize_saved_search_query(&search_query),
             resource_type,
         };
-        self.staged_saved_searches
-            .insert(id.clone(), record.clone());
+        self.store.stage_saved_search(record.clone());
         self.record_mutation_log_entry(request, query, variables, "savedSearchCreate", vec![id]);
         saved_search_mutation_payload_json(
             Some(&record),
@@ -12084,11 +12371,7 @@ impl DraftProxy {
             );
         };
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let existing = self
-            .staged_saved_searches
-            .get(&id)
-            .cloned()
-            .or_else(|| default_saved_search_by_id(&id));
+        let existing = self.store.saved_search_by_id(&id);
         let Some(existing) = existing else {
             return saved_search_mutation_payload_json(
                 None,
@@ -12131,8 +12414,7 @@ impl DraftProxy {
             );
         }
         updated.name = requested_name;
-        self.staged_saved_searches
-            .insert(updated.id.clone(), updated.clone());
+        self.store.stage_saved_search(updated.clone());
         self.record_mutation_log_entry(
             request,
             query,
@@ -12160,14 +12442,7 @@ impl DraftProxy {
             .as_ref()
             .and_then(|input| resolved_string_field(input, "id"))
             .unwrap_or_default();
-        let deleted = if self.staged_saved_searches.remove(&id).is_some() {
-            true
-        } else if default_saved_search_by_id(&id).is_some() {
-            self.staged_deleted_saved_search_ids.insert(id.clone());
-            true
-        } else {
-            false
-        };
+        let deleted = self.store.delete_saved_search(&id);
         if deleted {
             self.record_mutation_log_entry(
                 request,
@@ -24759,6 +25034,15 @@ fn rust_state_dump_path_exists(dump: &Value, path: &str) -> bool {
         .is_some()
 }
 
+fn string_array_from_json(value: &Value) -> Vec<String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
+}
+
 fn saved_search_state_json(record: &SavedSearchRecord) -> Value {
     json!({
         "id": record.id,
@@ -27376,5 +27660,229 @@ fn resolved_value_from_json(value: &Value) -> ResolvedValue {
                 .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
                 .collect(),
         ),
+    }
+}
+
+#[cfg(test)]
+mod store_tests {
+    use super::*;
+
+    fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
+        ProductRecord {
+            id: id.to_string(),
+            title: title.to_string(),
+            handle: handle.to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        }
+    }
+
+    fn saved_search(id: &str, name: &str, resource_type: &str) -> SavedSearchRecord {
+        SavedSearchRecord {
+            id: id.to_string(),
+            name: name.to_string(),
+            query: "tag:promo".to_string(),
+            resource_type: resource_type.to_string(),
+        }
+    }
+
+    fn snapshot_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+    }
+
+    fn request(method: &str, path: &str, body: &str) -> Request {
+        Request {
+            method: method.to_string(),
+            path: path.to_string(),
+            headers: BTreeMap::new(),
+            body: body.to_string(),
+        }
+    }
+
+    #[test]
+    fn store_effective_products_stage_overrides_base_and_tombstones() {
+        let mut store = Store::default();
+        store.replace_base_products(vec![
+            product("gid://shopify/Product/base-1", "Base one", "base-one"),
+            product("gid://shopify/Product/base-2", "Base two", "base-two"),
+        ]);
+
+        store.stage_product(product(
+            "gid://shopify/Product/base-1",
+            "Updated one",
+            "updated-one",
+        ));
+        store.stage_product(product(
+            "gid://shopify/Product/new",
+            "New product",
+            "new-product",
+        ));
+        store.delete_product("gid://shopify/Product/base-2");
+
+        assert_eq!(
+            store
+                .product_by_id("gid://shopify/Product/base-1")
+                .unwrap()
+                .title,
+            "Updated one"
+        );
+        assert!(store
+            .product_by_id("gid://shopify/Product/base-2")
+            .is_none());
+        assert_eq!(
+            store
+                .product_by_handle("new-product")
+                .map(|record| record.id.as_str()),
+            Some("gid://shopify/Product/new")
+        );
+        assert_eq!(
+            store
+                .products()
+                .iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
+        );
+        assert_eq!(store.product_count(), 2);
+    }
+
+    #[test]
+    fn store_saved_searches_overlay_defaults_base_and_tombstones_in_order() {
+        let mut store = Store::default();
+        store.replace_base_saved_searches_map_with_order(
+            BTreeMap::from([(
+                "gid://shopify/SavedSearch/base".to_string(),
+                saved_search("gid://shopify/SavedSearch/base", "Base products", "PRODUCT"),
+            )]),
+            vec!["gid://shopify/SavedSearch/base".to_string()],
+        );
+
+        store.stage_saved_search(saved_search(
+            "gid://shopify/SavedSearch/base",
+            "Updated base products",
+            "PRODUCT",
+        ));
+        store.stage_saved_search(saved_search(
+            "gid://shopify/SavedSearch/new",
+            "New products",
+            "PRODUCT",
+        ));
+        assert!(store.delete_saved_search("gid://shopify/SavedSearch/base"));
+
+        assert!(store
+            .saved_search_by_id("gid://shopify/SavedSearch/base")
+            .is_none());
+        assert_eq!(
+            store
+                .saved_searches_for_resource("PRODUCT")
+                .iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["gid://shopify/SavedSearch/new"]
+        );
+    }
+
+    #[test]
+    fn store_clear_staged_resets_overlays_and_tombstones_without_dropping_base() {
+        let mut store = Store::default();
+        store.replace_base_products(vec![product(
+            "gid://shopify/Product/base",
+            "Base product",
+            "base-product",
+        )]);
+        store.stage_product(product(
+            "gid://shopify/Product/base",
+            "Updated product",
+            "updated-product",
+        ));
+        store.delete_product("gid://shopify/Product/base");
+
+        store.clear_staged();
+
+        assert_eq!(
+            store
+                .product_by_id("gid://shopify/Product/base")
+                .unwrap()
+                .title,
+            "Base product"
+        );
+        assert!(store.staged.products.records.is_empty());
+        assert!(store.staged.products.tombstones.is_empty());
+    }
+
+    #[test]
+    fn store_dump_restore_round_trips_order_and_tombstones() {
+        let mut proxy = snapshot_proxy().with_base_products(vec![
+            product("gid://shopify/Product/base-1", "Base one", "base-one"),
+            product("gid://shopify/Product/base-2", "Base two", "base-two"),
+        ]);
+        proxy.store.stage_product(product(
+            "gid://shopify/Product/base-1",
+            "Updated one",
+            "updated-one",
+        ));
+        proxy.store.stage_product(product(
+            "gid://shopify/Product/new",
+            "New product",
+            "new-product",
+        ));
+        proxy.store.delete_product("gid://shopify/Product/base-2");
+        proxy.store.stage_saved_search(saved_search(
+            "gid://shopify/SavedSearch/new",
+            "New products",
+            "PRODUCT",
+        ));
+
+        let dump = proxy.process_request(request(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-05-23T00:00:00.000Z" }).to_string(),
+        ));
+        assert_eq!(
+            dump.body["state"]["baseState"]["productOrder"],
+            json!([
+                "gid://shopify/Product/base-1",
+                "gid://shopify/Product/base-2"
+            ])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["productOrder"],
+            json!(["gid://shopify/Product/base-1", "gid://shopify/Product/new"])
+        );
+        assert_eq!(
+            dump.body["state"]["stagedState"]["deletedProductIds"],
+            json!(["gid://shopify/Product/base-2"])
+        );
+
+        let mut restored = snapshot_proxy();
+        let restore =
+            restored.process_request(request("POST", "/__meta/restore", &dump.body.to_string()));
+        assert_eq!(restore.status, 200);
+        assert_eq!(
+            restored
+                .store
+                .products()
+                .iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
+        );
+        assert_eq!(
+            restored.store.saved_searches_for_resource("PRODUCT")[0].id,
+            "gid://shopify/SavedSearch/new"
+        );
     }
 }
