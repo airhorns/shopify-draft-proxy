@@ -34,6 +34,78 @@ fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
 
+fn base_product() -> ProductRecord {
+    ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: vec!["base".to_string()],
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }
+}
+
+fn expected_local_staged_log(
+    id: &str,
+    query: &str,
+    variables: Value,
+    root_field: &str,
+    domain: &str,
+    staged_resource_ids: Value,
+) -> Value {
+    json!({
+        "id": id,
+        "operationName": null,
+        "path": "/admin/api/2026-04/graphql.json",
+        "query": query,
+        "variables": variables,
+        "stagedResourceIds": staged_resource_ids,
+        "status": "staged",
+        "interpreted": {
+            "operationType": "mutation",
+            "operationName": root_field,
+            "rootFields": [root_field],
+            "primaryRootField": root_field,
+            "capability": {
+                "operationName": root_field,
+                "domain": domain,
+                "execution": "stage-locally"
+            }
+        },
+        "notes": "Supported mutation staged locally; commit replays the original raw mutation."
+    })
+}
+
+fn assert_single_local_staged_log(
+    proxy: &DraftProxy,
+    query: &str,
+    variables: Value,
+    root_field: &str,
+    domain: &str,
+    staged_resource_ids: Value,
+) {
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        json!({
+            "entries": [
+                expected_local_staged_log(
+                    "log-1",
+                    query,
+                    variables,
+                    root_field,
+                    domain,
+                    staged_resource_ids
+                )
+            ]
+        })
+    );
+}
+
 fn ok_transport_response(body: Value) -> Response {
     Response {
         status: 200,
@@ -233,19 +305,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
 
 #[test]
 fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/base".to_string(),
-        title: "Base product".to_string(),
-        handle: "base-product".to_string(),
-        status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-    }]);
+    let mut proxy = snapshot_proxy().with_base_products(vec![base_product()]);
 
     let create_query =
         "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
@@ -266,36 +326,224 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
         log.body,
         json!({
             "entries": [
-                {
-                    "id": "log-1",
-                    "operationName": null,
-                    "path": "/admin/api/2026-04/graphql.json",
-                    "query": create_query,
-                    "variables": {},
-                    "stagedResourceIds": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
-                    "status": "staged",
-                    "interpreted": {
-                        "operationType": "mutation",
-                        "rootFields": ["productCreate"],
-                        "primaryRootField": "productCreate"
-                    }
-                },
-                {
-                    "id": "log-2",
-                    "operationName": null,
-                    "path": "/admin/api/2026-04/graphql.json",
-                    "query": update_query,
-                    "variables": {"unused": true},
-                    "stagedResourceIds": ["gid://shopify/Product/base"],
-                    "status": "staged",
-                    "interpreted": {
-                        "operationType": "mutation",
-                        "rootFields": ["productUpdate"],
-                        "primaryRootField": "productUpdate"
-                    }
-                }
+                expected_local_staged_log(
+                    "log-1",
+                    create_query,
+                    json!({}),
+                    "productCreate",
+                    "products",
+                    json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"])
+                ),
+                expected_local_staged_log(
+                    "log-2",
+                    update_query,
+                    json!({"unused": true}),
+                    "productUpdate",
+                    "products",
+                    json!(["gid://shopify/Product/base"])
+                )
             ]
         })
+    );
+}
+
+#[test]
+fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
+    let create_query = "mutation { productCreate(product: { title: \"Created product\" }) { product { id title } userErrors { field message code } } }";
+    let mut create_proxy = snapshot_proxy();
+    let create = create_proxy.process_request(graphql_request(
+        &json!({ "query": create_query }).to_string(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["title"],
+        json!("Created product")
+    );
+    assert_single_local_staged_log(
+        &create_proxy,
+        create_query,
+        json!({}),
+        "productCreate",
+        "products",
+        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
+    );
+
+    let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }";
+    let mut update_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let update = update_proxy.process_request(graphql_request(
+        &json!({ "query": update_query }).to_string(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"],
+        json!({"id": "gid://shopify/Product/base", "title": "Updated product"})
+    );
+    assert_single_local_staged_log(
+        &update_proxy,
+        update_query,
+        json!({}),
+        "productUpdate",
+        "products",
+        json!(["gid://shopify/Product/base"]),
+    );
+
+    let delete_query = "mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }";
+    let mut delete_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let delete = delete_proxy.process_request(graphql_request(
+        &json!({ "query": delete_query }).to_string(),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!("gid://shopify/Product/base")
+    );
+    assert_single_local_staged_log(
+        &delete_proxy,
+        delete_query,
+        json!({}),
+        "productDelete",
+        "products",
+        json!(["gid://shopify/Product/base"]),
+    );
+
+    let status_query = "mutation { productChangeStatus(productId: \"gid://shopify/Product/base\", status: DRAFT) { product { id status } userErrors { field message } } }";
+    let mut status_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let status = status_proxy.process_request(graphql_request(
+        &json!({ "query": status_query }).to_string(),
+    ));
+    assert_eq!(status.status, 200);
+    assert_eq!(
+        status.body["data"]["productChangeStatus"]["product"],
+        json!({"id": "gid://shopify/Product/base", "status": "DRAFT"})
+    );
+    assert_single_local_staged_log(
+        &status_proxy,
+        status_query,
+        json!({}),
+        "productChangeStatus",
+        "products",
+        json!(["gid://shopify/Product/base"]),
+    );
+
+    let tags_query = "mutation { tagsAdd(id: \"gid://shopify/Product/base\", tags: [\"new\"]) { node { ... on Product { id tags } } userErrors { field message } } }";
+    let mut tags_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let tags =
+        tags_proxy.process_request(graphql_request(&json!({ "query": tags_query }).to_string()));
+    assert_eq!(tags.status, 200);
+    assert_eq!(
+        tags.body["data"]["tagsAdd"]["node"],
+        json!({"id": "gid://shopify/Product/base", "tags": ["base", "new"]})
+    );
+    assert_single_local_staged_log(
+        &tags_proxy,
+        tags_query,
+        json!({}),
+        "tagsAdd",
+        "products",
+        json!(["gid://shopify/Product/base"]),
+    );
+
+    let tags_remove_query = "mutation { tagsRemove(id: \"gid://shopify/Product/base\", tags: [\"base\"]) { node { ... on Product { id tags } } userErrors { field message } } }";
+    let mut tags_remove_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let tags_remove = tags_remove_proxy.process_request(graphql_request(
+        &json!({ "query": tags_remove_query }).to_string(),
+    ));
+    assert_eq!(tags_remove.status, 200);
+    assert_eq!(
+        tags_remove.body["data"]["tagsRemove"]["node"],
+        json!({"id": "gid://shopify/Product/base", "tags": []})
+    );
+    assert_single_local_staged_log(
+        &tags_remove_proxy,
+        tags_remove_query,
+        json!({}),
+        "tagsRemove",
+        "products",
+        json!(["gid://shopify/Product/base"]),
+    );
+
+    let product_set_query = "mutation ProductDeleteAsyncSourceCreate($input: ProductSetInput!, $synchronous: Boolean!) { productSet(input: $input, synchronous: $synchronous) { product { id title status } userErrors { field message } } }";
+    let product_set_variables = json!({
+        "input": { "title": "Async delete source", "status": "DRAFT" },
+        "synchronous": true
+    });
+    let mut product_set_proxy = snapshot_proxy();
+    let product_set = product_set_proxy.process_request(graphql_request(
+        &json!({ "query": product_set_query, "variables": product_set_variables.clone() })
+            .to_string(),
+    ));
+    assert_eq!(product_set.status, 200);
+    assert_eq!(
+        product_set.body["data"]["productSet"]["product"]["title"],
+        json!("Async delete source")
+    );
+    assert_single_local_staged_log(
+        &product_set_proxy,
+        product_set_query,
+        product_set_variables,
+        "productSet",
+        "products",
+        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
+    );
+}
+
+#[test]
+fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
+    let create_query = "mutation { savedSearchCreate(input: { name: \"Promo orders\", query: \"tag:promo\", resourceType: ORDER }) { savedSearch { id name query resourceType } userErrors { field message code } } }";
+    let mut create_proxy = snapshot_proxy();
+    let create = create_proxy.process_request(graphql_request(
+        &json!({ "query": create_query }).to_string(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["savedSearch"]["name"],
+        json!("Promo orders")
+    );
+    assert_single_local_staged_log(
+        &create_proxy,
+        create_query,
+        json!({}),
+        "savedSearchCreate",
+        "saved_searches",
+        json!(["gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"]),
+    );
+
+    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/3634391580978\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
+    let mut update_proxy = snapshot_proxy();
+    let update = update_proxy.process_request(graphql_request(
+        &json!({ "query": update_query }).to_string(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["name"],
+        json!("Open orders")
+    );
+    assert_single_local_staged_log(
+        &update_proxy,
+        update_query,
+        json!({}),
+        "savedSearchUpdate",
+        "saved_searches",
+        json!(["gid://shopify/SavedSearch/3634391580978"]),
+    );
+
+    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/3634391580978\" }) { deletedSavedSearchId userErrors { field message } } }";
+    let mut delete_proxy = snapshot_proxy();
+    let delete = delete_proxy.process_request(graphql_request(
+        &json!({ "query": delete_query }).to_string(),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/3634391580978")
+    );
+    assert_single_local_staged_log(
+        &delete_proxy,
+        delete_query,
+        json!({}),
+        "savedSearchDelete",
+        "saved_searches",
+        json!(["gid://shopify/SavedSearch/3634391580978"]),
     );
 }
 
