@@ -40,6 +40,7 @@
     "rust:fmt": "cargo fmt --check",
     "rust:test": "cargo test --all-targets",
     "rust:check": "cargo check --all-targets",
+    "rust:bench": "cargo bench --bench proxy_paths -- --sample-size 10 --measurement-time 1 --warm-up-time 1",
     "rust-port:fixture-invariants": "tsx ./scripts/check-rust-port-fixture-invariants.ts",
     "rust-port:no-gleam-report": "RUST_PORT_FINAL=1 tsx ./scripts/check-no-gleam-runtime.ts"
   },
