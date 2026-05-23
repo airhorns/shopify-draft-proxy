@@ -15,4 +15,9 @@ serde_json = "1"
 graphql-parser = "0.4"
 
 [dev-dependencies]
+criterion = "0.5"
 pretty_assertions = "1"
+
+[[bench]]
+name = "proxy_paths"
+harness = false

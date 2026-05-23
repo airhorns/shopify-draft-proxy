@@ -40,12 +40,15 @@ Useful root scripts:
 corepack pnpm rust:fmt
 corepack pnpm rust:clippy
 corepack pnpm rust:test
+corepack pnpm rust:bench
 corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm conformance:check
 corepack pnpm parity:run
 corepack pnpm test
 ```
+
+Benchmark coverage and interpretation notes live in `docs/benchmarks.md`.
 
 The package name is:
 

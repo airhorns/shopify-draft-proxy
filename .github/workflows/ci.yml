@@ -63,6 +63,9 @@ jobs:
       - name: Rust tests
         run: corepack pnpm rust:test
 
+      - name: Rust proxy path benchmarks
+        run: corepack pnpm rust:bench
+
       - name: Lint TypeScript interop and tooling
         run: corepack pnpm lint
 
