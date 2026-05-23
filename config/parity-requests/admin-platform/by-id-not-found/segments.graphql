@@ -1,0 +1,5 @@
+query SegmentByIdNotFound($customerSegmentMembersQueryId: ID!) {
+  missingCustomerSegmentMembersQuery: customerSegmentMembersQuery(id: $customerSegmentMembersQueryId) {
+    __typename
+  }
+}

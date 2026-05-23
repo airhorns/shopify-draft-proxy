@@ -1,0 +1,8 @@
+query FunctionByIdNotFound($shopifyFunctionId: String!, $validationId: ID!) {
+  missingShopifyFunction: shopifyFunction(id: $shopifyFunctionId) {
+    __typename
+  }
+  missingValidation: validation(id: $validationId) {
+    __typename
+  }
+}

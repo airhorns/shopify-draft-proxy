@@ -1,0 +1,5 @@
+query ShippingByIdNotFound($fulfillmentServiceId: ID!) {
+  missingFulfillmentService: fulfillmentService(id: $fulfillmentServiceId) {
+    __typename
+  }
+}

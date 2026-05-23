@@ -46,6 +46,19 @@ describe('Rust parity runner CLI', () => {
   );
 
   it(
+    'unwraps captured response.body payloads for passthrough cassette fallbacks',
+    () => {
+      const output = execFileSync(
+        'corepack',
+        ['pnpm', 'parity', '--', '--spec', 'config/parity-specs/admin-platform/by-id-not-found-read.json'],
+        { cwd: repoRoot, encoding: 'utf8' },
+      );
+      expect(output).toContain('by-id-not-found-read.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
     'does not require local Rust handlers to consume every captured upstream call when output matches',
     () => {
       const output = execFileSync(

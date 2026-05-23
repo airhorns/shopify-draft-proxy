@@ -37,6 +37,7 @@ Snapshot reads are conservative and only model shapes backed by checked-in evide
 - `backupRegion` returns staged or snapshot backup-region state, then derives a shop-domain-scoped `MarketRegionCountry` from effective shop country data when checked-in evidence backs that shop/country pair. Unbacked domain/country combinations return `null`.
 - `taxonomy.categories(...)` reads normalized taxonomy category records from snapshot/local state. It supports captured hierarchy fields, raw Shopify cursors, selected `pageInfo`, simple term matching over captured `id`, `name`, and `fullName`, and hierarchy filters limited to categories already present in local state. The proxy does not invent taxonomy rows.
 - `staffMember` and `staffMembers` return the captured field-level `ACCESS_DENIED` blocker for the current credential posture.
+- The by-id not-found parity scenario records implemented singular `id:` read roots returning `null` for non-existent GIDs. Credential-restricted roots preserve their captured Shopify error envelopes without expanding local support for those domains.
 
 LiveHybrid/cassette behavior:
 
@@ -75,6 +76,7 @@ Mutation behavior:
 - `config/parity-specs/admin-platform/admin-platform-finance-risk-node-no-data.json`
 - `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json`
 - `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
+- `config/parity-specs/admin-platform/by-id-not-found-read.json`
 - `config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json`
@@ -92,6 +94,7 @@ Mutation behavior:
 
 - `corepack pnpm parity -- admin-platform-utility-reads`
 - `corepack pnpm parity -- admin-platform-supported-node-reads`
+- `corepack pnpm parity -- admin-platform-by-id-not-found-read`
 - `corepack pnpm parity -- admin-platform-backup-region-update`
 - `corepack pnpm parity -- admin-platform-flow-generate-signature`
 - `corepack pnpm parity -- admin-platform-flow-trigger-receive`

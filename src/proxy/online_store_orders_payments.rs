@@ -60,10 +60,10 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        if self.staged_deleted_metaobject_ids.contains(id) {
+        if self.store.staged.deleted_metaobject_ids.contains(id) {
             return None;
         }
-        if let Some(record) = self.staged_metaobjects.get(id) {
+        if let Some(record) = self.store.staged.metaobjects.get(id) {
             return Some(record.clone());
         }
         if id == "gid://shopify/Metaobject/185593102642" {
@@ -89,13 +89,17 @@ impl DraftProxy {
         meta_type: &str,
         meta_handle: &str,
     ) -> Option<Value> {
-        self.staged_metaobjects
+        self.store
+            .staged
+            .metaobjects
             .values()
             .find(|record| {
                 record.get("type").and_then(Value::as_str) == Some(meta_type)
                     && record.get("handle").and_then(Value::as_str) == Some(meta_handle)
                     && !self
-                        .staged_deleted_metaobject_ids
+                        .store
+                        .staged
+                        .deleted_metaobject_ids
                         .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
             })
             .cloned()
@@ -103,7 +107,9 @@ impl DraftProxy {
                 if meta_type == "codex_har_240_1777156845370"
                     && meta_handle == "codex-har-240-1777156845370"
                     && !self
-                        .staged_deleted_metaobject_ids
+                        .store
+                        .staged
+                        .deleted_metaobject_ids
                         .contains("gid://shopify/Metaobject/185593102642")
                 {
                     Some(seed_metaobject_record())
@@ -116,19 +122,25 @@ impl DraftProxy {
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
         let meta_type = resolved_string_arg(&field.arguments, "type").unwrap_or_default();
         let mut records: Vec<Value> = self
-            .staged_metaobjects
+            .store
+            .staged
+            .metaobjects
             .values()
             .filter(|record| {
                 record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
                     && !self
-                        .staged_deleted_metaobject_ids
+                        .store
+                        .staged
+                        .deleted_metaobject_ids
                         .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
             })
             .cloned()
             .collect();
         if meta_type == "codex_har_240_1777156845370"
             && !self
-                .staged_deleted_metaobject_ids
+                .store
+                .staged
+                .deleted_metaobject_ids
                 .contains("gid://shopify/Metaobject/185593102642")
             && !records.iter().any(|record| {
                 record.get("handle").and_then(Value::as_str) == Some("codex-har-240-1777156845370")
@@ -202,8 +214,11 @@ impl DraftProxy {
             &body,
             "2026-04-25T22:40:46Z",
         );
-        self.staged_deleted_metaobject_ids.remove(&id);
-        self.staged_metaobjects.insert(id.clone(), record.clone());
+        self.store.staged.deleted_metaobject_ids.remove(&id);
+        self.store
+            .staged
+            .metaobjects
+            .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
             &json!({"metaobject": record, "userErrors": []}),
@@ -217,8 +232,8 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        self.staged_metaobjects.remove(&id);
-        self.staged_deleted_metaobject_ids.insert(id.clone());
+        self.store.staged.metaobjects.remove(&id);
+        self.store.staged.deleted_metaobject_ids.insert(id.clone());
         staged_ids.push(id.clone());
         selected_json(
             &json!({"deletedId": id, "userErrors": []}),
@@ -236,7 +251,9 @@ impl DraftProxy {
                 | "serverPixel"
                 | "theme" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.staged_online_store_integrations
+                    self.store
+                        .staged
+                        .online_store_integrations
                         .get(&id)
                         .map(|record| selected_json(record, &field.selection))
                         .unwrap_or(Value::Null)
@@ -244,7 +261,9 @@ impl DraftProxy {
                 "themes" => {
                     let roles = resolved_string_list_arg(&field.arguments, "roles");
                     let mut nodes: Vec<Value> =
-                        self.staged_online_store_integrations
+                        self.store
+                            .staged
+                            .online_store_integrations
                             .values()
                             .filter(|record| is_online_store_theme_record(record))
                             .filter(|record| {
@@ -266,7 +285,9 @@ impl DraftProxy {
                 }
                 "mobilePlatformApplications" => {
                     let nodes: Vec<Value> = self
-                        .staged_online_store_integrations
+                        .store
+                        .staged
+                        .online_store_integrations
                         .values()
                         .filter(|record| {
                             matches!(
@@ -415,7 +436,9 @@ impl DraftProxy {
                 "appLinksEnabled": resolved_bool_field(android, "appLinksEnabled").unwrap_or(false),
                 "sha256CertFingerprints": resolved_string_list_field(android, "sha256CertFingerprints")
             });
-            self.staged_online_store_integrations
+            self.store
+                .staged
+                .online_store_integrations
                 .insert(id.clone(), record.clone());
             staged_ids.push(id);
             return mobile_app_payload(&field.selection, Some(record), Vec::new());
@@ -445,7 +468,9 @@ impl DraftProxy {
             "appClipsEnabled": resolved_bool_field(apple, "appClipsEnabled").unwrap_or(false),
             "appClipApplicationId": resolved_string_field(apple, "appClipApplicationId").unwrap_or_default()
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         mobile_app_payload(&field.selection, Some(record), Vec::new())
@@ -457,7 +482,13 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.staged_online_store_integrations.get(&id).cloned() else {
+        let Some(existing) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .cloned()
+        else {
             return mobile_app_payload(
                 &field.selection,
                 None,
@@ -550,7 +581,9 @@ impl DraftProxy {
                 record["appClipApplicationId"] = json!(v);
             }
         }
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         mobile_app_payload(&field.selection, Some(record), Vec::new())
@@ -574,7 +607,9 @@ impl DraftProxy {
             "displayScope": resolved_string_field(input, "displayScope").unwrap_or_else(|| "ONLINE_STORE".to_string()),
             "event": "onload", "cache": resolved_bool_field(input, "cache").unwrap_or(false)
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         script_tag_payload(&field.selection, Some(record), Vec::new())
@@ -603,7 +638,7 @@ impl DraftProxy {
                 ],
             );
         }
-        let mut record = self.staged_online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
+        let mut record = self.store.staged.online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
         if let Some(src) = resolved_string_field(input, "src") {
             record["src"] = json!(src);
         }
@@ -614,7 +649,9 @@ impl DraftProxy {
             record["cache"] = json!(cache);
         }
         record["event"] = json!("onload");
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         script_tag_payload(&field.selection, Some(record), Vec::new())
@@ -635,7 +672,9 @@ impl DraftProxy {
             "processingFailed": false,
             "files": {"nodes": []}
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
@@ -650,7 +689,13 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.staged_online_store_integrations.get(&id).cloned() else {
+        let Some(existing) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
@@ -666,7 +711,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        for record in self.staged_online_store_integrations.values_mut() {
+        for record in self.store.staged.online_store_integrations.values_mut() {
             if is_online_store_theme_record(record)
                 && record.get("role").and_then(Value::as_str) == Some("MAIN")
             {
@@ -675,7 +720,9 @@ impl DraftProxy {
         }
         let mut theme = existing;
         theme["role"] = json!("MAIN");
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
         selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
@@ -687,7 +734,13 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(mut theme) = self.staged_online_store_integrations.get(&id).cloned() else {
+        let Some(mut theme) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({"theme": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
@@ -714,7 +767,9 @@ impl DraftProxy {
             }
             theme["name"] = json!(name);
         }
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
         selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
@@ -726,14 +781,22 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(theme) = self.staged_online_store_integrations.get(&id).cloned() else {
+        let Some(theme) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({"deletedThemeId": null, "userErrors": [theme_user_error(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
         let main_count = self
-            .staged_online_store_integrations
+            .store
+            .staged
+            .online_store_integrations
             .values()
             .filter(|record| {
                 is_online_store_theme_record(record)
@@ -746,7 +809,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        self.staged_online_store_integrations.remove(&id);
+        self.store.staged.online_store_integrations.remove(&id);
         staged_ids.push(id.clone());
         selected_json(
             &json!({"deletedThemeId": id, "userErrors": []}),
@@ -821,7 +884,12 @@ impl DraftProxy {
             );
         }
         let mut deleted = Vec::new();
-        if let Some(theme) = self.staged_online_store_integrations.get_mut(&theme_id) {
+        if let Some(theme) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get_mut(&theme_id)
+        {
             let mut nodes = theme_file_nodes(theme);
             for filename in files {
                 if let Some(index) = nodes
@@ -841,7 +909,12 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn upsert_theme_file(&mut self, theme_id: &str, file: Value) {
-        let Some(theme) = self.staged_online_store_integrations.get_mut(theme_id) else {
+        let Some(theme) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get_mut(theme_id)
+        else {
             return;
         };
         let filename = file["filename"].as_str().unwrap_or_default().to_string();
@@ -862,7 +935,9 @@ impl DraftProxy {
         theme_id: &str,
         filename: &str,
     ) -> Option<Value> {
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .get(theme_id)
             .and_then(|theme| {
                 theme_file_nodes(theme)
@@ -877,7 +952,9 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         if self
-            .staged_online_store_integrations
+            .store
+            .staged
+            .online_store_integrations
             .values()
             .any(is_web_pixel_record)
         {
@@ -907,7 +984,9 @@ impl DraftProxy {
             "status": status,
             "webhookEndpointAddress": null
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
@@ -925,7 +1004,9 @@ impl DraftProxy {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         if !allow_missing_upsert
             && !self
-                .staged_online_store_integrations
+                .store
+                .staged
+                .online_store_integrations
                 .get(&id)
                 .is_some_and(is_web_pixel_record)
         {
@@ -957,7 +1038,9 @@ impl DraftProxy {
             "status": "CONNECTED",
             "webhookEndpointAddress": null
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
@@ -973,7 +1056,9 @@ impl DraftProxy {
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
         let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
@@ -988,7 +1073,9 @@ impl DraftProxy {
         kind: &str,
     ) -> Value {
         let Some(id) = self
-            .staged_online_store_integrations
+            .store
+            .staged
+            .online_store_integrations
             .iter()
             .find(|(_, v)| is_server_pixel_record(v))
             .map(|(id, _)| id.clone())
@@ -1027,7 +1114,9 @@ impl DraftProxy {
             format!("{project}/{topic}")
         };
         let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id, record.clone());
         selected_json(
             &json!({"serverPixel": record, "userErrors": []}),
@@ -1056,7 +1145,9 @@ impl DraftProxy {
             );
         }
         let token_count = self
-            .staged_online_store_integrations
+            .store
+            .staged
+            .online_store_integrations
             .values()
             .filter(|record| is_storefront_access_token_record(record))
             .count();
@@ -1076,7 +1167,9 @@ impl DraftProxy {
             "accessToken": access_token,
             "accessScopes": access_scopes
         });
-        self.staged_online_store_integrations
+        self.store
+            .staged
+            .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
@@ -1107,8 +1200,8 @@ impl DraftProxy {
             let expected = &fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
             return match root_field {
                 "draftOrderCreate" => {
-                    self.staged_draft_order_complete_gateway_create_count += 1;
-                    if self.staged_draft_order_complete_gateway_create_count == 1 {
+                    self.store.staged.draft_order_complete_gateway_create_count += 1;
+                    if self.store.staged.draft_order_complete_gateway_create_count == 1 {
                         Some(expected["noGatewayCreate"].clone())
                     } else {
                         Some(expected["unknownGatewayCreate"].clone())
@@ -1179,8 +1272,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = format!("gid://shopify/DraftOrder/{}", self.next_draft_order_id);
-        self.next_draft_order_id += 1;
+        let id = format!(
+            "gid://shopify/DraftOrder/{}",
+            self.store.staged.next_draft_order_id
+        );
+        self.store.staged.next_draft_order_id += 1;
         let email = resolved_string_field(&input, "email")
             .filter(|email| !email.trim().is_empty())
             .map(Value::String)
@@ -1214,7 +1310,10 @@ impl DraftProxy {
             "totalQuantityOfLineItems": 1,
             "lineItems": { "nodes": [draft_order_invoice_line_item()] }
         });
-        self.staged_draft_orders.insert(id.clone(), record.clone());
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), record.clone());
         self.record_orders_local_log_entry(OrdersLocalLogEntry {
             request,
             query,
@@ -1243,7 +1342,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(draft_order) = self.staged_draft_orders.get(&id).cloned() else {
+        let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,
@@ -1293,7 +1392,7 @@ impl DraftProxy {
         let mut updated = draft_order.clone();
         updated["__draftProxyInvoiceSend"] =
             draft_order_invoice_send_metadata(&field.arguments, &draft_order);
-        self.staged_draft_orders.insert(id.clone(), updated);
+        self.store.staged.draft_orders.insert(id.clone(), updated);
         self.record_orders_local_log_entry(OrdersLocalLogEntry {
             request,
             query,
@@ -1400,25 +1499,25 @@ impl DraftProxy {
                     return Some(fixture["invalidVariant"]["response"].clone());
                 }
                 "gid://shopify/ProductVariant/48540157378793" => {
-                    self.staged_order_edit_existing_mode = Some("duplicate".to_string());
+                    self.store.staged.order_edit_existing_mode = Some("duplicate".to_string());
                     let fixture = order_edit_existing_validation_fixture();
                     return Some(fixture["duplicateVariant"]["response"].clone());
                 }
                 _ => {}
             }
-            self.staged_order_edit_existing_mode = Some("add".to_string());
+            self.store.staged.order_edit_existing_mode = Some("add".to_string());
             let fixture = order_edit_existing_happy_fixture();
             return Some(fixture["addVariant"]["response"].clone());
         }
         if query.contains("OrderEditExistingWorkflowSetQuantity")
             && root_field == "orderEditSetQuantity"
         {
-            self.staged_order_edit_existing_mode = Some("zero".to_string());
+            self.store.staged.order_edit_existing_mode = Some("zero".to_string());
             let fixture = order_edit_existing_zero_fixture();
             return Some(fixture["setZero"]["response"].clone());
         }
         if query.contains("OrderEditExistingWorkflowCommit") && root_field == "orderEditCommit" {
-            return match self.staged_order_edit_existing_mode.as_deref() {
+            return match self.store.staged.order_edit_existing_mode.as_deref() {
                 Some("zero") => {
                     Some(order_edit_existing_zero_fixture()["commitRemove"]["response"].clone())
                 }
@@ -1426,7 +1525,7 @@ impl DraftProxy {
             };
         }
         if query.contains("OrderEditExistingWorkflowRead") && root_field == "order" {
-            return match self.staged_order_edit_existing_mode.as_deref() {
+            return match self.store.staged.order_edit_existing_mode.as_deref() {
                 Some("zero") => Some(json!({
                     "data": { "order": order_edit_existing_zero_downstream_order_for_comparison() }
                 })),
@@ -1452,7 +1551,7 @@ impl DraftProxy {
         let capture_expected = &fixture["paymentCaptureFlow"]["expected"];
         match root_field {
             "orderCreate" if query.contains("OrderPaymentCreate") => {
-                self.staged_order_payment_transaction_state = None;
+                self.store.staged.order_payment_transaction_state = None;
                 Some(capture_expected["create"].clone())
             }
             "orderCapture" if query.contains("OrderPaymentCapture") => {
@@ -1462,21 +1561,23 @@ impl DraftProxy {
                     "30.00" => Some(capture_expected["overCapture"].clone()),
                     "10.00" => Some(capture_expected["firstCapture"].clone()),
                     "15.00" => {
-                        self.staged_order_payment_transaction_state = Some("captured".to_string());
+                        self.store.staged.order_payment_transaction_state =
+                            Some("captured".to_string());
                         Some(capture_expected["finalCapture"].clone())
                     }
                     _ => None,
                 }
             }
             "transactionVoid" if query.contains("OrderPaymentVoid") => {
-                if self.staged_order_payment_transaction_state.as_deref() == Some("captured") {
+                if self.store.staged.order_payment_transaction_state.as_deref() == Some("captured")
+                {
                     return Some(capture_expected["voidAfterCapture"].clone());
                 }
-                self.staged_order_payment_transaction_state = Some("void".to_string());
+                self.store.staged.order_payment_transaction_state = Some("void".to_string());
                 Some(fixture["voidFlow"]["expected"]["void"].clone())
             }
             "order" if query.contains("OrderPaymentRead") => {
-                match self.staged_order_payment_transaction_state.as_deref() {
+                match self.store.staged.order_payment_transaction_state.as_deref() {
                     Some("captured") => Some(capture_expected["readAfterFinal"].clone()),
                     Some("void") => Some(fixture["voidFlow"]["expected"]["readAfterVoid"].clone()),
                     _ => None,
@@ -1540,7 +1641,7 @@ impl DraftProxy {
             "email": "order-customer-error-paths@example.com",
             "displayName": "Order Customer Error Paths"
         });
-        self.staged_customers.insert(
+        self.store.staged.customers.insert(
             customer["id"].as_str().unwrap_or_default().to_string(),
             customer.clone(),
         );
@@ -1575,7 +1676,9 @@ impl DraftProxy {
             return None;
         }
         if let Some(customer_id) = resolved_string_arg(&field.arguments, "customerId") {
-            self.staged_order_customer_contact_customer_ids
+            self.store
+                .staged
+                .order_customer_contact_customer_ids
                 .insert(customer_id.clone());
         }
         let customer_id =
@@ -1607,11 +1710,14 @@ impl DraftProxy {
         }
         let id = format!(
             "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
-            self.next_order_customer_order_id
+            self.store.staged.next_order_customer_order_id
         );
-        self.next_order_customer_order_id += 1;
+        self.store.staged.next_order_customer_order_id += 1;
         if email == "order-customer-b2b@example.com" {
-            self.staged_order_customer_b2b_order_ids.insert(id.clone());
+            self.store
+                .staged
+                .order_customer_b2b_order_ids
+                .insert(id.clone());
         }
         let customer_id = match order_arg {
             ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
@@ -1621,7 +1727,7 @@ impl DraftProxy {
             "id": id,
             "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null)
         });
-        self.staged_order_customer_orders.insert(
+        self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),
             order.clone(),
         );
@@ -1670,19 +1776,31 @@ impl DraftProxy {
                 &field.selection,
             ));
         }
-        if !self.staged_order_customer_orders.contains_key(&order_id) {
+        if !self
+            .store
+            .staged
+            .order_customer_orders
+            .contains_key(&order_id)
+        {
             return Some(selected_json(
                 &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
                 &field.selection,
             ));
         }
-        if self.staged_order_customer_cancelled_ids.contains(&order_id) {
+        if self
+            .store
+            .staged
+            .order_customer_cancelled_ids
+            .contains(&order_id)
+        {
             return Some(selected_json(
                 &error_payload("orderId", "Order has already been cancelled", "INVALID"),
                 &field.selection,
             ));
         }
-        self.staged_order_customer_cancelled_ids
+        self.store
+            .staged
+            .order_customer_cancelled_ids
             .insert(order_id.clone());
         Some(selected_json(
             &json!({
@@ -1701,8 +1819,14 @@ impl DraftProxy {
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
-        let customer = self.staged_customers.get(&customer_id).cloned();
-        let Some(mut order) = self.staged_order_customer_orders.get(&order_id).cloned() else {
+        let customer = self.store.staged.customers.get(&customer_id).cloned();
+        let Some(mut order) = self
+            .store
+            .staged
+            .order_customer_orders
+            .get(&order_id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({
                     "order": Value::Null,
@@ -1720,9 +1844,15 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self.staged_order_customer_b2b_order_ids.contains(&order_id)
+        if self
+            .store
+            .staged
+            .order_customer_b2b_order_ids
+            .contains(&order_id)
             && self
-                .staged_order_customer_contact_customer_ids
+                .store
+                .staged
+                .order_customer_contact_customer_ids
                 .contains(&customer_id)
         {
             return selected_json(
@@ -1734,7 +1864,9 @@ impl DraftProxy {
             );
         }
         order["customer"] = customer;
-        self.staged_order_customer_orders
+        self.store
+            .staged
+            .order_customer_orders
             .insert(order_id.clone(), order.clone());
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
@@ -1747,7 +1879,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
-        let Some(mut order) = self.staged_order_customer_orders.get(&order_id).cloned() else {
+        let Some(mut order) = self
+            .store
+            .staged
+            .order_customer_orders
+            .get(&order_id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({
                     "order": Value::Null,
@@ -1756,7 +1894,12 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self.staged_order_customer_cancelled_ids.contains(&order_id) {
+        if self
+            .store
+            .staged
+            .order_customer_cancelled_ids
+            .contains(&order_id)
+        {
             return selected_json(
                 &json!({
                     "order": Value::Null,
@@ -1766,7 +1909,9 @@ impl DraftProxy {
             );
         }
         order["customer"] = Value::Null;
-        self.staged_order_customer_orders
+        self.store
+            .staged
+            .order_customer_orders
             .insert(order_id.clone(), order.clone());
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
@@ -1810,7 +1955,9 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or_default();
-        self.staged_draft_order_tags
+        self.store
+            .staged
+            .draft_order_tags
             .insert(id.clone(), tags.clone());
         selected_json(
             &json!({
@@ -1826,7 +1973,9 @@ impl DraftProxy {
             return Value::Null;
         };
         let value = self
-            .staged_draft_order_tags
+            .store
+            .staged
+            .draft_order_tags
             .get(&id)
             .map(|tags| json!({ "id": id, "tags": tags }))
             .unwrap_or(Value::Null);
@@ -1834,8 +1983,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_draft_order_bulk_tag_job(&mut self) -> Value {
-        let id = self.next_draft_order_bulk_tag_job_id;
-        self.next_draft_order_bulk_tag_job_id += 1;
+        let id = self.store.staged.next_draft_order_bulk_tag_job_id;
+        self.store.staged.next_draft_order_bulk_tag_job_id += 1;
         json!({ "id": format!("gid://shopify/Job/{id}"), "done": false })
     }
 
@@ -1863,7 +2012,7 @@ impl DraftProxy {
 
         let mut valid_ids = Vec::new();
         for (index, id) in ids.iter().enumerate() {
-            if self.staged_draft_order_tags.contains_key(id) {
+            if self.store.staged.draft_order_tags.contains_key(id) {
                 valid_ids.push(id.clone());
             } else {
                 user_errors.push(json!({
@@ -1876,7 +2025,9 @@ impl DraftProxy {
 
         let too_many = valid_ids.iter().any(|id| {
             let current = self
-                .staged_draft_order_tags
+                .store
+                .staged
+                .draft_order_tags
                 .get(id)
                 .cloned()
                 .unwrap_or_default();
@@ -1904,7 +2055,7 @@ impl DraftProxy {
 
         if !normalized_tags.iter().any(|tag| tag.chars().count() >= 256) {
             for id in valid_ids {
-                if let Some(current) = self.staged_draft_order_tags.get_mut(&id) {
+                if let Some(current) = self.store.staged.draft_order_tags.get_mut(&id) {
                     let mut existing: BTreeSet<String> = current
                         .iter()
                         .map(|tag| normalize_draft_order_tag(tag))
@@ -1937,7 +2088,7 @@ impl DraftProxy {
             .collect();
         let mut user_errors = Vec::new();
         for (index, id) in ids.iter().enumerate() {
-            if let Some(current) = self.staged_draft_order_tags.get_mut(id) {
+            if let Some(current) = self.store.staged.draft_order_tags.get_mut(id) {
                 current.retain(|tag| !tags.contains(&normalize_draft_order_tag(tag)));
             } else {
                 user_errors.push(json!({
@@ -1963,14 +2114,16 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "paymentCustomization" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    match self.staged_payment_customizations.get(&id) {
+                    match self.store.staged.payment_customizations.get(&id) {
                         Some(record) => selected_json(record, &field.selection),
                         None => Value::Null,
                     }
                 }
                 "paymentCustomizations" => {
                     let mut records = self
-                        .staged_payment_customizations
+                        .store
+                        .staged
+                        .payment_customizations
                         .values()
                         .cloned()
                         .collect::<Vec<_>>();
@@ -2065,7 +2218,9 @@ impl DraftProxy {
         );
         self.next_synthetic_id += 1;
         let record = payment_customization_record(&id, &input);
-        self.staged_payment_customizations
+        self.store
+            .staged
+            .payment_customizations
             .insert(id.clone(), record.clone());
         payment_customization_payload(Some(&record), &field.selection, Vec::new(), None, None)
     }
@@ -2077,7 +2232,7 @@ impl DraftProxy {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
-        let Some(existing) = self.staged_payment_customizations.get(&id).cloned() else {
+        let Some(existing) = self.store.staged.payment_customizations.get(&id).cloned() else {
             return payment_customization_payload(
                 None,
                 &field.selection,
@@ -2139,7 +2294,9 @@ impl DraftProxy {
             let metafields = payment_customization_metafields(&input);
             payment_customization_set_metafields(&mut updated, metafields);
         }
-        self.staged_payment_customizations
+        self.store
+            .staged
+            .payment_customizations
             .insert(id.clone(), updated.clone());
         payment_customization_payload(Some(&updated), &field.selection, Vec::new(), None, None)
     }
@@ -2156,7 +2313,7 @@ impl DraftProxy {
         let mut toggled = Vec::new();
         let mut missing_ids = Vec::new();
         for id in ids {
-            match self.staged_payment_customizations.get_mut(&id) {
+            match self.store.staged.payment_customizations.get_mut(&id) {
                 Some(record) => {
                     if record["enabled"].as_bool() != Some(enabled) {
                         record["enabled"] = json!(enabled);
@@ -2181,7 +2338,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        if self.staged_payment_customizations.remove(&id).is_some() {
+        if self
+            .store
+            .staged
+            .payment_customizations
+            .remove(&id)
+            .is_some()
+        {
             payment_customization_payload(None, &field.selection, Vec::new(), None, Some(json!(id)))
         } else {
             payment_customization_payload(
