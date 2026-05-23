@@ -1338,27 +1338,6 @@ pub(in crate::proxy) fn delivery_settings_read_data(fields: &[RootFieldSelection
     Value::Object(data)
 }
 
-pub(in crate::proxy) fn selected_child_selection(
-    selections: &[SelectedField],
-    name: &str,
-) -> Option<Vec<SelectedField>> {
-    selections
-        .iter()
-        .find(|selection| selection.name == name)
-        .map(|selection| selection.selection.clone())
-}
-
-pub(in crate::proxy) fn selected_fields_named(
-    selections: &[SelectedField],
-    names: &[&str],
-) -> Vec<SelectedField> {
-    selections
-        .iter()
-        .filter(|selection| names.iter().any(|name| selection.name == *name))
-        .cloned()
-        .collect()
-}
-
 pub(in crate::proxy) fn product_helper_roots_read_payload() -> Value {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"

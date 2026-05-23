@@ -593,36 +593,6 @@ pub(in crate::proxy) fn empty_nodes_edges_connection() -> Value {
     connection_json_with_empty_edges(Vec::new())
 }
 
-pub(in crate::proxy) fn resolved_value_json(value: &ResolvedValue) -> Value {
-    match value {
-        ResolvedValue::String(value) => json!(value),
-        ResolvedValue::Int(value) => json!(value),
-        ResolvedValue::Float(value) => json!(value),
-        ResolvedValue::Bool(value) => json!(value),
-        ResolvedValue::Null => Value::Null,
-        ResolvedValue::List(values) => {
-            Value::Array(values.iter().map(resolved_value_json).collect())
-        }
-        ResolvedValue::Object(fields) => Value::Object(
-            fields
-                .iter()
-                .map(|(name, value)| (name.clone(), resolved_value_json(value)))
-                .collect(),
-        ),
-    }
-}
-
-pub(in crate::proxy) fn resolved_variables_json(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    Value::Object(
-        variables
-            .iter()
-            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
-            .collect(),
-    )
-}
-
 pub(in crate::proxy) fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
     query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
 }

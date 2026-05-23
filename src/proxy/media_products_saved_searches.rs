@@ -1416,7 +1416,7 @@ impl DraftProxy {
                     "locations": [{"line": 2, "column": 39}],
                     "extensions": {
                         "code": "INVALID_VARIABLE",
-                        "value": resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                        "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
                         "problems": [{
                             "path": ["variants"],
                             "explanation": "Field is not defined on ProductInput"

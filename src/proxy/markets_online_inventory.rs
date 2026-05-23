@@ -1003,9 +1003,9 @@ pub(in crate::proxy) fn is_storefront_access_token_record(record: &Value) -> boo
 pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) -> Option<Value> {
     match value {
         ResolvedValue::String(raw) => serde_json::from_str::<Value>(raw).ok(),
-        ResolvedValue::Object(_) | ResolvedValue::List(_) => Some(resolved_value_to_json(value)),
+        ResolvedValue::Object(_) | ResolvedValue::List(_) => Some(resolved_value_json(value)),
         ResolvedValue::Null => None,
-        _ => Some(resolved_value_to_json(value)),
+        _ => Some(resolved_value_json(value)),
     }
 }
 
@@ -1435,25 +1435,6 @@ pub(in crate::proxy) fn selected_connection_json(
 
 pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
     selected_connection_json(Vec::new(), selections)
-}
-
-pub(in crate::proxy) fn resolved_value_to_json(value: &ResolvedValue) -> Value {
-    match value {
-        ResolvedValue::String(value) => json!(value),
-        ResolvedValue::Int(value) => json!(value),
-        ResolvedValue::Float(value) => json!(value),
-        ResolvedValue::Bool(value) => json!(value),
-        ResolvedValue::Null => Value::Null,
-        ResolvedValue::List(values) => {
-            Value::Array(values.iter().map(resolved_value_to_json).collect())
-        }
-        ResolvedValue::Object(fields) => Value::Object(
-            fields
-                .iter()
-                .map(|(key, value)| (key.clone(), resolved_value_to_json(value)))
-                .collect(),
-        ),
-    }
 }
 
 pub(in crate::proxy) fn is_inventory_quantity_document(query: &str) -> bool {

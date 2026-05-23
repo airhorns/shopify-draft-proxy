@@ -529,19 +529,6 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     Value::Object(payload)
 }
 
-pub(in crate::proxy) fn nullable_selected_json(
-    value: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    if value.is_null() {
-        Value::Null
-    } else if selection.is_empty() {
-        value.clone()
-    } else {
-        selected_json(value, selection)
-    }
-}
-
 pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
     fulfillment_order: Value,
     payload_selection: &[SelectedField],

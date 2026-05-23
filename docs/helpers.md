@@ -29,7 +29,8 @@ Do not mark a root implemented until the Rust runtime models its supported local
 
 Several generic serializers live under `src/proxy/` and should be reused before adding local copies.
 
-- `src/proxy/product_helpers.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `selected_child_selection(...)`, `selected_fields_named(...)`, `selected_connection_json(...)`, `connection_edges_with_cursor(...)`, and `selected_typed_connection(...)`.
+- `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
+- `src/proxy/product_helpers.rs` owns typed resource serializers and connection helpers such as `selected_typed_connection(...)` and product/saved-search JSON builders.
 - `src/proxy/markets_online_inventory.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_empty_connection_json(...)`, and `connection_page_info(...)`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
@@ -47,6 +48,15 @@ Check these helpers before adding GID tail extraction, resource-type parsing, or
 Handle and slug behavior remains separate because Shopify semantics vary by domain: `src/proxy/app_shipping_helpers.rs` owns `slugify_handle(...)` and `fulfillment_service_handle(...)`; product and saved-search handle lookup helpers live in `src/proxy/product_helpers.rs`.
 
 When a new domain needs ID behavior, extend `src/proxy/resource_ids.rs` instead of creating another resource-local parser. When a new domain needs handle behavior, first inspect the existing domain-specific handle helpers and extract only when semantics are genuinely shared.
+
+## `src/proxy/resolved_values.rs` Resolved Argument Serialization
+
+Use these helpers before adding resource-local `ResolvedValue` serializers.
+
+- `resolved_value_json(...)` converts GraphQL `ResolvedValue` trees into JSON while preserving strings, numbers, booleans, nulls, lists, and objects.
+- `resolved_variables_json(...)` serializes resolved variable maps for log metadata and validation payloads.
+
+Input readers that need the inverse conversion from JSON into resolved GraphQL values should use `resolved_value_from_json(...)` in `src/proxy/routing.rs`.
 
 ## Metafields And Custom Data
 
