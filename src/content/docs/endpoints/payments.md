@@ -20,10 +20,12 @@ captured schema exposes `OrderCaptureUserError.code`.
 
 ## Current support and limitations
 
-### HAR-439 payment-sensitive order review
+`config/operation-registry.json` currently keeps payment roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
 
-HAR-439 reviewed the order-adjacent payment roots in this ticket alongside the
-payments endpoint group. `orderCapture`, `transactionVoid`,
+### Order-owned payment roots
+
+Order-adjacent payment roots are tracked alongside the payments endpoint group
+but remain owned by the order graph. `orderCapture`, `transactionVoid`,
 `orderCreateManualPayment`, and `orderCreateMandatePayment` remain intentionally
 owned by the order graph because their observable effects are order financial
 status, capturable balance, received/outstanding/net payment totals, payment
@@ -33,20 +35,19 @@ the mandate payment composite reference, idempotency, missing-`mandateId`, and
 `autoCapture: false` authorization branches; it is not real gateway or
 mandate-service execution.
 
-The review also kept `paymentReminderSend` in the sensitive side-effect bucket:
-the proxy records local reminder intent for `PaymentSchedule` IDs and never
-sends customer email at runtime. Live success capture still needs a safe
+`paymentReminderSend` remains in the sensitive side-effect bucket: the proxy
+records local reminder intent for `PaymentSchedule` IDs and never sends customer
+email at runtime. Live success capture still needs a safe
 disposable-customer/no-recipient plan before expanding beyond local intent and
 validation behavior.
 
-### HAR-456 fidelity review
+### Evidence summary
 
-The HAR-456 audit reviewed the scoped payment terms, payment customization,
-Shopify Payments, dispute, POS cash, and Shop Pay payment-request roots against
-the checked-in registry, executable parity specs, integration tests, Shopify
-Admin docs/examples, and public query examples. Existing coverage is strongest
-where the proxy has either scrubbed local lifecycle modeling or captured
-empty/no-data fixtures:
+Payment terms, payment customization, Shopify Payments, dispute, POS cash, and
+Shop Pay payment-request roots are evaluated against the checked-in registry,
+executable parity specs, integration tests, Shopify Admin docs/examples, and
+public query examples. Existing coverage is strongest where the proxy has
+either scrubbed local lifecycle modeling or captured empty/no-data fixtures:
 
 - Payment terms now have live captured lifecycle evidence for
   `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` on a
@@ -130,19 +131,19 @@ Lifecycle mutations stage against the same normalized records:
 
 Captured validation branches are modeled locally for missing create fields, missing Function identifiers, missing Function id `gid://shopify/ShopifyFunction/0`, multiple Function identifiers, immutable Function replacement on update, unknown update/delete ids, unknown activation ids, mixed valid/missing activation ids, and empty activation id lists. The latest 2026-04 docs also expose `functionHandle`, `MULTIPLE_FUNCTION_IDENTIFIERS`, `FUNCTION_NOT_FOUND`, `INVALID_METAFIELDS`, and `MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS`; the public 2026-04 capture for `paymentCustomizationCreate` accepted the missing-`metafields` branch and more than five active customizations, so those internal guardrails are not enforced on the public Admin draft-proxy path. The local model accepts Function handles, rejects the captured invalid handle sentinels, rejects requests that provide both `functionId` and `functionHandle`, rejects structurally invalid owner metafields, and validates update Function handles against the local Function catalog when one is available. The current local model does not maintain a full Shopify Function catalog; successful create paths preserve the provided Function identifier, update paths preserve the existing Function identifier, and `shopifyFunction` is returned only if that field was present in normalized state.
 
-### Access Scopes And Capture Notes
+### Access scopes and capture notes
 
-HAR-219 recorded that the refreshed 2026-04-25 conformance app can safely read payment customization empty/null behavior with `read_payment_customizations`, and HAR-223 captured that current empty/null slice in `payment-customization-empty-read`. The same conformance credential has `write_payment_customizations`; HAR-223 captured validation/error branches for missing Function ownership and unknown ids in `payment-customization-validation`. HAR-629 captured a visible `payment_customization` Function in the 2026-04 test shop and recorded that `paymentCustomizationUpdate` rejects replacement `functionId` input with `FUNCTION_ID_CANNOT_BE_CHANGED` while downstream readback keeps the original Function identifier. A later 2026-04 public Admin capture against `harry-test-heelo.myshopify.com` recorded `paymentCustomizationCreate` accepting omitted `metafields` and a sixth enabled customization after cleaning up existing active rows; the same fixture still confirms identifier arbitration errors for both `functionId` plus `functionHandle` and for missing Function identifiers.
+The 2026-04 conformance app can safely read payment customization empty/null behavior with `read_payment_customizations`, captured in `payment-customization-empty-read`. The same conformance credential has `write_payment_customizations`; `payment-customization-validation` captures validation/error branches for missing Function ownership and unknown ids. The 2026-04 test shop exposes a visible `payment_customization` Function, and checked-in captures record that `paymentCustomizationUpdate` rejects replacement `functionId` input with `FUNCTION_ID_CANNOT_BE_CHANGED` while downstream readback keeps the original Function identifier. A later 2026-04 public Admin capture against `harry-test-heelo.myshopify.com` recorded `paymentCustomizationCreate` accepting omitted `metafields` and a sixth enabled customization after cleaning up existing active rows; the same fixture still confirms identifier arbitration errors for both `functionId` plus `functionHandle` and for missing Function identifiers.
 
-Earlier HAR-223 captures did not see released `ShopifyFunction` nodes, so broad non-empty happy-path create/update/delete/activation behavior remains local-runtime evidence unless a later scenario captures that specific branch. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
+Earlier payment-customization captures did not see released `ShopifyFunction` nodes, so broad non-empty happy-path create/update/delete/activation behavior remains local-runtime evidence unless a later scenario captures that specific branch. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
 
-### Finance, Risk, Disputes, And POS Cash
+### Unsupported, registry-only, and validation-only coverage
 
-HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
+The registry tracks the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`. Most of this surface is no-data, access-denied, registry-only, or validation-only coverage rather than local lifecycle support.
 
 The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
 
-Current 2025-01 implemented no-data coverage:
+Current 2025-01 fixture-backed no-data coverage:
 
 - `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` return `null` for unknown identifiers.
 - Generic `node(id:)` / `nodes(ids:)` dispatch also returns Shopify-like `null` entries for unknown `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute` GIDs. This is no-data behavior only; non-empty finance, POS, and dispute Node payloads remain unsupported until scrubbed fixtures and local state models exist.
@@ -165,7 +166,7 @@ Do not add planned-only parity specs for payment roots. Keep unsupported payment
 
 ### Customer payment method lifecycle and reminders
 
-HAR-365 implements a scrubbed local staging slice for customer payment-method lifecycle roots and `paymentReminderSend`. These roots are sensitive because live success paths can involve PCI card sessions, PayPal billing-agreement IDs, remote gateway identifiers, encrypted duplication data, expiring customer-facing update URLs, destructive revocation, and customer-visible reminder email.
+The scrubbed local staging slice for customer payment-method lifecycle roots and `paymentReminderSend` is intentionally narrow. These roots are sensitive because live success paths can involve PCI card sessions, PayPal billing-agreement IDs, remote gateway identifiers, encrypted duplication data, expiring customer-facing update URLs, destructive revocation, and customer-visible reminder email.
 
 Runtime support is local-only:
 
@@ -219,11 +220,9 @@ Create supports eligible local or upstream-hydrated `Order` and `DraftOrder` IDs
 
 Validation is local and does not append staged-write log entries for rejected branches. Multiple payment schedules are rejected with `PAYMENT_TERMS_CREATION_UNSUCCESSFUL` on create and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` on update plus the Shopify message `Cannot create payment terms with multiple schedules.` Missing `Order` and `DraftOrder` create references use `PAYMENT_TERMS_CREATION_UNSUCCESSFUL`, `field: null`, and the Shopify messages `Cannot find the specific Order with id <numeric id>.` / `Cannot find the specific Draft order with id <numeric id>.`; `payment-terms-create-reference-not-found` captures this 2026-04 behavior. Missing update/delete IDs use `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` / `payment_terms_deletion_unsuccessful`. Captured 2026-04 evidence in `payment-terms-create-template-and-schedule-validation` covers the template catalog lookup, unknown template IDs (`Could not find payment terms template.`), FIXED schedules missing `dueAt` (`A due date is required with fixed or net payment terms.`), RECEIPT schedules with `dueAt` (`A due date cannot be set with event payment terms.`), and RECEIPT `issuedAt` success with no schedule nodes. The `payment-terms-create-order-eligibility` capture covers Order-owner eligibility: paid Orders reject with `field: null`, `PAYMENT_TERMS_CREATION_UNSUCCESSFUL`, and `Cannot create payment terms on an Order that has already been paid in full.` before staging; unpaid closed and cancelled Orders were accepted by the public 2026-04 Admin API and remain accepted locally. `payment-terms-update-order-eligibility` captures the update-side paid-Order guard: after an existing Order-owned `PaymentTerms` record is hydrated by `paymentTermsId`, a fully paid owner returns `field: null`, `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL`, and the same paid-in-full message without staging an update. Local update also honors explicit channel-policy hints on hydrated/seeded Order data (`paymentTermsAllowed`, `payment_terms_allowed`, or `__draftProxyPaymentTermsAllowed: false`) and returns `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` with Shopify's channel-policy message; the current conformance shop did not expose a public order-create path for a channel-disallowed sales channel, so that branch is runtime-test-backed until a live fixture can be captured. DraftOrder owners skip these Order-only paid-status and channel-policy guards. Shopify rejects omitted `paymentTermsTemplateId` during variable coercion before `paymentTermsCreate` runs; the local handler rejects inline omissions with `REQUIRED` rather than defaulting to the first template. The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, missing or unknown template IDs, invalid NET/FIXED/event schedule requirements, missing update IDs, and duplicate deletes.
 
-For `paymentTermsCreate` against an existing captured order or draft order, the Rust handler uses Pattern 2 hydration to read the owner from the cassette before staging local payment terms. For `paymentTermsUpdate` and `paymentTermsDelete`, Pattern 2 hydration can read an existing `PaymentTerms` node by `paymentTermsId`, including owner and schedule context, before deciding whether to reject or stage locally. Follow-up update/delete and downstream `Order.paymentTerms` / `DraftOrder.paymentTerms` reads then run from local state, preserving the supported-mutation rule while matching the captured owner context.
+For `paymentTermsCreate` against an existing captured order or draft order, the Rust runtime uses narrow cassette-backed owner hydration before staging local payment terms. For `paymentTermsUpdate` and `paymentTermsDelete`, the same local path can hydrate an existing `PaymentTerms` node by `paymentTermsId`, including owner and schedule context, before deciding whether to reject or stage locally. Subsequent update/delete and downstream `Order.paymentTerms` / `DraftOrder.paymentTerms` reads then run from local state, preserving the supported-mutation rule while matching the captured owner context.
 
-## Historical and developer notes
-
-### Validation
+### Validation anchors
 
 - `config/parity-specs/payments/finance-risk-no-data-read.json`
 - `config/parity-specs/payments/customer-payment-method-local-staging.json`

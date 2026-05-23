@@ -11,6 +11,8 @@ mutations to Shopify.
 
 ## Current support and limitations
 
+Return roots are documented as their own endpoint group, but the current registry snapshot does not have a separate `returns` domain. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus order-backed parity specs, tests, and fixtures.
+
 ### Supported roots
 
 Overlay reads:
@@ -84,12 +86,12 @@ Local staged mutations:
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
   local `userErrors` and do not append staged commit-log entries.
-- HAR-353 promotes `return-lifecycle-local-staging` from fixture-only evidence to generic strict parity. The parity replay
+- `return-lifecycle-local-staging` is generic strict parity. The parity replay
   seeds a fulfilled order graph, then compares `returnCreate`, `returnClose`, `returnReopen`, `returnCancel`,
   downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and a missing fulfillment-line-item validation
   branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
   evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
-- HAR-370 adds executable local-runtime parity for `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`,
+- Executable local-runtime parity covers `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`,
   `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads.
   The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
   return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
@@ -98,13 +100,12 @@ Local staged mutations:
   `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture. Public Admin
   GraphQL evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer`
   boundary is recorded separately in `return-decline-request-validation.json`.
-- HAR-589 adds executable local-runtime parity for return quantity validation:
+- Executable local-runtime parity covers return quantity validation:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` hydrates an order with an existing `OPEN` return consuming
   part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
   instead of staging a second return, while `config/parity-specs/orders/removeFromReturn-quantity-validation.json` verifies
   zero and over-line removal quantities return `INVALID` quantity userErrors.
-- HAR-442 reviews the return/reverse-logistics slice against current Shopify docs and public examples. It adds live
-  recorded parity for request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
+- Live recorded parity covers request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
   shipping update, `NOT_RESTOCKED` reverse-fulfillment disposal, return processing, and downstream reads. Exchange
   processing, carrier label creation, notification sends, refund transfers, duties, and inventory/location movement remain
   explicit unsupported fidelity gaps.
@@ -118,7 +119,7 @@ Local staged mutations:
   variable coercion on this Admin API version, so those hidden/internal fields are backed by local runtime tests rather
   than public success-path parity.
 
-### Blocked roots
+### Unsupported, registry-only, and validation-only coverage
 
 - `returnCalculate` is blocked on calculation parity for restocking fees, exchange lines, return shipping fees, taxes,
   discounts, and error behavior.
@@ -130,12 +131,10 @@ Local staged mutations:
 - `returnApprove` and `returnDecline` are not exposed by live 2025-01 or 2026-04 Admin GraphQL root introspection on the
   current conformance shop.
 
-## Historical and developer notes
-
-### Validation anchors
+### Evidence and validation
 
 - Executable parity: `config/parity-specs/orders/return-lifecycle-local-staging.json`
-- HAR-370 executable parity:
+- Executable parity:
   `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,
   `config/parity-specs/orders/return-request-decline-local-staging.json`, and
   `config/parity-specs/orders/removeFromReturn-local-staging.json`
@@ -143,10 +142,10 @@ Local staged mutations:
   `config/parity-specs/orders/return-request-decline-local-staging.json`, backed by
   `fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json` and public schema evidence in
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json`.
-- HAR-589 quantity validation parity:
+- Quantity validation parity:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` and
   `config/parity-specs/orders/removeFromReturn-quantity-validation.json`
-- HAR-442 extends `config/parity-specs/orders/return-reverse-logistics-local-staging.json` to exercise empty
+- `config/parity-specs/orders/return-reverse-logistics-local-staging.json` exercises empty
   `reverseDeliveryLineItems` replay and `fileUrl` label input normalization. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
