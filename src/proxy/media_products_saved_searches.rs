@@ -1392,12 +1392,11 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let Some(input) = product_create_input(query, variables) else {
             let response_key =
                 root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: {
                         "product": null,
@@ -1408,10 +1407,10 @@ impl DraftProxy {
                         }]
                     }
                 }
-            }));
+            })));
         };
         if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("variants") {
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
                     "locations": [{"line": 2, "column": 39}],
@@ -1424,21 +1423,21 @@ impl DraftProxy {
                         }]
                     }
                 }]
-            }));
+            })));
         }
 
         if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("id") {
-            return product_create_user_errors_response(
+            return MutationOutcome::response(product_create_user_errors_response(
                 query,
                 vec![json!({
                     "field": ["input"],
                     "message": "id cannot be specified during creation"
                 })],
-            );
+            ));
         }
 
         if let Some(data) = combined_listing_product_create_data(query, &input) {
-            return ok_json(json!({ "data": data }));
+            return MutationOutcome::response(ok_json(json!({ "data": data })));
         }
 
         let Some(title) =
@@ -1457,41 +1456,41 @@ impl DraftProxy {
                 }),
                 &error_selection,
             );
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: {
                         "product": null,
                         "userErrors": [user_error]
                     }
                 }
-            }));
+            })));
         };
 
         if let Some(handle) = resolved_string_field(&input, "handle") {
             if handle.chars().count() > 255 {
-                return product_create_user_errors_response(
+                return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![json!({
                         "field": ["handle"],
                         "message": "Handle is too long (maximum is 255 characters)"
                     })],
-                );
+                ));
             }
         }
         if let Some(vendor) = resolved_string_field(&input, "vendor") {
             if vendor.chars().count() > 255 {
-                return product_create_user_errors_response(
+                return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![json!({
                         "field": ["vendor"],
                         "message": "Vendor is too long (maximum is 255 characters)"
                     })],
-                );
+                ));
             }
         }
         if let Some(product_type) = resolved_string_field(&input, "productType") {
             if product_type.chars().count() > 255 {
-                return product_create_user_errors_response(
+                return MutationOutcome::response(product_create_user_errors_response(
                     query,
                     vec![
                         json!({
@@ -1503,7 +1502,7 @@ impl DraftProxy {
                             "message": "Custom product type is too long (maximum is 255 characters)"
                         }),
                     ],
-                );
+                ));
             }
         }
 
@@ -1531,27 +1530,28 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
         self.store.stage_product(product.clone());
-        self.record_mutation_log_entry(request, query, variables, "productCreate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-        ok_json(json!({
-            "data": {
-                response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                }
+            })),
+            LogDraft::staged("productCreate", "products", vec![id]),
+        )
     }
 
     pub(in crate::proxy) fn product_update(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let Some(input) = product_input(query, variables) else {
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "data": {
                     "productUpdate": {
                         "product": null,
@@ -1562,7 +1562,7 @@ impl DraftProxy {
                         }]
                     }
                 }
-            }));
+            })));
         };
         let incoming_tags = if input.contains_key("tags") {
             Some(resolved_string_list_field_unsorted(&input, "tags"))
@@ -1571,21 +1571,21 @@ impl DraftProxy {
         };
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.len() > 250 {
-                return ok_json(json!({
+                return MutationOutcome::response(ok_json(json!({
                     "errors": [{
                         "message": format!("The input array size of {} is greater than the maximum allowed of 250.", tags.len()),
                         "locations": [{"line": 3, "column": 5}],
                         "path": ["productUpdate", "product", "tags"],
                         "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
                     }]
-                }));
+                })));
             }
         }
         let Some(id) = resolved_string_field(&input, "id") else {
-            return product_update_missing_product(query);
+            return MutationOutcome::response(product_update_missing_product(query));
         };
         let Some(existing) = self.store.product_staged_or_base(&id) else {
-            return product_update_missing_product(query);
+            return MutationOutcome::response(product_update_missing_product(query));
         };
 
         if let Some(tags) = incoming_tags.as_ref() {
@@ -1601,7 +1601,7 @@ impl DraftProxy {
                 );
                 let response_key =
                     root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
-                return ok_json(json!({
+                return MutationOutcome::response(ok_json(json!({
                     "data": {
                         response_key: selected_json(
                             &json!({
@@ -1611,7 +1611,7 @@ impl DraftProxy {
                             &payload_selection
                         )
                     }
-                }));
+                })));
             }
         }
 
@@ -1638,36 +1638,37 @@ impl DraftProxy {
                 .unwrap_or(existing.seo_description),
         };
         self.store.stage_product(product.clone());
-        self.record_mutation_log_entry(request, query, variables, "productUpdate", vec![id]);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
-        ok_json(json!({
-            "data": {
-                response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                }
+            })),
+            LogDraft::staged("productUpdate", "products", vec![id]),
+        )
     }
 
     pub(in crate::proxy) fn product_delete(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         if let Some(response) = product_delete_required_id_error(query, variables) {
-            return response;
+            return MutationOutcome::response(response);
         }
         let Some(input) = product_input(query, variables) else {
-            return product_delete_missing_product(query);
+            return MutationOutcome::response(product_delete_missing_product(query));
         };
         let Some(id) = resolved_string_field(&input, "id") else {
-            return product_delete_missing_product(query);
+            return MutationOutcome::response(product_delete_missing_product(query));
         };
         if !self.store.has_product(&id) {
-            return product_delete_missing_product(query);
+            return MutationOutcome::response(product_delete_missing_product(query));
         }
 
         if resolved_bool_field(variables, "synchronous") == Some(false) {
@@ -1679,47 +1680,39 @@ impl DraftProxy {
                 .values()
                 .any(|pending_id| pending_id == &id)
             {
-                return ok_json(json!({
+                return MutationOutcome::response(ok_json(json!({
                     "data": {
                         root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_duplicate_payload()
                     }
-                }));
+                })));
             }
             self.store
                 .staged
                 .product_delete_operations
                 .insert(operation_id.clone(), id.clone());
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "productDelete",
-                vec![id.clone()],
+            return MutationOutcome::staged(
+                ok_json(json!({
+                    "data": {
+                        root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_operation_payload(&operation_id)
+                    }
+                })),
+                LogDraft::staged("productDelete", "products", vec![id.clone()]),
             );
-            return ok_json(json!({
-                "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string()): product_delete_async_operation_payload(&operation_id)
-                }
-            }));
         }
 
         self.store.delete_product(&id);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "productDelete",
-            vec![id.clone()],
-        );
 
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productDelete".to_string());
-        ok_json(json!({
-            "data": {
-                response_key: product_delete_payload_json(&id, &payload_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    response_key: product_delete_payload_json(&id, &payload_selection)
+                }
+            })),
+            LogDraft::staged("productDelete", "products", vec![id.clone()]),
+        )
     }
 
     pub(in crate::proxy) fn product_relationship_options_read_data(
@@ -1749,10 +1742,9 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let Some(input) = product_input(query, variables) else {
-            return json_error(400, "productSet requires input");
+            return MutationOutcome::response(json_error(400, "productSet requires input"));
         };
         let title = resolved_string_field(&input, "title").unwrap_or_default();
         let id = self.next_proxy_synthetic_gid("Product");
@@ -1771,15 +1763,17 @@ impl DraftProxy {
             seo_description: String::new(),
         };
         self.store.stage_product(product.clone());
-        self.record_mutation_log_entry(request, query, variables, "productSet", vec![id]);
 
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        ok_json(json!({
-            "data": {
-                root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                }
+            })),
+            LogDraft::staged("productSet", "products", vec![id]),
+        )
     }
 
     pub(in crate::proxy) fn product_delete_operation_read_data(&self, node: bool) -> Value {
@@ -1808,17 +1802,19 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let fields = root_fields(query, variables).unwrap_or_default();
         let Some(field) = fields
             .iter()
             .find(|field| field.name == "productChangeStatus")
         else {
-            return json_error(400, "No productChangeStatus root field found");
+            return MutationOutcome::response(json_error(
+                400,
+                "No productChangeStatus root field found",
+            ));
         };
         if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
                     "locations": [{"line": 3, "column": 3}],
@@ -1829,13 +1825,19 @@ impl DraftProxy {
                         "argumentName": "productId"
                     }
                 }]
-            }));
+            })));
         }
         let Some(ResolvedValue::String(id)) = field.arguments.get("productId") else {
-            return json_error(400, "productChangeStatus requires productId");
+            return MutationOutcome::response(json_error(
+                400,
+                "productChangeStatus requires productId",
+            ));
         };
         let Some(status) = resolved_string_arg(&field.arguments, "status") else {
-            return json_error(400, "productChangeStatus requires status");
+            return MutationOutcome::response(json_error(
+                400,
+                "productChangeStatus requires status",
+            ));
         };
         let Some(mut product) = self
             .store
@@ -1849,29 +1851,25 @@ impl DraftProxy {
                 &json!({"field": ["productId"], "message": "Product does not exist"}),
                 &error_selection,
             );
-            return ok_json(json!({
+            return MutationOutcome::response(ok_json(json!({
                 "data": {
                     field.response_key.clone(): selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
                 }
-            }));
+            })));
         };
         product.status = status;
         self.store.stage_product(product.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "productChangeStatus",
-            vec![id.clone()],
-        );
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        ok_json(json!({
-            "data": {
-                field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                }
+            })),
+            LogDraft::staged("productChangeStatus", "products", vec![id.clone()]),
+        )
     }
 
     pub(in crate::proxy) fn product_tags_mutation(
@@ -1880,23 +1878,26 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let fields = root_fields(query, variables).unwrap_or_default();
         let Some(field) = fields.iter().find(|field| field.name == root_field) else {
-            return json_error(400, "No product tags mutation root field found");
+            return MutationOutcome::response(json_error(
+                400,
+                "No product tags mutation root field found",
+            ));
         };
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
-            return json_error(400, "tags mutation requires id");
+            return MutationOutcome::response(json_error(400, "tags mutation requires id"));
         };
         if !id.contains("/Product/") {
-            return self.dispatch_unknown_passthrough_or_legacy_error(
+            return MutationOutcome::response(self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
                 variables,
                 OperationType::Mutation,
                 &[root_field.to_string()],
                 root_field,
-            );
+            ));
         }
 
         let Some(mut product) = self
@@ -1904,10 +1905,10 @@ impl DraftProxy {
             .product_staged_or_base(id)
             .or_else(|| known_tags_product_seed(id, root_field))
         else {
-            return json_error(
+            return MutationOutcome::response(json_error(
                 400,
                 "No mutation dispatcher implemented for product tags id",
-            );
+            ));
         };
 
         if !self.store.staged.product_search_tags.contains_key(id) {
@@ -1938,7 +1939,6 @@ impl DraftProxy {
         }
 
         self.store.stage_product(product.clone());
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id.clone()]);
 
         let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -1946,11 +1946,14 @@ impl DraftProxy {
             "node": product_json(&product, &node_selection),
             "userErrors": []
         });
-        ok_json(json!({
-            "data": {
-                field.response_key.clone(): selected_json(&payload, &payload_selection)
-            }
-        }))
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    field.response_key.clone(): selected_json(&payload, &payload_selection)
+                }
+            })),
+            LogDraft::staged(root_field, "products", vec![id.clone()]),
+        )
     }
 
     pub(in crate::proxy) fn record_mutation_log_entry(
@@ -2067,38 +2070,35 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> MutationOutcome {
         let mut data = serde_json::Map::new();
+        let mut log_drafts = Vec::new();
         for field in root_fields(query, variables).unwrap_or_default() {
-            let value = match field.name.as_str() {
-                "savedSearchCreate" => {
-                    self.saved_search_create_field(&field, request, query, variables)
-                }
-                "savedSearchUpdate" => {
-                    self.saved_search_update_field(&field, request, query, variables)
-                }
-                "savedSearchDelete" => {
-                    self.saved_search_delete_field(&field, request, query, variables)
-                }
+            let outcome = match field.name.as_str() {
+                "savedSearchCreate" => self.saved_search_create_field(&field),
+                "savedSearchUpdate" => self.saved_search_update_field(&field),
+                "savedSearchDelete" => self.saved_search_delete_field(&field),
                 _ => continue,
             };
-            data.insert(field.response_key.clone(), value);
+            if let Some(log_draft) = outcome.log_draft {
+                log_drafts.push(log_draft);
+            }
+            data.insert(field.response_key.clone(), outcome.value);
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        MutationOutcome::with_log_drafts(
+            ok_json(json!({ "data": Value::Object(data) })),
+            log_drafts,
+        )
     }
 
     pub(in crate::proxy) fn saved_search_create_field(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
         let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
         let Some(input) = saved_search_input_from_field(field) else {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 None,
                 payload_selection,
                 &saved_search_selection,
@@ -2107,12 +2107,12 @@ impl DraftProxy {
                     "message": "Saved search input is required",
                     "code": "REQUIRED"
                 })],
-            );
+            ));
         };
         let Some(name) =
             resolved_string_field(&input, "name").filter(|value| !value.trim().is_empty())
         else {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 None,
                 payload_selection,
                 &saved_search_selection,
@@ -2121,7 +2121,7 @@ impl DraftProxy {
                     "message": "Name can't be blank",
                     "code": "BLANK"
                 })],
-            );
+            ));
         };
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
@@ -2149,12 +2149,12 @@ impl DraftProxy {
             &search_query,
         ));
         if !user_errors.is_empty() {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 None,
                 payload_selection,
                 &saved_search_selection,
                 user_errors,
-            );
+            ));
         }
         let id = self.next_proxy_synthetic_gid("SavedSearch");
         let record = SavedSearchRecord {
@@ -2164,26 +2164,25 @@ impl DraftProxy {
             resource_type,
         };
         self.store.stage_saved_search(record.clone());
-        self.record_mutation_log_entry(request, query, variables, "savedSearchCreate", vec![id]);
-        saved_search_mutation_payload_json(
-            Some(&record),
-            payload_selection,
-            &saved_search_selection,
-            Vec::new(),
+        MutationFieldOutcome::staged(
+            saved_search_mutation_payload_json(
+                Some(&record),
+                payload_selection,
+                &saved_search_selection,
+                Vec::new(),
+            ),
+            LogDraft::staged("savedSearchCreate", "saved_searches", vec![id]),
         )
     }
 
     pub(in crate::proxy) fn saved_search_update_field(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
         let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
         let Some(input) = saved_search_input_from_field(field) else {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 None,
                 payload_selection,
                 &saved_search_selection,
@@ -2192,12 +2191,12 @@ impl DraftProxy {
                     "message": "Saved search input is required",
                     "code": "REQUIRED"
                 })],
-            );
+            ));
         };
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         let existing = self.store.saved_search_by_id(&id);
         let Some(existing) = existing else {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 None,
                 payload_selection,
                 &saved_search_selection,
@@ -2205,7 +2204,7 @@ impl DraftProxy {
                     "field": ["input", "id"],
                     "message": "Saved Search does not exist"
                 })],
-            );
+            ));
         };
         let requested_name =
             resolved_string_field(&input, "name").unwrap_or_else(|| existing.name.clone());
@@ -2230,53 +2229,41 @@ impl DraftProxy {
             &requested_query,
         ));
         if !user_errors.is_empty() {
-            return saved_search_mutation_payload_json(
+            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
                 Some(&updated),
                 payload_selection,
                 &saved_search_selection,
                 user_errors,
-            );
+            ));
         }
         updated.name = requested_name;
         self.store.stage_saved_search(updated.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "savedSearchUpdate",
-            vec![updated.id.clone()],
-        );
-        saved_search_mutation_payload_json(
-            Some(&updated),
-            payload_selection,
-            &saved_search_selection,
-            Vec::new(),
+        MutationFieldOutcome::staged(
+            saved_search_mutation_payload_json(
+                Some(&updated),
+                payload_selection,
+                &saved_search_selection,
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "savedSearchUpdate",
+                "saved_searches",
+                vec![updated.id.clone()],
+            ),
         )
     }
 
     pub(in crate::proxy) fn saved_search_delete_field(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> MutationFieldOutcome {
         let input = saved_search_input_from_field(field);
         let id = input
             .as_ref()
             .and_then(|input| resolved_string_field(input, "id"))
             .unwrap_or_default();
         let deleted = self.store.delete_saved_search(&id);
-        if deleted {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "savedSearchDelete",
-                vec![id.clone()],
-            );
-        }
-        saved_search_delete_payload_json(
+        let value = saved_search_delete_payload_json(
             if deleted { Some(&id) } else { None },
             &field.selection,
             if deleted {
@@ -2287,6 +2274,14 @@ impl DraftProxy {
                     "message": "Saved Search does not exist"
                 })]
             },
-        )
+        );
+        if deleted {
+            MutationFieldOutcome::staged(
+                value,
+                LogDraft::staged("savedSearchDelete", "saved_searches", vec![id.clone()]),
+            )
+        } else {
+            MutationFieldOutcome::unlogged(value)
+        }
     }
 }

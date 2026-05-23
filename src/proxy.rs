@@ -638,6 +638,82 @@ pub(in crate::proxy) struct OrdersLocalLogOutcome<'a> {
     notes: &'a str,
 }
 
+pub(in crate::proxy) struct MutationOutcome {
+    response: Response,
+    log_drafts: Vec<LogDraft>,
+}
+
+pub(in crate::proxy) struct MutationFieldOutcome {
+    value: Value,
+    log_draft: Option<LogDraft>,
+}
+
+pub(in crate::proxy) struct LogDraft {
+    root_field: String,
+    staged_resource_ids: Vec<String>,
+    status: String,
+    capability_domain: String,
+    capability_execution: String,
+    notes: String,
+}
+
+impl MutationOutcome {
+    fn response(response: Response) -> Self {
+        Self {
+            response,
+            log_drafts: Vec::new(),
+        }
+    }
+
+    fn staged(response: Response, log_draft: LogDraft) -> Self {
+        Self {
+            response,
+            log_drafts: vec![log_draft],
+        }
+    }
+
+    fn with_log_drafts(response: Response, log_drafts: Vec<LogDraft>) -> Self {
+        Self {
+            response,
+            log_drafts,
+        }
+    }
+}
+
+impl MutationFieldOutcome {
+    fn unlogged(value: Value) -> Self {
+        Self {
+            value,
+            log_draft: None,
+        }
+    }
+
+    fn staged(value: Value, log_draft: LogDraft) -> Self {
+        Self {
+            value,
+            log_draft: Some(log_draft),
+        }
+    }
+}
+
+impl LogDraft {
+    fn staged(
+        root_field: impl Into<String>,
+        domain: &'static str,
+        staged_resource_ids: Vec<String>,
+    ) -> Self {
+        Self {
+            root_field: root_field.into(),
+            staged_resource_ids,
+            status: "staged".to_string(),
+            capability_domain: domain.to_string(),
+            capability_execution: "stage-locally".to_string(),
+            notes: "Supported mutation staged locally; commit replays the original raw mutation."
+                .to_string(),
+        }
+    }
+}
+
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")
 }
