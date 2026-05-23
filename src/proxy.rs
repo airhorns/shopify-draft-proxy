@@ -3397,7 +3397,7 @@ impl DraftProxy {
                 "message": "Address is not a valid kafka topic"
             }));
         }
-        if uri.as_bytes().len() > 65_535 {
+        if uri.len() > 65_535 {
             errors.push(json!({
                 "field": ["webhookSubscription", "callbackUrl"],
                 "message": "Address is too big (maximum is 64 KB)"
@@ -4119,8 +4119,6 @@ impl DraftProxy {
                 let record_app = record["apiClientId"].as_str();
                 if app.map(String::as_str) == record_app {
                     Some(id.clone())
-                } else if app.is_none() && record_app.is_none() {
-                    Some(id.clone())
                 } else {
                     None
                 }
@@ -4140,8 +4138,6 @@ impl DraftProxy {
                 }
                 let record_app = record["apiClientId"].as_str();
                 if app.map(String::as_str) == record_app {
-                    Some(id.clone())
-                } else if app.is_none() && record_app.is_none() {
                     Some(id.clone())
                 } else {
                     None
@@ -5129,7 +5125,7 @@ impl DraftProxy {
     fn theme_files_upsert(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        if files.iter().enumerate().any(|(_, file)| {
+        if files.iter().any(|file| {
             theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
         }) {
             let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
@@ -9478,18 +9474,18 @@ impl DraftProxy {
         } else {
             "+14155550123"
         };
-        let mut customer = customer_fixture_record(
-            &id,
-            &first,
-            &last,
+        let mut customer = customer_fixture_record(CustomerFixtureRecord {
+            id: &id,
+            first: &first,
+            last: &last,
             email,
             phone,
-            resolved_string_field(&input, "note").as_deref(),
-            resolved_bool_field(&input, "taxExempt").unwrap_or(false),
+            note: resolved_string_field(&input, "note").as_deref(),
+            tax_exempt: resolved_bool_field(&input, "taxExempt").unwrap_or(false),
             tax_exemptions,
             tags,
             loyalty,
-        );
+        });
         if input.contains_key("phone") {
             let phone = resolved_string_field(&input, "phone").filter(|phone| !phone.is_empty());
             if let Some(object) = customer.as_object_mut() {
@@ -13242,7 +13238,7 @@ impl DraftProxy {
         let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
         let unknown = ids
             .iter()
-            .any(|id| !known_deadline_fulfillment_order_status(id).is_some());
+            .any(|id| known_deadline_fulfillment_order_status(id).is_none());
         let closed_or_cancelled = ids.iter().any(|id| {
             matches!(
                 known_deadline_fulfillment_order_status(id),
@@ -15345,53 +15341,61 @@ fn discount_bxgy_lifecycle_mutation_data(fields: &[RootFieldSelection]) -> Value
             })),
             "discountAutomaticBxgyCreate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY 1777150259502",
-                    "ACTIVE",
-                    "Buy 1 item, get 1 item at 50% off",
-                    "1",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:01Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 1 item, get 1 item at 50% off",
+                        buys_quantity: "1",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:01Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticBxgyUpdate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "ACTIVE",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticDeactivate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "EXPIRED",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    json!("2026-04-25T20:51:02Z"),
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "EXPIRED",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: json!("2026-04-25T20:51:02Z"),
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticActivate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "ACTIVE",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
@@ -15520,27 +15524,29 @@ fn discount_bxgy_lifecycle_code_node(
     })
 }
 
-fn discount_bxgy_lifecycle_automatic_node(
-    title: &str,
-    status: &str,
-    summary: &str,
-    buys_quantity: &str,
-    gets_quantity: &str,
+struct DiscountBxgyLifecycleAutomaticNode<'a> {
+    title: &'a str,
+    status: &'a str,
+    summary: &'a str,
+    buys_quantity: &'a str,
+    gets_quantity: &'a str,
     percentage: f64,
     ends_at: Value,
-    updated_at: &str,
-) -> Value {
+    updated_at: &'a str,
+}
+
+fn discount_bxgy_lifecycle_automatic_node(node: DiscountBxgyLifecycleAutomaticNode<'_>) -> Value {
     json!({
         "id": DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID,
         "automaticDiscount": {
             "__typename": "DiscountAutomaticBxgy",
-            "title": title,
-            "status": status,
-            "summary": summary,
+            "title": node.title,
+            "status": node.status,
+            "summary": node.summary,
             "startsAt": "2026-04-25T00:00:00Z",
-            "endsAt": ends_at,
+            "endsAt": node.ends_at,
             "createdAt": "2026-04-25T20:51:01Z",
-            "updatedAt": updated_at,
+            "updatedAt": node.updated_at,
             "asyncUsageCount": 0,
             "discountClasses": ["PRODUCT"],
             "usesPerOrderLimit": 1,
@@ -15556,17 +15562,17 @@ fn discount_bxgy_lifecycle_automatic_node(
             "customerBuys": {
                 "value": {
                     "__typename": "DiscountQuantity",
-                    "quantity": buys_quantity
+                    "quantity": node.buys_quantity
                 },
                 "items": discount_bxgy_lifecycle_collections_items()
             },
             "customerGets": {
                 "value": {
                     "__typename": "DiscountOnQuantity",
-                    "quantity": { "quantity": gets_quantity },
+                    "quantity": { "quantity": node.gets_quantity },
                     "effect": {
                         "__typename": "DiscountPercentage",
-                        "percentage": percentage
+                        "percentage": node.percentage
                     }
                 },
                 "items": discount_bxgy_lifecycle_products_items(
@@ -21060,48 +21066,50 @@ fn customer_loyalty_metafield(input: &BTreeMap<String, ResolvedValue>) -> Value 
     })
 }
 
-fn customer_fixture_record(
-    id: &str,
-    first: &str,
-    last: &str,
-    email: &str,
-    phone: &str,
-    note: Option<&str>,
+struct CustomerFixtureRecord<'a> {
+    id: &'a str,
+    first: &'a str,
+    last: &'a str,
+    email: &'a str,
+    phone: &'a str,
+    note: Option<&'a str>,
     tax_exempt: bool,
     tax_exemptions: Vec<String>,
     tags: Vec<String>,
     loyalty: Value,
-) -> Value {
-    let display_name = [first, last]
+}
+
+fn customer_fixture_record(record: CustomerFixtureRecord<'_>) -> Value {
+    let display_name = [record.first, record.last]
         .into_iter()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
-    let metafields = if loyalty.is_null() {
+    let metafields = if record.loyalty.is_null() {
         json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
     } else {
-        json!({ "nodes": [loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+        json!({ "nodes": [record.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
     };
     json!({
-        "id": id,
-        "firstName": first,
-        "lastName": last,
+        "id": record.id,
+        "firstName": record.first,
+        "lastName": record.last,
         "displayName": display_name,
-        "email": email,
-        "phone": phone,
+        "email": record.email,
+        "phone": record.phone,
         "locale": "en",
-        "note": note,
+        "note": record.note,
         "verifiedEmail": true,
-        "taxExempt": tax_exempt,
-        "taxExemptions": tax_exemptions,
-        "tags": tags,
+        "taxExempt": record.tax_exempt,
+        "taxExemptions": record.tax_exemptions,
+        "tags": record.tags,
         "state": "DISABLED",
         "canDelete": true,
-        "loyalty": loyalty,
-        "metafield": loyalty,
+        "loyalty": record.loyalty.clone(),
+        "metafield": record.loyalty,
         "metafields": metafields,
-        "defaultEmailAddress": { "emailAddress": email },
-        "defaultPhoneNumber": { "phoneNumber": phone },
+        "defaultEmailAddress": { "emailAddress": record.email },
+        "defaultPhoneNumber": { "phoneNumber": record.phone },
         "defaultAddress": null,
         "createdAt": "2026-04-25T01:41:06Z",
         "updatedAt": "2026-04-25T01:41:06Z"
@@ -23876,7 +23884,7 @@ fn gift_card_transaction_payload(
 }
 
 fn gift_card_entitlement_disabled_payload(selections: &[SelectedField]) -> Value {
-    let user_errors = vec![json!({
+    let user_errors = [json!({
         "field": ["base"],
         "code": null,
         "message": "Gift cards are not available on this plan."
@@ -25215,12 +25223,11 @@ fn fulfillment_service_handle(name: &str) -> String {
             _ => None,
         };
         match mapped {
-            Some('-') => {
-                if !previous_dash && !handle.is_empty() {
-                    handle.push('-');
-                    previous_dash = true;
-                }
+            Some('-') if !previous_dash && !handle.is_empty() => {
+                handle.push('-');
+                previous_dash = true;
             }
+            Some('-') => {}
             Some(ch) => {
                 handle.push(ch);
                 previous_dash = false;

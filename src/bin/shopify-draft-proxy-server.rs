@@ -124,7 +124,7 @@ fn send_upstream_request_result(origin: &str, request: Request) -> std::io::Resu
         request.method,
         request.path,
         target.host_header,
-        body.as_bytes().len()
+        body.len()
     );
     for (name, value) in request.headers {
         if name.eq_ignore_ascii_case("host")
