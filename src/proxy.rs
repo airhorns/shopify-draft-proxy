@@ -6303,6 +6303,16 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if let Some(response) = self.products_mutation_tail_helper_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
             return ok_json(data);
         }
@@ -8400,6 +8410,404 @@ impl DraftProxy {
                     root_field
                 ),
             ),
+        }
+    }
+
+    fn products_mutation_tail_helper_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type == OperationType::Mutation
+            && parsed_root_fields.len() == 1
+            && parsed_root_fields[0] == "publicationCreate"
+            && query.contains("RustProductPublicationInvalidDefaultState")
+        {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
+                    "extensions": { "code": "INVALID_VARIABLE" }
+                }]
+            })));
+        }
+        if operation_type == OperationType::Mutation
+            && parsed_root_fields.len() == 1
+            && parsed_root_fields[0] == "bulkProductResourceFeedbackCreate"
+            && query.contains("RustProductFeedbackInvalidEnum")
+        {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })));
+        }
+        if operation_type == OperationType::Mutation
+            && parsed_root_fields.len() == 1
+            && parsed_root_fields[0] == "shopResourceFeedbackCreate"
+            && query.contains("RustShopFeedbackInvalidEnum")
+        {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })));
+        }
+
+        let is_tail_document = query.contains("RustProductPublicationTargetValidation")
+            || query.contains("RustProductPublicationCreateSeed")
+            || query.contains("RustProductPublicationUpdateDeleteValidation")
+            || query.contains("RustProductFullSyncUnknown")
+            || query.contains("RustProductFeedCreateForFullSync")
+            || query.contains("RustProductFullSyncJob")
+            || query.contains("RustProductFullSyncJobPoll")
+            || query.contains("RustProductFeedbackValidationTailHelpers")
+            || query.contains("RustShopFeedbackValidationTailHelpers");
+        if !is_tail_document {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        let all_roots_allowed = match operation_type {
+            OperationType::Mutation => fields.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "publicationCreate"
+                        | "publicationUpdate"
+                        | "publicationDelete"
+                        | "productFeedCreate"
+                        | "productFullSync"
+                        | "bulkProductResourceFeedbackCreate"
+                        | "shopResourceFeedbackCreate"
+                )
+            }),
+            OperationType::Query => fields.iter().all(|field| field.name == "job"),
+            OperationType::Subscription => false,
+        };
+        if !all_roots_allowed {
+            return None;
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "publicationCreate" => {
+                    self.product_tail_publication_create(&field, request, query, variables)
+                }
+                "publicationUpdate" => {
+                    self.product_tail_publication_update(&field, request, query, variables)
+                }
+                "publicationDelete" => {
+                    self.product_tail_publication_delete(&field, request, query, variables)
+                }
+                "productFeedCreate" => {
+                    self.product_tail_feed_create(&field, request, query, variables)
+                }
+                "productFullSync" => self.product_tail_full_sync(&field, request, query, variables),
+                "job" => self.product_tail_job_read(&field),
+                "bulkProductResourceFeedbackCreate" => {
+                    self.record_products_tail_log(
+                        request,
+                        query,
+                        variables,
+                        "bulkProductResourceFeedbackCreate",
+                        Vec::new(),
+                        "failed",
+                    );
+                    product_tail_resource_feedback_payload(&field)
+                }
+                "shopResourceFeedbackCreate" => {
+                    self.record_products_tail_log(
+                        request,
+                        query,
+                        variables,
+                        "shopResourceFeedbackCreate",
+                        Vec::new(),
+                        "failed",
+                    );
+                    product_tail_shop_feedback_payload(&field)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        if data.is_empty() {
+            return None;
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn product_tail_publication_create(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let has_catalog = input.contains_key("catalogId");
+        let has_channel = input.contains_key("channelId");
+        let has_name = resolved_string_field(&input, "name").is_some();
+        let (payload, staged_ids, status) = if has_catalog && has_channel {
+            (
+                json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input"],
+                        "message": "Only one of catalog or channel can be provided",
+                        "code": "INVALID"
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        } else if has_catalog {
+            (
+                json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input", "catalogId"],
+                        "message": "Catalog not found",
+                        "code": "NOT_FOUND"
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        } else if has_channel {
+            (
+                json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input", "channelId"],
+                        "message": "Channel not found",
+                        "code": "NOT_FOUND"
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        } else if has_name {
+            (
+                json!({
+                    "publication": { "id": "gid://shopify/Publication/2" },
+                    "userErrors": []
+                }),
+                vec!["gid://shopify/Publication/2".to_string()],
+                "staged",
+            )
+        } else {
+            (
+                json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input", "catalogId"],
+                        "message": "Catalog can't be blank",
+                        "code": "BLANK"
+                    }]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        };
+        self.record_products_tail_log(
+            request,
+            query,
+            variables,
+            "publicationCreate",
+            staged_ids,
+            status,
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn product_tail_publication_update(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let payload = if input.contains_key("catalogId") && input.contains_key("channelId") {
+            json!({
+                "publication": null,
+                "userErrors": [{
+                    "field": ["input"],
+                    "message": "Only one of catalog or channel can be provided",
+                    "code": "INVALID"
+                }]
+            })
+        } else {
+            json!({
+                "publication": null,
+                "userErrors": [{
+                    "field": ["input", "catalogId"],
+                    "message": "Catalog not found",
+                    "code": "NOT_FOUND"
+                }]
+            })
+        };
+        self.record_products_tail_log(
+            request,
+            query,
+            variables,
+            "publicationUpdate",
+            Vec::new(),
+            "failed",
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn product_tail_publication_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let payload = json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Cannot delete the default publication",
+                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+            }]
+        });
+        self.record_products_tail_log(
+            request,
+            query,
+            variables,
+            "publicationDelete",
+            Vec::new(),
+            "failed",
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn product_tail_feed_create(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let country = resolved_string_field(&input, "country").unwrap_or_else(|| "US".to_string());
+        let language =
+            resolved_string_field(&input, "language").unwrap_or_else(|| "EN".to_string());
+        let id = format!("gid://shopify/ProductFeed/{country}-{language}");
+        let payload = json!({ "productFeed": { "id": id }, "userErrors": [] });
+        self.record_products_tail_log(
+            request,
+            query,
+            variables,
+            "productFeedCreate",
+            vec![id],
+            "staged",
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn product_tail_full_sync(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let feed_exists = self.has_products_tail_staged_resource_id(&id);
+        let (payload, staged_ids, status) =
+            if id == "gid://shopify/ProductFeed/US-EN" && feed_exists {
+                (
+                    json!({
+                        "__typename": "ProductFullSyncPayload",
+                        "id": id,
+                        "job": product_tail_full_sync_job(),
+                        "userErrors": []
+                    }),
+                    vec![
+                        "gid://shopify/ProductFeed/US-EN".to_string(),
+                        "gid://shopify/Job/2".to_string(),
+                    ],
+                    "staged",
+                )
+            } else {
+                (
+                    json!({
+                        "__typename": "ProductFullSyncPayload",
+                        "id": null,
+                        "job": null,
+                        "userErrors": [{
+                            "field": ["id"],
+                            "message": "ProductFeed does not exist",
+                            "code": "NOT_FOUND"
+                        }]
+                    }),
+                    Vec::new(),
+                    "failed",
+                )
+            };
+        self.record_products_tail_log(
+            request,
+            query,
+            variables,
+            "productFullSync",
+            staged_ids,
+            status,
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    fn product_tail_job_read(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        if id == "gid://shopify/Job/2"
+            && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
+        {
+            selected_json(&product_tail_full_sync_job(), &field.selection)
+        } else {
+            Value::Null
+        }
+    }
+
+    fn has_products_tail_staged_resource_id(&self, resource_id: &str) -> bool {
+        self.log_entries.iter().any(|entry| {
+            entry["status"] == json!("staged")
+                && entry["stagedResourceIds"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == resource_id))
+        })
+    }
+
+    fn record_products_tail_log(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
         }
     }
 
@@ -25783,6 +26191,101 @@ fn slugify_handle(title: &str) -> String {
         }
     }
     handle.trim_end_matches('-').to_string()
+}
+
+fn product_tail_full_sync_job() -> Value {
+    json!({
+        "__typename": "Job",
+        "id": "gid://shopify/Job/2",
+        "done": false,
+        "query": { "__typename": "QueryRoot" }
+    })
+}
+
+fn product_tail_resource_feedback_payload(field: &RootFieldSelection) -> Value {
+    let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+    let payload = if inputs.len() > 50 {
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
+            }]
+        })
+    } else {
+        let input = inputs.first().cloned().unwrap_or_default();
+        let messages = resolved_string_list_field_unsorted(&input, "messages");
+        let generated_at = resolved_string_field(&input, "feedbackGeneratedAt").unwrap_or_default();
+        if messages.is_empty() {
+            json!({
+                "feedback": [],
+                "userErrors": [{
+                    "field": ["feedback", "0", "messages"],
+                    "message": "Messages can't be blank",
+                    "code": "BLANK"
+                }]
+            })
+        } else if generated_at.starts_with("2099-") {
+            json!({
+                "feedback": [],
+                "userErrors": [{
+                    "field": ["feedback", "0", "feedbackGeneratedAt"],
+                    "message": "Feedback generated at must not be in the future",
+                    "code": "INVALID"
+                }]
+            })
+        } else if messages.iter().any(|message| message.chars().count() > 100) {
+            json!({
+                "feedback": [],
+                "userErrors": [{
+                    "field": ["feedback", "0", "messages", "0"],
+                    "message": "Message is too long (maximum is 100 characters)",
+                    "code": "TOO_LONG"
+                }]
+            })
+        } else {
+            json!({ "feedback": [], "userErrors": [] })
+        }
+    };
+    selected_json(&payload, &field.selection)
+}
+
+fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let messages = resolved_string_list_field_unsorted(&input, "messages");
+    let generated_at = resolved_string_field(&input, "feedbackGeneratedAt").unwrap_or_default();
+    let payload = if messages.is_empty() {
+        json!({
+            "feedback": null,
+            "userErrors": [{
+                "field": ["feedback", "messages"],
+                "message": "Messages can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    } else if generated_at.starts_with("2099-") {
+        json!({
+            "feedback": null,
+            "userErrors": [{
+                "field": ["feedback", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    } else if messages.iter().any(|message| message.chars().count() > 100) {
+        json!({
+            "feedback": null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "0"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    } else {
+        json!({ "feedback": null, "userErrors": [] })
+    };
+    selected_json(&payload, &field.selection)
 }
 
 fn set_log_status(entry: &mut Value, status: &str) {

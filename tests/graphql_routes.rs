@@ -7460,6 +7460,481 @@ fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_
 }
 
 #[test]
+fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+
+    let publication_validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationTargetValidation {
+          both: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          blankCatalog: publicationCreate(input: {}) {
+            publication { id }
+            userErrors { field message code }
+          }
+          missingCatalog: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          missingChannel: publicationCreate(input: { channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(publication_validation.status, 200);
+    assert_eq!(
+        publication_validation.body["data"]["both"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Only one of catalog or channel can be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["blankCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["missingCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["missingChannel"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "channelId"],
+                "message": "Channel not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationCreateSeed {
+          publicationCreate(input: { name: "Seed" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create_publication.status, 200);
+    assert_eq!(
+        create_publication.body["data"]["publicationCreate"],
+        json!({
+            "publication": { "id": "gid://shopify/Publication/2" },
+            "userErrors": []
+        })
+    );
+
+    let publication_update_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationUpdateDeleteValidation {
+          updateBoth: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          updateMissingCatalog: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          deleteDefault: publicationDelete(id: "gid://shopify/Publication/1") {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(publication_update_delete.status, 200);
+    assert_eq!(
+        publication_update_delete.body["data"]["updateBoth"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Only one of catalog or channel can be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_update_delete.body["data"]["updateMissingCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_update_delete.body["data"]["deleteDefault"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Cannot delete the default publication",
+                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+            }]
+        })
+    );
+
+    let unknown_feed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncUnknown($id: ID!) {
+          productFullSync(id: $id) { id userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/999999999" }),
+    ));
+    assert_eq!(unknown_feed.status, 200);
+    assert_eq!(
+        unknown_feed.body,
+        json!({
+            "data": {
+                "productFullSync": {
+                    "id": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "ProductFeed does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+
+    let sync_before_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncJob($id: ID!) {
+          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(sync_before_create.status, 200);
+    assert_eq!(
+        sync_before_create.body["data"]["productFullSync"],
+        json!({
+            "id": Value::Null,
+            "job": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let feed_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedCreateForFullSync($input: ProductFeedInput) {
+          productFeedCreate(input: $input) { productFeed { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "country": "US", "language": "EN" } }),
+    ));
+    assert_eq!(feed_create.status, 200);
+    assert_eq!(
+        feed_create.body["data"]["productFeedCreate"],
+        json!({
+            "productFeed": { "id": "gid://shopify/ProductFeed/US-EN" },
+            "userErrors": []
+        })
+    );
+
+    let sync = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncJob($id: ID!) {
+          productFullSync(id: $id) {
+            __typename
+            id
+            job { __typename id done query { __typename } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(sync.status, 200);
+    assert_eq!(
+        sync.body["data"]["productFullSync"],
+        json!({
+            "__typename": "ProductFullSyncPayload",
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "job": {
+                "__typename": "Job",
+                "id": "gid://shopify/Job/2",
+                "done": false,
+                "query": { "__typename": "QueryRoot" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let job = proxy.process_request(json_graphql_request(
+        r#"
+        query RustProductFullSyncJobPoll($id: ID!) {
+          job(id: $id) { __typename id done query { __typename } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Job/2" }),
+    ));
+    assert_eq!(job.status, 200);
+    assert_eq!(
+        job.body,
+        json!({
+            "data": {
+                "job": {
+                    "__typename": "Job",
+                    "id": "gid://shopify/Job/2",
+                    "done": false,
+                    "query": { "__typename": "QueryRoot" }
+                }
+            }
+        })
+    );
+
+    let too_long = "x".repeat(101);
+    let batch_entries = std::iter::repeat(
+        "{ productId: \"gid://shopify/Product/optioned\", state: ACCEPTED, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", productUpdatedAt: \"2024-01-01T00:00:00Z\", messages: [] }",
+    )
+    .take(51)
+    .collect::<Vec<_>>()
+    .join(",");
+    let product_feedback_query = format!(
+        r#"
+        mutation RustProductFeedbackValidationTailHelpers {{
+          blankMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["needs review"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          tooLongMessage: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          batchTooLong: bulkProductResourceFeedbackCreate(feedbackInput: [{batch_entries}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+        }}
+        "#
+    );
+    let product_feedback =
+        proxy.process_request(json_graphql_request(&product_feedback_query, json!({})));
+    assert_eq!(product_feedback.status, 200);
+    assert_eq!(
+        product_feedback.body["data"]["blankMessages"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages"],
+                "message": "Messages can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["futureGeneratedAt"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["tooLongMessage"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages", "0"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["batchTooLong"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+
+    let shop_feedback = proxy.process_request(json_graphql_request(
+        &format!(
+            r#"
+            mutation RustShopFeedbackValidationTailHelpers {{
+              blankMessages: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+              futureGeneratedAt: shopResourceFeedbackCreate(input: {{ state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", messages: ["needs review"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+              tooLongMessage: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+            }}
+            "#
+        ),
+        json!({}),
+    ));
+    assert_eq!(shop_feedback.status, 200);
+    assert_eq!(
+        shop_feedback.body["data"]["blankMessages"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages"],
+                "message": "Messages can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        shop_feedback.body["data"]["futureGeneratedAt"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        shop_feedback.body["data"]["tooLongMessage"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "0"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["status"] == json!("failed")
+                && entry["interpreted"]["primaryRootField"] == json!("publicationCreate")),
+        "publication validation branches should still record failed log entries: {log}"
+    );
+    for root in [
+        "bulkProductResourceFeedbackCreate",
+        "shopResourceFeedbackCreate",
+    ] {
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry["status"] == json!("failed")
+                    && entry["interpreted"]["primaryRootField"] == json!(root)),
+            "feedback validation branches should record failed log entries for {root}: {log}"
+        );
+    }
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["status"] == json!("staged")
+                && entry["stagedResourceIds"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == "gid://shopify/Job/2"))),
+        "successful full sync should stage the ProductFeed and pollable Job IDs: {log}"
+    );
+}
+
+#[test]
+fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let default_state = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationInvalidDefaultState($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "defaultState": "BANANAS" } }),
+    ));
+    assert_eq!(default_state.status, 200);
+    assert_eq!(
+        default_state.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(default_state.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(
+            |message| message.contains("Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS")
+        ));
+
+    let product_feedback_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackInvalidEnum {
+          bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: "gid://shopify/Product/optioned", state: BANANAS, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_feedback_enum.status, 200);
+    assert!(product_feedback_enum.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+    assert_eq!(
+        product_feedback_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        product_feedback_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
+    );
+
+    let shop_feedback_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustShopFeedbackInvalidEnum {
+          shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(shop_feedback_enum.status, 200);
+    assert!(shop_feedback_enum.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+    assert_eq!(
+        shop_feedback_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
 fn product_reorder_media_replays_captured_job_and_downstream_order() {
     let mut proxy = snapshot_proxy();
 

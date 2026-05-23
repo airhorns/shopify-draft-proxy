@@ -5,10 +5,10 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 - Scope: `origin/main test/shopify_draft_proxy/proxy/**/*.gleam functions ending in _test`
 - Total old Gleam proxy tests enumerated: **2162** across **45** files.
 - Coverage status counts:
-  - `implementation_unit_replaced_needs_review`: 118
-  - `needs_manual_review`: 370
+  - `implementation_unit_replaced_needs_review`: 117
+  - `needs_manual_review`: 361
   - `represented_by_parity_and_rust_handler`: 4
-  - `represented_by_rust_root_tests`: 1670
+  - `represented_by_rust_root_tests`: 1680
 - Kind counts:
   - `domain_processor_behavior`: 275
   - `http_proxy_request`: 414
@@ -18,7 +18,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Domains with unresolved/manual-review entries
 
-- `products_mutation`: 39
+- `products_mutation`: 29
 - `b2b`: 36
 - `store_properties`: 33
 - `online_store`: 32
@@ -61,6 +61,7 @@ Machine-readable source: `docs/rust-port-gleam-proxy-test-crosswalk.json`.
 
 ## Manual Rust-port updates
 
+- Product publication target/default-state validation, product full-sync feed/job lifecycle, and product/shop resource-feedback validation/coercion tails from `products_mutation_test.gleam` are now represented by `tests/graphql_routes.rs::product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests` and `tests/graphql_routes.rs::product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log`, covering publication create/update/delete validation errors and failed logs, invalid default-state enum top-level errors without logs, product feed create/full-sync job polling only after staging the feed, unknown-feed errors, product/shop feedback validation branches with failed logs, and product/shop invalid `ResourceFeedbackState` coercion errors.
 - Product media deprecated user-error mirroring and product-variant media guard helper behavior from `products_mutation_test.gleam` is now represented by `tests/graphql_routes.rs::product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers`, covering mirrored `userErrors`/`mediaUserErrors` for create/update/delete/reorder media validation, non-ready media append rejection, and unattached detach rejection.
 - Customer-payment-method update/revoke tail helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam`, covering blank billing-address update errors, active-contract revoke rejection without readback mutation, successful revoke readback, and already-revoked idempotence. This leaves the payments domain fully represented in the crosswalk.
 - Payment-terms create/update guard helper behavior from `payments_test.gleam` is now represented by `tests/graphql_routes.rs::payment_terms_create_update_guardrails_port_old_gleam_helper_edges`, covering paid/closed/cancelled/draft owner eligibility, multiple schedules, unknown order/draft references, template validation, receipt/fixed schedule due-date semantics, missing update IDs, paid/channel-policy update guards, draft-owner update success, and update-code invalid-attribute errors.

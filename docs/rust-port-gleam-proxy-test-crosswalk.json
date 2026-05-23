@@ -1,10 +1,10 @@
 {
   "summary": {
     "coverage_status_counts": {
-      "implementation_unit_replaced_needs_review": 118,
-      "needs_manual_review": 370,
+      "implementation_unit_replaced_needs_review": 117,
+      "needs_manual_review": 361,
       "represented_by_parity_and_rust_handler": 4,
-      "represented_by_rust_root_tests": 1670
+      "represented_by_rust_root_tests": 1680
     },
     "domain_counts": {
       "admin_platform": 33,
@@ -38344,8 +38344,11 @@
     },
     {
       "body_sha1": "d67b51b0699febc563c257b78eb3635b3558f657",
-      "coverage_reasons": ["old_test_appears_helper_or_parser_level"],
-      "coverage_status": "implementation_unit_replaced_needs_review",
+      "coverage_reasons": [
+        "old_test_appears_helper_or_parser_level",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 281,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38355,7 +38358,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "4e9bb574987e2552dbd04e795876bbe96d6f6ebf",
@@ -38442,8 +38445,11 @@
     },
     {
       "body_sha1": "b946b6eb588427788ca7c1446824f9c61fa4161a",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 463,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38453,12 +38459,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "959d9702aef7f1de1860063a67bd5a07d096b6d6",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 509,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38468,12 +38477,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "4bdd245d6341ff5fac30aaea57e9e5ca7c73bdb7",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 523,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38483,12 +38495,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "c321866f40723e664026ff14fabc2890b7086f19",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 610,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38498,12 +38513,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "1160879db7c5c577046b51113c51afddc4842000",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 631,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38513,12 +38531,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "a2f2c386d82fd2a59644886b3cd5e62b5137fdc2",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 689,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38528,12 +38549,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "7d4126ea1a8339380e44b5623cac0e04332b916e",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 708,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38543,12 +38567,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "6e61d8fc58af180674c8d80ff5444ee33478259b",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 726,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38558,12 +38585,15 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "0a6b18d0fc71af5ba9e47104abec3755da53ce3c",
-      "coverage_reasons": ["no_known_graphql_root_extracted"],
-      "coverage_status": "needs_manual_review",
+      "coverage_reasons": [
+        "no_known_graphql_root_extracted",
+        "manual_rust_port_products_publication_full_sync_feedback_tail_helpers"
+      ],
+      "coverage_status": "represented_by_rust_root_tests",
       "domain": "products_mutation",
       "gleam_line": 766,
       "gleam_path": "test/shopify_draft_proxy/proxy/products_mutation_test.gleam",
@@ -38573,7 +38603,7 @@
       "root_coverage": {},
       "root_fields": [],
       "rust_file_stem_hit": false,
-      "rust_test_name_hit": false
+      "rust_test_name_hit": true
     },
     {
       "body_sha1": "0e4afea6910ac3fcbd008df066b1fedaa2e17e29",
