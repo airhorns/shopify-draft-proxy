@@ -1,0 +1,19418 @@
+use std::sync::{Arc, Mutex};
+
+use pretty_assertions::assert_eq;
+use serde_json::{json, Value};
+use shopify_draft_proxy::graphql::OperationType;
+use shopify_draft_proxy::operation_registry::{
+    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+};
+use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
+
+fn snapshot_proxy() -> DraftProxy {
+    configured_proxy(ReadMode::Snapshot, None)
+}
+
+fn configured_proxy(
+    read_mode: ReadMode,
+    unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
+) -> DraftProxy {
+    DraftProxy::new(Config {
+        read_mode,
+        unsupported_mutation_mode,
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+}
+
+fn graphql_request(method: &str, body: &str) -> Request {
+    Request {
+        method: method.to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: body.to_string(),
+    }
+}
+
+fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+    graphql_request(
+        "POST",
+        &json!({ "query": query, "variables": variables }).to_string(),
+    )
+}
+
+fn product_fixture(path: &str) -> Value {
+    serde_json::from_str(path).expect("product fixture must parse")
+}
+
+#[test]
+fn order_cancel_state_transitions_replay_validation_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let fresh = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["freshOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(fresh.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let fresh_order_id = fresh.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let to_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["cancelledOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        to_cancel.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let cancelled_id = to_cancel.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let setup_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql"
+        ),
+        json!({ "orderId": cancelled_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(setup_cancel.body, fixture["expected"]["cancelOrderSuccess"]);
+
+    let already_cancelled = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_id, "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(
+        already_cancelled.body,
+        fixture["expected"]["alreadyCancelled"]
+    );
+
+    let staff_note_too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id.clone(),
+            "restock": false,
+            "reason": "OTHER",
+            "staffNote": "x".repeat(300)
+        }),
+    ));
+    assert_eq!(
+        staff_note_too_long.body,
+        fixture["expected"]["staffNoteTooLong"]
+    );
+
+    let refund_conflict = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({
+            "orderId": fresh_order_id,
+            "restock": false,
+            "reason": "OTHER",
+            "refund": true,
+            "refundMethod": { "originalPaymentMethodsRefund": true }
+        }),
+    ));
+    assert_eq!(
+        refund_conflict.body,
+        fixture["expected"]["refundAndRefundMethodConflict"]
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": "gid://shopify/Order/404", "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+}
+
+#[test]
+fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderCustomerSet-and-Remove-error-paths.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let customer = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCustomer-error-paths-customer-create.graphql"
+        ),
+        fixture["setup"]["customerCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"].clone();
+
+    let order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let happy_set = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id.clone(), "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(happy_set.body, fixture["expected"]["happySet"]);
+
+    let happy_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(happy_remove.body, fixture["expected"]["happyRemove"]);
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": "gid://shopify/Order/order-customer-missing", "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+
+    let unknown_customer = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": order_id, "customerId": "gid://shopify/Customer/order-customer-missing" }),
+    ));
+    assert_eq!(
+        unknown_customer.body,
+        fixture["expected"]["unknownCustomer"]
+    );
+
+    let company = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCustomer-error-paths-company-create.graphql"
+        ),
+        fixture["setup"]["companyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let assign = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/b2b/b2b-company-contact-main-delete-assign-customer.graphql"
+        ),
+        json!({ "companyId": company_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        assign.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+
+    let b2b_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        fixture["setup"]["b2bOrderCreate"]["variables"].clone(),
+    ));
+    let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let b2b_not_permitted = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": b2b_order_id, "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        b2b_not_permitted.body,
+        fixture["expected"]["b2bNotPermitted"]
+    );
+
+    let cancelled_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "email": "order-customer-cancelled@example.com",
+                "customerId": customer_id,
+                "lineItems": [{
+                    "title": "Cancelled order customer item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let cancelled_order_id = cancelled_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        json!({ "orderId": cancelled_order_id.clone(), "restock": false, "reason": "OTHER" }),
+    ));
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+
+    let cancelled_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
+        json!({ "orderId": cancelled_order_id }),
+    ));
+    assert_eq!(
+        cancelled_remove.body,
+        fixture["expected"]["cancelledRemove"]
+    );
+}
+
+#[test]
+fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql"
+        ),
+        fixture["setup"]["simpleDraftOrderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let partial_add = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({
+            "ids": [draft_order_id.clone(), "gid://shopify/DraftOrder/draft-order-bulk-tag-missing"],
+            "tags": [" added ", "ADDED"]
+        }),
+    ));
+    assert_eq!(
+        partial_add.body,
+        fixture["expected"]["partialSuccessWithUnknownId"]
+    );
+
+    let read_after_partial = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_partial.body,
+        fixture["expected"]["readAfterPartialSuccess"]
+    );
+
+    let long_tag = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({ "ids": [draft_order_id.clone()], "tags": [fixture["inputs"]["longTag"].clone()] }),
+    ));
+    assert_eq!(long_tag.body, fixture["expected"]["longTagRejected"]);
+
+    let remove = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+        ),
+        json!({ "ids": [draft_order_id.clone()], "tags": [" INITIAL "] }),
+    ));
+    assert_eq!(
+        remove.body,
+        fixture["expected"]["removeNormalizesTagIdentity"]
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql"),
+        json!({ "id": draft_order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_remove.body,
+        fixture["expected"]["readAfterNormalizedRemove"]
+    );
+
+    let too_many = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        json!({ "ids": [draft_order_id], "tags": fixture["inputs"]["tooManyTags"].clone() }),
+    ));
+    assert_eq!(too_many.body, fixture["expected"]["tooManyInputTags"]);
+}
+
+#[test]
+fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
+    let malformed_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
+    ))
+    .unwrap();
+    let shape_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let malformed_query = include_str!(
+        "../config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql"
+    );
+
+    for index in 0..3 {
+        let response = proxy.process_request(json_graphql_request(
+            malformed_query,
+            malformed_fixture["cases"][index]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            malformed_fixture["cases"][index]["response"]["payload"]
+        );
+    }
+
+    let sibling_abort_query = r#"
+      mutation PaymentReminderSendMalformedGid($paymentScheduleId: ID!) {
+        paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+          success
+          userErrors { field code message }
+        }
+        paymentCustomizationCreate(paymentCustomization: { title: "Should not stage", enabled: true, functionId: "gid://shopify/ShopifyFunction/payment-a", metafields: [] }) {
+          paymentCustomization { id }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let sibling_abort = proxy.process_request(json_graphql_request(
+        sibling_abort_query,
+        json!({ "paymentScheduleId": "not-a-gid" }),
+    ));
+    assert_eq!(sibling_abort.status, 200);
+    assert!(sibling_abort.body.get("data").is_none());
+    assert!(sibling_abort.body.to_string().contains("INVALID_VARIABLE"));
+    assert!(!sibling_abort
+        .body
+        .to_string()
+        .contains("paymentCustomizationCreate"));
+
+    let invalid_selection = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-reminder-send-invalid-field.graphql"
+        ),
+        shape_fixture["cases"]["invalidSelection"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(invalid_selection.status, 200);
+    assert_eq!(
+        invalid_selection.body,
+        shape_fixture["cases"]["invalidSelection"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
+    let eligibility_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+    ))
+    .unwrap();
+    let additional_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let reminder_query =
+        include_str!("../config/parity-requests/payments/payment-reminder-send.graphql");
+
+    for case_name in ["success", "unknown", "paid"] {
+        let response = proxy.process_request(json_graphql_request(
+            reminder_query,
+            eligibility_fixture["cases"][case_name]["request"]["variables"].clone(),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body,
+            eligibility_fixture["cases"][case_name]["response"]
+        );
+    }
+
+    let missing_email = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["missingEmail"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(missing_email.status, 200);
+    assert_eq!(
+        missing_email.body,
+        additional_fixture["cases"]["missingEmail"]["response"]
+    );
+
+    let rate_first = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateFirst"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_first.status, 200);
+    assert_eq!(
+        rate_first.body,
+        additional_fixture["cases"]["rateFirst"]["response"]
+    );
+
+    let rate_second = proxy.process_request(json_graphql_request(
+        reminder_query,
+        additional_fixture["cases"]["rateSecond"]["request"]["variables"].clone(),
+    ));
+    assert_eq!(rate_second.status, 200);
+    assert_eq!(
+        rate_second.body,
+        additional_fixture["cases"]["rateSecond"]["response"]
+    );
+}
+
+#[test]
+fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+    let query = include_str!("../config/parity-requests/payments/payment-reminder-send.graphql");
+    let cases = [
+        (
+            "gid://shopify/PaymentSchedule/123",
+            json!({ "success": true, "userErrors": [] }),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/selling-plan",
+            payment_reminder_error("Order has a selling plan"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/capture",
+            payment_reminder_error("Order has capture at fulfillment terms"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/missing-email",
+            payment_reminder_error("Order does not have a contact email"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/collection",
+            payment_reminder_error("Payment collection request has not been sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/current",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/cancelled",
+            payment_reminder_error("Payment reminder could not be sent"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/paid-owner",
+            payment_reminder_error("Payment schedule is already completed"),
+        ),
+        (
+            "gid://shopify/PaymentSchedule/completed-draft",
+            payment_reminder_error("Payment schedule is not for an Order"),
+        ),
+    ];
+
+    for (schedule_id, expected_payload) in cases {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "paymentScheduleId": schedule_id }),
+        ));
+        assert_eq!(response.status, 200, "{schedule_id}");
+        assert_eq!(
+            response.body,
+            json!({ "data": { "paymentReminderSend": expected_payload } }),
+            "{schedule_id}"
+        );
+    }
+
+    let first_rate_limited_schedule = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(first_rate_limited_schedule.status, 200);
+    assert_eq!(
+        first_rate_limited_schedule.body,
+        json!({ "data": { "paymentReminderSend": { "success": true, "userErrors": [] } } })
+    );
+
+    let second_send = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+    ));
+    assert_eq!(second_send.status, 200);
+    assert_eq!(
+        second_send.body,
+        json!({
+            "data": {
+                "paymentReminderSend": payment_reminder_error("You cannot send more than 1 payment reminders for the same order in a 24hour period")
+            }
+        })
+    );
+}
+
+fn payment_reminder_error(message: &str) -> Value {
+    json!({
+        "success": null,
+        "userErrors": [{
+            "field": null,
+            "message": message,
+            "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+        }]
+    })
+}
+
+#[test]
+fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    let missing_metafields = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing metafields", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_metafields.status, 200);
+    let missing_metafields_payload = &missing_metafields.body["data"]["paymentCustomizationCreate"];
+    assert_eq!(missing_metafields_payload["userErrors"], json!([]));
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["id"],
+        json!("gid://shopify/PaymentCustomization/1")
+    );
+    assert_eq!(
+        missing_metafields_payload["paymentCustomization"]["metafields"]["edges"],
+        json!([])
+    );
+
+    let both_identifiers = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Both identifiers", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "functionHandle": "payment-a", "metafields": [] } }),
+    ));
+    assert_eq!(both_identifiers.status, 200);
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        both_identifiers.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+    );
+
+    let missing_identifier = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Missing identifier", "enabled": true, "metafields": [] } }),
+    ));
+    assert_eq!(missing_identifier.status, 200);
+    assert_eq!(
+        missing_identifier.body["data"]["paymentCustomizationCreate"]["userErrors"][0]["code"],
+        json!("MISSING_FUNCTION_IDENTIFIER")
+    );
+
+    let invalid_metafield = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Invalid metafield", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "metafields": [{ "namespace": "$app:foo", "key": "bar", "value": "baz" }] } }),
+    ));
+    assert_eq!(invalid_metafield.status, 200);
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_metafield.body["data"]["paymentCustomizationCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "type"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let before = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Before",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "baz" }]
+            }
+        }),
+    ));
+    assert_eq!(before.status, 200);
+    let customization_id = before.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(customization_id, "gid://shopify/PaymentCustomization/2");
+    assert_eq!(
+        before.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["metafields"]
+            ["edges"][0]["node"],
+        json!({
+            "namespace": "app--347082227713--foo",
+            "key": "bar",
+            "type": "single_line_text_field",
+            "value": "baz"
+        })
+    );
+
+    let update_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($id: ID!, $input: PaymentCustomizationInput!) {
+        paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+            functionHandle
+            metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+            metafields(first: 5) { edges { node { namespace key type value } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let rejected_function_change = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "functionId": "gid://shopify/ShopifyFunction/payment-b" } }),
+    ));
+    assert_eq!(rejected_function_change.status, 200);
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_function_change.body["data"]["paymentCustomizationUpdate"]["userErrors"][0]
+            ["code"],
+        json!("FUNCTION_ID_CANNOT_BE_CHANGED")
+    );
+
+    let read_query = r#"
+      query RustPaymentCustomizationLocalRuntime($id: ID!) {
+        paymentCustomization(id: $id) {
+          id
+          title
+          enabled
+          functionId
+          functionHandle
+          metafield(namespace: "$app:foo", key: "bar") { namespace key type value }
+          metafields(first: 5) { edges { node { namespace key type value } } }
+        }
+      }
+    "#;
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_update.status, 200);
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["title"],
+        json!("Before")
+    );
+    assert_eq!(
+        read_after_rejected_update.body["data"]["paymentCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/payment-a")
+    );
+
+    let rejected_metafield_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": customization_id, "input": { "metafields": [{ "key": "bar", "type": "single_line_text_field", "value": "qux" }] } }),
+    ));
+    assert_eq!(rejected_metafield_update.status, 200);
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_metafield_update.body["data"]["paymentCustomizationUpdate"]["userErrors"][0],
+        json!({
+            "field": ["paymentCustomization", "metafields", "0", "namespace"],
+            "code": "INVALID_METAFIELDS",
+            "message": "Invalid metafields."
+        })
+    );
+
+    let accepted_equivalent_handle = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": "After",
+                "functionHandle": "payment-a",
+                "metafields": [{ "namespace": "$app:foo", "key": "bar", "type": "single_line_text_field", "value": "qux" }]
+            }
+        }),
+    ));
+    assert_eq!(accepted_equivalent_handle.status, 200);
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["title"],
+        json!("After")
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["functionHandle"],
+        Value::Null
+    );
+    assert_eq!(
+        accepted_equivalent_handle.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"]["metafield"]["value"],
+        json!("qux")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": "Payment customization 3", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-c", "metafields": [] } }),
+    ));
+    let second_id = second.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let activation_query = r#"
+      mutation RustPaymentCustomizationLocalRuntime($ids: [ID!]!, $enabled: Boolean!) {
+        paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+          ids
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": [customization_id, second_id, "gid://shopify/PaymentCustomization/999"], "enabled": false }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["ids"],
+        json!([
+            "gid://shopify/PaymentCustomization/2",
+            "gid://shopify/PaymentCustomization/3"
+        ])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["code"],
+        json!("PAYMENT_CUSTOMIZATION_NOT_FOUND")
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["field"],
+        json!(["ids"])
+    );
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["message"],
+        json!("Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999")
+    );
+
+    let repeated_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "enabled": false }),
+    ));
+    assert_eq!(repeated_activation.status, 200);
+    assert_eq!(
+        repeated_activation.body["data"]["paymentCustomizationActivation"],
+        json!({ "ids": [], "userErrors": [] })
+    );
+
+    let all_invalid_activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "ids": ["gid://shopify/PaymentCustomization/999"], "enabled": true }),
+    ));
+    assert_eq!(all_invalid_activation.status, 200);
+    assert_eq!(
+        all_invalid_activation.body["data"]["paymentCustomizationActivation"],
+        json!({
+            "ids": [],
+            "userErrors": [{
+                "field": ["ids"],
+                "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND",
+                "message": "Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/999"
+            }]
+        })
+    );
+}
+
+#[test]
+fn payment_customization_parity_fixtures_replay_validation_metafields_activation_and_immutable_paths(
+) {
+    let validation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json"
+    ))
+    .unwrap();
+    let create_validation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
+    ))
+    .unwrap();
+    let empty_read_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json"
+    ))
+    .unwrap();
+    let metafields_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
+    ))
+    .unwrap();
+    let activation_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
+    ))
+    .unwrap();
+    let immutable_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let validation = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-customization-validation.graphql"),
+        validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(validation.status, 200);
+    assert_eq!(validation.body, validation_fixture["response"]["payload"]);
+
+    let create_validation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-create-validation-gaps.graphql"
+        ),
+        create_validation_fixture["variables"].clone(),
+    ));
+    assert_eq!(create_validation.status, 200);
+    assert_eq!(
+        create_validation.body,
+        create_validation_fixture["response"]["payload"]
+    );
+
+    let empty_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-customization-empty-read.graphql"),
+        empty_read_fixture["variables"].clone(),
+    ));
+    assert_eq!(empty_read.status, 200);
+    assert_eq!(empty_read.body, empty_read_fixture["response"]);
+
+    let metafields_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-create.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_create.status, 200);
+    assert_eq!(
+        metafields_create.body,
+        metafields_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let metafields_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(metafields_update.status, 200);
+    assert_eq!(
+        metafields_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["response"]
+    );
+
+    let handle_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-update.graphql"
+        ),
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["variables"].clone(),
+    ));
+    assert_eq!(handle_update.status, 200);
+    assert_eq!(
+        handle_update.body,
+        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["response"]
+    );
+
+    let metafields_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-metafields-read.graphql"
+        ),
+        metafields_fixture["reads"]["afterUpdates"]["variables"].clone(),
+    ));
+    assert_eq!(metafields_read.status, 200);
+    assert_eq!(
+        metafields_read.body,
+        metafields_fixture["reads"]["afterUpdates"]["response"]
+    );
+
+    let activation_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(activation_create.status, 200);
+    assert_eq!(
+        activation_create.body,
+        activation_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-activation-mixed.graphql"
+        ),
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["variables"]
+            .clone(),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body,
+        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["response"]
+    );
+
+    let immutable_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-create.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_create.status, 200);
+    assert_eq!(
+        immutable_create.body,
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["response"]
+    );
+
+    let immutable_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-update.graphql"
+        ),
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_update.status, 200);
+    assert_eq!(
+        immutable_update.body,
+        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["response"]
+    );
+
+    let immutable_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-customization-immutable-read.graphql"
+        ),
+        immutable_fixture["reads"]["afterImmutableUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(immutable_read.status, 200);
+    assert_eq!(
+        immutable_read.body,
+        immutable_fixture["reads"]["afterImmutableUpdate"]["response"]
+    );
+}
+
+#[test]
+fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
+    let create_query = r#"
+        mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              paymentTermsName
+              paymentTermsType
+              paymentSchedules(first: 1) {
+                nodes {
+                  amount { amount currencyCode }
+                  balanceDue { amount currencyCode }
+                  totalBalance { amount currencyCode }
+                  issuedAt
+                  dueAt
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPaymentTermsLocalRuntimeUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms { id paymentTermsName paymentTermsType }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+    let net_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+    });
+
+    let paid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/paid", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(paid_create.status, 200);
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+    assert_eq!(
+        paid_create.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    for reference_id in [
+        "gid://shopify/Order/closed",
+        "gid://shopify/Order/cancelled-unpaid",
+        "gid://shopify/DraftOrder/paid-status",
+    ] {
+        let accepted = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "referenceId": reference_id, "attrs": net_attrs.clone() }),
+        ));
+        assert_eq!(accepted.status, 200);
+        assert_eq!(
+            accepted.body["data"]["paymentTermsCreate"]["userErrors"],
+            json!([])
+        );
+        assert!(
+            accepted.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("gid://shopify/PaymentTerms/")
+        );
+    }
+
+    let multiple_schedules = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [
+                    { "issuedAt": "2026-05-05T00:00:00Z" },
+                    { "issuedAt": "2026-05-06T00:00:00Z" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        multiple_schedules.body["data"]["paymentTermsCreate"],
+        json!({
+            "paymentTerms": Value::Null,
+            "userErrors": [{
+                "field": ["base"],
+                "message": "Cannot create payment terms with multiple schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+            }]
+        })
+    );
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/123", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_order.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Order with id 123.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_draft = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/DraftOrder/999999", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_draft.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Draft order with id 999999.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+
+    let unknown_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("Could not find payment terms template.")
+    );
+    assert_eq!(
+        unknown_template.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+
+    let missing_template = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": { "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }] }
+        }),
+    ));
+    assert_eq!(
+        missing_template.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": ["paymentTermsAttributes", "paymentTermsTemplateId"],
+            "message": "Payment terms template is required.",
+            "code": "REQUIRED"
+        })
+    );
+
+    let fixed_without_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{}]
+            }
+        }),
+    ));
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date is required with fixed or net payment terms.")
+    );
+    assert_eq!(
+        fixed_without_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
+    );
+
+    let receipt_with_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_with_due.body["data"]["paymentTermsCreate"]["userErrors"][0]["message"],
+        json!("A due date cannot be set with event payment terms.")
+    );
+
+    let receipt_issued_at = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/Order/637",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
+                "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentTermsName"],
+        json!("Due on receipt")
+    );
+    assert_eq!(
+        receipt_issued_at.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]
+            ["nodes"],
+        json!([])
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+    );
+
+    let paid_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/paid-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        paid_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+
+    let channel_policy_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
+        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
+    );
+
+    let draft_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/draft-update", "paymentTermsAttributes": net_attrs.clone() } }),
+    ));
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["id"],
+        json!("gid://shopify/PaymentTerms/draft-update")
+    );
+    assert_eq!(
+        draft_update.body["data"]["paymentTermsUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_update_attrs = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsAttributes": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                    "paymentSchedules": [{}]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_update_attrs.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "A due date is required with fixed or net payment terms.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+}
+
+#[test]
+fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
+    let create_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
+    ))
+    .unwrap();
+    let cascade_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        create_fixture["paymentTermsCreateOnOrder"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        order_create.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"]
+    );
+
+    let create_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        create_terms.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"]
+    );
+
+    let multiple = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
+        json!({
+            "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": create_fixture["paymentTermsCreateOnOrder"]["multipleSchedules"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        multiple.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-update.graphql"),
+        create_fixture["paymentTermsCreateOnOrder"]["missingUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_update.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"]
+    );
+
+    let draft_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": cascade_fixture["draft"]["owner"]["id"].clone(),
+            "attrs": cascade_fixture["draft"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        draft_terms.body,
+        cascade_fixture["draft"]["expected"]["create"]
+    );
+
+    let draft_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        draft_delete.body,
+        cascade_fixture["draft"]["expected"]["delete"]
+    );
+
+    let draft_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql"
+        ),
+        json!({ "id": cascade_fixture["draft"]["owner"]["id"].clone() }),
+    ));
+    assert_eq!(
+        draft_read.body,
+        cascade_fixture["draft"]["expected"]["readAfterDelete"]
+    );
+
+    let cascade_order_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
+        ),
+        cascade_fixture["order"]["orderCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cascade_order_create.body,
+        cascade_fixture["order"]["expected"]["orderCreate"]
+    );
+
+    let cascade_order_terms = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        json!({
+            "referenceId": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "attrs": cascade_fixture["order"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+        }),
+    ));
+    assert_eq!(
+        cascade_order_terms.body,
+        cascade_fixture["order"]["expected"]["create"]
+    );
+
+    let cascade_order_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        json!({
+            "input": { "paymentTermsId": cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+        }),
+    ));
+    assert_eq!(
+        cascade_order_delete.body,
+        cascade_fixture["order"]["expected"]["delete"]
+    );
+
+    let cascade_order_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql"
+        ),
+        json!({ "id": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone() }),
+    ));
+    assert_eq!(
+        cascade_order_read.body,
+        cascade_fixture["order"]["expected"]["readAfterDelete"]
+    );
+
+    let missing_delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        cascade_fixture["order"]["missingDelete"]["variables"].clone(),
+    ));
+    assert_eq!(
+        missing_delete.body,
+        cascade_fixture["order"]["expected"]["missingDelete"]
+    );
+}
+
+#[test]
+fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let missing_mandate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "idempotencyKey": "missing-mandate"
+        }),
+    ));
+    assert_eq!(
+        missing_mandate.body,
+        fixture["mandateFlow"]["expected"]["missingMandate"]
+    );
+
+    let first_mandate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        first_mandate.body,
+        fixture["mandateFlow"]["expected"]["mandate"]
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        repeat.body,
+        fixture["mandateFlow"]["expected"]["repeatMandate"]
+    );
+
+    let auth_only = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/order_create_mandate_payment.graphql"),
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-848-auth-only",
+            "autoCapture": false,
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        auth_only.body,
+        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+    );
+}
+
+#[test]
+fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+
+    let mut capture_proxy = snapshot_proxy();
+    let create = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-create-local-staging.graphql"),
+        fixture["paymentCaptureFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body,
+        fixture["paymentCaptureFlow"]["expected"]["create"]
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let over_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": order_id, "parentTransactionId": parent_transaction_id, "amount": "30.00", "currency": "CAD"}}),
+    ));
+    assert_eq!(
+        over_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["overCapture"]
+    );
+
+    let first_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD", "finalCapture": false}}),
+    ));
+    assert_eq!(
+        first_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["firstCapture"]
+    );
+
+    let final_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": true}}),
+    ));
+    assert_eq!(
+        final_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["finalCapture"]
+    );
+
+    let read_after_final = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-read-local-staging.graphql"),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone()}),
+    ));
+    assert_eq!(
+        read_after_final.body,
+        fixture["paymentCaptureFlow"]["expected"]["readAfterFinal"]
+    );
+
+    let void_after_capture = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-void-local-staging.graphql"),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()}),
+    ));
+    assert_eq!(
+        void_after_capture.body,
+        fixture["paymentCaptureFlow"]["expected"]["voidAfterCapture"]
+    );
+
+    let missing_mandate_idempotency = capture_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-mandate-local-staging.graphql"),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "mandateId": "gid://shopify/PaymentMandate/har-397"}),
+    ));
+    assert_eq!(
+        missing_mandate_idempotency.body,
+        fixture["paymentCaptureFlow"]["expected"]["missingMandateIdempotency"]
+    );
+
+    let mut void_proxy = snapshot_proxy();
+    let void_create = void_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-create-local-staging.graphql"),
+        fixture["voidFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(
+        void_create.body,
+        fixture["paymentCaptureFlow"]["expected"]["create"]
+    );
+
+    let void_response = void_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-void-local-staging.graphql"),
+        json!({"id": void_create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()}),
+    ));
+    assert_eq!(void_response.body, fixture["voidFlow"]["expected"]["void"]);
+
+    let read_after_void = void_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/order-payment-read-local-staging.graphql"),
+        json!({"id": void_create.body["data"]["orderCreate"]["order"]["id"].clone()}),
+    ));
+    assert_eq!(
+        read_after_void.body,
+        fixture["voidFlow"]["expected"]["readAfterVoid"]
+    );
+}
+
+#[test]
+fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let single_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/money-bag-presentment-single-create.graphql"
+        ),
+        fixture["singleCurrencyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        single_create.body,
+        fixture["singleCurrencyCreate"]["expected"]
+    );
+    let order_id = single_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let multi_create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/money-bag-presentment-multi-create.graphql"),
+        fixture["multiCurrencyCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        multi_create.body,
+        fixture["multiCurrencyCreate"]["expected"]
+    );
+
+    let mark_as_paid = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql"),
+        json!({"input": {"id": order_id.clone()}}),
+    ));
+    assert_eq!(mark_as_paid.body, fixture["markAsPaid"]["expected"]);
+
+    let refund = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/money-bag-presentment-refund.graphql"),
+        json!({"input": {"orderId": order_id.clone(), "allowOverRefunding": true, "transactions": [{"amount": "5.00", "gateway": "manual", "kind": "REFUND", "orderId": order_id.clone()}]}}),
+    ));
+    assert_eq!(refund.body, fixture["refund"]["expected"]);
+
+    let edit_begin = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql"
+        ),
+        json!({"id": order_id}),
+    ));
+    assert_eq!(edit_begin.body, fixture["orderEditBegin"]["expected"]);
+    let calculated_order_id =
+        edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let edit_commit = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql"
+        ),
+        json!({"id": calculated_order_id}),
+    ));
+    assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
+}
+
+#[test]
+fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let forward = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
+        fixture["cases"]["forward"]["variables"].clone(),
+    ));
+    assert_eq!(forward.body, fixture["cases"]["forward"]["expected"]);
+
+    let abandonment_id = forward.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"]
+        ["abandonment"]["id"]
+        .clone();
+    let read_after = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql"),
+        json!({"id": abandonment_id.clone()}),
+    ));
+    assert_eq!(read_after.body, fixture["cases"]["forwardRead"]["expected"]);
+
+    let node_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-node-read.graphql"),
+        json!({"id": abandonment_id}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        fixture["cases"]["forwardRead"]["expected"]["data"]["abandonment"]
+    );
+
+    for case_name in [
+        "unknownMarketingActivity",
+        "backwards",
+        "sameStatus",
+        "futureDeliveredAt",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!("../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
+            fixture["cases"][case_name]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body, fixture["cases"][case_name]["expected"],
+            "abandonment delivery-status case {case_name} should match fixture"
+        );
+    }
+}
+
+#[test]
+fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
+    let staged_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    ))
+    .unwrap();
+    let gateway_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
+    ))
+    .unwrap();
+
+    let staged_expected = &staged_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+    let mut staged_proxy = snapshot_proxy();
+    let create = staged_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(create.body, staged_expected["create"]);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let complete = staged_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-complete.graphql"),
+        json!({"id": draft_id, "paymentPending": false}),
+    ));
+    assert_eq!(complete.body, staged_expected["complete"]);
+    let order_id = complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["id"].clone();
+
+    let read_by_id = staged_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-id.graphql"),
+        json!({"id": order_id}),
+    ));
+    assert_eq!(read_by_id.body, staged_expected["readById"]);
+
+    let read_by_name = staged_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-name.graphql"),
+        json!({}),
+    ));
+    assert_eq!(read_by_name.body, staged_expected["readByName"]);
+
+    let gateway_expected = &gateway_fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
+    let mut gateway_proxy = snapshot_proxy();
+    let no_gateway_create = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(no_gateway_create.body, gateway_expected["noGatewayCreate"]);
+    let no_gateway_id =
+        no_gateway_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let no_gateway_complete = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql"),
+        json!({"id": no_gateway_id, "paymentGatewayId": null, "paymentPending": true}),
+    ));
+    assert_eq!(
+        no_gateway_complete.body,
+        gateway_expected["noGatewayPending"]
+    );
+
+    let unknown_create = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"),
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_create.body,
+        gateway_expected["unknownGatewayCreate"]
+    );
+    let unknown_id = unknown_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let unknown_complete = gateway_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql"),
+        json!({"id": unknown_id, "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed", "paymentPending": false}),
+    ));
+    assert_eq!(unknown_complete.body, gateway_expected["unknownGateway"]);
+}
+
+#[test]
+fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
+    let fulfillment_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
+    ))
+    .unwrap();
+    let residual_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
+    ))
+    .unwrap();
+    let delete_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
+    ))
+    .unwrap();
+    let update_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
+    ))
+    .unwrap();
+
+    let mut fulfillment_proxy = snapshot_proxy();
+    let cancel = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
+        ),
+        fulfillment_fixture["cancelAlreadyCancelled"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cancel.body,
+        fulfillment_fixture["cancelAlreadyCancelled"]["response"]
+    );
+    assert_eq!(fulfillment_proxy.get_log_snapshot()["entries"], json!([]));
+
+    let tracking = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
+        ),
+        fulfillment_fixture["trackingAlreadyCancelled"]["variables"].clone(),
+    ));
+    assert_eq!(
+        tracking.body,
+        fulfillment_fixture["trackingAlreadyCancelled"]["response"]
+    );
+
+    let delivered = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
+        ),
+        fulfillment_fixture["cancelDelivered"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivered.body,
+        fulfillment_fixture["cancelDelivered"]["response"]
+    );
+
+    let happy_tracking = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
+        ),
+        fulfillment_fixture["trackingHappyPath"]["variables"].clone(),
+    ));
+    assert_eq!(
+        happy_tracking.body,
+        fulfillment_fixture["trackingHappyPath"]["response"]
+    );
+
+    let mut proxy = snapshot_proxy();
+    let residual_count = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/order-edit-residual-local-staging-read.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(
+        residual_count.body["data"]["ordersCount"],
+        residual_fixture["expected"]["emptyOrdersCount"]
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql"
+        ),
+        delete_fixture["requests"]["unknownOrderDelete"]["variables"].clone(),
+    ));
+    assert_eq!(
+        unknown_delete.body,
+        delete_fixture["expected"]["unknownOrderDelete"]
+    );
+
+    let unknown_staff = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql"),
+        json!({"input": {"id": "gid://shopify/Order/8734696014130", "staffMemberId": "gid://shopify/StaffMember/999999999999"}}),
+    ));
+    assert_eq!(
+        unknown_staff.body,
+        update_fixture["localRuntimeStaffUnknown"]["expected"]
+    );
+}
+
+#[test]
+fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
+    let happy_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+    ))
+    .unwrap();
+    let zero_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
+    ))
+    .unwrap();
+
+    let mut add_proxy = snapshot_proxy();
+    let add = add_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
+    ));
+    assert_eq!(add.body, happy_fixture["addVariant"]["response"]);
+    let add_downstream = add_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
+        ),
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    assert_eq!(
+        add_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
+        json!(1)
+    );
+
+    let mut zero_proxy = snapshot_proxy();
+    let set_zero = zero_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
+    ));
+    assert_eq!(set_zero.body, zero_fixture["setZero"]["response"]);
+    let zero_downstream = zero_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
+        ),
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    assert_eq!(
+        zero_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
+        json!(0)
+    );
+}
+
+#[test]
+fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let invalid_variant = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/CalculatedOrder/221172138217",
+            "variantId": "gid://shopify/ProductVariant/0",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+        }),
+    ));
+    assert_eq!(invalid_variant.body, fixture["invalidVariant"]["response"]);
+
+    let duplicate_variant = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/CalculatedOrder/221172138217",
+            "variantId": "gid://shopify/ProductVariant/48540157378793",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+        }),
+    ));
+    assert_eq!(
+        duplicate_variant.body,
+        fixture["duplicateVariant"]["response"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
+
+    let stripe_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-stripe.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(stripe_blank.status, 200);
+    assert_eq!(
+        stripe_blank.body,
+        fixture["operations"]["stripeBlankCustomerId"]["response"]
+    );
+
+    let paypal_blank = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-paypal.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(paypal_blank.status, 200);
+    assert_eq!(
+        paypal_blank.body,
+        fixture["operations"]["paypalBlankBillingAgreementId"]["response"]
+    );
+
+    let two_gateways = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-remote-create-validation-two-gateways.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(two_gateways.status, 200);
+    assert_eq!(
+        two_gateways.body,
+        fixture["operations"]["twoGatewayObjects"]["response"]
+    );
+}
+
+#[test]
+fn customer_payment_methods_replay_shop_pay_guard_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql"
+        ),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, fixture["expected"]["primary"]);
+}
+
+#[test]
+fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
+    let lifecycle: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
+    ))
+    .unwrap();
+    let validation: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let primary = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-local-staging.graphql"
+        ),
+        lifecycle["variables"].clone(),
+    ));
+    assert_eq!(primary.body, lifecycle["expected"]["primary"]);
+
+    let duplication = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql"),
+        json!({
+            "customerId": "gid://shopify/Customer/8802",
+            "billingAddress": lifecycle["variables"]["billingAddress"].clone(),
+            "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
+        }),
+    ));
+    assert_eq!(duplication.body, lifecycle["expected"]["duplication"]);
+
+    let lifecycle_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/payments/customer-payment-method-local-staging-read.graphql"
+        ),
+        json!({
+            "sourceCustomerId": "gid://shopify/Customer/8801",
+            "targetCustomerId": "gid://shopify/Customer/8802"
+        }),
+    ));
+    assert_eq!(lifecycle_read.body, lifecycle["expected"]["readAfter"]);
+
+    let blank = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
+        validation["variables"]["blankBilling"].clone(),
+    ));
+    assert_eq!(blank.body, validation["expected"]["blankBilling"]);
+
+    let missing_session = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
+        validation["variables"]["missingSession"].clone(),
+    ));
+    assert_eq!(
+        missing_session.body,
+        validation["expected"]["missingSession"]
+    );
+
+    let processing = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
+        validation["variables"]["processing"].clone(),
+    ));
+    assert_eq!(processing.body, validation["expected"]["processing"]);
+
+    let success = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
+        validation["variables"]["success"].clone(),
+    ));
+    assert_eq!(success.body, validation["expected"]["success"]);
+
+    let read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-read.graphql"),
+        validation["variables"]["readAfter"].clone(),
+    ));
+    assert_eq!(read.body, validation["expected"]["readAfter"]);
+}
+
+#[test]
+fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodCreditCardUpdateValidation {
+          customerPaymentMethodCreditCardUpdate(
+            id: "gid://shopify/CustomerPaymentMethod/base-card"
+            sessionId: "sess_valid"
+            billingAddress: { address1: null, city: null, zip: null, country: null, province: null }
+          ) {
+            customerPaymentMethod { id }
+            processing
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerPaymentMethodCreditCardUpdate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": false,
+            "userErrors": [
+                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
+                { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
+                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
+                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
+                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
+            ]
+        })
+    );
+
+    let active_contract = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/active-contract") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_contract.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": Value::Null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "message": "Cannot revoke a payment method with active subscription contracts.",
+                "code": "ACTIVE_CONTRACT"
+            }]
+        })
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/active-contract", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        active_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null
+        })
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/base-card",
+            "userErrors": []
+        })
+    );
+
+    let success_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/base-card",
+            "revokedAt": "2024-01-01T00:00:01.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+
+    let already_revoked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked {
+          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/already-revoked") {
+            revokedCustomerPaymentMethodId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked.body["data"]["customerPaymentMethodRevoke"],
+        json!({
+            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "userErrors": []
+        })
+    );
+
+    let already_revoked_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead {
+          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/already-revoked", showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        already_revoked_read.body["data"]["customerPaymentMethod"],
+        json!({
+            "id": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "revokedAt": "2026-05-01T00:00:00.000Z",
+            "revokedReason": "CUSTOMER_REVOKED"
+        })
+    );
+}
+
+#[test]
+fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-create-local-staging.graphql"),
+        json!({
+            "returnInput": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "UNWANTED",
+                    "returnReasonNote": "Changed mind"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["id"],
+        json!("gid://shopify/Return/2")
+    );
+    assert_eq!(
+        create.body["data"]["returnCreate"]["return"]["returnLineItems"]["nodes"][0]
+            ["fulfillmentLineItem"]["lineItem"]["title"],
+        json!("Return flow item")
+    );
+
+    let close = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-close-local-staging.graphql"),
+        json!({ "id": "gid://shopify/Return/2" }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"]["return"],
+        json!({
+            "id": "gid://shopify/Return/2",
+            "status": "CLOSED",
+            "closedAt": "2024-01-01T00:00:03.000Z"
+        })
+    );
+
+    let cancel_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-read-local-staging.graphql"),
+        json!({
+            "id": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow"
+        }),
+    ));
+    assert_eq!(
+        cancel_read.body["data"]["order"]["returns"]["nodes"][0]["id"],
+        json!("gid://shopify/Return/2")
+    );
+
+    let reverse_request = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-request-reverse-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "orderId": "gid://shopify/Order/return-flow",
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        reverse_request.body["data"]["returnRequest"]["return"]["status"],
+        json!("REQUESTED")
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-approve-request-local-staging.graphql"
+        ),
+        json!({ "input": { "id": "gid://shopify/Return/2" } }),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"]
+            [0]["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(1)
+    );
+
+    let reverse_delivery = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/reverse-delivery-create-with-shipping-local-staging.graphql"),
+        json!({
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5",
+            "reverseDeliveryLineItems": [{
+                "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "quantity": 1
+            }],
+            "trackingInput": {
+                "number": "TRACK-1",
+                "url": "https://tracking.example/1",
+                "company": "Example Carrier"
+            },
+            "labelInput": { "fileUrl": "https://labels.example/return.pdf" }
+        }),
+    ));
+    assert_eq!(
+        reverse_delivery.body["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]
+            ["deliverable"]["tracking"]["number"],
+        json!("TRACK-1")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-reverse-logistics-read-local-staging.graphql"
+        ),
+        json!({
+            "returnId": "gid://shopify/Return/2",
+            "orderId": "gid://shopify/Order/return-flow",
+            "reverseDeliveryId": "gid://shopify/ReverseDelivery/8",
+            "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/5"
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
+        json!("gid://shopify/ReverseDelivery/8")
+    );
+}
+
+#[test]
+fn order_return_recorded_reverse_logistics_and_shipping_fee_replay_captured_shapes() {
+    let reverse_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
+    ))
+    .unwrap();
+    let shipping_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let request = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-request-recorded.graphql"),
+        reverse_fixture["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        request.body["data"]["returnRequest"],
+        reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-approve-request-recorded.graphql"),
+        reverse_fixture["returnApproveRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"],
+        reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+
+    let delivery_create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql"),
+        reverse_fixture["reverseDeliveryCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_create.body["data"]["reverseDeliveryCreateWithShipping"],
+        reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]
+            ["reverseDeliveryCreateWithShipping"]
+    );
+
+    let delivery_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql"
+        ),
+        reverse_fixture["reverseDeliveryUpdate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        delivery_update.body["data"]["reverseDeliveryShippingUpdate"],
+        reverse_fixture["reverseDeliveryUpdate"]["response"]["payload"]["data"]
+            ["reverseDeliveryShippingUpdate"]
+    );
+
+    let dispose = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql"
+        ),
+        reverse_fixture["reverseFulfillmentDispose"]["variables"].clone(),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"],
+        reverse_fixture["reverseFulfillmentDispose"]["response"]["payload"]["data"]
+            ["reverseFulfillmentOrderDispose"]
+    );
+
+    let process = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-process-recorded.graphql"),
+        reverse_fixture["returnProcess"]["variables"].clone(),
+    ));
+    assert_eq!(
+        process.body["data"]["returnProcess"],
+        reverse_fixture["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql"),
+        json!({
+            "returnId": reverse_fixture["returnRequest"]["response"]["payload"]["data"]["returnRequest"]["return"]["id"].clone(),
+            "orderId": reverse_fixture["returnRequest"]["variables"]["input"]["orderId"].clone(),
+            "reverseDeliveryId": reverse_fixture["reverseDeliveryCreate"]["response"]["payload"]["data"]["reverseDeliveryCreateWithShipping"]["reverseDelivery"]["id"].clone(),
+            "reverseFulfillmentOrderId": reverse_fixture["returnApproveRequest"]["response"]["payload"]["data"]["returnApproveRequest"]["return"]["reverseFulfillmentOrders"]["nodes"][0]["id"].clone()
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"],
+        reverse_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+
+    let shipping_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/orders/return-create-shipping-fee-recorded.graphql"
+        ),
+        shipping_fixture["returnCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        shipping_create.body["data"]["returnCreate"],
+        shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]
+    );
+
+    let shipping_downstream = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/orders/return-shipping-fee-read-recorded.graphql"),
+        json!({
+            "returnId": shipping_fixture["returnCreate"]["response"]["payload"]["data"]["returnCreate"]["return"]["id"].clone(),
+            "orderId": shipping_fixture["returnCreate"]["variables"]["returnInput"]["orderId"].clone()
+        }),
+    ));
+    assert_eq!(
+        shipping_downstream.body["data"],
+        shipping_fixture["downstreamRead"]["response"]["payload"]["data"]
+    );
+}
+
+#[test]
+fn order_return_recorded_close_reopen_cancel_state_preconditions_replay_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
+    ))
+    .unwrap();
+    let request_query =
+        include_str!("../config/parity-requests/orders/return-request-recorded.graphql");
+    let approve_query =
+        include_str!("../config/parity-requests/orders/return-approve-request-recorded.graphql");
+    let decline_query = include_str!(
+        "../config/parity-requests/orders/return-decline-request-local-staging.graphql"
+    );
+    let close_query =
+        include_str!("../config/parity-requests/orders/return-close-state-precondition.graphql");
+    let reopen_query =
+        include_str!("../config/parity-requests/orders/return-reopen-state-precondition.graphql");
+    let cancel_query =
+        include_str!("../config/parity-requests/orders/return-cancel-state-precondition.graphql");
+    let process_query =
+        include_str!("../config/parity-requests/orders/return-process-recorded.graphql");
+    let mut proxy = snapshot_proxy();
+
+    let requested = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["requestedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        requested.body["data"]["returnRequest"],
+        fixture["requestedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let requested_id = requested.body["data"]["returnRequest"]["return"]["id"].clone();
+    let requested_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": requested_id.clone() }),
+    ));
+    assert_eq!(
+        requested_close.body["data"]["returnClose"],
+        fixture["requestedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let requested_reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": requested_id }),
+    ));
+    assert_eq!(
+        requested_reopen.body["data"]["returnReopen"],
+        fixture["requestedCase"]["returnReopenInvalid"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let cancelable = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["cancelableCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        cancelable.body["data"]["returnRequest"],
+        fixture["cancelableCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let cancelable_id = cancelable.body["data"]["returnRequest"]["return"]["id"].clone();
+    let cancelable_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": cancelable_id } }),
+    ));
+    assert_eq!(
+        cancelable_approve.body["data"]["returnApproveRequest"],
+        fixture["cancelableCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let cancelable_approved_id =
+        cancelable_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": cancelable_approved_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancel"]["response"]["payload"]["data"]["returnCancel"]
+    );
+    let canceled_id = cancel.body["data"]["returnCancel"]["return"]["id"].clone();
+    let cancel_again = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": canceled_id }),
+    ));
+    assert_eq!(
+        cancel_again.body["data"]["returnCancel"],
+        fixture["cancelableCase"]["returnCancelIdempotent"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+
+    let open_case = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["openCloseReopenCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        open_case.body["data"]["returnRequest"],
+        fixture["openCloseReopenCase"]["returnRequest"]["response"]["payload"]["data"]
+            ["returnRequest"]
+    );
+    let open_id = open_case.body["data"]["returnRequest"]["return"]["id"].clone();
+    let open_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": open_id } }),
+    ));
+    assert_eq!(
+        open_approve.body["data"]["returnApproveRequest"],
+        fixture["openCloseReopenCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let open_approved_id =
+        open_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": open_approved_id }),
+    ));
+    assert_eq!(
+        close.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnClose"]["response"]["payload"]["data"]["returnClose"]
+    );
+    let closed_id = close.body["data"]["returnClose"]["return"]["id"].clone();
+    let close_again = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": closed_id }),
+    ));
+    assert_eq!(
+        close_again.body["data"]["returnClose"],
+        fixture["openCloseReopenCase"]["returnCloseIdempotent"]["response"]["payload"]["data"]
+            ["returnClose"]
+    );
+    let reopen_id = close_again.body["data"]["returnClose"]["return"]["id"].clone();
+    let reopen = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopen_id }),
+    ));
+    assert_eq!(
+        reopen.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopen"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+    let reopened_id = reopen.body["data"]["returnReopen"]["return"]["id"].clone();
+    let reopen_again = proxy.process_request(json_graphql_request(
+        reopen_query,
+        json!({ "id": reopened_id }),
+    ));
+    assert_eq!(
+        reopen_again.body["data"]["returnReopen"],
+        fixture["openCloseReopenCase"]["returnReopenIdempotent"]["response"]["payload"]["data"]
+            ["returnReopen"]
+    );
+
+    let declined = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["declinedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        declined.body["data"]["returnRequest"],
+        fixture["declinedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let declined_id = declined.body["data"]["returnRequest"]["return"]["id"].clone();
+    let decline = proxy.process_request(json_graphql_request(
+        decline_query,
+        json!({ "input": { "id": declined_id, "declineReason": fixture["declineRequest"]["declineInput"]["declineReason"].clone(), "declineNote": fixture["declineRequest"]["declineInput"]["declineNote"].clone(), "notifyCustomer": fixture["declineRequest"]["declineInput"]["notifyCustomer"].clone() } }),
+    ));
+    assert_eq!(
+        decline.body["data"]["returnDeclineRequest"],
+        fixture["declinedCase"]["returnDeclineRequest"]["response"]["payload"]["data"]
+            ["returnDeclineRequest"]
+    );
+    let declined_return_id = decline.body["data"]["returnDeclineRequest"]["return"]["id"].clone();
+    let declined_close = proxy.process_request(json_graphql_request(
+        close_query,
+        json!({ "id": declined_return_id }),
+    ));
+    assert_eq!(
+        declined_close.body["data"]["returnClose"],
+        fixture["declinedCase"]["returnCloseInvalid"]["response"]["payload"]["data"]["returnClose"]
+    );
+
+    let processed = proxy.process_request(json_graphql_request(
+        request_query,
+        fixture["processedCase"]["returnRequest"]["variables"].clone(),
+    ));
+    assert_eq!(
+        processed.body["data"]["returnRequest"],
+        fixture["processedCase"]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]
+    );
+    let processed_id = processed.body["data"]["returnRequest"]["return"]["id"].clone();
+    let processed_approve = proxy.process_request(json_graphql_request(
+        approve_query,
+        json!({ "input": { "id": processed_id } }),
+    ));
+    assert_eq!(
+        processed_approve.body["data"]["returnApproveRequest"],
+        fixture["processedCase"]["returnApproveRequest"]["response"]["payload"]["data"]
+            ["returnApproveRequest"]
+    );
+    let process_return_id =
+        processed_approve.body["data"]["returnApproveRequest"]["return"]["id"].clone();
+    let process_line_id = processed_approve.body["data"]["returnApproveRequest"]["return"]
+        ["returnLineItems"]["nodes"][0]["id"]
+        .clone();
+    let processed_result = proxy.process_request(json_graphql_request(
+        process_query,
+        json!({ "input": { "returnId": process_return_id, "returnLineItems": [{ "id": process_line_id, "quantity": 1 }], "notifyCustomer": true } }),
+    ));
+    assert_eq!(
+        processed_result.body["data"]["returnProcess"],
+        fixture["processedCase"]["returnProcess"]["response"]["payload"]["data"]["returnProcess"]
+    );
+    let processed_return_id =
+        processed_result.body["data"]["returnProcess"]["return"]["id"].clone();
+    let processed_cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "id": processed_return_id }),
+    ));
+    assert_eq!(
+        processed_cancel.body["data"]["returnCancel"],
+        fixture["processedCase"]["returnCancelInvalid"]["response"]["payload"]["data"]
+            ["returnCancel"]
+    );
+}
+
+fn registry_entry(
+    name: &str,
+    operation_type: OperationType,
+    execution: CapabilityExecution,
+    implemented: bool,
+) -> OperationRegistryEntry {
+    OperationRegistryEntry {
+        name: name.to_string(),
+        operation_type,
+        domain: CapabilityDomain::Products,
+        execution,
+        implemented,
+        match_names: vec![name.to_string()],
+        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        support_notes: None,
+    }
+}
+
+#[test]
+fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateOmitted {
+          backupRegionUpdate {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        omitted.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                "name": "Canada",
+                "code": "CA"
+            },
+            "userErrors": []
+        })
+    );
+
+    let null_region = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateNull {
+          backupRegionUpdate(region: null) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(null_region.body, omitted.body);
+
+    let update_ae = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateAe {
+          backupRegionUpdate(region: { countryCode: AE }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        update_ae.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                "name": "United Arab Emirates",
+                "code": "AE"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionRead {
+          backupRegion { __typename id name ... on MarketRegionCountry { code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["backupRegion"],
+        json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+            "name": "United Arab Emirates",
+            "code": "AE"
+        })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110482738"] }),
+    ));
+    assert_eq!(
+        node.body["data"]["nodes"][0],
+        json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+            "name": "United Arab Emirates",
+            "code": "AE"
+        })
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateInvalid {
+          backupRegionUpdate(region: { countryCode: ZZ }) {
+            backupRegion { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let invalid_with_typename = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateValidationTypename {
+          backupRegionUpdate(region: { countryCode: ZZ }) {
+            backupRegion { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_with_typename.body["data"]["backupRegionUpdate"]["userErrors"][0]["__typename"],
+        json!("MarketUserError")
+    );
+
+    let missing_country_code = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateMissingCountryCode {
+          backupRegionUpdate(region: {}) { backupRegion { id } userErrors { field code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_country_code.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredInputObjectAttribute")
+    );
+
+    let mut access_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateIdempotent {
+          backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    );
+    access_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "shpat_delegate_proxy_1".to_string(),
+    );
+    let access_denied = proxy.process_request(access_request);
+    assert_eq!(
+        access_denied.body["data"]["backupRegionUpdate"],
+        json!(null)
+    );
+    assert_eq!(
+        access_denied.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+}
+
+#[test]
+fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let query = r#"
+        query AdminPlatformFinanceRiskNodeNoData($ids: [ID!]!) {
+          safeNodes: nodes(ids: $ids) {
+            __typename
+            ... on Node { id }
+          }
+        }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "ids": [
+                "gid://shopify/CashTrackingSession/0",
+                "gid://shopify/PointOfSaleDevice/0",
+                "gid://shopify/ShopifyPaymentsDispute/0"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "safeNodes": [null, null, null] } })
+    );
+}
+
+#[test]
+fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query FinanceRiskNoDataRead(
+          $cashId: ID!
+          $posId: ID!
+          $disputeId: ID!
+          $evidenceId: ID!
+          $token: String!
+          $first: Int!
+        ) {
+          cashTrackingSession(id: $cashId) { __typename }
+          cashTrackingSessions(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          pointOfSaleDevice(id: $posId) { __typename }
+          dispute(id: $disputeId) { __typename }
+          disputeEvidence(id: $evidenceId) { __typename }
+          disputes(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          shopPayPaymentRequestReceipt(token: $token) { __typename }
+          shopPayPaymentRequestReceipts(first: $first) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({
+            "cashId": "gid://shopify/CashTrackingSession/0",
+            "posId": "gid://shopify/PointOfSaleDevice/0",
+            "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+            "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+            "token": "codex-missing-shop-pay-payment-request-receipt-token",
+            "first": 1
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "cashTrackingSession": null,
+                "cashTrackingSessions": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
+                "pointOfSaleDevice": null,
+                "dispute": null,
+                "disputeEvidence": null,
+                "disputes": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
+                "shopPayPaymentRequestReceipt": null,
+                "shopPayPaymentRequestReceipts": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } }
+            }
+        })
+    );
+}
+
+#[test]
+fn shopify_payments_account_access_probe_returns_captured_null_account_data() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopifyPaymentsAccountAccessProbe {
+          shopifyPaymentsAccount {
+            id
+            activated
+            country
+            defaultCurrency
+            onboardable
+            payouts(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            disputes(first: 1) { edges { node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            balanceTransactions(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "shopifyPaymentsAccount": null } })
+    );
+}
+
+#[test]
+fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+    "#;
+
+    let limit = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-limit", "idempotencyKey": "activate-limit" }),
+    ));
+    assert_eq!(
+        limit.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-limit", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_LIMIT",
+                "message": "Your shop has reached its location limit."
+            }]
+        })
+    );
+
+    let relocation = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-relocation", "idempotencyKey": "activate-relocation" }),
+    ));
+    assert_eq!(
+        relocation.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-relocation", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "HAS_ONGOING_RELOCATION",
+                "message": "Location has an ongoing relocation."
+            }]
+        })
+    );
+
+    let control = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/activate-control", "idempotencyKey": "activate-control" }),
+    ));
+    assert_eq!(
+        control.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/activate-control", "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+}
+
+#[test]
+fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejections() {
+    let mut proxy = snapshot_proxy();
+    let seed_query = r#"
+        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+    "#;
+
+    let seed = proxy.process_request(json_graphql_request(
+        seed_query,
+        json!({
+            "locationId": "gid://shopify/Location/location-add-limit-seed",
+            "idempotencyKey": "location-add-limit-seed"
+        }),
+    ));
+    assert_eq!(
+        seed.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": "gid://shopify/Location/location-add-limit-seed", "isActive": false },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_LIMIT",
+                "message": "Your shop has reached its location limit."
+            }]
+        })
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationAddResourceLimitReached($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Proxy Cap Overflow 20260508142042",
+                "address": {
+                    "countryCode": "US",
+                    "address1": "1 Resource Limit St",
+                    "city": "New York",
+                    "zip": "10001"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You have reached the maximum number of locations (200)"
+            }]
+        })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body, json!({ "entries": [] }));
+}
+
+#[test]
+fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query StorePropertiesLocationCustomIdMissing {
+          unknownCustomIdentifier: locationByIdentifier(
+            identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+          ) { id name }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({ "unknownCustomIdentifier": null })
+    );
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Metafield definition of type 'id' is required when using custom ids.")
+    );
+    assert_eq!(
+        response.body["errors"][0]["path"],
+        json!(["unknownCustomIdentifier"])
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+}
+
+#[test]
+fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_states() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {
+          id
+          status
+          requestStatus
+          updatedAt
+          assignedLocation { name location { id name } }
+          lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+        }
+        mutation FulfillmentOrderMoveValidationMove($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+            movedFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            originalFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            remainingFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    for id in [
+        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
+        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "id": id,
+                "newLocationId": "gid://shopify/Location/move-assignment-destination",
+                "fulfillmentOrderLineItems": null
+            }),
+        ));
+        let payload = &response.body["data"]["fulfillmentOrderMove"];
+        assert_eq!(
+            payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+            json!("gid://shopify/Location/move-assignment-destination")
+        );
+        assert_eq!(
+            payload["originalFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+            json!("gid://shopify/Location/move-assignment-destination")
+        );
+        assert_eq!(payload["remainingFulfillmentOrder"], json!(null));
+        assert_eq!(payload["userErrors"], json!([]));
+    }
+
+    let submitted = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
+            "newLocationId": "gid://shopify/Location/move-assignment-destination",
+            "fulfillmentOrderLineItems": null
+        }),
+    ));
+    assert_eq!(
+        submitted.body["data"]["fulfillmentOrderMove"],
+        json!({
+            "movedFulfillmentOrder": null,
+            "originalFulfillmentOrder": null,
+            "remainingFulfillmentOrder": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                "code": null
+            }]
+        })
+    );
+}
+
+#[test]
+fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
+    let mut proxy = snapshot_proxy();
+    let open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
+          fulfillmentOrderOpen(id: $id) {
+            fulfillmentOrder { id status updatedAt supportedActions { action } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
+    ));
+    assert_eq!(
+        open.body["data"]["fulfillmentOrderOpen"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment order must be scheduled.",
+                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }]
+        })
+    );
+
+    let after_open = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10, includeClosed: true) {
+              nodes { id status updatedAt supportedActions { action } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
+    ));
+    assert_eq!(
+        after_open.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/status-precondition-open-closed",
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+                "status": "CLOSED",
+                "updatedAt": "2026-05-11T10:00:00Z",
+                "supportedActions": []
+            }] }
+        })
+    );
+
+    let progress = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderStatusPreconditionReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+          fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+            fulfillmentOrder { id status updatedAt supportedActions { action } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+            "progressReport": { "reasonNotes": "local-runtime progress precondition" }
+        }),
+    ));
+    assert_eq!(
+        progress.body["data"]["fulfillmentOrderReportProgress"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment order must be in progress.",
+                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+            }]
+        })
+    );
+
+    let after_progress = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10, includeClosed: true) {
+              nodes { id status updatedAt supportedActions { action } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+    ));
+    assert_eq!(
+        after_progress.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "fulfillmentOrders": { "nodes": [{
+                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "status": "SCHEDULED",
+                "updatedAt": "2026-05-11T10:05:00Z",
+                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
+            }] }
+        })
+    );
+}
+
+#[test]
+fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
+    let mut proxy = snapshot_proxy();
+    let read_query = r#"
+        query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {
+          order(id: $id) {
+            id name displayFulfillmentStatus
+            fulfillmentOrders(first: 10) { nodes { id status fulfillBy } }
+          }
+        }
+    "#;
+    let mutation = r#"
+        mutation FulfillmentOrdersSetDeadlineValidation($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+          fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $fulfillmentOrderIds, fulfillmentDeadline: $fulfillmentDeadline) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["base"],
+                "message": "The fulfillment orders could not be found.",
+                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+            }]
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        mixed.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
+    );
+
+    let after_mixed = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+    ));
+    assert_eq!(
+        after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
+        json!(null)
+    );
+
+    for id in [
+        "gid://shopify/FulfillmentOrder/deadline-closed",
+        "gid://shopify/FulfillmentOrder/deadline-cancelled",
+    ] {
+        let rejected = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({
+                "fulfillmentOrderIds": [id],
+                "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+            }),
+        ));
+        assert_eq!(
+            rejected.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+            json!({
+                "success": false,
+                "userErrors": [{
+                    "field": ["base"],
+                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+                    "code": null
+                }]
+            })
+        );
+    }
+
+    let happy = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/deadline-open-b"],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+    assert_eq!(
+        happy.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let after_happy = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+    ));
+    assert_eq!(
+        after_happy.body["data"]["order"],
+        json!({
+            "id": "gid://shopify/Order/deadline-validation",
+            "name": "#DEADLINE-VALIDATION",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "fulfillmentOrders": { "nodes": [
+                { "id": "gid://shopify/FulfillmentOrder/deadline-open-a", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-open-b", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-closed", "status": "CLOSED", "fulfillBy": null },
+                { "id": "gid://shopify/FulfillmentOrder/deadline-cancelled", "status": "CANCELLED", "fulfillBy": null }
+            ] }
+        })
+    );
+}
+
+#[test]
+fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_status() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentOrderRequestDirectRead($id: ID!) {
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            requestStatus
+            merchantRequests(first: 10) { nodes { kind message requestOptions responseData } }
+            lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id title } } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentOrder/9656703910194" }),
+    ));
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["requestStatus"],
+        json!("SUBMITTED")
+    );
+    assert_eq!(
+        response.body["data"]["fulfillmentOrder"]["merchantRequests"]["nodes"][0]["message"],
+        json!("Hermes partial submit")
+    );
+}
+
+#[test]
+fn store_property_node_reads_resolve_known_shop_records_locally() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+    let query = r#"
+        query AdminPlatformStorePropertyNodeReads {
+          shopAddressNode: node(id: "gid://shopify/ShopAddress/63755419881") { ... on ShopAddress { id address1 city country formatted } }
+          shopPolicyNode: node(id: "gid://shopify/ShopPolicy/42438689001") { ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } } }
+          nodes(ids: ["gid://shopify/ShopAddress/63755419881", "gid://shopify/ShopPolicy/42438689001"]) {
+            ... on ShopAddress { id address1 city country formatted }
+            ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } }
+          }
+        }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(query, json!({})));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "shopAddressNode": {
+                    "id": "gid://shopify/ShopAddress/63755419881",
+                    "address1": "103 ossington",
+                    "city": "Ottawa",
+                    "country": "Canada",
+                    "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                },
+                "shopPolicyNode": {
+                    "id": "gid://shopify/ShopPolicy/42438689001",
+                    "title": "Contact",
+                    "type": "CONTACT_INFORMATION",
+                    "translations": []
+                },
+                "nodes": [
+                    {
+                        "id": "gid://shopify/ShopAddress/63755419881",
+                        "address1": "103 ossington",
+                        "city": "Ottawa",
+                        "country": "Canada",
+                        "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                    },
+                    {
+                        "id": "gid://shopify/ShopPolicy/42438689001",
+                        "title": "Contact",
+                        "type": "CONTACT_INFORMATION",
+                        "translations": []
+                    }
+                ]
+            }
+        })
+    );
+}
+
+#[test]
+fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let required_and_nullable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsRequiredNullable($locationId: ID!, $taxExempt: Boolean) {
+          emptyInput: companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+          nullTaxExempt: companyLocationTaxSettingsUpdate(companyLocationId: $locationId, taxExempt: $taxExempt) {
+            companyLocation { id taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id, "taxExempt": Value::Null }),
+    ));
+    assert_eq!(required_and_nullable.status, 200);
+    assert_eq!(
+        required_and_nullable.body["data"]["emptyInput"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "No tax settings input was provided",
+                "code": "NO_INPUT"
+            }]
+        })
+    );
+    assert_eq!(
+        required_and_nullable.body["data"]["nullTaxExempt"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["taxExempt"],
+                "message": "Tax exempt must be true or false",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+
+    let invalid_literal = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsInvalidEnumLiteral {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(invalid_literal.status, 200);
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert!(invalid_literal.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+    assert!(invalid_literal.body["data"].is_null());
+
+    let invalid_variable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsInvalidEnumVariable($locationId: ID!, $exemptionsToAssign: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $exemptionsToAssign) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "exemptionsToAssign": ["NOT_A_REAL_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(invalid_variable.status, 200);
+    assert_eq!(
+        invalid_variable.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(invalid_variable.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+
+    let assign = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsAssignRemove($locationId: ID!, $assign: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $assign) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "assign": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(assign.status, 200);
+    assert_eq!(
+        assign.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsAssignRemove($locationId: ID!, $remove: [TaxExemption!]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToRemove: $remove) {
+            companyLocation { id taxSettings { taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "remove": ["CA_BC_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["companyLocationTaxSettingsUpdate"]["companyLocation"]["taxSettings"]
+            ["taxExemptions"],
+        json!(["US_CA_RESELLER_EXEMPTION"])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert!(entries
+        .iter()
+        .any(|entry| entry["status"] == json!("failed")
+            && entry["interpreted"]["primaryRootField"]
+                == json!("companyLocationTaxSettingsUpdate")));
+    assert!(entries
+        .iter()
+        .any(|entry| entry["status"] == json!("staged")
+            && entry["interpreted"]["primaryRootField"]
+                == json!("companyLocationTaxSettingsUpdate")));
+}
+
+#[test]
+fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: {} }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(empty.status, 200);
+    assert_eq!(
+        empty.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration"],
+                "message": "Invalid input.",
+                "code": "INVALID_INPUT",
+                "detail": "buyer_experience_configuration_empty"
+            }]
+        })
+    );
+
+    let deposit_without_terms = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { deposit: { percentage: 50.0 } } }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(deposit_without_terms.status, 200);
+    assert_eq!(
+        deposit_without_terms.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration", "deposit"],
+                "message": "Deposit requires a payment terms template.",
+                "code": "INVALID",
+                "detail": "deposit_without_payment_terms"
+            }]
+        })
+    );
+
+    let deposit_disabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationDepositDisabled($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4", deposit: { percentage: 50.0 } } }) {
+            companyLocation { id }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(deposit_disabled.status, 200);
+    assert_eq!(
+        deposit_disabled.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "buyerExperienceConfiguration", "deposit"],
+                "message": "Deposits are not enabled for this shop.",
+                "code": "INVALID",
+                "detail": "deposit_not_enabled"
+            }]
+        })
+    );
+
+    let valid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
+          companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4", checkoutToDraft: true, editableShippingAddress: true, deposit: { percentage: 50.0 } } }) {
+            companyLocation {
+              id
+              taxSettings { taxExempt }
+              buyerExperienceConfiguration {
+                editableShippingAddress
+                checkoutToDraft
+                paymentTermsTemplate { id }
+                deposit { __typename }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": { "taxExempt": true },
+                "buyerExperienceConfiguration": {
+                    "editableShippingAddress": true,
+                    "checkoutToDraft": true,
+                    "paymentTermsTemplate": { "id": "gid://shopify/PaymentTermsTemplate/4" },
+                    "deposit": { "__typename": "DepositPercentage" }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BLocationBuyerExperienceConfigurationRead($locationId: ID!) {
+          companyLocation(id: $locationId) {
+            id
+            taxSettings { taxExempt }
+            buyerExperienceConfiguration {
+              editableShippingAddress
+              checkoutToDraft
+              paymentTermsTemplate { id }
+              deposit { __typename }
+            }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(
+        readback.body["data"]["companyLocation"],
+        valid.body["data"]["companyLocationUpdate"]["companyLocation"]
+    );
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    assert!(entries.iter().any(|entry| {
+        entry["status"] == json!("failed")
+            && entry["interpreted"]["primaryRootField"] == json!("companyLocationUpdate")
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["status"] == json!("staged")
+            && entry["interpreted"]["primaryRootField"] == json!("companyLocationUpdate")
+    }));
+}
+
+#[test]
+fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+
+    let long_name = "x".repeat(300);
+    let long_name_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNameValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": long_name } }),
+    ));
+    assert_eq!(long_name_response.status, 200);
+    assert_eq!(
+        long_name_response.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "name"],
+                "message": "Company name is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }]
+        })
+    );
+
+    let html_name_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNameValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "<b>B2B Draft</b>" } }),
+    ));
+    assert_eq!(html_name_response.status, 200);
+    assert_eq!(
+        html_name_response.body["data"]["companyCreate"],
+        json!({
+            "company": {
+                "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
+                "name": "B2B Draft"
+            },
+            "userErrors": []
+        })
+    );
+
+    let long_external_id = "x".repeat(65);
+    let long_external = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "B2B Draft", "externalId": long_external_id } }),
+    ));
+    assert_eq!(long_external.status, 200);
+    assert_eq!(
+        long_external.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }]
+        })
+    );
+
+    let invalid_external = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "B2B Draft", "externalId": "has spaces" } }),
+    ));
+    assert_eq!(invalid_external.status, 200);
+    assert_eq!(
+        invalid_external.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID contains invalid characters",
+                "code": "INVALID",
+                "detail": "external_id_contains_invalid_chars"
+            }]
+        })
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Duplicate One", "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(first.body["data"]["companyCreate"]["userErrors"], json!([]));
+    let first_id = first.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Duplicate Two", "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "externalId"],
+                "message": "External ID has already been taken",
+                "code": "TAKEN",
+                "detail": "duplicate_external_id"
+            }]
+        })
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Second", "externalId": "ACME-2" } }),
+    ));
+    let second_id = second.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let self_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": first_id, "input": { "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        self_update.body["data"]["companyUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id externalId }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": second_id, "input": { "externalId": "ACME-1" } }),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "externalId"],
+                "message": "External ID has already been taken",
+                "code": "TAKEN",
+                "detail": "duplicate_external_id"
+            }]
+        })
+    );
+}
+
+#[test]
+fn b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceCreate($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Original", "customerSince": "2024-01-01T00:00:00Z" } }),
+    ));
+    assert_eq!(create.status, 200);
+    let company_id = create.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let customer_since_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": company_id, "input": { "customerSince": "2020-01-01T00:00:00Z" } }),
+    ));
+    assert_eq!(
+        customer_since_only.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "customerSince"],
+                "message": "This field may only be set on creation.",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+
+    let read_after_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyCustomerSinceRead($id: ID!) {
+          company(id: $id) { name customerSince }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_reject.body["data"]["company"],
+        json!({ "name": "Original", "customerSince": "2024-01-01T00:00:00Z" })
+    );
+
+    let mixed_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "name": "Mixed Changed", "customerSince": "2020-02-01T00:00:00Z" } }),
+    ));
+    assert_eq!(
+        mixed_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        mixed_reject.body["data"]["companyUpdate"]["userErrors"][0]["code"],
+        json!("INVALID_INPUT")
+    );
+
+    let read_after_mixed_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyCustomerSinceRead($id: ID!) {
+          company(id: $id) { name customerSince }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_mixed_reject.body["data"]["company"],
+        json!({ "name": "Original", "customerSince": "2024-01-01T00:00:00Z" })
+    );
+
+    let null_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name customerSince }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "customerSince": Value::Null } }),
+    ));
+    assert_eq!(
+        null_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        null_reject.body["data"]["companyUpdate"]["userErrors"][0]["field"],
+        json!(["input", "customerSince"])
+    );
+
+    let invalid_note = format!("<script>{}</script>", "x".repeat(6000));
+    let note_reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id note }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "note": invalid_note } }),
+    ));
+    assert_eq!(
+        note_reject.body["data"]["companyUpdate"]["company"],
+        Value::Null
+    );
+    assert_eq!(
+        note_reject.body["data"]["companyUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "notes"],
+                "message": "Note contains HTML tags",
+                "code": "INVALID",
+                "detail": "contains_html_tags"
+            },
+            {
+                "field": ["input", "notes"],
+                "message": "Note is too long",
+                "code": "TOO_LONG",
+                "detail": Value::Null
+            }
+        ])
+    );
+}
+
+#[test]
+fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCustomerSinceCompanyRead($companyId: ID!) {
+          company(id: $companyId) {
+            name
+            customerSince
+          }
+        }
+        "#,
+        json!({ "companyId": "gid://shopify/Company/7681462450" }),
+    ));
+    assert_eq!(
+        company.body["data"]["company"],
+        json!({
+            "name": "HAR-760 customerSince 1778017011251",
+            "customerSince": "2024-01-01T00:00:00Z"
+        })
+    );
+
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactLocationAssignmentsNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on CompanyAddress { id address1 city countryCode }
+            ... on CompanyContactRoleAssignment {
+              id
+              companyContact { id title }
+              role { id name }
+              companyLocation { id name }
+            }
+            ... on CompanyContact { id title }
+            ... on CompanyContactRole { id name }
+            ... on CompanyLocation { id name }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/CompanyAddress/9348383026",
+                "gid://shopify/CompanyContactRoleAssignment/44647547186",
+                "gid://shopify/CompanyContact/10149003570",
+                "gid://shopify/CompanyLocation/8247738674",
+                "gid://shopify/CompanyContactRole/10668638514"
+            ]
+        }),
+    ));
+
+    assert_eq!(
+        nodes.body["data"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/CompanyAddress/9348383026",
+                "address1": "446 Assignment Way",
+                "city": "Toronto",
+                "countryCode": "CA"
+            },
+            {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44647547186",
+                "companyContact": {
+                    "id": "gid://shopify/CompanyContact/10149003570",
+                    "title": "Lead buyer"
+                },
+                "role": {
+                    "id": "gid://shopify/CompanyContactRole/10668638514",
+                    "name": "Location admin"
+                },
+                "companyLocation": {
+                    "id": "gid://shopify/CompanyLocation/8247738674",
+                    "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+                }
+            },
+            {
+                "id": "gid://shopify/CompanyContact/10149003570",
+                "title": "Lead buyer"
+            },
+            {
+                "id": "gid://shopify/CompanyLocation/8247738674",
+                "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
+            },
+            {
+                "id": "gid://shopify/CompanyContactRole/10668638514",
+                "name": "Location admin"
+            }
+        ])
+    );
+}
+
+#[test]
+fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationStatusParityRead($unknownId: ID!, $first: Int, $runningQuery: String, $runningMutation: String) {
+          unknown: bulkOperation(id: $unknownId) { id status }
+          runningQueries: bulkOperations(first: $first, query: $runningQuery) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          runningMutations: bulkOperations(first: $first, query: $runningMutation) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          currentMutation: currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({
+            "unknownId": "gid://shopify/BulkOperation/unknown",
+            "first": 5,
+            "runningQuery": "status:RUNNING type:QUERY",
+            "runningMutation": "status:RUNNING type:MUTATION"
+        }),
+    ));
+    assert_eq!(empty.body["data"]["unknown"], Value::Null);
+    assert_eq!(empty.body["data"]["runningQueries"]["nodes"], json!([]));
+    assert_eq!(empty.body["data"]["runningQueries"]["edges"], json!([]));
+    assert_eq!(
+        empty.body["data"]["runningQueries"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(empty.body["data"]["currentMutation"], Value::Null);
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationByIdParity($id: ID!) {
+          bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(read.body["data"]["bulkOperation"]["type"], json!("QUERY"));
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["objectCount"],
+        json!("1432")
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationCancelParity($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": null,
+                    "errors": [{
+                        "message": "you must provide one of first or last",
+                        "path": ["bulkOperations"]
+                    }]
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationsMissingWindowValidation {
+          bulkOperations { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("you must provide one of first or last")
+    );
+    assert_eq!(response.body["data"], Value::Null);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id firstName lastName displayName email locale note verifiedEmail taxExempt taxExemptions tags state canDelete
+              loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value }
+              metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+              defaultEmailAddress { emailAddress }
+              defaultPhoneNumber { phoneNumber }
+              defaultAddress { address1 city province country zip formattedArea }
+              createdAt updatedAt
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "hermes-customer-create@example.com",
+                "firstName": "Hermes",
+                "lastName": "Create",
+                "locale": "en",
+                "note": "customer create parity probe",
+                "phone": "+14155550123",
+                "tags": ["parity", "create"],
+                "taxExempt": true
+            }
+        }),
+    ));
+    let customer = &create.body["data"]["customerCreate"]["customer"];
+    let id = customer["id"].as_str().unwrap();
+    assert!(id.starts_with("gid://shopify/Customer/"));
+    assert_eq!(customer["displayName"], json!("Hermes Create"));
+    assert_eq!(customer["tags"], json!(["create", "parity"]));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!) {
+          customer(id: $id) { id firstName lastName displayName email tags defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) { nodes { id email } pageInfo { hasNextPage hasPreviousPage } }
+          customersCount { count precision }
+        }
+        "#,
+        json!({ "id": id, "query": "__customer_parity_no_match__", "first": 5 }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["customer"]["email"],
+        json!("hermes-customer-create@example.com")
+    );
+    assert_eq!(
+        read.body["data"]["customers"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customersCount"],
+        json!({ "count": 177, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn customer_update_and_delete_stage_known_fixture_customer_reads() {
+    let mut proxy = snapshot_proxy();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName email note taxExempt taxExemptions tags defaultPhoneNumber { phoneNumber } loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/9102966915305",
+                "firstName": "Hermes",
+                "lastName": "Updated",
+                "note": "customer update parity probe",
+                "tags": ["parity", "updated"],
+                "taxExempt": false,
+                "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+                "metafields": [{ "namespace": "custom", "key": "loyalty", "type": "single_line_text_field", "value": "gold" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["displayName"],
+        json!("Hermes Updated")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["loyalty"]["value"],
+        json!("gold")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+14155550123")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/9102966915305" } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": "gid://shopify/Customer/9102966915305",
+            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "userErrors": []
+        })
+    );
+    let read = proxy.process_request(json_graphql_request(
+        "query($id: ID!) { customer(id: $id) { id email } }",
+        json!({ "id": "gid://shopify/Customer/9102966915305" }),
+    ));
+    assert_eq!(read.body["data"]["customer"], Value::Null);
+}
+
+#[test]
+fn customer_delete_order_precondition_blocks_only_when_order_exists() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message }
+          }
+        }
+        "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "email": "har-773-blocked@example.test",
+                "firstName": "Blocked",
+                "lastName": "Delete"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id customer { id email displayName } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "har-773-order@example.test",
+                "customerId": customer_id,
+                "currency": "CAD",
+                "lineItems": [{ "title": "HAR-773 blocking line", "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let blocked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(
+        blocked.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{ "field": ["id"], "message": "Customer can’t be deleted because they have associated orders" }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerDeleteOrderPreconditionRead($id: ID!) {
+          customer(id: $id) {
+            id email displayName
+            orders(first: 5) { nodes { id customer { id email displayName } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
+    assert_eq!(
+        read.body["data"]["customer"]["orders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn customer_create_supports_consent_precondition_shapes_without_synthesizing_missing_contacts() {
+    let mut proxy = snapshot_proxy();
+    let phone_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Hermes", "lastName": "ConsentPhoneOnly", "phone": "+141****6021" } }),
+    ));
+    assert_eq!(
+        phone_only.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let phone_customer = &phone_only.body["data"]["customerCreate"]["customer"];
+    assert_eq!(phone_customer["email"], Value::Null);
+    assert_eq!(phone_customer["defaultEmailAddress"], Value::Null);
+    assert_eq!(
+        phone_customer["defaultPhoneNumber"]["phoneNumber"],
+        json!("+141****6021")
+    );
+
+    let email_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Hermes", "lastName": "ConsentEmailOnly", "email": "hermes-consent-email-only-1777943566021@example.com" } }),
+    ));
+    let email_customer = &email_only.body["data"]["customerCreate"]["customer"];
+    assert_eq!(
+        email_only.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        email_customer["email"],
+        json!("hermes-consent-email-only-1777943566021@example.com")
+    );
+    assert_eq!(
+        email_customer["defaultEmailAddress"]["emailAddress"],
+        json!("hermes-consent-email-only-1777943566021@example.com")
+    );
+    assert_eq!(email_customer["defaultPhoneNumber"], Value::Null);
+}
+
+#[test]
+fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName defaultPhoneNumber { phoneNumber } tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/9102966915305", "firstName": "", "lastName": "", "phone": "", "tags": ["Zulu", "alpha", "spaced tag"] } }),
+    ));
+    let id = update.body["data"]["customerUpdate"]["customer"]["id"]
+        .as_str()
+        .unwrap();
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerInputValidationDownstreamRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id defaultPhoneNumber { phoneNumber } tags }
+          customerByIdentifier(identifier: $identifier) { id defaultPhoneNumber { phoneNumber } tags }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "id": id } }),
+    ));
+    assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["defaultPhoneNumber"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["tags"],
+        json!(["Zulu", "alpha", "spaced tag"])
+    );
+}
+
+#[test]
+fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let id_not_allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetIdNotAllowed($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+          customerSet(input: $input, identifier: $identifier) {
+            customer { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "email": "customer-set-id-not-allowed@example.com" },
+            "input": {
+                "id": "gid://shopify/Customer/999999999999998",
+                "email": "customer-set-id-not-allowed@example.com",
+                "firstName": "IdNotAllowed"
+            }
+        }),
+    ));
+    assert_eq!(
+        id_not_allowed.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "The id field is not allowed if identifier is provided.",
+                "code": "ID_NOT_ALLOWED"
+            }]
+        })
+    );
+
+    let unknown_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetUnknownIdErrors($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+          customerSet(input: $input, identifier: $identifier) {
+            customer { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": "gid://shopify/Customer/999999999" },
+            "input": { "email": "buyer@example.com" }
+        }),
+    ));
+    assert_eq!(
+        unknown_id.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found.",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["products"],
+        json!({})
+    );
+}
+
+#[test]
+fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/31575376178",
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "price": { "amount": "20.00", "currencyCode": "CAD" }
+                }],
+                "quantityRulesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "increment": 1
+                }],
+                "quantityPriceBreaksToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimumQuantity": 10,
+                    "price": { "amount": "18.00", "currencyCode": "CAD" }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": [{ "id": "gid://shopify/ProductVariant/49875425296690" }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateEmptyScopeValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: [] }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The access scope can't be empty.", "code": "EMPTY_ACCESS_SCOPE" }]
+        })
+    );
+
+    let negative_expires = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateNegativeExpiresValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: -1 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        negative_expires.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The expires_in value must be greater than 0.", "code": "NEGATIVE_EXPIRES_IN" }]
+        })
+    );
+
+    let unknown_scope = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateUnknownScopeValidation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["fake_scope"] }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_scope.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{ "field": null, "message": "The access scope is invalid: fake_scope", "code": "UNKNOWN_SCOPES" }]
+        })
+    );
+
+    let happy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateHappyValidation {
+          aliasCreate: delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["accessScopes"],
+        json!(["read_products"])
+    );
+    assert!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["accessToken"]
+            .as_str()
+            .is_some_and(|token| token.starts_with("shpat_delegate_proxy_"))
+    );
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["createdAt"],
+        json!("2026-04-28T02:10:00.000Z")
+    );
+    assert_eq!(
+        happy.body["data"]["aliasCreate"]["delegateAccessToken"]["expiresIn"],
+        json!(300)
+    );
+    assert_eq!(happy.body["data"]["aliasCreate"]["userErrors"], json!([]));
+}
+
+#[test]
+fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
+    let mut proxy = snapshot_proxy();
+
+    let expires_after_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateExpiresAfterParent {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        expires_after_parent.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The delegate token can't expire after the parent token.",
+                "code": "EXPIRES_AFTER_PARENT"
+            }]
+        })
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_does_not_exist" }),
+    ));
+    assert_eq!(
+        missing.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": false,
+            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateShopPayload {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken }
+            shop { id myshopifyDomain currencyCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/92891250994",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "currencyCode": "USD"
+        })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": token }),
+    ));
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": true,
+            "userErrors": []
+        })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayloadUnknown {
+          delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        repeat.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": false,
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let mut self_delete = json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_parent_destroy_self" }),
+    );
+    self_delete.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "shpat_parent_destroy_self".to_string(),
+    );
+    let self_delete = proxy.process_request(self_delete);
+    assert_eq!(
+        self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
+        json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
+    );
+}
+
+#[test]
+fn app_revoke_access_scopes_validates_atomically_and_updates_current_installation() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesFakeScope {
+          appRevokeAccessScopes(scopes: ["fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesMixedFakeScope {
+          appRevokeAccessScopes(scopes: ["read_products", "fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mixed.body["data"]["appRevokeAccessScopes"]["revoked"],
+        json!([])
+    );
+    assert_eq!(
+        mixed.body["data"]["appRevokeAccessScopes"]["userErrors"],
+        json!([
+            {
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            },
+            {
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }
+        ])
+    );
+
+    let required = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesRequiredReadProducts {
+          appRevokeAccessScopes(scopes: ["read_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        required.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            }]
+        })
+    );
+
+    let missing_source_app = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesErrorCodes {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_source_app.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [],
+            "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+        })
+    );
+
+    let optional = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesOptionalWriteProducts {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        optional.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "write_products", "description": null }],
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppAccessScopesLocalRead {
+          currentAppInstallation { accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body,
+        json!({ "data": { "currentAppInstallation": { "accessScopes": [{ "handle": "read_products" }] } } })
+    );
+}
+
+#[test]
+fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationBlankName {
+          create: appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["create"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank", "code": null }]
+        })
+    );
+
+    let zero_price = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationZeroPrice {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        zero_price.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["price"], "message": "Price must be at least 0.50 USD.", "code": "PRICE_TOO_LOW" }]
+        })
+    );
+
+    let currency_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationCurrencyMismatch {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        currency_mismatch.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": null,
+            "confirmationUrl": null,
+            "userErrors": [{ "field": ["price"], "message": "Price currency must match shop billing currency USD.", "code": null }]
+        })
+    );
+
+    let missing_return_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl {
+          appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_return_url.body["errors"][0]["extensions"],
+        json!({
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "appPurchaseOneTimeCreate",
+            "arguments": "returnUrl"
+        })
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateValidationSuccess {
+          appPurchaseOneTimeCreate(name: "HAR-646 valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        success.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "HAR-646 valid test",
+                "status": "ACTIVE",
+                "test": true,
+                "createdAt": "2024-01-01T00:00:00.000Z",
+                "price": { "amount": "5.00", "currencyCode": "USD" }
+            },
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              name
+              status
+              test
+              trialDays
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing {
+                      cappedAmount { amount currencyCode }
+                      balanceUsed { amount currencyCode }
+                      interval
+                      terms
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"],
+        json!({
+            "id": "gid://shopify/AppSubscription/expected",
+            "name": "Local plan",
+            "status": "ACTIVE",
+            "test": true,
+            "trialDays": 7,
+            "lineItems": [{
+                "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                "plan": { "pricingDetails": {
+                    "__typename": "AppUsagePricing",
+                    "cappedAmount": { "amount": "100", "currencyCode": "USD" },
+                    "balanceUsed": { "amount": "0.0", "currencyCode": "USD" },
+                    "interval": "EVERY_30_DAYS",
+                    "terms": "usage terms"
+                }}
+            }]
+        })
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": { "id": "gid://shopify/AppSubscription/expected", "status": "CANCELLED", "trialDays": 7 },
+            "userErrors": []
+        })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "Cannot transition status via :cancel from :cancelled" }]
+        })
+    );
+}
+
+#[test]
+fn app_usage_record_create_caps_idempotency_and_readback_balance() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 5, "currencyCode": "USD" }, "terms": "usage terms" } }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        json!("gid://shopify/AppSubscriptionLineItem/expected")
+    );
+
+    let success_query = r#"
+        mutation AppUsageRecordCreateCapSuccess($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "first"
+            idempotencyKey: "usage-key-cap-1"
+          ) {
+            appUsageRecord {
+              id
+              description
+              price { amount currencyCode }
+              subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let success = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        success.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "first",
+                "price": { "amount": "3.00", "currencyCode": "USD" },
+                "subscriptionLineItem": {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(duplicate.body, success.body);
+
+    let over_cap = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateCapOverLimit($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "second"
+            idempotencyKey: "usage-key-cap-2"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        over_cap.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": [], "message": "Total price exceeds balance remaining" }]
+        })
+    );
+
+    let long_key = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateLongIdempotencyKey($id: ID!, $key: String) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "too long"
+            idempotencyKey: $key
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "key": "x".repeat(256)
+        }),
+    ));
+    assert_eq!(
+        long_key.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key must be at most 255 characters", "code": null }]
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query AppUsageRecordCreateCapRead {
+          currentAppInstallation {
+            allSubscriptions(first: 5) {
+              nodes {
+                lineItems {
+                  plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } }
+                  usageRecords { nodes { id description price { amount currencyCode } } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "allSubscriptions": { "nodes": [{
+                "lineItems": [{
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.00", "currencyCode": "USD" } } },
+                    "usageRecords": { "nodes": [{
+                        "id": "gid://shopify/AppUsageRecord/expected",
+                        "description": "first",
+                        "price": { "amount": "3.00", "currencyCode": "USD" }
+                    }] }
+                }]
+            }] }
+        })
+    );
+}
+
+#[test]
+fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
+    let mut proxy = snapshot_proxy();
+
+    let create_subscription = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(name: "Local plan", returnUrl: "https://app.example.test/return", trialDays: 7, test: true, lineItems: $lineItems) {
+            appSubscription { id status trialDays lineItems { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 100, "currencyCode": "USD" }, "terms": "usage terms" } }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        json!("gid://shopify/AppSubscription/expected")
+    );
+
+    let one_time = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppPurchaseOneTimeCreateLocalLifecycle {
+          appPurchaseOneTimeCreate(name: "Import package", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: true) {
+            confirmationUrl
+            appPurchaseOneTime { id name status test price { amount currencyCode } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "Import package",
+                "status": "ACTIVE",
+                "test": true,
+                "price": { "amount": "10", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let usage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateLocalLifecycle($id: ID!) {
+          appUsageRecordCreate(subscriptionLineItemId: $id, price: { amount: "12.5", currencyCode: USD }, description: "metered import", idempotencyKey: "usage-local-1") {
+            appUsageRecord { id description price { amount currencyCode } subscriptionLineItem { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"],
+        json!({
+            "id": "gid://shopify/AppUsageRecord/expected",
+            "description": "metered import",
+            "price": { "amount": "12.5", "currencyCode": "USD" },
+            "subscriptionLineItem": { "id": "gid://shopify/AppSubscriptionLineItem/expected" }
+        })
+    );
+
+    let expired_trial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionTrialExtendLocalLifecycle($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+    assert_eq!(
+        expired_trial.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+        })
+    );
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) { appSubscription { id status trialDays } userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+    ));
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query AppBillingLocalRead {
+          currentAppInstallation {
+            id
+            activeSubscriptions { id }
+            allSubscriptions(first: 5) { nodes { id status trialDays lineItems { id usageRecords(first: 5) { nodes { description price { amount currencyCode } } } } } }
+            oneTimePurchases(first: 5) { nodes { name status price { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "id": "gid://shopify/AppInstallation/expected",
+            "activeSubscriptions": [],
+            "allSubscriptions": { "nodes": [{
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "CANCELLED",
+                "trialDays": 7,
+                "lineItems": [{
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "usageRecords": { "nodes": [{
+                        "description": "metered import",
+                        "price": { "amount": "12.5", "currencyCode": "USD" }
+                    }] }
+                }]
+            }] },
+            "oneTimePurchases": { "nodes": [{
+                "name": "Import package",
+                "status": "ACTIVE",
+                "price": { "amount": "10", "currencyCode": "USD" }
+            }] }
+        })
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppBillingNodeRead($id: ID!) {
+          node(id: $id) {
+            ... on AppPurchaseOneTime { id name status test price { amount currencyCode } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppPurchaseOneTime/expected" }),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        json!({
+            "id": "gid://shopify/AppPurchaseOneTime/expected",
+            "name": "Import package",
+            "status": "ACTIVE",
+            "test": true,
+            "price": { "amount": "10", "currencyCode": "USD" }
+        })
+    );
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUninstallLocalLifecycle { appUninstall { app { id handle } userErrors { field message } } }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": { "id": "gid://shopify/App/expected", "handle": "shopify-draft-proxy" },
+            "userErrors": []
+        })
+    );
+
+    let after_uninstall = proxy.process_request(json_graphql_request(
+        r#"query AppInstallationIdLocalRead { currentAppInstallation { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_uninstall.body["data"]["currentAppInstallation"],
+        Value::Null
+    );
+}
+
+#[test]
+fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                    ... on AppRecurringPricing { price { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [
+                { "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 5, "currencyCode": "USD" }, "terms": "usage terms" } } },
+                { "plan": { "appRecurringPricingDetails": { "price": { "amount": 1, "currencyCode": "USD" }, "interval": "EVERY_30_DAYS" } } }
+            ]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "lineItems": [
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                        }}
+                    },
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppRecurringPricing",
+                            "price": { "amount": "1", "currencyCode": "USD" }
+                        }}
+                    }
+                ]
+            },
+            "userErrors": []
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionLineItemUpdateValidation($usageLineItemId: ID!, $recurringLineItemId: ID!) {
+          recurring: appSubscriptionLineItemUpdate(id: $recurringLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          currencyMismatch: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: EUR }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          nonIncreasing: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 3, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          success: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            confirmationUrl
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                    ... on AppRecurringPricing { price { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage",
+            "recurringLineItemId": "gid://shopify/AppSubscriptionLineItem/recurring"
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"],
+        json!({
+            "recurring": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Only usage-pricing line items support cappedAmount updates" }]
+            },
+            "currencyMismatch": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Capped amount currency mismatch. Expected USD" }]
+            },
+            "nonIncreasing": {
+                "appSubscription": null,
+                "userErrors": [{ "field": ["cappedAmount"], "message": "The capped amount must be greater than the existing capped amount" }]
+            },
+            "success": {
+                "confirmationUrl": "https://app.example.test/local-confirmation",
+                "appSubscription": {
+                    "id": "gid://shopify/AppSubscription/expected",
+                    "lineItems": [
+                        {
+                            "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                            "plan": { "pricingDetails": {
+                                "__typename": "AppUsagePricing",
+                                "cappedAmount": { "amount": "5", "currencyCode": "USD" }
+                            }}
+                        },
+                        {
+                            "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                            "plan": { "pricingDetails": {
+                                "__typename": "AppRecurringPricing",
+                                "price": { "amount": "1", "currencyCode": "USD" }
+                            }}
+                        }
+                    ]
+                },
+                "userErrors": []
+            }
+        })
+    );
+}
+
+#[test]
+fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreatePendingLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Local plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: false
+            lineItems: $lineItems
+          ) {
+            appSubscription { id status trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "PENDING",
+                "trialDays": 7
+            },
+            "userErrors": []
+        })
+    );
+
+    let trial_extend_query = r#"
+        mutation AppSubscriptionTrialExtendValidation($id: ID!, $days: Int!) {
+          appSubscriptionTrialExtend(id: $id, days: $days) {
+            appSubscription { id trialDays }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let days_zero = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 0 }),
+    ));
+    assert_eq!(
+        days_zero.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["days"], "message": "Days must be greater than 0", "code": null }]
+        })
+    );
+
+    let days_too_large = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 1001 }),
+    ));
+    assert_eq!(
+        days_too_large.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["days"], "message": "Days must be less than or equal to 1000", "code": null }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/unknown", "days": 5 }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The app subscription wasn't found.", "code": "SUBSCRIPTION_NOT_FOUND" }]
+        })
+    );
+
+    let pending = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 5 }),
+    ));
+    assert_eq!(
+        pending.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended on inactive app subscriptions.", "code": "SUBSCRIPTION_NOT_ACTIVE" }]
+        })
+    );
+}
+
+#[test]
+fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateActivationReadback {
+          subscription: appSubscriptionCreate(
+            name: "Activation readback plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            confirmationUrl
+            appSubscription { id status test trialDays currentPeriodEnd }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let subscription_id = create.body["data"]["subscription"]["appSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["subscription"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": subscription_id,
+                "status": "ACTIVE",
+                "test": true,
+                "trialDays": 7,
+                "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppSubscriptionActivationRead {
+          installation: currentAppInstallation {
+            activeSubscriptions { id status currentPeriodEnd }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body,
+        json!({
+            "data": {
+                "installation": {
+                    "activeSubscriptions": [{
+                        "id": subscription_id,
+                        "status": "ACTIVE",
+                        "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                    }]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
+    let mut proxy = snapshot_proxy();
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBlank($name: String!, $callbackUrl: URL) {
+          fulfillmentServiceCreate(
+            name: $name
+            callbackUrl: $callbackUrl
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "", "callbackUrl": "https://example.com/fulfillment-service/moeomiux" }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name can't be blank" },
+                { "field": ["callbackUrl"], "message": "Callback url is not allowed" }
+            ]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFs($name: String!) {
+          fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hermes FS moeompnx" }),
+    ));
+    let service_id = create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let location_id = create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+        ["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"],
+        json!({
+            "id": service_id,
+            "handle": "hermes-fs-moeompnx",
+            "serviceName": "Hermes FS moeompnx",
+            "callbackUrl": null,
+            "trackingSupport": true,
+            "inventoryManagement": true,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+                "id": location_id,
+                "name": "Hermes FS moeompnx",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceAfterCreate($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) {
+            id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+            location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+          }
+          location(id: $locationId) { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+        }
+        "#,
+        json!({ "id": service_id, "locationId": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentService"],
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+    );
+    assert_eq!(
+        read.body["data"]["location"],
+        create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"]
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFs($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": service_id, "name": "Hermes FS Updated moeompnx" }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["serviceName"],
+        json!("Hermes FS Updated moeompnx")
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["location"]["name"],
+        json!("Hermes FS Updated moeompnx")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteFs($id: ID!) {
+          fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": service_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentServiceDelete"],
+        json!({ "deletedId": service_id.replace("?id=true", ""), "userErrors": [] })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query Loc($id: ID!) { location(id: $id) { id name isFulfillmentService isActive } }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["location"], json!(null));
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownUpdate($id: ID!) {
+          fulfillmentServiceUpdate(id: $id, name: "Nope") { fulfillmentService { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentService/999999999999" }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["id"], "message": "Fulfillment service could not be found." }]
+        })
+    );
+}
+
+#[test]
+fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation FulfillmentServiceUniquenessCreate($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation FulfillmentServiceUniquenessUpdate($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(
+            id: $id
+            name: $name
+            trackingSupport: false
+            inventoryManagement: false
+            requiresShippingMethod: false
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let create_a = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Acme fsuniq-mowo6bal" }),
+    ));
+    let service_a = &create_a.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"];
+    assert!(service_a["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/FulfillmentService/"));
+    assert!(service_a["location"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Location/"));
+    assert_eq!(
+        service_a,
+        &json!({
+            "id": service_a["id"],
+            "handle": "fs-unique-acme-fsuniq-mowo6bal",
+            "serviceName": "FS Unique Acme fsuniq-mowo6bal",
+            "callbackUrl": null,
+            "trackingSupport": true,
+            "inventoryManagement": true,
+            "requiresShippingMethod": true,
+            "type": "THIRD_PARTY",
+            "location": {
+                "id": service_a["location"]["id"],
+                "name": "FS Unique Acme fsuniq-mowo6bal",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+            }
+        })
+    );
+
+    for duplicate_name in [
+        "FS Unique Acme fsuniq-mowo6bal",
+        "FS UNIQUE ACME FSUNIQ-MOWO6BAL",
+    ] {
+        let duplicate = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "name": duplicate_name }),
+        ));
+        assert_eq!(
+            duplicate.body["data"]["fulfillmentServiceCreate"],
+            json!({
+                "fulfillmentService": null,
+                "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+            })
+        );
+    }
+
+    let spaced = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique AB fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        spaced.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["handle"],
+        json!("fs-unique-ab-fsuniq-mowo6bal")
+    );
+
+    let handle_collision = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "fs-unique-ab-fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        handle_collision.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let diacritic = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!" }),
+    ));
+    assert_eq!(
+        diacritic.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["handle"],
+        json!("fs-unique-cafe__3pl-fsuniq-mowo6bal")
+    );
+
+    for reserved_name in ["Manual", "Gift_Card"] {
+        let reserved = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "name": reserved_name }),
+        ));
+        assert_eq!(
+            reserved.body["data"]["fulfillmentServiceCreate"],
+            json!({
+                "fulfillmentService": null,
+                "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
+            })
+        );
+    }
+
+    proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Source fsuniq-mowo6bal" }),
+    ));
+    let target = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Unique Target fsuniq-mowo6bal" }),
+    ));
+    let target_id = target.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_duplicate = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": target_id, "name": "FS Unique Source fsuniq-mowo6bal" }),
+    ));
+    assert_eq!(
+        update_duplicate.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let update_reserved = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": target_id, "name": "Manual" }),
+    ));
+    assert_eq!(
+        update_reserved.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
+        })
+    );
+}
+
+#[test]
+fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": true,
+            "active": false
+        }}),
+    ));
+    let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(id.starts_with("gid://shopify/DeliveryCarrierService/"));
+    assert_eq!(
+        create.body["data"]["carrierServiceCreate"]["carrierService"]["formattedName"],
+        json!("Hermes Carrier Local (Rates provided by app)")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": "Hermes Carrier Updated",
+            "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+            "supportsServiceDiscovery": false,
+            "active": true
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Updated")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!, $first: Int!, $activeQuery: String) {
+          carrierService(id: $id) { id name formattedName callbackUrl active supportsServiceDiscovery }
+          active: carrierServices(first: $first, query: $activeQuery, sortKey: ID) {
+            nodes { id name formattedName callbackUrl active supportsServiceDiscovery }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "id": id, "first": 5, "activeQuery": "active:true" }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["active"],
+        json!(true)
+    );
+    assert_eq!(
+        downstream.body["data"]["active"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceDeleteProbe($id: ID!) {
+          carrierServiceDelete(id: $id) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["carrierServiceDelete"]["userErrors"],
+        json!([])
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceDeleteProbe($id: ID!) {
+          carrierServiceDelete(id: $id) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCarrierService/999999999999" }),
+    ));
+    assert_eq!(
+        missing.body["data"]["carrierServiceDelete"]["userErrors"][0]["message"],
+        json!("The carrier or app could not be found.")
+    );
+}
+
+#[test]
+fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_fields() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliverySettingsRead {
+          deliverySettingsAlias: deliverySettings {
+            legacyModeProfiles
+            legacyModeBlocked { blocked reasons }
+          }
+          deliveryPromiseSettingsAlias: deliveryPromiseSettings {
+            deliveryDatesEnabled
+            processingTime
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "deliverySettingsAlias": {
+                    "legacyModeProfiles": false,
+                    "legacyModeBlocked": { "blocked": false, "reasons": null }
+                },
+                "deliveryPromiseSettingsAlias": {
+                    "deliveryDatesEnabled": false,
+                    "processingTime": null
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
+    let mut proxy = snapshot_proxy();
+    let update_query = r#"
+        mutation ShippingPackageUpdateLocalRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
+        }
+    "#;
+    let make_default_query = r#"
+        mutation ShippingPackageMakeDefaultLocalRuntime($id: ID!) {
+          shippingPackageMakeDefault(id: $id) { userErrors { field message } }
+        }
+    "#;
+    let delete_query = r#"
+        mutation ShippingPackageDeleteLocalRuntime($id: ID!) {
+          shippingPackageDelete(id: $id) { deletedId userErrors { field message } }
+        }
+    "#;
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/ShippingPackage/1",
+            "shippingPackage": {
+                "name": "Updated box",
+                "type": "BOX",
+                "default": true,
+                "weight": { "value": 2.5, "unit": "POUNDS" },
+                "dimensions": { "length": 12, "width": 9, "height": 5, "unit": "INCHES" }
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["shippingPackageUpdate"],
+        json!({ "userErrors": [] })
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["shippingPackages"]
+            ["gid://shopify/ShippingPackage/1"]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+
+    let make_default = proxy.process_request(json_graphql_request(
+        make_default_query,
+        json!({ "id": "gid://shopify/ShippingPackage/2" }),
+    ));
+    assert_eq!(
+        make_default.body["data"]["shippingPackageMakeDefault"],
+        json!({ "userErrors": [] })
+    );
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
+        json!(false)
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/2"]["default"],
+        json!(true)
+    );
+
+    let restore = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/ShippingPackage/1",
+            "shippingPackage": { "default": true }
+        }),
+    ));
+    assert_eq!(
+        restore.body["data"]["shippingPackageUpdate"],
+        json!({ "userErrors": [] })
+    );
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
+        json!(true)
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/2"]["default"],
+        json!(false)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "gid://shopify/ShippingPackage/1" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["shippingPackageDelete"],
+        json!({ "deletedId": "gid://shopify/ShippingPackage/1", "userErrors": [] })
+    );
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["deletedShippingPackageIds"]["gid://shopify/ShippingPackage/1"],
+        json!(true)
+    );
+    assert!(state["stagedState"]["shippingPackages"]
+        .get("gid://shopify/ShippingPackage/1")
+        .is_none());
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["operationName"],
+        json!("shippingPackageUpdate")
+    );
+    assert_eq!(
+        log["entries"][1]["operationName"],
+        json!("shippingPackageMakeDefault")
+    );
+    assert_eq!(
+        log["entries"][2]["operationName"],
+        json!("shippingPackageUpdate")
+    );
+    assert_eq!(
+        log["entries"][3]["operationName"],
+        json!("shippingPackageDelete")
+    );
+    assert_eq!(log["entries"][3]["status"], json!("staged"));
+}
+
+#[test]
+fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
+    let mut proxy = snapshot_proxy();
+    let update_query = r#"
+        mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+        }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/ShippingPackage/10",
+            "shippingPackage": {
+                "dimensions": { "length": 999, "width": 8, "height": 4, "unit": "CENTIMETERS" }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["shippingPackageUpdate"],
+        json!({
+            "userErrors": [{
+                "field": ["shippingPackage"],
+                "message": "Custom shipping box is not updatable",
+                "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["shippingPackages"],
+        json!({})
+    );
+}
+
+#[test]
+fn product_create_preserves_parity_fields_and_downstream_read() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation ProductCreateParityPlan($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              handle
+              status
+              vendor
+              productType
+              tags
+              descriptionHtml
+              templateSuffix
+              seo { title description }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "product": {
+            "title": "Hermes Product Conformance 1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["conformance", "product-mutation", "1776299742511"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+                "title": "Hermes Product 1776299742511",
+                "description": "Hermes product mutation conformance 1776299742511"
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(create_query, variables));
+    let id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"],
+        json!({
+            "id": id,
+            "title": "Hermes Product Conformance 1776299742511",
+            "handle": "hermes-product-conformance-1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["1776299742511", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+                "title": "Hermes Product 1776299742511",
+                "description": "Hermes product mutation conformance 1776299742511"
+            }
+        })
+    );
+
+    let read_query = r#"
+        query ProductCreateDownstreamRead($id: ID!) {
+          product(id: $id) {
+            id
+            title
+            handle
+            status
+            vendor
+            productType
+            tags
+            descriptionHtml
+            templateSuffix
+            seo { title description }
+          }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    assert_eq!(
+        read.body["data"]["product"],
+        create.body["data"]["productCreate"]["product"]
+    );
+}
+
+#[test]
+fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) {
+          myEvent: event(id: "gid://shopify/Event/1") { id }
+          event(id: $eventId) { id action message }
+          events(first: $first, query: $query, sortKey: ID, reverse: true) {
+            nodes { id action message }
+            edges { cursor node { id action message } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          nodeOnlyEvents: events(first: 5) { nodes { id } }
+          eventsCount(query: $query) { count precision }
+          looseCount: eventsCount { count whatever }
+          whatever
+        }
+        "#,
+        json!({
+            "eventId": "gid://shopify/BasicEvent/999999999999",
+            "first": 2,
+            "query": "id:999999999999"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "myEvent": null,
+                "event": null,
+                "events": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                },
+                "nodeOnlyEvents": {
+                    "nodes": []
+                },
+                "eventsCount": {
+                    "count": 0,
+                    "precision": "EXACT"
+                },
+                "looseCount": {
+                    "count": 0,
+                    "whatever": null
+                },
+                "whatever": null
+            }
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_path_is_post_only() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(graphql_request("GET", ""));
+
+    assert_eq!(response.status, 405);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "Method not allowed" }] })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_non_json_or_missing_query_bodies() {
+    let mut proxy = snapshot_proxy();
+
+    let non_json = proxy.process_request(graphql_request("POST", "not json"));
+    assert_eq!(non_json.status, 400);
+    assert_eq!(
+        non_json.body,
+        json!({ "errors": [{ "message": "Expected JSON body with a string `query`" }] })
+    );
+
+    let missing_query = proxy.process_request(graphql_request("POST", r#"{"variables":{}}"#));
+    assert_eq!(missing_query.status, 400);
+    assert_eq!(
+        missing_query.body,
+        json!({ "errors": [{ "message": "Expected JSON body with a string `query`" }] })
+    );
+}
+
+#[test]
+fn admin_graphql_reports_parse_and_dispatch_errors_with_existing_envelopes() {
+    let mut proxy = snapshot_proxy();
+
+    let parse_error = proxy.process_request(graphql_request("POST", r#"{"query":""}"#));
+    assert_eq!(parse_error.status, 400);
+    assert_eq!(
+        parse_error.body,
+        json!({ "errors": [{ "message": "Could not parse GraphQL operation" }] })
+    );
+
+    let unknown_query = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query Named { definitelyUnknownRoot { id } }"}"#,
+    ));
+    assert_eq!(unknown_query.status, 400);
+    assert_eq!(
+        unknown_query.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+
+    let unknown_mutation = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { definitelyUnknownMutation { ok } }"}"#,
+    ));
+    assert_eq!(unknown_mutation.status, 400);
+    assert_eq!(
+        unknown_mutation.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: definitelyUnknownMutation" }] })
+    );
+}
+
+#[test]
+fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
+    let mut proxy = snapshot_proxy();
+
+    let aliased_query = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query Named { visibleAlias: definitelyUnknownRoot { id } }"}"#,
+    ));
+    assert_eq!(aliased_query.status, 400);
+    assert_eq!(
+        aliased_query.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+
+    let fragment_before_operation = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"fragment Fields on Product { id } query Named { definitelyUnknownRoot { ...Fields } }"}"#,
+    ));
+    assert_eq!(fragment_before_operation.status, 400);
+    assert_eq!(
+        fragment_before_operation.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: definitelyUnknownRoot" }] })
+    );
+}
+
+#[test]
+fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        captured.lock().unwrap().push(request);
+        shopify_draft_proxy::proxy::Response {
+            status: 202,
+            headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
+            body: json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } }),
+        }
+    });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer passthrough-token".to_string(),
+        )]
+        .into(),
+        body: json!({ "query": "{ currentAppInstallation { id } }" }).to_string(),
+    });
+
+    assert_eq!(response.status, 202);
+    assert_eq!(
+        response.body,
+        json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } })
+    );
+    assert_eq!(
+        response.headers.get("x-test-upstream"),
+        Some(&"domain-read".to_string())
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer passthrough-token".to_string())
+    );
+    assert_eq!(
+        forwarded[0].body,
+        json!({ "query": "{ currentAppInstallation { id } }" }).to_string()
+    );
+}
+
+#[test]
+fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut passthrough = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "definitelyUnsupportedMutation": { "ok": true } } }),
+        }
+    });
+
+    let passthrough_response = passthrough.process_request(graphql_request(
+        "POST",
+        &json!({ "query": "mutation { definitelyUnsupportedMutation { ok } }" }).to_string(),
+    ));
+
+    assert_eq!(passthrough_response.status, 200);
+    assert_eq!(
+        passthrough_response.body,
+        json!({ "data": { "definitelyUnsupportedMutation": { "ok": true } } })
+    );
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        passthrough.get_log_snapshot(),
+        json!({
+            "entries": [{
+                "id": "log-1",
+                "operationName": "definitelyUnsupportedMutation",
+                "status": "proxied",
+                "path": "/admin/api/2026-04/graphql.json",
+                "query": "mutation { definitelyUnsupportedMutation { ok } }",
+                "variables": {},
+                "interpreted": {
+                    "operationType": "mutation",
+                    "rootFields": ["definitelyUnsupportedMutation"],
+                    "primaryRootField": "definitelyUnsupportedMutation",
+                    "capability": {
+                        "operationName": "definitelyUnsupportedMutation",
+                        "domain": "unknown",
+                        "execution": "passthrough"
+                    }
+                },
+                "notes": "Mutation passthrough placeholder until supported local staging is implemented."
+            }]
+        })
+    );
+
+    let reject_hits = Arc::new(Mutex::new(0usize));
+    let reject_counter = Arc::clone(&reject_hits);
+    let mut reject = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_upstream_transport(move |_request| {
+        *reject_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "should not hit upstream" }] }),
+        }
+    });
+
+    let reject_response = reject.process_request(graphql_request(
+        "POST",
+        &json!({ "query": "mutation { definitelyUnsupportedMutation { ok } }" }).to_string(),
+    ));
+
+    assert_eq!(reject_response.status, 400);
+    assert_eq!(
+        reject_response.body,
+        json!({ "errors": [{ "message": "Unsupported mutation rejected by configuration: definitelyUnsupportedMutation" }] })
+    );
+    assert_eq!(*reject_hits.lock().unwrap(), 0);
+}
+
+#[test]
+fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { callbackUrl: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id topic format callbackUrl endpoint { __typename ... on WebhookHttpEndpoint { callbackUrl } } } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id = create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "topic": "ORDERS_CREATE",
+            "format": "JSON",
+            "callbackUrl": "https://hooks.example.com/orders",
+            "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://hooks.example.com/orders"
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery($id: ID!) { webhookSubscription(id: $id) { id topic callbackUrl } webhookSubscriptions(first: 10) { nodes { id topic callbackUrl } pageInfo { hasNextPage hasPreviousPage } } webhookSubscriptionsCount { count } }",
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["webhookSubscription"],
+        json!({ "id": webhook_id, "topic": "ORDERS_CREATE", "callbackUrl": "https://hooks.example.com/orders" })
+    );
+    assert_eq!(
+        read.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "id": webhook_id, "topic": "ORDERS_CREATE", "callbackUrl": "https://hooks.example.com/orders" }])
+    );
+    assert_eq!(
+        read.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1 })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation($id: ID!) { webhookSubscriptionUpdate(id: $id, webhookSubscription: { callbackUrl: \"https://hooks.example.com/updated\", format: JSON }) { webhookSubscription { id callbackUrl endpoint { __typename ... on WebhookHttpEndpoint { callbackUrl } } } userErrors { field message } } }",
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "callbackUrl": "https://hooks.example.com/updated",
+            "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://hooks.example.com/updated"
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { field message } } }",
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["webhookSubscriptionDelete"],
+        json!({ "deletedWebhookSubscriptionId": webhook_id, "userErrors": [] })
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery($id: ID!) { webhookSubscription(id: $id) { id } webhookSubscriptions(first: 10) { nodes { id } } webhookSubscriptionsCount { count } }",
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscription"],
+        Value::Null
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 })
+    );
+
+    let log_roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].clone())
+        .collect();
+    assert_eq!(
+        log_roots,
+        vec![
+            json!("webhookSubscriptionCreate"),
+            json!("webhookSubscriptionUpdate"),
+            json!("webhookSubscriptionDelete")
+        ]
+    );
+}
+
+#[test]
+fn webhook_subscription_endpoint_uri_variants_match_old_gleam_helpers() {
+    let mut proxy = snapshot_proxy();
+
+    let eventbridge = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"arn:aws:events:us-east-1:1234:event-bus/default\", format: JSON }) { webhookSubscription { id callbackUrl endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(eventbridge.status, 200);
+    assert_eq!(
+        eventbridge.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookEventBridgeEndpoint",
+            "arn": "arn:aws:events:us-east-1:1234:event-bus/default"
+        })
+    );
+
+    let pubsub = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"pubsub://my-project:my-topic\", format: JSON }) { webhookSubscription { id callbackUrl endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(pubsub.status, 200);
+    assert_eq!(
+        pubsub.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "my-project",
+            "pubSubTopic": "my-topic"
+        })
+    );
+}
+
+#[test]
+fn webhook_subscription_validation_guards_match_old_gleam_cases() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address can't be blank"
+            }]
+        })
+    );
+
+    let trimmed = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"  https://example.com/h  \", format: JSON, name: \"OrderHook\" }) { webhookSubscription { id uri name } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(trimmed.status, 200);
+    assert_eq!(
+        trimmed.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["uri"],
+        json!("https://example.com/h")
+    );
+
+    let pubsub_without_topic = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"pubsub://my-project\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        pubsub_without_topic.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address protocol pubsub:// is not supported"
+                },
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
+                }
+            ]
+        })
+    );
+
+    let duplicate_uri = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://example.com/h\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        duplicate_uri.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address for this topic has already been taken"
+            }]
+        })
+    );
+
+    let duplicate_name = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://example.com/other\", name: \"orderhook\" }) { webhookSubscription { id name } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        duplicate_name.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "name"],
+                "message": "Name already exists, no duplicate allowed"
+            }]
+        })
+    );
+
+    let bad_name = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://example.com/bad-name\", name: \"has spaces\" }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        bad_name.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "name"],
+                "message": "Name name field can only contain alphanumeric characters, underscores, and hyphens"
+            }]
+        })
+    );
+}
+
+#[test]
+fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
+    let assert_rejected = |uri: &str,
+                           format_value: &str,
+                           topic: &str,
+                           expected_messages: Vec<&str>| {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                "# RustWebhookLocalRuntime\nmutation {{ webhookSubscriptionCreate(topic: {topic}, webhookSubscription: {{ uri: \"{uri}\", format: {format_value} }}) {{ webhookSubscription {{ id }} userErrors {{ field message }} }} }}"
+            ),
+            json!({}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
+            Value::Null
+        );
+        let messages: Vec<&str> = response.body["data"]["webhookSubscriptionCreate"]["userErrors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|error| error["message"].as_str().unwrap())
+            .collect();
+        assert_eq!(messages, expected_messages, "unexpected errors for {uri}");
+    };
+
+    assert_rejected(
+        "pubsub://-bad:topic",
+        "JSON",
+        "SHOP_UPDATE",
+        vec![
+            "Address is invalid",
+            "Address is not a valid GCP project id.",
+        ],
+    );
+    assert_rejected(
+        "pubsub://valid-project:goog-prefixed",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address is invalid", "Address is not a valid GCP topic id."],
+    );
+    assert_rejected(
+        "pubsub://valid-project:go",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address is invalid", "Address is not a valid GCP topic id."],
+    );
+    assert_rejected(
+        "pubsub://valid-project:bad/topic",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address is invalid", "Address is not a valid GCP topic id."],
+    );
+    assert_rejected(
+        "arn:aws:events:bogus",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address is invalid", "Address is not a valid AWS ARN"],
+    );
+    assert_rejected(
+        "https://admin.shopify.com/hook",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address cannot be a Shopify or an internal domain"],
+    );
+    assert_rejected(
+        "https://192.168.1.10/hook",
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address cannot be a Shopify or an internal domain"],
+    );
+    assert_rejected(
+        "pubsub://valid-project:topic",
+        "XML",
+        "SHOP_UPDATE",
+        vec!["Format can only be used with format: 'json'"],
+    );
+    assert_rejected(
+        "https://hooks.example.com/returns",
+        "XML",
+        "RETURNS_APPROVE",
+        vec!["Format 'xml' is invalid for this webhook topic. Allowed formats: json"],
+    );
+
+    let long_uri = format!("https://example.com/{}", "a".repeat(65_516));
+    assert_rejected(
+        &long_uri,
+        "JSON",
+        "SHOP_UPDATE",
+        vec!["Address is too big (maximum is 64 KB)"],
+    );
+}
+
+#[test]
+fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    let id = create.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap();
+
+    let update = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation($id: ID!) { pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"goog-prefixed\" }) { webhookSubscription { id uri } userErrors { field message } } }",
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["pubSubWebhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "pubSubTopic"],
+                "message": "Google Cloud Pub/Sub topic ID is not valid"
+            }]
+        })
+    );
+}
+
+#[test]
+fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_helpers() {
+    let mut proxy = snapshot_proxy();
+
+    for (topic, uri, format) in [
+        ("ORDERS_CREATE", "https://hook-1.example.com", "JSON"),
+        ("ORDERS_UPDATE", "https://hook-2.example.com", "XML"),
+        ("PRODUCTS_CREATE", "https://hook-3.example.com", "JSON"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            &format!(
+                "# RustWebhookLocalRuntime\nmutation {{ webhookSubscriptionCreate(topic: {topic}, webhookSubscription: {{ uri: \"{uri}\", format: {format} }}) {{ webhookSubscription {{ id }} userErrors {{ message }} }} }}"
+            ),
+            json!({}),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let topic_filter = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, topics: [ORDERS_UPDATE]) { nodes { topic uri } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        topic_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "topic": "ORDERS_UPDATE", "uri": "https://hook-2.example.com" }])
+    );
+
+    let query_filter = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, query: \"topic:orders AND format:JSON\") { nodes { topic format } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        query_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "topic": "ORDERS_CREATE", "format": "JSON" }])
+    );
+
+    let legacy_id_filter = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, query: \"id:1\") { nodes { legacyResourceId uri } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        legacy_id_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "legacyResourceId": "1", "uri": "https://hook-1.example.com" }])
+    );
+
+    let format_arg_filter = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, format: JSON) { nodes { topic format } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        format_arg_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            { "topic": "ORDERS_CREATE", "format": "JSON" },
+            { "topic": "PRODUCTS_CREATE", "format": "JSON" }
+        ])
+    );
+
+    let uri_arg_filter = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, uri: \"https://hook-2.example.com\") { nodes { topic uri } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        uri_arg_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "topic": "ORDERS_UPDATE", "uri": "https://hook-2.example.com" }])
+    );
+
+    let negated_format = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, query: \"-format:JSON\") { nodes { topic format } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        negated_format.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "topic": "ORDERS_UPDATE", "format": "XML" }])
+    );
+
+    let reverse_topic = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, sortKey: TOPIC, reverse: true) { nodes { topic } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        reverse_topic.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            { "topic": "PRODUCTS_CREATE" },
+            { "topic": "ORDERS_UPDATE" },
+            { "topic": "ORDERS_CREATE" }
+        ])
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount(limit: 1) { count precision } }",
+        json!({}),
+    ));
+    assert_eq!(
+        count.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1, "precision": "AT_LEAST" })
+    );
+}
+
+#[test]
+fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
+    let mut proxy = snapshot_proxy();
+
+    let pubsub = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(pubsub.status, 200);
+    let pubsub_id = pubsub.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        pubsub.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"],
+        json!({
+            "id": pubsub_id,
+            "topic": "SHOP_UPDATE",
+            "uri": "pubsub://valid-project:topic-1",
+            "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "valid-project",
+                "pubSubTopic": "topic-1"
+            }
+        })
+    );
+
+    let eventbridge = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { arn: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }",
+        json!({}),
+    ));
+    assert_eq!(eventbridge.status, 200);
+    assert_eq!(
+        eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"]["webhookSubscription"]
+            ["endpoint"],
+        json!({
+            "__typename": "WebhookEventBridgeEndpoint",
+            "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery($id: ID!) { webhookSubscription(id: $id) { id uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } }",
+        json!({ "id": pubsub_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "valid-project",
+            "pubSubTopic": "topic-1"
+        })
+    );
+}
+
+#[test]
+fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
+    let mut proxy = snapshot_proxy();
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(product.body, json!({ "data": { "product": null } }));
+}
+
+#[test]
+fn product_read_serializes_seeded_base_product_by_id() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id title handle status } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/1",
+                    "title": "Seeded product",
+                    "handle": "seeded-product",
+                    "status": "ACTIVE"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_read_serializes_only_requested_scalar_fields() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { handle } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "handle": "seeded-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_read_preserves_root_alias() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { selectedProduct: product(id: \"gid://shopify/Product/1\") { id title } }"}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "selectedProduct": {
+                    "id": "gid://shopify/Product/1",
+                    "title": "Seeded product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn collection_publishable_mutations_stage_publication_state_for_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let variables = json!({
+        "id": "gid://shopify/Collection/468787757289",
+        "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }],
+        "publicationId": "gid://shopify/Publication/82090459369"
+    });
+    let publish_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionPublishablePublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        variables.clone(),
+    ));
+    assert_eq!(
+        publish_response.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+    assert_eq!(
+        publish_response.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+
+    let read_query = r#"
+        query CollectionPublicationRead($id: ID!, $publicationId: ID!) {
+          collection(id: $id) {
+            id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId)
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+          }
+        }
+    "#;
+    let read_after_publish =
+        proxy.process_request(json_graphql_request(read_query, variables.clone()));
+    assert_eq!(
+        read_after_publish.body["data"]["collection"],
+        publish_response.body["data"]["publishablePublish"]["publishable"]
+    );
+
+    let unpublish_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CollectionPublishableUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishableUnpublish(id: $id, input: $input) {
+            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        variables.clone(),
+    ));
+    assert_eq!(
+        unpublish_response.body["data"]["publishableUnpublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+    let read_after_unpublish = proxy.process_request(json_graphql_request(read_query, variables));
+    assert_eq!(
+        read_after_unpublish.body["data"]["collection"],
+        unpublish_response.body["data"]["publishableUnpublish"]["publishable"]
+    );
+}
+
+#[test]
+fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryLevelRead($inventoryLevelId: ID!) {
+          inventoryLevel(id: $inventoryLevelId) {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["inventoryLevel"],
+        json!({
+            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+            "location": { "id": "gid://shopify/Location/68509171945", "name": "103 ossington" },
+            "quantities": [
+                { "name": "available", "quantity": 0, "updatedAt": "2025-07-01T23:57:25Z" },
+                { "name": "on_hand", "quantity": 0, "updatedAt": null },
+                { "name": "incoming", "quantity": 0, "updatedAt": null }
+            ]
+        })
+    );
+}
+
+#[test]
+fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let bulk_create = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkCreateDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10180320788786",
+            "query": "sku:HERMES-BULK-962361-BLUE"
+        }),
+    ));
+    assert_eq!(bulk_create.status, 200);
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["id"],
+        json!("gid://shopify/InventoryItem/53240636637490")
+    );
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]
+            ["requiresShipping"],
+        json!(false)
+    );
+    assert_eq!(bulk_create.body["data"]["skuCount"]["count"], json!(0));
+
+    let inventory_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkCreateInventoryReadDownstream($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
+          variant: productVariant(id: $variantId) { id title sku inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory } }
+          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping variant { id title sku inventoryQuantity product { id title handle status totalInventory tracksInventory } } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9263919988969",
+            "variantId": "gid://shopify/ProductVariant/50933258911977",
+            "inventoryItemId": "gid://shopify/InventoryItem/53081336283369"
+        }),
+    ));
+    assert_eq!(inventory_read.status, 200);
+    assert_eq!(
+        inventory_read.body["data"]["product"]["id"],
+        json!("gid://shopify/Product/9263919988969")
+    );
+    assert_eq!(
+        inventory_read.body["data"]["variant"]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        inventory_read.body["data"]["stock"]["variant"]["id"],
+        json!("gid://shopify/ProductVariant/50933258911977")
+    );
+
+    let bulk_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkUpdateDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku metafield(namespace: "specs", key: "bulkUpdateTier") { value ownerType } inventoryItem { id tracked requiresShipping } } } }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10180320788786",
+            "query": "sku:HERMES-BULK-962361-RED"
+        }),
+    ));
+    assert_eq!(bulk_update.status, 200);
+    assert_eq!(
+        bulk_update.body["data"]["product"]["variants"]["nodes"][0]["metafield"],
+        json!({ "value": "premium", "ownerType": "PRODUCTVARIANT" })
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantsBulkReorderDownstreamRead($productId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id title selectedOptions { name value } } } }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/10170568114482" }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["product"]["variants"]["nodes"][0],
+        json!({
+            "id": "gid://shopify/ProductVariant/51098748059954",
+            "title": "Blue",
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
+        })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantNodeRead($id: ID!) {
+          node(id: $id) { ... on ProductVariant { id title selectedOptions { name value } } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductVariant/51098748059954" }),
+    ));
+    assert_eq!(node.status, 200);
+    assert_eq!(
+        node.body["data"]["node"],
+        reorder.body["data"]["product"]["variants"]["nodes"][0]
+    );
+}
+
+#[test]
+fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers() {
+    let mut proxy = snapshot_proxy();
+
+    let deprecated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductMediaDeprecatedUserErrors {
+          create: productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          update: productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          delete: productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+          reorder: productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) {
+            userErrors { field message }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(deprecated.status, 200);
+    assert_eq!(
+        deprecated.body["data"]["create"],
+        json!({
+            "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+            "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["update"],
+        json!({
+            "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+            "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["delete"],
+        json!({
+            "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+            "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+        })
+    );
+    assert_eq!(
+        deprecated.body["data"]["reorder"],
+        json!({
+            "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
+            "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
+        })
+    );
+
+    let variant_guards = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductVariantMediaValidationTailHelpers {
+          variantFromOtherProduct: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          mediaFromOtherProduct: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/child"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          processingMedia: productVariantAppendMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/processing"] }]
+          ) { productVariants { id } userErrors { field message code } }
+          detachUnattached: productVariantDetachMedia(
+            productId: "gid://shopify/Product/optioned"
+            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]
+          ) { productVariants { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(variant_guards.status, 200);
+    assert_eq!(
+        variant_guards.body["data"]["variantFromOtherProduct"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "Variant does not exist on the specified product.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["mediaFromOtherProduct"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Media does not exist on the specified product.",
+                "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["processingMedia"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Non-ready media cannot be attached to variants.",
+                "code": "NON_READY_MEDIA"
+            }]
+        })
+    );
+    assert_eq!(
+        variant_guards.body["data"]["detachUnattached"],
+        json!({
+            "productVariants": Value::Null,
+            "userErrors": [{
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "The specified media is not attached to the specified variant.",
+                "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+            }]
+        })
+    );
+}
+
+#[test]
+fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
+
+    let publication_validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationTargetValidation {
+          both: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          blankCatalog: publicationCreate(input: {}) {
+            publication { id }
+            userErrors { field message code }
+          }
+          missingCatalog: publicationCreate(input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          missingChannel: publicationCreate(input: { channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(publication_validation.status, 200);
+    assert_eq!(
+        publication_validation.body["data"]["both"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Only one of catalog or channel can be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["blankCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["missingCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_validation.body["data"]["missingChannel"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "channelId"],
+                "message": "Channel not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationCreateSeed {
+          publicationCreate(input: { name: "Seed" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create_publication.status, 200);
+    assert_eq!(
+        create_publication.body["data"]["publicationCreate"],
+        json!({
+            "publication": { "id": "gid://shopify/Publication/2" },
+            "userErrors": []
+        })
+    );
+
+    let publication_update_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationUpdateDeleteValidation {
+          updateBoth: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999", channelId: "gid://shopify/Channel/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          updateMissingCatalog: publicationUpdate(id: "gid://shopify/Publication/2", input: { catalogId: "gid://shopify/MarketCatalog/999" }) {
+            publication { id }
+            userErrors { field message code }
+          }
+          deleteDefault: publicationDelete(id: "gid://shopify/Publication/1") {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(publication_update_delete.status, 200);
+    assert_eq!(
+        publication_update_delete.body["data"]["updateBoth"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Only one of catalog or channel can be provided",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_update_delete.body["data"]["updateMissingCatalog"],
+        json!({
+            "publication": Value::Null,
+            "userErrors": [{
+                "field": ["input", "catalogId"],
+                "message": "Catalog not found",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        publication_update_delete.body["data"]["deleteDefault"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Cannot delete the default publication",
+                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+            }]
+        })
+    );
+
+    let unknown_feed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncUnknown($id: ID!) {
+          productFullSync(id: $id) { id userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/999999999" }),
+    ));
+    assert_eq!(unknown_feed.status, 200);
+    assert_eq!(
+        unknown_feed.body,
+        json!({
+            "data": {
+                "productFullSync": {
+                    "id": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "ProductFeed does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+
+    let sync_before_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncJob($id: ID!) {
+          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(sync_before_create.status, 200);
+    assert_eq!(
+        sync_before_create.body["data"]["productFullSync"],
+        json!({
+            "id": Value::Null,
+            "job": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let feed_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedCreateForFullSync($input: ProductFeedInput) {
+          productFeedCreate(input: $input) { productFeed { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "country": "US", "language": "EN" } }),
+    ));
+    assert_eq!(feed_create.status, 200);
+    assert_eq!(
+        feed_create.body["data"]["productFeedCreate"],
+        json!({
+            "productFeed": { "id": "gid://shopify/ProductFeed/US-EN" },
+            "userErrors": []
+        })
+    );
+
+    let sync = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFullSyncJob($id: ID!) {
+          productFullSync(id: $id) {
+            __typename
+            id
+            job { __typename id done query { __typename } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(sync.status, 200);
+    assert_eq!(
+        sync.body["data"]["productFullSync"],
+        json!({
+            "__typename": "ProductFullSyncPayload",
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "job": {
+                "__typename": "Job",
+                "id": "gid://shopify/Job/2",
+                "done": false,
+                "query": { "__typename": "QueryRoot" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let job = proxy.process_request(json_graphql_request(
+        r#"
+        query RustProductFullSyncJobPoll($id: ID!) {
+          job(id: $id) { __typename id done query { __typename } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Job/2" }),
+    ));
+    assert_eq!(job.status, 200);
+    assert_eq!(
+        job.body,
+        json!({
+            "data": {
+                "job": {
+                    "__typename": "Job",
+                    "id": "gid://shopify/Job/2",
+                    "done": false,
+                    "query": { "__typename": "QueryRoot" }
+                }
+            }
+        })
+    );
+
+    let too_long = "x".repeat(101);
+    let batch_entries = std::iter::repeat(
+        "{ productId: \"gid://shopify/Product/optioned\", state: ACCEPTED, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", productUpdatedAt: \"2024-01-01T00:00:00Z\", messages: [] }",
+    )
+    .take(51)
+    .collect::<Vec<_>>()
+    .join(",");
+    let product_feedback_query = format!(
+        r#"
+        mutation RustProductFeedbackValidationTailHelpers {{
+          blankMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["needs review"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          tooLongMessage: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          batchTooLong: bulkProductResourceFeedbackCreate(feedbackInput: [{batch_entries}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+        }}
+        "#
+    );
+    let product_feedback =
+        proxy.process_request(json_graphql_request(&product_feedback_query, json!({})));
+    assert_eq!(product_feedback.status, 200);
+    assert_eq!(
+        product_feedback.body["data"]["blankMessages"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages"],
+                "message": "Messages can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["futureGeneratedAt"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["tooLongMessage"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages", "0"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+    assert_eq!(
+        product_feedback.body["data"]["batchTooLong"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+
+    let shop_feedback = proxy.process_request(json_graphql_request(
+        &format!(
+            r#"
+            mutation RustShopFeedbackValidationTailHelpers {{
+              blankMessages: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+              futureGeneratedAt: shopResourceFeedbackCreate(input: {{ state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", messages: ["needs review"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+              tooLongMessage: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+            }}
+            "#
+        ),
+        json!({}),
+    ));
+    assert_eq!(shop_feedback.status, 200);
+    assert_eq!(
+        shop_feedback.body["data"]["blankMessages"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages"],
+                "message": "Messages can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+    assert_eq!(
+        shop_feedback.body["data"]["futureGeneratedAt"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        shop_feedback.body["data"]["tooLongMessage"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "0"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["status"] == json!("failed")
+                && entry["interpreted"]["primaryRootField"] == json!("publicationCreate")),
+        "publication validation branches should still record failed log entries: {log}"
+    );
+    for root in [
+        "bulkProductResourceFeedbackCreate",
+        "shopResourceFeedbackCreate",
+    ] {
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry["status"] == json!("failed")
+                    && entry["interpreted"]["primaryRootField"] == json!(root)),
+            "feedback validation branches should record failed log entries for {root}: {log}"
+        );
+    }
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["status"] == json!("staged")
+                && entry["stagedResourceIds"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == "gid://shopify/Job/2"))),
+        "successful full sync should stage the ProductFeed and pollable Job IDs: {log}"
+    );
+}
+
+#[test]
+fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let default_state = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductPublicationInvalidDefaultState($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "defaultState": "BANANAS" } }),
+    ));
+    assert_eq!(default_state.status, 200);
+    assert_eq!(
+        default_state.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(default_state.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(
+            |message| message.contains("Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS")
+        ));
+
+    let product_feedback_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackInvalidEnum {
+          bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: "gid://shopify/Product/optioned", state: BANANAS, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_feedback_enum.status, 200);
+    assert!(product_feedback_enum.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+    assert_eq!(
+        product_feedback_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        product_feedback_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
+    );
+
+    let shop_feedback_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustShopFeedbackInvalidEnum {
+          shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(shop_feedback_enum.status, 200);
+    assert!(shop_feedback_enum.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+    assert_eq!(
+        shop_feedback_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
+fn product_reorder_media_replays_captured_job_and_downstream_order() {
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductReorderMediaParity($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10170568147250",
+            "moves": [
+                { "id": "gid://shopify/MediaImage/43607668621618", "newPosition": "0" },
+                { "id": "gid://shopify/MediaImage/43607668588850", "newPosition": "99" }
+            ]
+        }),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"]["productReorderMedia"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        mutation.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductReorderMediaDownstreamRead($id: ID!) {
+          product(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+            images(first: 10) { nodes { id altText } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/10170568147250" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MediaImage/43607668621618",
+                "alt": "Back",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING"
+            },
+            {
+                "id": "gid://shopify/MediaImage/43607668588850",
+                "alt": "Front",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING"
+            }
+        ])
+    );
+    assert_eq!(read.body["data"]["product"]["images"]["nodes"], json!([]));
+}
+
+#[test]
+fn product_create_and_delete_media_replay_captured_mutations_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
+            mediaUserErrors { field message }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/600x400/png",
+                "alt": "Front view"
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["media"][0],
+        json!({
+            "id": "gid://shopify/MediaImage/39467722375401",
+            "alt": "Front view",
+            "mediaContentType": "IMAGE",
+            "status": "UPLOADED",
+            "preview": { "image": null },
+            "image": null
+        })
+    );
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
+        json!("UPLOADED")
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCreateMediaDownstreamRead($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(create_read.status, 200);
+    assert_eq!(
+        create_read.body["data"]["product"]["media"]["nodes"][0],
+        json!({
+            "id": "gid://shopify/MediaImage/39467722375401",
+            "alt": "Front view",
+            "mediaContentType": "IMAGE",
+            "status": "PROCESSING",
+            "preview": { "image": null },
+            "image": null
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteMediaParityPlan($productId: ID!, $mediaIds: [ID!]!) {
+          productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+            deletedMediaIds
+            deletedProductImageIds
+            mediaUserErrors { field message }
+            product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "mediaIds": ["gid://shopify/MediaImage/39467722375401"]
+        }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDeleteMedia"],
+        json!({
+            "deletedMediaIds": ["gid://shopify/MediaImage/39467722375401"],
+            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
+            "mediaUserErrors": [],
+            "product": {
+                "id": "gid://shopify/Product/9257219162345",
+                "media": { "nodes": [] }
+            }
+        })
+    );
+
+    let delete_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductDeleteMediaDownstreamRead($productId: ID!) {
+          product(id: $productId) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(delete_read.status, 200);
+    assert_eq!(
+        delete_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9257219162345",
+            "media": { "nodes": [] }
+        })
+    );
+}
+
+#[test]
+fn product_update_media_replays_captured_mutation_and_downstream_product_media() {
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateMediaParityPlan($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media {
+              id
+              alt
+              mediaContentType
+              status
+              preview { image { url } }
+              ... on MediaImage { image { url } }
+            }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/9257219162345",
+            "media": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view"
+            }]
+        }),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"]["productUpdateMedia"],
+        json!({
+            "media": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
+                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
+            }],
+            "mediaUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductUpdateMediaDownstreamRead($productId: ID!) {
+          product(id: $productId) {
+            id
+            media(first: 10) {
+              nodes {
+                id
+                alt
+                mediaContentType
+                status
+                preview { image { url } }
+                ... on MediaImage { image { url } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/9257219162345" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9257219162345",
+            "media": { "nodes": [{
+                "id": "gid://shopify/MediaImage/39467722375401",
+                "alt": "Updated front view",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
+                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
+            }] }
+        })
+    );
+}
+
+#[test]
+fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductPublicationAggregateDownstream($id: ID!) {
+          product(id: $id) {
+            id
+            publishedOnCurrentPublication
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/9264105488617" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9264105488617",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+}
+
+#[test]
+fn product_publishable_mutations_return_captured_aggregate_shape() {
+    let mut proxy = snapshot_proxy();
+    for (root, query) in [
+        (
+            "publishablePublish",
+            r#"
+            mutation PublishablePublishProductParity($id: ID!, $input: [PublicationInput!]!) {
+              publishablePublish(id: $id, input: $input) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublish",
+            r#"
+            mutation PublishableUnpublishProductParity($id: ID!, $input: [PublicationInput!]!) {
+              publishableUnpublish(id: $id, input: $input) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishablePublishToCurrentChannel",
+            r#"
+            mutation PublishablePublishToCurrentChannelProductParity($id: ID!) {
+              publishablePublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+        (
+            "publishableUnpublishToCurrentChannel",
+            r#"
+            mutation PublishableUnpublishToCurrentChannelProductParity($id: ID!) {
+              publishableUnpublishToCurrentChannel(id: $id) {
+                publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "id": "gid://shopify/Product/9264105488617",
+                "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }]
+            }),
+        ));
+        assert_eq!(
+            response.body["data"][root]["publishable"],
+            json!({
+                "id": "gid://shopify/Product/9264105488617",
+                "publishedOnCurrentPublication": false,
+                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+            })
+        );
+        assert_eq!(response.body["data"][root]["userErrors"], json!([]));
+    }
+}
+
+#[test]
+fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let public_shape = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUserErrorShapeProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "" } }),
+    ));
+    assert_eq!(
+        public_shape.body["data"]["productCreate"],
+        json!({
+            "product": null,
+            "userErrors": [{ "field": ["title"], "message": "Title can't be blank" }]
+        })
+    );
+
+    let local_code_projection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateBlankTitleWithCode($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "" } }),
+    ));
+    assert_eq!(
+        local_code_projection.body["data"]["productCreate"],
+        json!({
+            "product": null,
+            "userErrors": [{ "field": ["title"], "message": "Title can't be blank", "code": "BLANK" }]
+        })
+    );
+}
+
+#[test]
+fn product_create_legacy_input_id_and_variants_validation_matches_2026_04_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-no-key-on-create.json"
+    ))
+    .unwrap();
+    let query =
+        include_str!("../config/parity-requests/products/product-create-no-key-on-create.graphql");
+    let mut proxy = snapshot_proxy();
+
+    for scenario in ["inputId", "inputIdBeforeBlankTitle"] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            fixture["scenarios"][scenario]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body["data"]["productCreate"],
+            fixture["scenarios"][scenario]["response"]["data"]["productCreate"]
+        );
+    }
+
+    let variants_response = proxy.process_request(json_graphql_request(
+        query,
+        fixture["scenarios"]["variantProductId"]["variables"].clone(),
+    ));
+    assert_eq!(
+        variants_response.body["errors"][0]["message"],
+        fixture["scenarios"]["variantProductId"]["response"]["errors"][0]["message"]
+    );
+    assert_eq!(
+        variants_response.body["errors"][0]["extensions"],
+        fixture["scenarios"]["variantProductId"]["response"]["errors"][0]["extensions"]
+    );
+}
+
+#[test]
+fn product_create_serializes_only_requested_payload_fields() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Selection product\" }) { product { title } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "title": "Selection product"
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_stages_extended_product_scalars_visible_to_product_read() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Extended product\", descriptionHtml: \"<p>Rich</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { title descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "title": "Extended product",
+                        "descriptionHtml": "<p>Rich</p>",
+                        "vendor": "Hermes",
+                        "productType": "Accessory",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\") { descriptionHtml vendor productType tags } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "descriptionHtml": "<p>Rich</p>",
+                    "vendor": "Hermes",
+                    "productType": "Accessory",
+                    "tags": ["alpha", "beta"]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_update_stages_scalar_changes_visible_to_product_read() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Original product".to_string(),
+        handle: "original-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: "<p>Original</p>".to_string(),
+        vendor: "Original vendor".to_string(),
+        product_type: "Original type".to_string(),
+        tags: vec!["old".to_string()],
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated product\", handle: \"updated-product\", status: DRAFT, descriptionHtml: \"<p>Updated</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { id title handle status descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "productUpdate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1",
+                        "title": "Updated product",
+                        "handle": "updated-product",
+                        "status": "DRAFT",
+                        "descriptionHtml": "<p>Updated</p>",
+                        "vendor": "Hermes",
+                        "productType": "Accessory",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { title handle status descriptionHtml vendor productType tags } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "title": "Updated product",
+                    "handle": "updated-product",
+                    "status": "DRAFT",
+                    "descriptionHtml": "<p>Updated</p>",
+                    "vendor": "Hermes",
+                    "productType": "Accessory",
+                    "tags": ["alpha", "beta"]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn products_connection_reflects_staged_creates_and_deletes() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let list_after_create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { id title handle } } }"}"#,
+    ));
+    assert_eq!(list_after_create.status, 200);
+    assert_eq!(
+        list_after_create.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/base",
+                            "title": "Base product",
+                            "handle": "base-product"
+                        },
+                        {
+                            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "title": "Created product",
+                            "handle": "created-product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+
+    let list_after_delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { id title handle } } }"}"#,
+    ));
+    assert_eq!(list_after_delete.status, 200);
+    assert_eq!(
+        list_after_delete.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "title": "Created product",
+                            "handle": "created-product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn products_connection_applies_first_limit_after_overlaying_state() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let first_only = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 1) { nodes { id title } } }"}"#,
+    ));
+
+    assert_eq!(first_only.status, 200);
+    assert_eq!(
+        first_only.body,
+        json!({
+            "data": {
+                "products": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1",
+                            "title": "First product"
+                        }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn products_connection_serializes_edges_and_page_info_for_selected_window() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let connection = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"}"#,
+    ));
+
+    assert_eq!(connection.status, 200);
+    assert_eq!(
+        connection.body,
+        json!({
+            "data": {
+                "products": {
+                    "edges": [
+                        {
+                            "cursor": "gid://shopify/Product/1",
+                            "node": {
+                                "id": "gid://shopify/Product/1",
+                                "title": "First product"
+                            }
+                        },
+                        {
+                            "cursor": "gid://shopify/Product/2",
+                            "node": {
+                                "id": "gid://shopify/Product/2",
+                                "title": "Second product"
+                            }
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "gid://shopify/Product/1",
+                        "endCursor": "gid://shopify/Product/2"
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn products_count_reflects_staged_creates_and_deletes() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let count_after_create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productsCount { count precision } }"}"#,
+    ));
+    assert_eq!(count_after_create.status, 200);
+    assert_eq!(
+        count_after_create.body,
+        json!({
+            "data": {
+                "productsCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+
+    let count_after_delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productsCount { count precision } }"}"#,
+    ));
+    assert_eq!(count_after_delete.status, 200);
+    assert_eq!(
+        count_after_delete.body,
+        json!({
+            "data": {
+                "productsCount": {
+                    "count": 1,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_by_identifier_finds_staged_product_by_handle() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Identifier product\", handle: \"identifier-product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let by_handle = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productByIdentifier(identifier: { handle: \"identifier-product\" }) { id title handle } }"}"#,
+    ));
+
+    assert_eq!(by_handle.status, 200);
+    assert_eq!(
+        by_handle.body,
+        json!({
+            "data": {
+                "productByIdentifier": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Identifier product",
+                    "handle": "identifier-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_by_identifier_preserves_root_alias() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let by_handle = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { byHandle: productByIdentifier(identifier: { handle: \"base-product\" }) { id title handle } }"}"#,
+    ));
+
+    assert_eq!(by_handle.status, 200);
+    assert_eq!(
+        by_handle.body,
+        json!({
+            "data": {
+                "byHandle": {
+                    "id": "gid://shopify/Product/base",
+                    "title": "Base product",
+                    "handle": "base-product"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_by_identifier_supports_multiple_aliases_in_one_query() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/base".to_string(),
+        title: "Base product".to_string(),
+        handle: "base-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+
+    let by_identifiers = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { byId: productByIdentifier(identifier: { id: \"gid://shopify/Product/base\" }) { id title } byHandle: productByIdentifier(identifier: { handle: \"created-product\" }) { id handle } missing: productByIdentifier(identifier: { handle: \"missing-product\" }) { id } }"}"#,
+    ));
+
+    assert_eq!(by_identifiers.status, 200);
+    assert_eq!(
+        by_identifiers.body,
+        json!({
+            "data": {
+                "byId": {
+                    "id": "gid://shopify/Product/base",
+                    "title": "Base product"
+                },
+                "byHandle": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "handle": "created-product"
+                },
+                "missing": null
+            }
+        })
+    );
+}
+
+#[test]
+fn products_and_products_count_preserve_root_aliases() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { listedProducts: products(first: 1) { nodes { id title } } localProductCount: productsCount { count precision } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "listedProducts": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Product/1",
+                            "title": "First product"
+                        }
+                    ]
+                },
+                "localProductCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_roots_support_multiple_aliases_in_one_query() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "DRAFT".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { first: product(id: \"gid://shopify/Product/1\") { title } second: product(id: \"gid://shopify/Product/2\") { status } missing: product(id: \"gid://shopify/Product/missing\") { id } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "first": { "title": "First product" },
+                "second": { "status": "DRAFT" },
+                "missing": null
+            }
+        })
+    );
+}
+
+#[test]
+fn product_mutations_preserve_root_alias_response_keys() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { createResult: productCreate(product: { title: \"Alias product\" }) { product { id title } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "createResult": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Alias product"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { updateResult: productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated alias\" }) { product { id title } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "updateResult": {
+                    "product": {
+                        "id": "gid://shopify/Product/1",
+                        "title": "Updated alias"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { deleteResult: productDelete(product: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "deleteResult": {
+                    "deletedProductId": "gid://shopify/Product/1",
+                    "userErrors": []
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { ord: orderSavedSearches(first: 2) { nodes { id name } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } draftOrderSavedSearches(first: 1) { nodes { name resourceType } } productSavedSearches(first: 2) { nodes { id } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } filtered: orderSavedSearches(query: \"financial_status\") { nodes { name query } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "ord": {
+                    "nodes": [
+                        { "id": "gid://shopify/SavedSearch/3634391515442", "name": "Unfulfilled" },
+                        { "id": "gid://shopify/SavedSearch/3634391548210", "name": "Unpaid" }
+                    ],
+                    "edges": [
+                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391515442", "node": { "id": "gid://shopify/SavedSearch/3634391515442" } },
+                        { "cursor": "cursor:gid://shopify/SavedSearch/3634391548210", "node": { "id": "gid://shopify/SavedSearch/3634391548210" } }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor:gid://shopify/SavedSearch/3634391515442",
+                        "endCursor": "cursor:gid://shopify/SavedSearch/3634391548210"
+                    }
+                },
+                "draftOrderSavedSearches": {
+                    "nodes": [
+                        { "name": "Open and invoice sent", "resourceType": "DRAFT_ORDER" }
+                    ]
+                },
+                "productSavedSearches": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                },
+                "filtered": {
+                    "nodes": [
+                        { "name": "Unpaid", "query": "status:open financial_status:unpaid" }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Query grammar update setup segment-query-grammar-local",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    let created_segment = &created.body["data"]["segmentCreate"]["segment"];
+    let segment_id = created_segment["id"].as_str().unwrap().to_string();
+    assert!(segment_id.starts_with("gid://shopify/Segment/"));
+    assert_eq!(
+        created.body["data"]["segmentCreate"],
+        json!({
+            "segment": {
+                "id": segment_id,
+                "name": "Query grammar update setup segment-query-grammar-local",
+                "query": "number_of_orders >= 1",
+                "creationDate": created_segment["creationDate"],
+                "lastEditDate": created_segment["lastEditDate"],
+            },
+            "userErrors": []
+        })
+    );
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentUpdateQueryGrammar($id: ID!, $query: String) {
+          segmentUpdate(id: $id, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": segment_id, "query": "customer_countries CONTAINS 'CA'" }),
+    ));
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["query"],
+        json!("customer_countries CONTAINS 'CA'")
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentNodeRead($id: ID!) {
+          node(id: $id) { ... on Segment { id name query creationDate lastEditDate } }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"]["query"],
+        json!("customer_countries CONTAINS 'CA'")
+    );
+
+    let malformed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Query grammar malformed segment-query-grammar-local",
+            "query": "not a valid segment query ???"
+        }),
+    ));
+    assert_eq!(
+        malformed.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        malformed.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 6: 'valid' is unexpected." },
+            { "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }
+        ])
+    );
+}
+
+#[test]
+fn customer_segment_members_query_create_validates_stages_and_reads_node() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {
+          customerSegmentMembersQueryCreate(input: $input) {
+            customerSegmentMembersQuery { id currentCount done }
+            userErrors { field code message }
+          }
+        }
+    "#;
+
+    let both = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "segmentId": "gid://shopify/Segment/1", "query": "number_of_orders > 0" } }),
+    ));
+    assert_eq!(
+        both.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "Providing both segment_id and query is not supported."
+            }]
+        })
+    );
+
+    let neither = proxy.process_request(json_graphql_request(create_query, json!({ "input": {} })));
+    assert_eq!(
+        neither.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You must provide one of segment_id or query."
+            }]
+        })
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "query": "number_of_orders > 0" } }),
+    ));
+    let created_query =
+        &created.body["data"]["customerSegmentMembersQueryCreate"]["customerSegmentMembersQuery"];
+    let query_id = created_query["id"].as_str().unwrap().to_string();
+    assert!(query_id.starts_with("gid://shopify/CustomerSegmentMembersQuery/"));
+    assert_eq!(
+        created.body["data"]["customerSegmentMembersQueryCreate"],
+        json!({
+            "customerSegmentMembersQuery": {
+                "id": query_id,
+                "currentCount": 0,
+                "done": false
+            },
+            "userErrors": []
+        })
+    );
+
+    let lookup = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSegmentMembersQueryLookupValidationAndShape($id: ID!) {
+          customerSegmentMembersQuery(id: $id) { id currentCount done }
+        }
+        "#,
+        json!({ "id": query_id }),
+    ));
+    assert_eq!(
+        lookup.body["data"]["customerSegmentMembersQuery"],
+        json!({ "id": query_id, "currentCount": 0, "done": false })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSegmentMembersQueryNodeRead($id: ID!) {
+          node(id: $id) { ... on CustomerSegmentMembersQuery { id currentCount done } }
+        }
+        "#,
+        json!({ "id": query_id }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"],
+        json!({ "id": query_id, "currentCount": 0, "done": false })
+    );
+}
+
+#[test]
+fn saved_search_create_stages_and_reads_back_selection_aware_results() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation CreateSearch($input: SavedSearchCreateInput!) { made: savedSearchCreate(input: $input) { savedSearch { id legacyResourceId name query resourceType filters { key value } } userErrors { field message code } } }","variables":{"input":{"name":"Promo products","query":"tag:promo vendor:acme","resourceType":"PRODUCT"}}}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "made": {
+                    "savedSearch": {
+                        "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                        "legacyResourceId": "1",
+                        "name": "Promo products",
+                        "query": "tag:promo vendor:acme",
+                        "resourceType": "PRODUCT",
+                        "filters": [
+                            { "key": "tag", "value": "promo" },
+                            { "key": "vendor", "value": "acme" }
+                        ]
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { productSavedSearches(first: 5) { nodes { id name query resourceType filters { key value } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"}"#,
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body,
+        json!({
+            "data": {
+                "productSavedSearches": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                            "name": "Promo products",
+                            "query": "tag:promo vendor:acme",
+                            "resourceType": "PRODUCT",
+                            "filters": [
+                                { "key": "tag", "value": "promo" },
+                                { "key": "vendor", "value": "acme" }
+                            ]
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor:gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                        "endCursor": "cursor:gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+                    }
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing_name() {
+    let mut proxy = snapshot_proxy();
+
+    for (resource_type, name) in [
+        ("PRODUCT", "All products"),
+        ("PRODUCT", "ALL PRODUCTS"),
+        ("ORDER", "All"),
+        ("DRAFT_ORDER", "All Drafts"),
+        ("FILE", "All Files"),
+        ("COLLECTION", "All collections"),
+        ("DISCOUNT_REDEEM_CODE", "All codes"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+              savedSearchCreate(input: $input) {
+                savedSearch { id name query resourceType }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "resourceType": resource_type, "name": name, "query": "vendor:Acme" } }),
+        ));
+        assert_eq!(
+            create.body["data"]["savedSearchCreate"],
+            json!({
+                "savedSearch": null,
+                "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+            })
+        );
+    }
+
+    let positive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "All products v2", "query": "vendor:Acme" } }),
+    ));
+    let id = positive.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        positive.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchNameUniquenessUpdateConflict($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id, "name": "All products", "query": "vendor:Changed" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": positive.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone(),
+                "name": "All products v2",
+                "query": "vendor:Changed",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Changed" }]
+            },
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let create_a = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict A", "query": "title:a" } }),
+    ));
+    let create_b = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict B", "query": "title:b" } }),
+    ));
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchLocalStagingCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Conflict A", "query": "title:duplicate" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+    let b_id = create_b.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap();
+    let rename_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchNameUniquenessUpdateConflict($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": b_id, "name": "Conflict A", "query": "title:rename-conflict" } }),
+    ));
+    assert_eq!(
+        rename_conflict.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": create_b.body["data"]["savedSearchCreate"]["savedSearch"]["id"].clone(),
+                "name": "Conflict B",
+                "query": "title:rename-conflict",
+                "resourceType": "PRODUCT",
+                "filters": [{ "key": "title", "value": "rename-conflict" }]
+            },
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+    assert_eq!(
+        create_a.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn saved_search_multi_root_create_delete_and_filter_projection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchFilterProjection($product: SavedSearchCreateInput!, $collection: SavedSearchCreateInput!, $exists: SavedSearchCreateInput!, $bounded: SavedSearchCreateInput!, $grammar: SavedSearchCreateInput!) {
+          product: savedSearchCreate(input: $product) { savedSearch { id name query resourceType searchTerms filters { __typename key value } } userErrors { field message } }
+          collection: savedSearchCreate(input: $collection) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          exists: savedSearchCreate(input: $exists) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          bounded: savedSearchCreate(input: $bounded) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+          grammar: savedSearchCreate(input: $grammar) { savedSearch { id name query resourceType searchTerms filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "product": { "resourceType": "PRODUCT", "name": "Recorder Product", "query": "1778109773860 title:Recorder" },
+            "collection": { "resourceType": "COLLECTION", "name": "Collection Search", "query": "Collection Search" },
+            "exists": { "resourceType": "PRODUCT", "name": "Exists Search", "query": "sku:*" },
+            "bounded": { "resourceType": "PRODUCT", "name": "Bounded Search", "query": "inventory_total:>2 inventory_total:<10" },
+            "grammar": { "resourceType": "PRODUCT", "name": "Grammar Search", "query": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\") -vendor:Archived" }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["product"],
+        json!({
+            "savedSearch": {
+                "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
+                "name": "Recorder Product",
+                "query": "1778109773860 title:Recorder",
+                "resourceType": "PRODUCT",
+                "searchTerms": "1778109773860",
+                "filters": [{ "__typename": "SearchFilter", "key": "title", "value": "Recorder" }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        create.body["data"]["collection"]["savedSearch"],
+        json!({
+            "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+            "name": "Collection Search",
+            "query": "Collection Search",
+            "resourceType": "COLLECTION",
+            "searchTerms": "Collection Search",
+            "filters": []
+        })
+    );
+    assert_eq!(
+        create.body["data"]["exists"]["savedSearch"]["filters"],
+        json!([{ "key": "sku", "value": "true" }])
+    );
+    assert_eq!(
+        create.body["data"]["bounded"]["savedSearch"]["filters"],
+        json!([
+            { "key": "inventory_total_min", "value": "2" },
+            { "key": "inventory_total_max", "value": "10" }
+        ])
+    );
+    assert_eq!(
+        create.body["data"]["grammar"]["savedSearch"],
+        json!({
+            "id": "gid://shopify/SavedSearch/5?shopify-draft-proxy=synthetic",
+            "name": "Grammar Search",
+            "query": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\") -vendor:Archived",
+            "resourceType": "PRODUCT",
+            "searchTerms": "title:\"Alpha\" OR (status:ACTIVE tag:\"tagged\")",
+            "filters": [{ "key": "vendor_not", "value": "Archived" }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchResourceReads {
+          products: productSavedSearches(first: 10) { nodes { id name searchTerms filters { key value } } pageInfo { hasNextPage hasPreviousPage } }
+          collections: collectionSavedSearches(first: 10) { nodes { id name searchTerms filters { key value } } pageInfo { hasNextPage hasPreviousPage } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(
+        read.body["data"]["collections"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCleanup($first: SavedSearchDeleteInput!, $second: SavedSearchDeleteInput!, $missing: SavedSearchDeleteInput!) {
+          first: savedSearchDelete(input: $first) { deletedSavedSearchId userErrors { field message } }
+          second: savedSearchDelete(input: $second) { deletedSavedSearchId userErrors { field message } }
+          missing: savedSearchDelete(input: $missing) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({
+            "first": { "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic" },
+            "second": { "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic" },
+            "missing": { "id": "gid://shopify/SavedSearch/missing" }
+        }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"],
+        json!({
+            "first": { "deletedSavedSearchId": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic", "userErrors": [] },
+            "second": { "deletedSavedSearchId": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic", "userErrors": [] },
+            "missing": { "deletedSavedSearchId": null, "userErrors": [{ "field": ["input", "id"], "message": "Saved Search does not exist" }] }
+        })
+    );
+}
+
+#[test]
+fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateMissingName {
+          savedSearchCreate(input: { resourceType: PRODUCT }) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_name.status, 200);
+    assert_eq!(missing_name.body.get("data"), None);
+    assert_eq!(
+        missing_name.body["errors"],
+        json!([
+            {
+                "message": "Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+                "locations": [{ "line": 2, "column": 28 }],
+                "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "name"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "name",
+                    "argumentType": "String!",
+                    "inputObjectType": "SavedSearchCreateInput"
+                }
+            },
+            {
+                "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+                "locations": [{ "line": 2, "column": 28 }],
+                "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "query",
+                    "argumentType": "String!",
+                    "inputObjectType": "SavedSearchCreateInput"
+                }
+            }
+        ])
+    );
+
+    let missing_resource_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateMissingResourceType {
+          savedSearchCreate(input: { name: "Missing resource type", query: "tag:missing-resource-type" }) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_resource_type.body.get("data"), None);
+    assert_eq!(
+        missing_resource_type.body["errors"][0],
+        json!({
+            "message": "Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!",
+            "locations": [{ "line": 2, "column": 28 }],
+            "path": ["mutation SavedSearchCreateMissingResourceType", "savedSearchCreate", "input", "resourceType"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "resourceType",
+                "argumentType": "SearchResultType!",
+                "inputObjectType": "SavedSearchCreateInput"
+            }
+        })
+    );
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUpdateMissingId {
+          savedSearchUpdate(input: { name: "Missing id" }) {
+            savedSearch { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_id.body.get("data"), None);
+    assert_eq!(
+        missing_id.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!",
+            "locations": [{ "line": 2, "column": 28 }],
+            "path": ["mutation SavedSearchUpdateMissingId", "savedSearchUpdate", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "SavedSearchUpdateInput"
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_resource_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateVariableMissingResourceType($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" } }),
+    ));
+    assert_eq!(missing_resource_type.body.get("data"), None);
+    assert_eq!(
+        missing_resource_type.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 55 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" },
+                "problems": [{ "path": ["resourceType"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+
+    let missing_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCreateVariableMissingName($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "query": "tag:variable-required" } }),
+    ));
+    assert_eq!(missing_name.body.get("data"), None);
+    assert_eq!(
+        missing_name.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 47 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": { "resourceType": "PRODUCT", "query": "tag:variable-required" },
+                "problems": [{ "path": ["name"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+}
+
+#[test]
+fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedCreate: productCreate(product: { title: \" \" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "failedCreate": {
+                    "product": null,
+                    "userErrors": [{
+                        "field": ["title"],
+                        "message": "Title can't be blank",
+                        "code": "BLANK"
+                    }]
+                }
+            }
+        })
+    );
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedUpdate: productUpdate(product: { id: \"gid://shopify/Product/missing\", title: \"Missing\" }) { product { id } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "data": {
+                "failedUpdate": {
+                    "product": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Product does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { failedDelete: productDelete(input: { id: \"gid://shopify/Product/missing\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "failedDelete": {
+                    "deletedProductId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Product does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_delete_stages_downstream_no_data_for_product_read() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Deletable product".to_string(),
+        handle: "deletable-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let delete = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body,
+        json!({
+            "data": {
+                "productDelete": {
+                    "deletedProductId": "gid://shopify/Product/1",
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id title } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(read_back.body, json!({ "data": { "product": null } }));
+}
+
+#[test]
+fn product_create_stages_product_visible_to_product_read() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Rust staged product\", handle: \"rust-staged-product\", status: ACTIVE }) { product { id title handle status } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Rust staged product",
+                        "handle": "rust-staged-product",
+                        "status": "ACTIVE"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\") { id title handle status } }"}"#,
+    ));
+
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Rust staged product",
+                    "handle": "rust-staged-product",
+                    "status": "ACTIVE"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_read_resolves_id_from_request_variables() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/variable-id".to_string(),
+        title: "Variable product".to_string(),
+        handle: "variable-product".to_string(),
+        status: "DRAFT".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let product = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query ProductById($id: ID!) { product(id: $id) { id title handle status } }","variables":{"id":"gid://shopify/Product/variable-id"}}"#,
+    ));
+
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/variable-id",
+                    "title": "Variable product",
+                    "handle": "variable-product",
+                    "status": "DRAFT"
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_resolves_input_from_request_variables() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message code } } }","variables":{"product":{"title":"Variable staged product","handle":"variable-staged-product","status":"ARCHIVED"}}}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "data": {
+                "productCreate": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "title": "Variable staged product",
+                        "handle": "variable-staged-product",
+                        "status": "ARCHIVED"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
+    let mut proxy = snapshot_proxy().with_registry(vec![
+        registry_entry(
+            "knownProducts",
+            OperationType::Query,
+            CapabilityExecution::OverlayRead,
+            true,
+        ),
+        registry_entry(
+            "knownProductCreate",
+            OperationType::Mutation,
+            CapabilityExecution::StageLocally,
+            true,
+        ),
+        registry_entry(
+            "knownButUnimplemented",
+            OperationType::Query,
+            CapabilityExecution::OverlayRead,
+            false,
+        ),
+    ]);
+
+    let known_query = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
+    ));
+    assert_eq!(known_query.status, 501);
+    assert_eq!(
+        known_query.body,
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
+    );
+
+    let known_mutation = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
+    ));
+    assert_eq!(known_mutation.status, 501);
+    assert_eq!(
+        known_mutation.body,
+        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
+    );
+
+    let unimplemented = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { knownButUnimplemented { id } }"}"#,
+    ));
+    assert_eq!(unimplemented.status, 400);
+    assert_eq!(
+        unimplemented.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownButUnimplemented" }] })
+    );
+}
+
+#[test]
+fn discount_activate_deactivate_noops_preserve_captured_timestamp_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let code_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCodeActivateNoopIdempotence($id: ID!) {
+          discountCodeActivate(id: $id) {
+            codeDiscountNode {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1640637301042" }),
+    ));
+    assert_eq!(
+        code_activate.body["data"]["discountCodeActivate"],
+        json!({
+            "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1640637301042",
+                "codeDiscount": {
+                    "__typename": "DiscountCodeBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": null,
+                    "status": "ACTIVE",
+                    "updatedAt": "2026-05-06T23:08:09Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let code_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCodeDeactivateNoopIdempotence($id: ID!) {
+          discountCodeDeactivate(id: $id) {
+            codeDiscountNode {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1640637333810" }),
+    ));
+    assert_eq!(
+        code_deactivate.body["data"]["discountCodeDeactivate"],
+        json!({
+            "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1640637333810",
+                "codeDiscount": {
+                    "__typename": "DiscountCodeBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": "2026-05-06T23:08:10Z",
+                    "status": "EXPIRED",
+                    "updatedAt": "2026-05-06T23:08:10Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let automatic_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticActivateNoopIdempotence($id: ID!) {
+          discountAutomaticActivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640637366578" }),
+    ));
+    assert_eq!(
+        automatic_activate.body["data"]["discountAutomaticActivate"],
+        json!({
+            "automaticDiscountNode": {
+                "id": "gid://shopify/DiscountAutomaticNode/1640637366578",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": null,
+                    "status": "ACTIVE",
+                    "updatedAt": "2026-05-06T23:08:09Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let automatic_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticDeactivateNoopIdempotence($id: ID!) {
+          discountAutomaticDeactivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640637432114" }),
+    ));
+    assert_eq!(
+        automatic_deactivate.body["data"]["discountAutomaticDeactivate"],
+        json!({
+            "automaticDiscountNode": {
+                "id": "gid://shopify/DiscountAutomaticNode/1640637432114",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "startsAt": "2026-05-06T23:06:09Z",
+                    "endsAt": "2026-05-06T23:08:10Z",
+                    "status": "EXPIRED",
+                    "updatedAt": "2026-05-06T23:08:10Z"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomers { customers { __typename id displayName } } ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "HAR-390 automatic customer context 1777346878525", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
+    ));
+    let discount_id = "gid://shopify/DiscountAutomaticNode/1638894666034";
+    assert_eq!(
+        create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        json!(discount_id)
+    );
+    assert_eq!(
+        create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"],
+        json!({
+            "__typename": "DiscountAutomaticBasic",
+            "title": "HAR-390 automatic customer context 1777346878525",
+            "status": "ACTIVE",
+            "context": {
+                "__typename": "DiscountCustomers",
+                "customers": [{
+                    "__typename": "Customer",
+                    "id": "gid://shopify/Customer/10548596015410",
+                    "displayName": "HAR390 Buyer Context"
+                }]
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": discount_id, "input": { "title": "HAR-390 automatic segment context 1777346878525", "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } } } }),
+    ));
+    assert_eq!(
+        update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["context"],
+        json!({
+            "__typename": "DiscountCustomerSegments",
+            "segments": [{
+                "__typename": "Segment",
+                "id": "gid://shopify/Segment/647746715954",
+                "name": "HAR-390 buyer context 1777346878525"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountAutomaticBasicBuyerContextRead($id: ID!) {
+          automaticDiscountNode(id: $id) {
+            id
+            automaticDiscount { __typename ... on DiscountAutomaticBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } }
+          }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"],
+        json!({
+            "__typename": "DiscountAutomaticBasic",
+            "title": "HAR-390 automatic segment context 1777346878525",
+            "context": {
+                "__typename": "DiscountCustomerSegments",
+                "segments": [{
+                    "__typename": "Segment",
+                    "id": "gid://shopify/Segment/647746715954",
+                    "name": "HAR-390 buyer context 1777346878525"
+                }]
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticBasicBuyerContextDelete($id: ID!) {
+          discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["discountAutomaticDelete"],
+        json!({ "deletedAutomaticDiscountId": discount_id, "userErrors": [] })
+    );
+}
+
+#[test]
+fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountAutomaticNodesRead($first: Int!, $query: String) {
+          automaticDiscountNodes(first: $first, query: $query) {
+            nodes {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic { title status summary startsAt endsAt createdAt updatedAt asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } }
+                ... on DiscountAutomaticBxgy { title status summary startsAt endsAt createdAt updatedAt asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } }
+              }
+            }
+            edges { cursor node { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } ... on DiscountAutomaticBxgy { title status } } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 5, "query": null }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["automaticDiscountNodes"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBxgy",
+                    "title": "Buy one, get the second 10 percent off",
+                    "status": "EXPIRED",
+                    "summary": "Buy 1 item, get 1 item at 10% off",
+                    "startsAt": "2025-04-10T00:00:00Z",
+                    "endsAt": "2025-04-25T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": { "productDiscounts": false, "orderDiscounts": false, "shippingDiscounts": false }
+                }
+            },
+            {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "title": "Buy three, get 30 percent off",
+                    "status": "EXPIRED",
+                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
+                    "startsAt": "2025-03-26T00:00:00Z",
+                    "endsAt": "2025-04-05T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": ["PRODUCT"],
+                    "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }
+                }
+            }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["automaticDiscountNodes"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+        })
+    );
+}
+
+#[test]
+fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_and_function_roots() {
+    let mut proxy = snapshot_proxy();
+    let stage = r#"mutation StageFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) { validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionHandle createdAt updatedAt shopifyFunction { id title handle apiType } } userErrors { field message code } } cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } } taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } } }"#;
+    let missing_validation_delete = r#"mutation DeleteFunctionValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let missing_validation_response = proxy.process_request(json_graphql_request(
+        missing_validation_delete,
+        json!({ "id": "gid://shopify/Validation/999999999999" }),
+    ));
+    assert_eq!(
+        missing_validation_response.body["data"]["validationDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{ "field": ["id"], "message": "Extension not found.", "code": "NOT_FOUND" }]
+        })
+    );
+
+    let missing_cart_delete = r#"mutation DeleteFunctionCartTransform($id: ID!) { cartTransformDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let missing_cart_response = proxy.process_request(json_graphql_request(
+        missing_cart_delete,
+        json!({ "id": "gid://shopify/CartTransform/999999999999" }),
+    ));
+    assert_eq!(
+        missing_cart_response.body["data"]["cartTransformDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{ "field": ["id"], "message": "Could not find cart transform with id: gid://shopify/CartTransform/999999999999", "code": "NOT_FOUND" }]
+        })
+    );
+
+    let stage_response = proxy.process_request(json_graphql_request(stage, json!({
+        "validation": { "functionHandle": "validation-local", "title": "Local validation", "enable": true, "blockOnFailure": true },
+        "cartFunctionHandle": "cart-transform-local",
+        "cartBlockOnFailure": true,
+        "ready": true
+    })));
+    let validation_id = stage_response.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cart_transform_id = stage_response.body["data"]["cartTransformCreate"]["cartTransform"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        stage_response.body["data"]["validationCreate"]["validation"]["shopifyFunction"],
+        json!({
+            "id": "gid://shopify/ShopifyFunction/validation-local",
+            "title": "Validation Local",
+            "handle": "validation-local",
+            "apiType": "VALIDATION"
+        })
+    );
+    assert_eq!(
+        stage_response.body["data"]["cartTransformCreate"]["cartTransform"],
+        json!({
+            "id": "gid://shopify/CartTransform/3",
+            "blockOnFailure": true,
+            "functionId": "gid://shopify/ShopifyFunction/cart-transform-local"
+        })
+    );
+
+    let update = r#"mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) { validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionHandle updatedAt } userErrors { field message code } } }"#;
+    let update_response = proxy.process_request(json_graphql_request(update, json!({
+        "id": validation_id,
+        "validation": { "title": "Updated validation", "enable": false, "blockOnFailure": false }
+    })));
+    assert_eq!(
+        update_response.body["data"]["validationUpdate"]["validation"],
+        json!({
+            "id": "gid://shopify/Validation/2",
+            "title": "Updated validation",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionHandle": "validation-local",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+        })
+    );
+
+    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enable blockOnFailure functionHandle shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enable blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
+    let read_response = proxy.process_request(json_graphql_request(
+        read,
+        json!({ "validationId": validation_id }),
+    ));
+    assert_eq!(
+        read_response.body["data"]["validation"]["title"],
+        json!("Updated validation")
+    );
+    assert_eq!(
+        read_response.body["data"]["validations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        read_response.body["data"]["cartTransforms"]["nodes"][0]["id"],
+        json!(cart_transform_id)
+    );
+    assert_eq!(
+        read_response.body["data"]["validationFunctions"]["nodes"][0]["handle"],
+        json!("validation-local")
+    );
+    assert_eq!(
+        read_response.body["data"]["cartFunctions"]["nodes"][0]["handle"],
+        json!("cart-transform-local")
+    );
+    assert_eq!(
+        read_response.body["data"]["cartFunction"]["apiType"],
+        json!("CART_TRANSFORM")
+    );
+
+    let node_read = r#"query CartTransformNodeRead($id: ID!) { node(id: $id) { ... on CartTransform { id blockOnFailure functionId } } }"#;
+    let node_response = proxy.process_request(json_graphql_request(
+        node_read,
+        json!({ "id": cart_transform_id }),
+    ));
+    assert_eq!(
+        node_response.body["data"]["node"],
+        read_response.body["data"]["cartTransforms"]["nodes"][0]
+    );
+
+    let delete_validation = r#"mutation DeleteFunctionValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let validation_delete_response = proxy.process_request(json_graphql_request(
+        delete_validation,
+        json!({ "id": validation_id }),
+    ));
+    assert_eq!(
+        validation_delete_response.body["data"]["validationDelete"],
+        json!({ "deletedId": "gid://shopify/Validation/2", "userErrors": [] })
+    );
+
+    let delete_cart_transform = r#"mutation DeleteFunctionCartTransform($id: ID!) { cartTransformDelete(id: $id) { deletedId userErrors { field message code } } }"#;
+    let cart_delete_response = proxy.process_request(json_graphql_request(
+        delete_cart_transform,
+        json!({ "id": cart_transform_id }),
+    ));
+    assert_eq!(
+        cart_delete_response.body["data"]["cartTransformDelete"],
+        json!({ "deletedId": "gid://shopify/CartTransform/3", "userErrors": [] })
+    );
+
+    let empty_read = r#"query ReadDeletedFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id } validations(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#;
+    let empty_response = proxy.process_request(json_graphql_request(
+        empty_read,
+        json!({ "validationId": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(empty_response.body["data"]["validation"], Value::Null);
+    assert_eq!(
+        empty_response.body["data"]["validations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        empty_response.body["data"]["cartTransforms"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let stage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOwnedFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) {
+          validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle createdAt updatedAt shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
+          cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } }
+          taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "validation": { "functionId": "gid://shopify/ShopifyFunction/validation-owned", "title": "Owned validation", "enable": true, "blockOnFailure": true },
+            "cartFunctionHandle": "cart-owned",
+            "cartBlockOnFailure": true,
+            "ready": true
+        }),
+    ));
+    assert_eq!(
+        stage.body["data"]["validationCreate"]["validation"]["id"],
+        json!("gid://shopify/Validation/2")
+    );
+    assert_eq!(
+        stage.body["data"]["validationCreate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+    assert_eq!(
+        stage.body["data"]["cartTransformCreate"]["cartTransform"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/cart-owned")
+    );
+    assert_eq!(
+        stage.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["state"],
+        json!("READY")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOwnedFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) {
+          validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle updatedAt shopifyFunction { id handle appKey app { title apiKey } } } userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Validation/2", "validation": { "title": "Owned validation renamed" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["title"],
+        json!("Owned validation renamed")
+    );
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["enable"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOwnedFunctionMetadata($validationId: ID!) {
+          validation(id: $validationId) { id title enable blockOnFailure functionId functionHandle shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } }
+          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType appKey app { title apiKey } } }
+          cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") { id title handle apiType appKey app { __typename title apiKey } }
+        }
+        "#,
+        json!({ "validationId": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(
+        read.body["data"]["validation"]["title"],
+        json!("Owned validation renamed")
+    );
+    assert_eq!(
+        read.body["data"]["validationFunctions"]["nodes"][0]["app"]["apiKey"],
+        json!("validation-app-key")
+    );
+    assert_eq!(
+        read.body["data"]["cartFunction"]["app"]["apiKey"],
+        json!("cart-app-key")
+    );
+}
+
+#[test]
+fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_translations() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"query LocalizationLocaleTranslationRead($first: Int!, $resourceType: TranslatableResourceType!, $ids: [ID!]!) {
+          availableLocalesExcerpt: availableLocales { isoCode name }
+          allShopLocales: shopLocales { locale name primary published }
+          publishedShopLocales: shopLocales(published: true) { locale name primary published }
+          resources: translatableResources(first: $first, resourceType: $resourceType) { nodes { resourceId translatableContent { key value digest locale type } translations(locale: "fr") { key value locale outdated market { id } } } pageInfo { hasNextPage hasPreviousPage } }
+          byIds: translatableResourcesByIds(first: $first, resourceIds: $ids) { nodes { resourceId } edges { cursor node { resourceId } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") { resourceId }
+        }"#,
+        json!({ "first": 3, "resourceType": "PRODUCT", "ids": ["gid://shopify/Product/999999999999999"] }),
+    ));
+    assert_eq!(
+        initial.body["data"]["allShopLocales"][0]["locale"],
+        json!("en")
+    );
+    assert_eq!(initial.body["data"]["missing"], Value::Null);
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) { shopLocaleEnable(locale: $locale) { shopLocale { locale name primary published } userErrors { field message } } }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["shopLocale"]["locale"],
+        json!("fr")
+    );
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": "digest" }] }),
+    ));
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"][0]["value"],
+        json!("Titre local")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170" }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["translatableResource"]["translations"][0]["value"],
+        json!("Titre local")
+    );
+
+    let disable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message } } }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        disable.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!) { translatableResource(resourceId: $resourceId) { resourceId translations(locale: "fr") { key value locale outdated market { id } } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170" }),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["translatableResource"]["translations"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_unknown_resource_and_market_scoped_translation_validation_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_resource = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationUnknownResourceValidation($resourceId: ID!, $translations: [TranslationInput!]!, $keys: [String!]!, $locales: [String!]!) {
+          register: translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key } userErrors { field message code } }
+          remove: translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) { translations { key } userErrors { field message code } }
+        }"#,
+        json!({ "resourceId": "gid://shopify/Product/999999999999999", "translations": [{ "locale": "fr", "key": "title", "value": "Missing", "translatableContentDigest": "missing" }], "keys": ["title"], "locales": ["fr"] }),
+    ));
+    assert_eq!(
+        unknown_resource.body["data"]["register"]["translations"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_resource.body["data"]["register"]["userErrors"][0]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        unknown_resource.body["data"]["remove"]["userErrors"][0]["field"],
+        json!(["resourceId"])
+    );
+
+    let primary_disable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message } } }"#,
+        json!({ "locale": "en" }),
+    ));
+    assert_eq!(
+        primary_disable.body["data"]["shopLocaleDisable"]["locale"],
+        Value::Null
+    );
+    assert_eq!(
+        primary_disable.body["data"]["shopLocaleDisable"]["userErrors"][0]["field"],
+        json!(["locale"])
+    );
+
+    let blank_translation = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "fr", "key": "title", "value": "", "translatableContentDigest": "digest" }] }),
+    ));
+    assert_eq!(
+        blank_translation.body["data"]["translationsRegister"]["userErrors"][0]["code"],
+        json!("FAILS_RESOURCE_VALIDATION")
+    );
+
+    let normalized_handle = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "fr", "key": "handle", "value": "Bad Value With Spaces", "translatableContentDigest": "digest" }] }),
+    ));
+    assert_eq!(
+        normalized_handle.body["data"]["translationsRegister"]["translations"][0]["value"],
+        json!("bad-value-with-spaces")
+    );
+
+    let unknown_market = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": "digest", "marketId": "gid://shopify/Market/999999" }] }),
+    ));
+    assert_eq!(
+        unknown_market.body["data"]["translationsRegister"]["translations"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_market.body["data"]["translationsRegister"]["userErrors"][0]["code"],
+        json!("MARKET_DOES_NOT_EXIST")
+    );
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": "digest", "marketId": "gid://shopify/Market/123" }] }),
+    ));
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"][0]["market"]["id"],
+        json!("gid://shopify/Market/123")
+    );
+
+    let removed = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsMarketScopedRemove($resourceId: ID!, $keys: [String!]!, $locales: [String!]!, $marketIds: [ID!]!) { translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "keys": ["title"], "locales": ["es"], "marketIds": ["gid://shopify/Market/123"] }),
+    ));
+    assert_eq!(
+        removed.body["data"]["translationsRemove"]["translations"][0]["market"]["id"],
+        json!("gid://shopify/Market/123")
+    );
+    assert_eq!(
+        removed.body["data"]["translationsRemove"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+    let known_presence = "gid://shopify/MarketWebPresence/known";
+    let unknown_presence = "gid://shopify/MarketWebPresence/9999999999";
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation RustLocalizationShopLocaleTailHelpers($known: ID!, $unknown: ID!) {
+          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
+          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
+          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
+          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
+          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
+        }"#,
+        json!({ "known": known_presence, "unknown": unknown_presence }),
+    ));
+    assert_eq!(lifecycle.status, 200);
+    assert_eq!(
+        lifecycle.body["data"]["enableFr"],
+        json!({ "shopLocale": { "locale": "fr", "published": false }, "userErrors": [] })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["publishFr"],
+        json!({
+            "shopLocale": {
+                "locale": "fr",
+                "name": "French",
+                "published": true,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["attachMissing"],
+        json!({
+            "shopLocale": {
+                "locale": "tr",
+                "name": "Turkish",
+                "published": false,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["missingNoPresence"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The locale doesn't exist.",
+                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["primaryUnpublish"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["disablePrimary"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["disableUnknown"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The locale doesn't exist.",
+                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query RustLocalizationShopLocaleTailHelpersRead {
+          allLocales: shopLocales { locale published marketWebPresences { id __typename defaultLocale { locale } } }
+          publishedLocales: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    let all_locales = read.body["data"]["allLocales"].as_array().unwrap();
+    let staged_fr = all_locales
+        .iter()
+        .find(|locale| locale["locale"] == json!("fr"))
+        .unwrap();
+    assert_eq!(staged_fr["published"], json!(true));
+    assert_eq!(
+        staged_fr["marketWebPresences"],
+        json!([{ "id": known_presence, "__typename": "MarketWebPresence", "defaultLocale": { "locale": "en" } }])
+    );
+    assert!(all_locales
+        .iter()
+        .any(|locale| locale["locale"] == json!("tr")));
+    assert!(read.body["data"]["publishedLocales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+
+    let disabled = proxy.process_request(json_graphql_request(
+        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query RustLocalizationShopLocaleTailHelpersReadAfterDisable { shopLocales { locale published } }"#,
+        json!({}),
+    ));
+    assert!(!after_disable.body["data"]["shopLocales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+}
+
+#[test]
+fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs_and_allows_note() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUpdateValidation($activeId: ID!, $deactivatedId: ID!, $missingCustomerId: ID!, $recipientId: ID!, $tooLongPreferredName: String!, $tooLongMessage: String!, $successNote: String!) {
+          deactivatedExpiresOn: giftCardUpdate(id: $deactivatedId, input: { expiresOn: "2099-12-31" }) { giftCard { id enabled expiresOn } userErrors { field code message } }
+          emptyInput: giftCardUpdate(id: $activeId, input: {}) { giftCard { id note } userErrors { field code message } }
+          missingCustomer: giftCardUpdate(id: $activeId, input: { customerId: $missingCustomerId }) { giftCard { id customer { id } } userErrors { field code message } }
+          longRecipientName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }) { giftCard { id recipientAttributes { preferredName recipient { id } } } userErrors { field code message } }
+          longRecipientMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }) { giftCard { id recipientAttributes { message recipient { id } } } userErrors { field code message } }
+          success: giftCardUpdate(id: $activeId, input: { note: $successNote }) { giftCard { id note updatedAt } userErrors { field code message } }
+        }"#,
+        json!({
+            "activeId": "gid://shopify/GiftCard/har694-active",
+            "deactivatedId": "gid://shopify/GiftCard/har694-deactivated",
+            "missingCustomerId": "gid://shopify/Customer/999999999999",
+            "recipientId": "gid://shopify/Customer/10582524297522",
+            "tooLongPreferredName": "x".repeat(256),
+            "tooLongMessage": "x".repeat(201),
+            "successNote": "HAR-694 updated note"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "deactivatedExpiresOn": { "giftCard": null, "userErrors": [{ "field": ["input", "expiresOn"], "message": "The gift card is deactivated.", "code": "INVALID" }] },
+            "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input.", "code": "INVALID" }] },
+            "missingCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The customer could not be found.", "code": "CUSTOMER_NOT_FOUND" }] },
+            "longRecipientName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
+            "longRecipientMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
+            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUpdateNoop($id: ID!, $note: String!, $expiresOn: Date!, $templateSuffix: String!) {
+          noteNoop: giftCardUpdate(id: $id, input: { note: $note }) { giftCard { id note updatedAt } userErrors { field code message } }
+          expiresNoop: giftCardUpdate(id: $id, input: { expiresOn: $expiresOn }) { giftCard { id expiresOn updatedAt } userErrors { field code message } }
+          templateNoop: giftCardUpdate(id: $id, input: { templateSuffix: $templateSuffix }) { giftCard { id templateSuffix updatedAt } userErrors { field code message } }
+          emptyInput: giftCardUpdate(id: $id, input: {}) { giftCard { id note } userErrors { field code message } }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "note": "HAR-766 no-op current note",
+            "expiresOn": "2030-01-01",
+            "templateSuffix": "birthday"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
+            "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
+            "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
+            "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input.", "code": "INVALID" }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_update_deactivated_multi_field_prioritizes_deactivated_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUpdateDeactivatedMultiField($deactivatedId: ID!, $customerId: ID!, $recipientId: ID!) {
+          expiresAndCustomer: giftCardUpdate(id: $deactivatedId, input: { expiresOn: "2099-12-31", customerId: $customerId }) { giftCard { id } userErrors { field code message } }
+          customerAndRecipient: giftCardUpdate(id: $deactivatedId, input: { customerId: $customerId, recipientAttributes: { id: $recipientId } }) { giftCard { id } userErrors { field code message } }
+          customerRecipientAndExpires: giftCardUpdate(id: $deactivatedId, input: { customerId: $customerId, recipientAttributes: { id: $recipientId }, expiresOn: "2099-12-31" }) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({
+            "deactivatedId": "gid://shopify/GiftCard/deactivated",
+            "customerId": "gid://shopify/Customer/1",
+            "recipientId": "gid://shopify/Customer/1"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "expiresAndCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "expiresOn"], "message": "The gift card is deactivated.", "code": "INVALID" }] },
+            "customerAndRecipient": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The gift card is deactivated.", "code": "INVALID" }] },
+            "customerRecipientAndExpires": { "giftCard": null, "userErrors": [{ "field": ["input", "expiresOn"], "message": "The gift card is deactivated.", "code": "INVALID" }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardTrialShopAssignment($customerId: ID!, $recipientId: ID!, $updateGiftCardId: ID!) {
+          createCustomerAssignment: giftCardCreate(input: { initialValue: "10", customerId: $customerId }) { giftCard { id } giftCardCode userErrors { field code message } }
+          createRecipientAssignment: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) { giftCard { id } giftCardCode userErrors { field code message } }
+          updateCustomerAssignment: giftCardUpdate(id: $updateGiftCardId, input: { customerId: $customerId }) { giftCard { id } userErrors { field code message } }
+          updateRecipientAssignment: giftCardUpdate(id: $updateGiftCardId, input: { recipientAttributes: { id: $recipientId } }) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({
+            "customerId": "gid://shopify/Customer/1",
+            "recipientId": "gid://shopify/Customer/2",
+            "updateGiftCardId": "gid://shopify/GiftCard/trial-assignment"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createCustomerAssignment": { "giftCard": null, "giftCardCode": null, "userErrors": [{ "field": ["input", "customerId"], "code": "INVALID", "message": "A trial shop cannot assign a customer to a gift card." }] },
+            "createRecipientAssignment": { "giftCard": null, "giftCardCode": null, "userErrors": [{ "field": ["input", "recipientAttributes"], "code": "INVALID", "message": "A trial shop cannot assign a recipient to a gift card." }] },
+            "updateCustomerAssignment": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "code": "INVALID", "message": "A trial shop cannot assign a customer to a gift card." }] },
+            "updateRecipientAssignment": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes"], "code": "INVALID", "message": "A trial shop cannot assign a recipient to a gift card." }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!) {
+          expiredCredit: giftCardCredit(id: $expiredId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          deactivatedCredit: giftCardCredit(id: $deactivatedId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          mismatchCredit: giftCardCredit(id: $activeId, creditInput: $mismatchCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          futureCredit: giftCardCredit(id: $activeId, creditInput: $futureCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          preEpochCredit: giftCardCredit(id: $activeId, creditInput: $preEpochCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          deactivatedDebit: giftCardDebit(id: $deactivatedId, debitInput: $validDebitInput) { giftCardDebitTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+          successCredit: giftCardCredit(id: $activeId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
+        }"#,
+        json!({
+            "activeId": "gid://shopify/GiftCard/654808252722",
+            "expiredId": "gid://shopify/GiftCard/654808285490",
+            "deactivatedId": "gid://shopify/GiftCard/654808318258",
+            "validCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "mismatchCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "EUR" } },
+            "futureCreditInput": { "processedAt": "2099-01-01T00:00:00Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "preEpochCreditInput": { "processedAt": "1969-12-31T23:59:59Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "validDebitInput": { "debitAmount": { "amount": "5.00", "currencyCode": "CAD" } }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "expiredCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card has expired." }] },
+            "deactivatedCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
+            "mismatchCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "creditAmount", "currencyCode"], "code": "MISMATCHING_CURRENCY", "message": "The currency provided does not match the currency of the gift card." }] },
+            "futureCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
+            "preEpochCredit": { "giftCardCreditTransaction": null, "userErrors": [{ "field": ["creditInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
+            "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
+            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/246551773490", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-05-05T06:50:35Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardRecipientValidation(
+          $activeId: ID!,
+          $recipientId: ID!,
+          $tooLongPreferredName: String!,
+          $tooLongMessage: String!,
+          $htmlPreferredName: String!,
+          $htmlMessage: String!,
+          $futureSendAt: DateTime!,
+          $pastSendAt: DateTime!
+        ) {
+          createLongPreferredName: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }) { giftCard { id recipientAttributes { preferredName } } giftCardCode userErrors { field code message } }
+          createLongMessage: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $tooLongMessage } }) { giftCard { id recipientAttributes { message } } giftCardCode userErrors { field code message } }
+          createHtmlPreferredName: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }) { giftCard { id recipientAttributes { preferredName } } giftCardCode userErrors { field code message } }
+          createHtmlMessage: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $htmlMessage } }) { giftCard { id recipientAttributes { message } } giftCardCode userErrors { field code message } }
+          createFutureSendAt: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } giftCardCode userErrors { field code message } }
+          updateLongPreferredName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }) { giftCard { id recipientAttributes { preferredName } } userErrors { field code message } }
+          updateLongMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }) { giftCard { id recipientAttributes { message } } userErrors { field code message } }
+          updateHtmlPreferredName: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }) { giftCard { id recipientAttributes { preferredName } } userErrors { field code message } }
+          updateHtmlMessage: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, message: $htmlMessage } }) { giftCard { id recipientAttributes { message } } userErrors { field code message } }
+          updatePastSendAt: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }) { giftCard { id recipientAttributes { sendNotificationAt } } userErrors { field code message } }
+        }"#,
+        json!({
+            "activeId": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "recipientId": "gid://shopify/Customer/10587888714034",
+            "tooLongPreferredName": "x".repeat(256),
+            "tooLongMessage": "x".repeat(201),
+            "htmlPreferredName": "<b>Recipient</b>",
+            "htmlMessage": "<script>alert(1)</script>",
+            "futureSendAt": "2099-01-01T00:00:00Z",
+            "pastSendAt": "1990-01-01T00:00:00Z"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }], "giftCardCode": null },
+            "createLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }], "giftCardCode": null },
+            "createHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }], "giftCardCode": null },
+            "createHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }], "giftCardCode": null },
+            "createFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }], "giftCardCode": null },
+            "updateLongPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
+            "updateLongMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
+            "updateHtmlPreferredName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "INVALID", "message": "Preferred name cannot contain HTML tags" }] },
+            "updateHtmlMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "INVALID", "message": "Message cannot contain HTML tags" }] },
+            "updatePastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "code": "INVALID", "message": "Send notification at must be within 90 days from now" }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_paths() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardMutationUserErrorCodes {
+          setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "har686smallcard" }) { giftCard { id } userErrors { field code message } }
+          zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) { giftCard { id } userErrors { field code message } }
+          missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/9999999", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+          negativeCredit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "-1", currencyCode: "CAD" } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+          insufficientDebit: giftCardDebit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", debitInput: { debitAmount: { amount: "9999", currencyCode: "CAD" } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "setupSmallBalance": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }, "userErrors": [] },
+            "zeroInitialValue": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["input", "initialValue"], "code": "GREATER_THAN", "message": "must be greater than 0" }]
+            },
+            "missingUpdate": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+            },
+            "negativeCredit": {
+                "giftCardCreditTransaction": null,
+                "userErrors": [{ "field": ["creditInput", "creditAmount", "amount"], "code": "NEGATIVE_OR_ZERO_AMOUNT", "message": "A positive amount must be used." }]
+            },
+            "insufficientDebit": {
+                "giftCardDebitTransaction": null,
+                "userErrors": [{ "field": ["debitInput", "debitAmount", "amount"], "code": "INSUFFICIENT_FUNDS", "message": "The gift card does not have sufficient funds to satisfy the request." }]
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReadEvidence($unknownId: ID!, $query: String!) {
+          missingGiftCard: giftCard(id: $unknownId) { id }
+          filteredEmptyGiftCards: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id lastCharacters }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          filteredEmptyGiftCardsCount: giftCardsCount(query: $query) { count precision }
+          giftCardConfiguration { issueLimit { amount currencyCode } purchaseLimit { amount currencyCode } }
+        }"#,
+        json!({
+            "unknownId": "gid://shopify/GiftCard/999999999999",
+            "query": "id:999999999999"
+        }),
+    ));
+    assert_eq!(empty.body["data"]["missingGiftCard"], Value::Null);
+    assert_eq!(
+        empty.body["data"]["filteredEmptyGiftCards"],
+        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } })
+    );
+    assert_eq!(
+        empty.body["data"]["filteredEmptyGiftCardsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        empty.body["data"]["giftCardConfiguration"],
+        json!({
+            "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+            "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+        })
+    );
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardLifecycle($id: ID!, $updateInput: GiftCardUpdateInput!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          update: giftCardUpdate(id: $id, input: $updateInput) { giftCard { note templateSuffix expiresOn balance { amount currencyCode } } userErrors { field message } }
+          credit: giftCardCredit(id: $id, creditInput: $creditInput) { giftCardCreditTransaction { note amount { amount currencyCode } giftCard { balance { amount currencyCode } } } userErrors { field message } }
+          debit: giftCardDebit(id: $id, debitInput: $debitInput) { giftCardDebitTransaction { note amount { amount currencyCode } giftCard { balance { amount currencyCode } } } userErrors { field message } }
+          deactivate: giftCardDeactivate(id: $id) { giftCard { enabled balance { amount currencyCode } } userErrors { field message } }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/654773256498",
+            "updateInput": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26" },
+            "creditInput": { "creditAmount": { "amount": "2.00", "currencyCode": "CAD" }, "note": "HAR-310 credit" },
+            "debitInput": { "debitAmount": { "amount": "3.00", "currencyCode": "CAD" }, "note": "HAR-310 debit" }
+        }),
+    ));
+    assert_eq!(
+        lifecycle.body["data"],
+        json!({
+            "update": {
+                "giftCard": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26", "balance": { "amount": "5.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            },
+            "credit": {
+                "giftCardCreditTransaction": { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "7.0", "currencyCode": "CAD" } } },
+                "userErrors": []
+            },
+            "debit": {
+                "giftCardDebitTransaction": { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "4.0", "currencyCode": "CAD" } } },
+                "userErrors": []
+            },
+            "deactivate": {
+                "giftCard": { "enabled": false, "balance": { "amount": "4.0", "currencyCode": "CAD" } },
+                "userErrors": []
+            }
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {
+          giftCard(id: $id) { note templateSuffix expiresOn enabled balance { amount currencyCode } transactions(first: 5) { nodes { note amount { amount currencyCode } } pageInfo { hasNextPage hasPreviousPage } } }
+          giftCards(first: 2, query: $query, sortKey: ID) { nodes { id lastCharacters enabled } pageInfo { hasNextPage hasPreviousPage } }
+          giftCardsCount(query: $query) { count precision }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/654773256498",
+            "query": "id:654773256498"
+        }),
+    ));
+    let expected_card = json!({
+        "note": "HAR-310 conformance gift card updated",
+        "templateSuffix": "birthday",
+        "expiresOn": "2028-04-26",
+        "enabled": false,
+        "balance": { "amount": "4.0", "currencyCode": "CAD" },
+        "transactions": {
+            "nodes": [
+                { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+                { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" } }
+            ],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        }
+    });
+    assert_eq!(downstream.body["data"]["giftCard"], expected_card);
+    assert_eq!(
+        downstream.body["data"]["giftCards"],
+        json!({ "nodes": [{ "id": "gid://shopify/GiftCard/654773256498", "lastCharacters": "2053", "enabled": false }], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } })
+    );
+    assert_eq!(
+        downstream.body["data"]["giftCardsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"query GiftCardNodeReadAfterLifecycle($id: ID!) {
+          node(id: $id) { ... on GiftCard { note templateSuffix expiresOn enabled balance { amount currencyCode } transactions(first: 5) { nodes { note amount { amount currencyCode } } pageInfo { hasNextPage hasPreviousPage } } } }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/654773256498" }),
+    ));
+    assert_eq!(node.body["data"]["node"], expected_card);
+}
+
+#[test]
+fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryShopTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          credit: giftCardCredit(id: $creditId, creditInput: $creditInput) { giftCardCreditTransaction { __typename } userErrors { field code message } }
+          debit: giftCardDebit(id: $debitId, debitInput: $debitInput) { giftCardDebitTransaction { __typename } userErrors { field code message } }
+          customerNotification: giftCardSendNotificationToCustomer(id: $customerNotificationId) { giftCard { id } userErrors { field code message } }
+          recipientNotification: giftCardSendNotificationToRecipient(id: $recipientNotificationId) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({
+            "creditId": "gid://shopify/GiftCard/timezone-credit",
+            "debitId": "gid://shopify/GiftCard/timezone-debit",
+            "customerNotificationId": "gid://shopify/GiftCard/timezone-customer-notification",
+            "recipientNotificationId": "gid://shopify/GiftCard/timezone-recipient-notification",
+            "creditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
+            "debitInput": { "debitAmount": { "amount": "2.00", "currencyCode": "CAD" } }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "credit": { "giftCardCreditTransaction": { "__typename": "GiftCardCreditTransaction" }, "userErrors": [] },
+            "debit": { "giftCardDebitTransaction": { "__typename": "GiftCardDebitTransaction" }, "userErrors": [] },
+            "customerNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-customer-notification" }, "userErrors": [] },
+            "recipientNotification": { "giftCard": { "id": "gid://shopify/GiftCard/timezone-recipient-notification" }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
+          overLimitCredit: giftCardCredit(id: $boundaryId, creditInput: $creditInput) {
+            giftCardCreditTransaction { __typename amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+          debitAfterRejectedCredit: giftCardDebit(id: $boundaryId, debitInput: $debitInput) {
+            giftCardDebitTransaction { __typename amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "boundaryId": "gid://shopify/GiftCard/654867595570",
+            "creditInput": { "creditAmount": { "amount": "0.01", "currencyCode": "CAD" } },
+            "debitInput": { "debitAmount": { "amount": "0.01", "currencyCode": "CAD" } }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "overLimitCredit": {
+                "giftCardCreditTransaction": null,
+                "userErrors": [{
+                    "field": ["creditInput", "creditAmount", "amount"],
+                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                    "message": "The gift card's value exceeds the allowed limits."
+                }]
+            },
+            "debitAfterRejectedCredit": {
+                "giftCardDebitTransaction": {
+                    "__typename": "GiftCardDebitTransaction",
+                    "amount": { "amount": "-0.01", "currencyCode": "CAD" }
+                },
+                "userErrors": []
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardEntitlementDisabled {
+          createError: giftCardCreate(input: { initialValue: "0", customerId: "gid://shopify/Customer/disabled-entitlement-customer" }) { giftCard { id } giftCardCode userErrors { field code message } }
+          updateError: giftCardUpdate(id: "gid://shopify/GiftCard/disabled-entitlement-card", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+          creditError: giftCardCredit(id: "gid://shopify/GiftCard/disabled-entitlement-card", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+          debitError: giftCardDebit(id: "gid://shopify/GiftCard/disabled-entitlement-card", debitInput: { debitAmount: { amount: "9999", currencyCode: CAD } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+          deactivateError: giftCardDeactivate(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+          notificationCustomerError: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+          notificationRecipientError: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    let base_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are not available on this plan." }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createError": { "giftCard": null, "giftCardCode": null, "userErrors": base_error },
+            "updateError": { "giftCard": null, "userErrors": base_error },
+            "creditError": { "giftCardCreditTransaction": null, "userErrors": base_error },
+            "debitError": { "giftCardDebitTransaction": null, "userErrors": base_error },
+            "deactivateError": { "giftCard": null, "userErrors": base_error },
+            "notificationCustomerError": { "giftCard": null, "userErrors": base_error },
+            "notificationRecipientError": { "giftCard": null, "userErrors": base_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateNotify {
+          createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "createNotifyFalse": {
+                "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" },
+                "userErrors": []
+            },
+            "notifyDisabled": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "code": "INVALID",
+                    "message": "Gift card notifications are disabled."
+                }]
+            }
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["stagedResourceIds"],
+        json!(["gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"])
+    );
+}
+
+#[test]
+fn discount_timestamps_monotonic_create_update_and_code_reads_preserve_synthetic_order() {
+    let mut proxy = snapshot_proxy();
+    let create = r#"mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
+    let first_create = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": {
+            "title": "HAR-603 first 1777990267935",
+            "code": "HAR603A1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let first_id = first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first_created_at = first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]
+        ["codeDiscount"]["createdAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-603 first 1777990267935")
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["updatedAt"],
+        json!(first_created_at)
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"],
+        json!({ "nodes": [{ "code": "HAR603A1777990267935" }] })
+    );
+    assert_eq!(
+        first_create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let second_create = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": {
+            "title": "HAR-603 second 1777990267935",
+            "code": "HAR603B1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let second_id = second_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_created_at = second_create.body["data"]["discountCodeBasicCreate"]
+        ["codeDiscountNode"]["codeDiscount"]["createdAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_id, second_id);
+    assert!(first_created_at < second_created_at);
+    assert_eq!(
+        second_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["updatedAt"],
+        json!(second_created_at)
+    );
+
+    let update = r#"mutation DiscountTimestampsMonotonicUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
+    let update_response = proxy.process_request(json_graphql_request(
+        update,
+        json!({ "id": first_id, "input": {
+            "title": "HAR-603 first updated 1777990267935",
+            "code": "HAR603A1777990267935",
+            "startsAt": "2026-05-05T14:10:07.935Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
+        }}),
+    ));
+    let updated_at = update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]
+        ["codeDiscount"]["updatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["createdAt"],
+        json!(first_created_at)
+    );
+    assert!(second_created_at < updated_at);
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-603 first updated 1777990267935")
+    );
+    assert_eq!(
+        update_response.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = r#"query DiscountTimestampsMonotonicRead($firstId: ID!, $secondId: ID!, $firstCode: String!, $secondCode: String!) { first: codeDiscountNode(id: $firstId) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } second: codeDiscountNode(id: $secondId) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } firstByCode: codeDiscountNodeByCode(code: $firstCode) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } secondByCode: codeDiscountNodeByCode(code: $secondCode) { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt } } } }"#;
+    let read_response = proxy.process_request(json_graphql_request(
+        read,
+        json!({
+            "firstId": first_id,
+            "secondId": second_id,
+            "firstCode": "HAR603A1777990267935",
+            "secondCode": "HAR603B1777990267935"
+        }),
+    ));
+    assert_eq!(
+        read_response.body["data"]["first"],
+        read_response.body["data"]["firstByCode"]
+    );
+    assert_eq!(
+        read_response.body["data"]["second"],
+        read_response.body["data"]["secondByCode"]
+    );
+    assert_eq!(
+        read_response.body["data"]["first"]["codeDiscount"]["updatedAt"],
+        json!(updated_at)
+    );
+    assert_eq!(
+        read_response.body["data"]["second"]["codeDiscount"]["updatedAt"],
+        json!(second_created_at)
+    );
+}
+
+#[test]
+fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookups() {
+    let mut proxy = snapshot_proxy();
+    let add = r#"mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { done codesCount importedCount failedCount } userErrors { field message code extraInfo } } }"#;
+    let add_response = proxy.process_request(json_graphql_request(
+        add,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
+            "codes": [{ "code": "HAR438ADD1777416023154" }, { "code": "HAR438PLUS1777416023154" }]
+        }),
+    ));
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["failedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        add_response.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let read = r#"query DiscountRedeemCodeBulkLiveRead($id: ID!, $exactAddedCode: String!, $lowerAddedCode: String!, $removedCode: String!) { codeDiscountNode(id: $id) { id codeDiscount { ... on DiscountCodeBasic { codesCount { count precision } } } } exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) { id } lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) { id } removed: codeDiscountNodeByCode(code: $removedCode) { id } }"#;
+    let read_vars = json!({
+        "id": "gid://shopify/DiscountCodeNode/1639018103090",
+        "exactAddedCode": "HAR438ADD1777416023154",
+        "lowerAddedCode": "har438add1777416023154",
+        "removedCode": "HAR438BASE1777416023154"
+    });
+    let after_add = proxy.process_request(json_graphql_request(read, read_vars.clone()));
+    assert_eq!(
+        after_add.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_add.body["data"]["exactAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_add.body["data"]["lowerAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_add.body["data"]["removed"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+
+    let delete = r#"mutation DiscountRedeemCodeBulkLiveDelete($discountId: ID!, $ids: [ID!]!) { discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) { job { done } userErrors { field message code extraInfo } } }"#;
+    let delete_response = proxy.process_request(json_graphql_request(
+        delete,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
+            "ids": ["gid://shopify/DiscountRedeemCode/21582085751090"]
+        }),
+    ));
+    assert_eq!(
+        delete_response.body["data"]["discountCodeRedeemCodeBulkDelete"]["job"]["done"],
+        json!(true)
+    );
+    assert_eq!(
+        delete_response.body["data"]["discountCodeRedeemCodeBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(read, read_vars));
+    assert_eq!(
+        after_delete.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_delete.body["data"]["exactAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(
+        after_delete.body["data"]["lowerAdded"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1639018103090")
+    );
+    assert_eq!(after_delete.body["data"]["removed"], Value::Null);
+}
+
+#[test]
+fn discount_redeem_code_bulk_delete_validation_matches_selector_errors_and_happy_job() {
+    let mut proxy = snapshot_proxy();
+    let validation = r#"mutation DiscountRedeemCodeBulkDeleteValidation($discountId: ID!, $unknownDiscountId: ID!, $ids: [ID!], $emptyIds: [ID!], $search: String, $blankSearch: String, $savedSearchId: ID!) { missing: discountCodeRedeemCodeBulkDelete(discountId: $discountId) { job { id done } userErrors { field message code extraInfo } } tooMany: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids, search: $search) { job { id done } userErrors { field message code extraInfo } } unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: $unknownDiscountId, ids: $ids) { job { id done } userErrors { field message code extraInfo } } emptyIds: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $emptyIds) { job { id done } userErrors { field message code extraInfo } } blankSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, search: $blankSearch) { job { id done } userErrors { field message code extraInfo } } invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, savedSearchId: $savedSearchId) { job { id done } userErrors { field message code extraInfo } } }"#;
+    let variables = json!({
+        "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+        "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
+        "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"],
+        "emptyIds": [],
+        "search": "code:ANY",
+        "blankSearch": "   ",
+        "savedSearchId": "gid://shopify/SavedSearch/0"
+    });
+    let response = proxy.process_request(json_graphql_request(validation, variables));
+    assert_eq!(
+        response.body["data"]["missing"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.", "code": "MISSING_ARGUMENT", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["tooMany"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Only one of 'ids', 'search' or 'saved_search_id' is allowed.", "code": "TOO_MANY_ARGUMENTS", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["unknownDiscount"],
+        json!({ "job": null, "userErrors": [{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["emptyIds"],
+        json!({ "job": null, "userErrors": [{ "field": null, "message": "Something went wrong, please try again.", "code": null, "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["blankSearch"],
+        json!({ "job": null, "userErrors": [{ "field": ["search"], "message": "'Search' can't be blank.", "code": "BLANK", "extraInfo": null }] })
+    );
+    assert_eq!(
+        response.body["data"]["invalidSavedSearch"],
+        json!({ "job": null, "userErrors": [{ "field": ["savedSearchId"], "message": "Invalid 'saved_search_id'.", "code": "INVALID", "extraInfo": null }] })
+    );
+
+    let happy = r#"mutation DiscountRedeemCodeBulkDeleteHappy($discountId: ID!, $ids: [ID!]!) { happy: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) { job { id done } userErrors { field message code extraInfo } } }"#;
+    let happy_response = proxy.process_request(json_graphql_request(
+        happy,
+        json!({
+            "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+            "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"]
+        }),
+    ));
+    assert_eq!(
+        happy_response.body["data"]["happy"]["job"]["done"],
+        json!(true)
+    );
+    assert!(happy_response.body["data"]["happy"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Job/"));
+    assert_eq!(
+        happy_response.body["data"]["happy"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let create = r#"mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let created = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "HAR-784 redeem code validation 1778166762181", "code": "HAR784BASE1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let add = r#"mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { id done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { id code } } } } userErrors { field message code extraInfo } } }"#;
+    let unknown = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/0", "codes": [{"code":"ABC"}] }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"],
+        json!(null)
+    );
+    assert_eq!(
+        unknown.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+
+    let too_many_codes: Vec<_> = (0..251)
+        .map(|i| json!({ "code": format!("HAR784MAX1778166762181-{i}") }))
+        .collect();
+    let too_many = proxy.process_request(json_graphql_request(add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": too_many_codes })));
+    assert_eq!(
+        too_many.body["errors"][0]["message"],
+        json!("The input array size of 251 is greater than the maximum allowed of 250.")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["discountRedeemCodeBulkAdd", "codes"])
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+
+    let empty = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": [] }),
+    ));
+    assert_eq!(
+        empty.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([{ "field": ["codes"], "message": "Codes can't be blank", "code": "BLANK", "extraInfo": null }])
+    );
+
+    let invalid_codes = json!([{"code":""},{"code":"HAR784NL1778166762181\nBAD"},{"code":"HAR784CR1778166762181\rBAD"},{"code":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784OK1778166762181"}]);
+    let invalid_add = proxy.process_request(json_graphql_request(add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": invalid_codes })));
+    let invalid_bulk_id = invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(7)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["importedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["failedCount"],
+        json!(0)
+    );
+    assert_eq!(
+        invalid_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codes"]["nodes"][0]
+            ["errors"],
+        json!([])
+    );
+
+    let creation_read = r#"query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) { discountRedeemCodeBulkCreation(id: $id) { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { code } } } } }"#;
+    let invalid_final = proxy.process_request(json_graphql_request(
+        creation_read,
+        json!({ "id": invalid_bulk_id }),
+    ));
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["done"],
+        json!(true)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["importedCount"],
+        json!(2)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["failedCount"],
+        json!(5)
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][0]["errors"]
+            [0]["message"],
+        json!("is too short (minimum is 1 character)")
+    );
+    assert_eq!(
+        invalid_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][5]["errors"]
+            [0]["message"],
+        json!("Codes must be unique within BulkDiscountCodeCreation")
+    );
+
+    let read = r#"query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } duplicate: codeDiscountNodeByCode(code: $duplicateCode) { id } valid: codeDiscountNodeByCode(code: $validCode) { id } }"#;
+    let read_after_invalid = proxy.process_request(json_graphql_request(read, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "duplicateCode": "HAR784DUP1778166762181", "validCode": "HAR784OK1778166762181" })));
+    assert_eq!(
+        read_after_invalid.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read_after_invalid.body["data"]["duplicate"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        read_after_invalid.body["data"]["valid"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+
+    let conflicts = json!([{"code":"HAR784BASE1778166762181"},{"code":"HAR784CROSS1778166762181"},{"code":"HAR784FRESH1778166762181"}]);
+    let conflicts_add = proxy.process_request(json_graphql_request(
+        add,
+        json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "codes": conflicts }),
+    ));
+    let conflicts_bulk_id = conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        conflicts_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(3)
+    );
+
+    let conflicts_final = proxy.process_request(json_graphql_request(
+        creation_read,
+        json!({ "id": conflicts_bulk_id }),
+    ));
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["importedCount"],
+        json!(1)
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["failedCount"],
+        json!(2)
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][0]
+            ["errors"][0]["message"],
+        json!("must be unique. Please try a different code.")
+    );
+    assert_eq!(
+        conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][2]
+            ["discountRedeemCode"]["code"],
+        json!("HAR784FRESH1778166762181")
+    );
+
+    let existing_read = r#"query DiscountRedeemCodeBulkValidationExistingRead($discountId: ID!, $sameDiscountCode: String!, $crossDiscountCode: String!, $freshCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) { id } crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) { id } fresh: codeDiscountNodeByCode(code: $freshCode) { id } }"#;
+    let read_after_conflicts = proxy.process_request(json_graphql_request(existing_read, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640746221874", "sameDiscountCode": "HAR784BASE1778166762181", "crossDiscountCode": "HAR784CROSS1778166762181", "freshCode": "HAR784FRESH1778166762181" })));
+    assert_eq!(
+        read_after_conflicts.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["sameDiscount"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["crossDiscount"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746254642")
+    );
+    assert_eq!(
+        read_after_conflicts.body["data"]["fresh"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640746221874")
+    );
+}
+
+#[test]
+fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
+    let mut proxy = snapshot_proxy();
+    let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "HAR-605 bulk rule 1778002393771", "code": "HAR605BULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640428962098")
+    );
+
+    let bulk_add = r#"mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }"#;
+    let bulk_added = proxy.process_request(json_graphql_request(bulk_add, json!({ "discountId": "gid://shopify/DiscountCodeNode/1640428962098", "codes": [{"code":"HAR605BULK1778002393771_1"},{"code":"HAR605BULK1778002393771_2"},{"code":"HAR605BULK1778002393771_3"},{"code":"HAR605BULK1778002393771_4"},{"code":"HAR605BULK1778002393771_5"}] })));
+    assert_eq!(
+        bulk_added.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
+        json!(5)
+    );
+    assert_eq!(
+        bulk_added.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let basic_update = r#"mutation DiscountUpdateEdgeBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
+    let code_change = proxy.process_request(json_graphql_request(basic_update, json!({ "id": "gid://shopify/DiscountCodeNode/1640428962098", "input": { "title": "HAR-605 bulk renamed 1778002393771", "code": "HAR605BULKNEW1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } } } })));
+    assert_eq!(
+        code_change.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        code_change.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Cannot update the code of a bulk discount.", "code": null, "extraInfo": null }])
+    );
+
+    let create_bxgy = r#"mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
+    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
+    assert_eq!(
+        bxgy.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["__typename"],
+        json!("DiscountCodeBxgy")
+    );
+
+    let bxgy_to_basic = proxy.process_request(json_graphql_request(basic_update, json!({ "id": "gid://shopify/DiscountCodeNode/1640428994866", "input": { "title": "HAR-605 coerced basic 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.25 }, "items": { "all": true } } } })));
+    assert_eq!(
+        bxgy_to_basic.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["__typename"],
+        json!("DiscountCodeBasic")
+    );
+    assert_eq!(
+        bxgy_to_basic.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let unknown = r#"mutation DiscountUpdateEdgeUnknownUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let unknown_response = proxy.process_request(json_graphql_request(unknown, json!({ "id": "gid://shopify/DiscountCodeNode/0", "input": { "title": "HAR-605 unknown 1778002393771", "code": "HAR605UNKNOWN1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    assert_eq!(
+        unknown_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        unknown_response.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Discount does not exist", "code": null, "extraInfo": null }])
+    );
+}
+
+#[test]
+fn discount_subscription_fields_not_permitted_matches_local_runtime_gating() {
+    let mut proxy = snapshot_proxy();
+    let primary = r#"
+        mutation DiscountSubscriptionFieldsNotPermitted {
+          basicSub: discountCodeBasicCreate(basicCodeDiscount: { title: "Sub gated", code: "SUB-GATED", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          basicBlank: discountCodeBasicCreate(basicCodeDiscount: { title: "Sub blank", code: "SUB-BLANK", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: null } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          freeShippingSub: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: "Free shipping sub gated", code: "SHIP-SUB-GATED", startsAt: "2026-04-25T00:00:00Z", destination: { all: true }, appliesOnSubscription: true }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          freeShippingRecurring: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: "Free shipping recurring gated", code: "SHIP-REC-GATED", startsAt: "2026-04-25T00:00:00Z", destination: { all: true }, recurringCycleLimit: 2 }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticBasicSub: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Automatic basic sub gated", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticBasicRecurring: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Automatic basic recurring gated", startsAt: "2026-04-25T00:00:00Z", recurringCycleLimit: 2, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+          automaticFreeShippingSkip: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: "Automatic shipping skip", startsAt: "2026-04-25T00:00:00Z", destination: { all: true }, appliesOnSubscription: true, appliesOnOneTimePurchase: false, recurringCycleLimit: 2 }) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+          setupBasic: discountCodeBasicCreate(basicCodeDiscount: { title: "Setup basic", code: "SETUP-BASIC-SUB", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          setupFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: "Setup shipping", code: "SETUP-SHIP-SUB", startsAt: "2026-04-25T00:00:00Z", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          setupAutomaticBasic: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Setup automatic basic", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let response = proxy.process_request(json_graphql_request(primary, json!({})));
+    assert_eq!(
+        response.body["data"]["basicSub"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["basicSub"]["userErrors"][0]["field"],
+        json!(["basicCodeDiscount", "customerGets", "appliesOnSubscription"])
+    );
+    assert_eq!(
+        response.body["data"]["freeShippingRecurring"]["userErrors"][0]["message"],
+        json!("Recurring cycle limit is not permitted for this shop.")
+    );
+    assert_eq!(
+        response.body["data"]["automaticFreeShippingSkip"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(
+        response.body["data"]["setupBasic"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/2?shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(
+        response.body["data"]["setupFreeShipping"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/4?shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(
+        response.body["data"]["setupAutomaticBasic"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/6?shopify-draft-proxy=synthetic")
+    );
+
+    let basic_update = r#"mutation DiscountSubscriptionFieldsBasicUpdate($id: ID!) { basicUpdate: discountCodeBasicUpdate(id: $id, basicCodeDiscount: { title: "Setup basic", code: "SETUP-BASIC-SUB", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let updated = proxy.process_request(json_graphql_request(
+        basic_update,
+        json!({ "id": "gid://shopify/DiscountCodeNode/2?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(
+        updated.body["data"]["basicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        updated.body["data"]["basicUpdate"]["userErrors"][0]["message"],
+        json!("Customer gets applies on subscription is not permitted for this shop.")
+    );
+
+    let automatic_free_shipping_update = r#"mutation DiscountSubscriptionFieldsAutomaticFreeShippingUpdate($id: ID!) { automaticFreeShippingUpdate: discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: { title: "Automatic shipping skip", startsAt: "2026-04-25T00:00:00Z", destination: { all: true }, appliesOnSubscription: true, appliesOnOneTimePurchase: false, recurringCycleLimit: 3 }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let automatic_free_shipping_updated = proxy.process_request(json_graphql_request(
+        automatic_free_shipping_update,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic" }),
+    ));
+    assert_eq!(
+        automatic_free_shipping_updated.body["data"]["automaticFreeShippingUpdate"]
+            ["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(
+        automatic_free_shipping_updated.body["data"]["automaticFreeShippingUpdate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn discount_status_time_window_derives_create_and_read_filters() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountStatusTimeWindowDerivationCreate(
+          $scheduled: DiscountCodeBasicInput!
+          $expired: DiscountCodeBasicInput!
+          $active: DiscountCodeBasicInput!
+        ) {
+          scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+          expired: discountCodeBasicCreate(basicCodeDiscount: $expired) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+          active: discountCodeBasicCreate(basicCodeDiscount: $active) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(create_query, json!({
+        "scheduled": { "title": "HAR-593 scheduled 1777950794226", "code": "HAR593S1777950794226", "startsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "expired": { "title": "HAR-593 expired 1777950794226", "code": "HAR593E1777950794226", "startsAt": "2019-01-01T00:00:00Z", "endsAt": "2020-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "active": { "title": "HAR-593 active 1777950794226", "code": "HAR593A1777950794226", "startsAt": "2020-01-01T00:00:00Z", "endsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } }
+    })));
+    assert_eq!(
+        created.body["data"]["scheduled"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("SCHEDULED")
+    );
+    assert_eq!(
+        created.body["data"]["expired"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        created.body["data"]["active"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(created.body["data"]["scheduled"]["userErrors"], json!([]));
+
+    let read_query = r#"
+        query DiscountStatusTimeWindowDerivationRead($scheduledId: ID!, $expiredId: ID!, $activeId: ID!, $scheduledQuery: String!, $expiredQuery: String!) {
+          scheduledNode: codeDiscountNode(id: $scheduledId) { codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          expiredNode: codeDiscountNode(id: $expiredId) { codeDiscount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          activeNode: discountNode(id: $activeId) { discount { __typename ... on DiscountCodeBasic { title status startsAt endsAt } } }
+          scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) { nodes { discount { __typename ... on DiscountCodeBasic { title status } } } }
+          expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) { count precision }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "scheduledId": "gid://shopify/DiscountCodeNode/1640295530802",
+            "expiredId": "gid://shopify/DiscountCodeNode/1640295563570",
+            "activeId": "gid://shopify/DiscountCodeNode/1640295596338",
+            "scheduledQuery": "status:scheduled title:'HAR-593 scheduled 1777950794226'",
+            "expiredQuery": "status:expired title:'HAR-593 expired 1777950794226'"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["scheduledNode"]["codeDiscount"]["status"],
+        json!("SCHEDULED")
+    );
+    assert_eq!(
+        read.body["data"]["expiredNode"]["codeDiscount"]["endsAt"],
+        json!("2020-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        read.body["data"]["activeNode"]["discount"]["title"],
+        json!("HAR-593 active 1777950794226")
+    );
+    assert_eq!(
+        read.body["data"]["scheduledDiscountNodes"]["nodes"],
+        json!([{ "discount": { "__typename": "DiscountCodeBasic", "title": "HAR-593 scheduled 1777950794226", "status": "SCHEDULED" } }])
+    );
+    assert_eq!(
+        read.body["data"]["expiredDiscountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
+          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
+          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(create_query, json!({
+        "codeInput": { "title": "HAR-196 code free shipping 1777150170404", "code": "HAR196FREE1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" } }, "destination": { "all": true }, "maximumShippingPrice": "25.00", "appliesOncePerCustomer": true, "appliesOnOneTimePurchase": true, "appliesOnSubscription": false, "recurringCycleLimit": 1, "usageLimit": 5 },
+        "automaticInput": { "title": "HAR-196 automatic free shipping 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "endsAt": null, "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "15.00" } }, "destination": { "all": true }, "maximumShippingPrice": "20.00", "appliesOnOneTimePurchase": true, "appliesOnSubscription": false, "recurringCycleLimit": 1 }
+    })));
+    assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR196FREE1777150170404")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["maximumShippingPrice"],
+        json!({ "amount": "20.0", "currencyCode": "CAD" })
+    );
+
+    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
+    let updated = proxy.process_request(json_graphql_request(
+        code_update,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466", "input": {} }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["destinationSelection"],
+        json!({ "__typename": "DiscountCountries", "countries": ["CA", "US"], "includeRestOfWorld": false })
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
+    let automatic_updated = proxy.process_request(json_graphql_request(
+        automatic_update,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1638465405234", "input": {} }),
+    ));
+    assert_eq!(
+        automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
+            ["automaticDiscountNode"]["automaticDiscount"]["destinationSelection"],
+        json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false })
+    );
+
+    let read_query = r#"query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) { discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeFreeShipping { title status } } } codeDiscountNodeByCode(code: $code) { id } automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title status } } } }"#;
+    let read_after_update = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465372466", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465405234", "code": "HAR196SHIP1777150170404" })));
+    assert_eq!(
+        read_after_update.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-196 code free shipping updated 1777150170404")
+    );
+    assert_eq!(
+        read_after_update.body["data"]["automaticDiscountNode"]["automaticDiscount"]["status"],
+        json!("ACTIVE")
+    );
+
+    let code_deactivate = r#"mutation DiscountFreeShippingLifecycleDeactivate($id: ID!) { discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title status } } } userErrors { field message code extraInfo } } }"#;
+    let code_deactivated = proxy.process_request(json_graphql_request(
+        code_deactivate,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466" }),
+    ));
+    assert_eq!(
+        code_deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+
+    let automatic_delete = r#"mutation DiscountFreeShippingLifecycleDelete($id: ID!) { discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } } }"#;
+    let automatic_deleted = proxy.process_request(json_graphql_request(
+        automatic_delete,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1638465405234" }),
+    ));
+    assert_eq!(
+        automatic_deleted.body["data"]["discountAutomaticDelete"]["userErrors"],
+        json!([])
+    );
+
+    let code_delete = r#"mutation DiscountFreeShippingLifecycleDelete($id: ID!) { discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } } }"#;
+    let _ = proxy.process_request(json_graphql_request(
+        code_delete,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465372466" }),
+    ));
+    let read_after_delete = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465372466", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465405234", "code": "HAR196SHIP1777150170404" })));
+    assert_eq!(read_after_delete.body["data"]["discountNode"], json!(null));
+    assert_eq!(
+        read_after_delete.body["data"]["codeDiscountNodeByCode"],
+        json!(null)
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["automaticDiscountNode"],
+        json!(null)
+    );
+}
+
+#[test]
+fn discount_class_inference_stages_all_discount_classes_and_product_count() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountClassInferenceCreate(
+          $basicAll: DiscountCodeBasicInput!
+          $basicProduct: DiscountCodeBasicInput!
+          $basicCollection: DiscountCodeBasicInput!
+          $bxgy: DiscountCodeBxgyInput!
+          $freeShipping: DiscountCodeFreeShippingInput!
+        ) {
+          basicAll: discountCodeBasicCreate(basicCodeDiscount: $basicAll) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          basicProduct: discountCodeBasicCreate(basicCodeDiscount: $basicProduct) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          basicCollection: discountCodeBasicCreate(basicCodeDiscount: $basicCollection) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses } } } userErrors { field message code extraInfo } }
+          bxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgy) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBxgy { title discountClasses } } } userErrors { field message code extraInfo } }
+          freeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShipping) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeFreeShipping { title discountClasses } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "basicAll": { "title": "HAR597CLASS1777950382203 basic order", "code": "HAR597ORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
+            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "freeShipping": { "title": "HAR597CLASS1777950382203 free shipping", "code": "HAR597SHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["basicAll"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeBasic", "title": "HAR597CLASS1777950382203 basic order", "discountClasses": ["ORDER"] })
+    );
+    assert_eq!(
+        created.body["data"]["basicProduct"]["codeDiscountNode"]["codeDiscount"]["discountClasses"],
+        json!(["PRODUCT"])
+    );
+    assert_eq!(
+        created.body["data"]["basicCollection"]["codeDiscountNode"]["codeDiscount"]
+            ["discountClasses"],
+        json!(["PRODUCT"])
+    );
+    assert_eq!(
+        created.body["data"]["bxgy"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeBxgy", "title": "HAR597CLASS1777950382203 bxgy product", "discountClasses": ["PRODUCT"] })
+    );
+    assert_eq!(
+        created.body["data"]["freeShipping"]["codeDiscountNode"]["codeDiscount"],
+        json!({ "__typename": "DiscountCodeFreeShipping", "title": "HAR597CLASS1777950382203 free shipping", "discountClasses": ["SHIPPING"] })
+    );
+    assert_eq!(
+        created.body["data"]["freeShipping"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query DiscountClassInferenceRead($productQuery: String!) { discountNodesCount(query: $productQuery) { count precision } }"#,
+        json!({ "productQuery": "discount_class:product HAR597CLASS1777950382203" }),
+    ));
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountCodeBasicLifecycleCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } context { __typename ... on DiscountBuyerSelectionAll { all } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let create_input = json!({
+        "title": "HAR-193 lifecycle 1777318334676",
+        "code": "HAR193LIFE1777318334676",
+        "startsAt": "2026-04-27T19:31:14.676Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "1.00" } },
+        "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+    });
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": create_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638844039474")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR193LIFE1777318334676")
+    );
+
+    let update_query = r#"
+        mutation DiscountCodeBasicLifecycleUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } customerGets { items { __typename ... on AllDiscountItems { allItems } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let update_input = json!({
+        "title": "HAR-193 lifecycle updated 1777318334676",
+        "code": "HAR193LIVE1777318334676",
+        "startsAt": "2026-04-27T19:31:14.676Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "2.00" } },
+        "customerGets": { "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } }, "items": { "all": true } }
+    });
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "input": update_input }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-193 lifecycle updated 1777318334676")
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["codes"]["nodes"][0]["code"],
+        json!("HAR193LIVE1777318334676")
+    );
+
+    let read_query = r#"
+        query DiscountCodeBasicLifecycleRead($id: ID!, $code: String!) {
+          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title status } } }
+          codeDiscountNodeByCode(code: $code) { id }
+          discountNodes(first: 5, query: "status:active") { nodes { id } }
+          discountNodesCount(query: "status:active") { count precision }
+        }
+    "#;
+    let read_active = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(
+        read_active.body["data"]["discountNode"]["discount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        read_active.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let deactivate_query = r#"
+        mutation DiscountCodeBasicLifecycleDeactivate($id: ID!) {
+          discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deactivated = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+    let read_expired = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(
+        read_expired.body["data"]["discountNode"]["discount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        read_expired.body["data"]["discountNodes"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_expired.body["data"]["discountNodesCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let activate_query = r#"
+        mutation DiscountCodeBasicLifecycleActivate($id: ID!) {
+          discountCodeActivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let activated = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        activated.body["data"]["discountCodeActivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("ACTIVE")
+    );
+
+    let delete_query = r#"
+        mutation DiscountCodeBasicLifecycleDelete($id: ID!) {
+          discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deleted = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474" }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+    let read_deleted = proxy.process_request(json_graphql_request(read_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638844039474", "code": "HAR193LIVE1777318334676" })));
+    assert_eq!(read_deleted.body["data"]["discountNode"], json!(null));
+    assert_eq!(
+        read_deleted.body["data"]["codeDiscountNodeByCode"],
+        json!(null)
+    );
+    assert_eq!(
+        read_deleted.body["data"]["discountNodesCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation DiscountCodeBasicBuyerContextCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                  status
+                  codes(first: 1) { nodes { code asyncUsageCount } }
+                  context {
+                    __typename
+                    ... on DiscountCustomers { customers { __typename id displayName } }
+                    ... on DiscountCustomerSegments { segments { __typename id name } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let create_input = json!({
+        "title": "HAR-390 code customer context 1777346878525",
+        "code": "HAR390CTX1777346878525",
+        "startsAt": "2023-01-01T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } },
+        "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+    });
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": create_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638894633266")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["context"],
+        json!({
+            "__typename": "DiscountCustomers",
+            "customers": [{
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/10548596015410",
+                "displayName": "HAR390 Buyer Context"
+            }]
+        })
+    );
+
+    let update_query = r#"
+        mutation DiscountCodeBasicBuyerContextUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 1) { nodes { code asyncUsageCount } } context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let update_input = json!({
+        "title": "HAR-390 code segment context 1777346878525",
+        "code": "HAR390SEG1777346878525",
+        "startsAt": "2023-01-01T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } },
+        "customerGets": { "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } }, "items": { "all": true } }
+    });
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266", "input": update_input }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["context"],
+        json!({
+            "__typename": "DiscountCustomerSegments",
+            "segments": [{
+                "__typename": "Segment",
+                "id": "gid://shopify/Segment/647746715954",
+                "name": "HAR-390 buyer context 1777346878525"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(r#"
+        query DiscountCodeBasicBuyerContextRead($id: ID!, $code: String!) {
+          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+          codeDiscountNodeByCode(code: $code) { codeDiscount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+        }
+    "#, json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266", "code": "HAR390SEG1777346878525" })));
+    assert_eq!(
+        read.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-390 code segment context 1777346878525")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["codeDiscount"]["context"]["segments"][0]["id"],
+        json!("gid://shopify/Segment/647746715954")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(r#"
+        mutation DiscountCodeBasicBuyerContextDelete($id: ID!) {
+          discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+        }
+    "#, json!({ "id": "gid://shopify/DiscountCodeNode/1638894633266" })));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
+    let mut proxy = snapshot_proxy();
+
+    let code_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Basic disallowed quantity code SETUP 1778038410003",
+            "code": "BASICQTYSETUP1778038410003",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerSelection": { "all": true },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        code_setup.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640501739826")
+    );
+    assert_eq!(
+        code_setup.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let automatic_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityAutomaticCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Basic disallowed quantity automatic SETUP 1778038410003",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        automatic_setup.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1640501772594")
+    );
+    assert_eq!(
+        automatic_setup.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_value = json!({
+        "title": "Basic disallowed quantity CREATE 1778038410003",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerGets": {
+            "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } },
+            "items": { "all": true }
+        }
+    });
+
+    let code_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "input": invalid_value.clone() }),
+    ));
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["field"],
+        json!([
+            "basicCodeDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity"
+        ])
+    );
+    assert_eq!(
+        code_create.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
+    let automatic_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicDisallowedQuantityAutomaticUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640501772594", "input": invalid_value }),
+    ));
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"][0]["field"],
+        json!([
+            "automaticBasicDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity"
+        ])
+    );
+    assert_eq!(
+        automatic_update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"][0]["message"],
+        json!("discountOnQuantity field is only permitted with bxgy discounts.")
+    );
+}
+
+#[test]
+fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
+    let mut proxy = snapshot_proxy();
+
+    let code_query = r#"
+        mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let automatic_query = r#"
+        mutation DiscountBxgyNumericValidationAutomaticUpdate($id: ID!, $input: DiscountAutomaticBxgyInput!) {
+          discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+
+    let mut base = json!({
+        "title": "Conformance BXGY code SETUP 1778195290726",
+        "code": "BXGYNSETUP1778195290726",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+    });
+
+    let setup = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        setup.body["data"]["discountCodeBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        setup.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1640810610994")
+    );
+
+    base["usesPerOrderLimit"] = json!(0);
+    let uses_zero = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        uses_zero.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        uses_zero.body["data"]["discountCodeBxgyCreate"]["userErrors"][0],
+        json!({
+            "field": ["bxgyCodeDiscount", "usesPerOrderLimit"],
+            "message": "Allocation limit cannot be zero",
+            "code": "VALUE_OUTSIDE_RANGE",
+            "extraInfo": null
+        })
+    );
+
+    base["usesPerOrderLimit"] = json!("1.5");
+    let uses_float = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        uses_float.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        uses_float.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!(["usesPerOrderLimit"])
+    );
+
+    base.as_object_mut().unwrap().remove("usesPerOrderLimit");
+    base["customerBuys"]["value"]["quantity"] = json!("100000");
+    let buy_too_large = proxy.process_request(json_graphql_request(
+        code_query,
+        json!({ "input": base.clone() }),
+    ));
+    assert_eq!(
+        buy_too_large.body["data"]["discountCodeBxgyCreate"]["userErrors"][0]["message"],
+        json!("Prerequisite to entitlement quantity ratio antecedent must be less than 100000")
+    );
+
+    base["customerBuys"]["value"]["quantity"] = json!("1");
+    base["customerGets"]["value"]["discountOnQuantity"]["quantity"] = json!("0");
+    let get_zero = proxy.process_request(json_graphql_request(
+        automatic_query,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640810643762", "input": base.clone() }),
+    ));
+    assert_eq!(
+        get_zero.body["data"]["discountAutomaticBxgyUpdate"]["userErrors"][0]["field"],
+        json!([
+            "automaticBxgyDiscount",
+            "customerGets",
+            "value",
+            "discountOnQuantity",
+            "quantity"
+        ])
+    );
+
+    base["customerGets"]["value"]["discountOnQuantity"]["quantity"] = json!("2");
+    let ratio_ok = proxy.process_request(json_graphql_request(
+        automatic_query,
+        json!({ "id": "gid://shopify/DiscountAutomaticNode/1640810643762", "input": base }),
+    ));
+    assert_eq!(
+        ratio_ok.body["data"]["discountAutomaticBxgyUpdate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1640810643762")
+    );
+    assert_eq!(
+        ratio_ok.body["data"]["discountAutomaticBxgyUpdate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation DiscountBxgyLifecycleCreate($codeInput: DiscountCodeBxgyInput!, $automaticInput: DiscountAutomaticBxgyInput!) {
+          discountCodeBxgyCreate(bxgyCodeDiscount: $codeInput) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBxgy {
+                  title status summary usesPerOrderLimit
+                  codes(first: 2) { nodes { code asyncUsageCount } }
+                  customerBuys { value { __typename ... on DiscountQuantity { quantity } } items { __typename ... on DiscountProducts { products(first: 5) { nodes { id } } productVariants(first: 5) { nodes { id } } } } }
+                  customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } items { __typename ... on DiscountCollections { collections(first: 5) { nodes { id } } } } appliesOnOneTimePurchase appliesOnSubscription }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticInput) {
+            automaticDiscountNode {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBxgy {
+                  title status summary usesPerOrderLimit
+                  customerBuys { value { __typename ... on DiscountQuantity { quantity } } items { __typename ... on DiscountCollections { collections(first: 5) { nodes { id } } } } }
+                  customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } items { __typename ... on DiscountProducts { products(first: 5) { nodes { id } } productVariants(first: 5) { nodes { id } } } } appliesOnOneTimePurchase appliesOnSubscription }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let code_input = json!({
+        "title": "HAR-195 code BXGY 1777150259502",
+        "code": "HAR195BXGY1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "usesPerOrderLimit": 1
+    });
+    let automatic_input = json!({
+        "title": "HAR-195 automatic BXGY 1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555629874"] } } },
+        "usesPerOrderLimit": "1"
+    });
+
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "codeInput": code_input, "automaticInput": automatic_input }),
+    ));
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638465831218")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Buy 2 items, get 1 item free")
+    );
+    assert_eq!(
+        created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["customerBuys"]["items"]["products"]["nodes"][0]["id"],
+        json!("gid://shopify/Product/10170555597106")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]["id"],
+        json!("gid://shopify/DiscountAutomaticNode/1638465863986")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("Buy 1 item, get 1 item at 50% off")
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["customerGets"]["items"]["products"]["nodes"][0]["id"],
+        json!("gid://shopify/Product/10170555629874")
+    );
+
+    let code_update_query = r#"
+        mutation DiscountCodeBxgyLifecycleUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBxgy { title status summary customerGets { value { __typename ... on DiscountOnQuantity { quantity { quantity } effect { __typename ... on DiscountPercentage { percentage } } } } } } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let code_update_input = json!({
+        "title": "HAR-195 code BXGY updated 1777150259502",
+        "code": "HAR195BXGYUP1777150259502",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "usesPerOrderLimit": 1
+    });
+    let updated_code = proxy.process_request(json_graphql_request(code_update_query, json!({ "id": "gid://shopify/DiscountCodeNode/1638465831218", "input": code_update_input.clone() })));
+    assert_eq!(
+        updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["title"],
+        json!("HAR-195 code BXGY updated 1777150259502")
+    );
+    assert_eq!(
+        updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Buy 2 items, get 2 items at 50% off")
+    );
+
+    let status_query = r#"
+        mutation DiscountCodeBxgyLifecycleStatus($id: ID!) {
+          discountCodeDeactivate(id: $id) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBxgy { status endsAt } } } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deactivated = proxy.process_request(json_graphql_request(
+        status_query,
+        json!({ "id": "gid://shopify/DiscountCodeNode/1638465831218" }),
+    ));
+    assert_eq!(
+        deactivated.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"]
+            ["status"],
+        json!("EXPIRED")
+    );
+
+    let read = proxy.process_request(json_graphql_request(r#"
+        query DiscountBxgyLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+          discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeBxgy { title status } } }
+          codeDiscountNodeByCode(code: $code) { id }
+          automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticBxgy { title status } } }
+        }
+    "#, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465831218", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465863986", "code": "HAR195BXGYUP1777150259502" })));
+    assert_eq!(
+        read.body["data"]["discountNode"]["discount"]["title"],
+        json!("HAR-195 code BXGY updated 1777150259502")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["id"],
+        json!("gid://shopify/DiscountCodeNode/1638465831218")
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["title"],
+        json!("HAR-195 automatic BXGY updated 1777150259502")
+    );
+
+    let delete_query = r#"
+        mutation DiscountBxgyLifecycleDelete($codeId: ID!, $automaticId: ID!) {
+          discountCodeDelete(id: $codeId) { deletedCodeDiscountId userErrors { field message code extraInfo } }
+          discountAutomaticDelete(id: $automaticId) { deletedAutomaticDiscountId userErrors { field message code extraInfo } }
+        }
+    "#;
+    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({ "codeId": "gid://shopify/DiscountCodeNode/1638465831218", "automaticId": "gid://shopify/DiscountAutomaticNode/1638465863986" })));
+    assert_eq!(
+        deleted.body["data"]["discountCodeDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deleted.body["data"]["discountAutomaticDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn marketing_empty_reads_keep_shopify_connection_shapes() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingBaselineRead($activityId: ID!, $eventId: ID!, $first: Int!, $activityQuery: String!, $eventQuery: String!) {
+          marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true) { nodes { id title } edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingActivitiesEmpty: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) { nodes { id title } edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingActivity(id: $activityId) { id title }
+          marketingEvents(first: $first) { nodes { id type } edges { cursor node { id type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingEventsEmpty: marketingEvents(first: $first, query: $eventQuery) { nodes { id type } edges { cursor node { id type } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          marketingEvent(id: $eventId) { id type }
+        }
+        "#,
+        json!({
+            "activityId": "gid://shopify/MarketingActivity/999999999999",
+            "eventId": "gid://shopify/MarketingEvent/999999999999",
+            "first": 3,
+            "activityQuery": "title:__none__",
+            "eventQuery": "description:__none__"
+        }),
+    ));
+
+    assert_eq!(response.body["data"]["marketingActivity"], Value::Null);
+    assert_eq!(response.body["data"]["marketingEvent"], Value::Null);
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["edges"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["marketingActivities"]["pageInfo"],
+        json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null})
+    );
+}
+
+#[test]
+fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityCreateExternalInput!) {
+          createExternal: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title status statusLabel remoteId sourceAndMedium utmParameters { campaign source medium } marketingEvent { id remoteId manageUrl previewUrl sourceAndMedium } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Launch", "remoteId": "remote-1", "status": "ACTIVE", "remoteUrl": "https://example.com/manage", "previewUrl": "https://example.com/preview", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}}}),
+    ));
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["title"],
+        json!("Launch")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["statusLabel"],
+        json!("Sending")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title status statusLabel marketingEvent { remoteId manageUrl description } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "remote-1", "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
+    ));
+    assert_eq!(
+        update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["title"],
+        json!("Launch updated")
+    );
+    assert_eq!(
+        update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["statusLabel"],
+        json!("Paused")
+    );
+
+    let engagement = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle($remoteId: String!, $engagement: MarketingEngagementInput!) {
+          createByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {
+            marketingEngagement { occurredOn impressionsCount clicksCount adSpend { amount currencyCode } marketingActivity { adSpend { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "remote-1", "engagement": {"occurredOn": "2026-04-26", "impressionsCount": 7, "clicksCount": 2, "adSpend": {"amount": "3.21", "currencyCode": "USD"}, "isCumulative": false, "utcOffset": "+00:00"}}),
+    ));
+    assert_eq!(
+        engagement.body["data"]["createByRemoteId"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        engagement.body["data"]["createByRemoteId"]["marketingEngagement"]["marketingActivity"]
+            ["adSpend"],
+        json!(null)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($id: ID!, $remoteIds: [String!]) {
+          marketingActivity(id: $id) { id title status statusLabel adSpend { amount currencyCode } marketingEvent { remoteId manageUrl description } }
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title marketingEvent { remoteId } } }
+        }
+        "#,
+        json!({"id": activity_id, "remoteIds": ["remote-1"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["title"],
+        json!("Launch updated")
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["adSpend"],
+        json!(null)
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0]["marketingEvent"]["remoteId"],
+        json!("remote-1")
+    );
+}
+
+#[test]
+fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
+    let mut proxy = snapshot_proxy();
+    let mut create = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppCreate {
+          createExternal: marketingActivityCreateExternal(input: { title: "Per App Campaign", remoteId: "campaign-1", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, remoteUrl: "https://example.com/per-app", budget: { budgetType: DAILY, total: { amount: "100.00", currencyCode: USD } }, urlParameterValue: "utm_campaign=per-app-a", utm: { campaign: "per-app-a", source: "newsletter", medium: "email" } }) {
+            marketingActivity { id title remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let create = proxy.process_request(create);
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["title"],
+        json!("Per App Campaign")
+    );
+
+    let mut app_b_update = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppUpdate {
+          updateExternal: marketingActivityUpdateExternal(remoteId: "campaign-1", input: { title: "App B Attempted Update" }) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_update.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_update = proxy.process_request(app_b_update);
+    assert_eq!(
+        app_b_update.body["data"]["updateExternal"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
+    let mut app_b_engagement = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppEngagement {
+          engagementCreate: marketingEngagementCreate(remoteId: "campaign-1", marketingEngagement: { occurredOn: "2026-05-06", utcOffset: "+00:00", isCumulative: false, adSpend: { amount: "10.00", currencyCode: EUR } }) {
+            marketingEngagement { occurredOn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_engagement.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_engagement = proxy.process_request(app_b_engagement);
+    assert_eq!(
+        app_b_engagement.body["data"]["engagementCreate"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
+    let mut app_b_delete_all = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppDeleteAll {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal { job { done } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_delete_all.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_delete_all = proxy.process_request(app_b_delete_all);
+    assert_eq!(
+        app_b_delete_all.body["data"]["deleteAllExternal"],
+        json!({"job": {"done": false}, "userErrors": []})
+    );
+
+    let mut app_a_read = json_graphql_request(
+        r#"
+        query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        "#,
+        json!({"activityId": activity_id}),
+    );
+    app_a_read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_read = proxy.process_request(app_a_read);
+    assert_eq!(
+        app_a_read.body["data"]["marketingActivity"],
+        json!({"title": "Per App Campaign", "remoteId": "campaign-1"})
+    );
+}
+
+#[test]
+fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCurrencyValidation($activityInput: MarketingActivityCreateExternalInput!, $remoteId: String!, $activityId: ID!, $mismatchedInputEngagement: MarketingEngagementInput!, $activityCurrencyMismatchEngagement: MarketingEngagementInput!, $remoteActivityCurrencyMismatchEngagement: MarketingEngagementInput!) {
+          createActivity: marketingActivityCreateExternal(input: $activityInput) { marketingActivity { id } userErrors { field message code } }
+          inputMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $mismatchedInputEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          activityMismatchById: marketingEngagementCreate(marketingActivityId: $activityId, marketingEngagement: $activityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          activityMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $remoteActivityCurrencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"title": "HAR-684 Currency Validation Campaign", "remoteId": "har-684-currency-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/har-684-currency-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "budget": {"budgetType": "DAILY", "total": {"amount": "100.00", "currencyCode": "USD"}}, "utm": {"campaign": "har-684-currency-validation", "source": "newsletter", "medium": "email"}},
+            "remoteId": "har-684-currency-validation",
+            "activityId": "gid://shopify/MarketingActivity/1",
+            "mismatchedInputEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "USD"}, "sales": {"amount": "30.00", "currencyCode": "EUR"}},
+            "activityCurrencyMismatchEngagement": {"occurredOn": "2026-04-02", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "EUR"}},
+            "remoteActivityCurrencyMismatchEngagement": {"occurredOn": "2026-04-03", "isCumulative": false, "utcOffset": "+00:00", "sales": {"amount": "30.00", "currencyCode": "EUR"}}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["inputMismatchByRemoteId"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT" }])
+    );
+    assert_eq!(
+        response.body["data"]["inputMismatchByRemoteId"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchById"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.", "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH" }])
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchById"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchByRemoteId"]["userErrors"],
+        json!([{ "field": ["marketingEngagement"], "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.", "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH" }])
+    );
+    assert_eq!(
+        response.body["data"]["activityMismatchByRemoteId"]["marketingEngagement"],
+        json!(null)
+    );
+}
+
+#[test]
+fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingNativeActivityLifecycle($createInput: MarketingActivityCreateInput!, $updateInput: MarketingActivityUpdateInput!, $invalidExtensionInput: MarketingActivityCreateInput!) {
+          createNative: marketingActivityCreate(input: $createInput) { userErrors { field message } }
+          updateNative: marketingActivityUpdate(input: $updateInput) { marketingActivity { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } redirectPath userErrors { field message } }
+          invalidExtension: marketingActivityCreate(input: $invalidExtensionInput) { userErrors { field message } }
+        }
+        "#,
+        json!({
+            "createInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/har-373-local-extension", "status": "DRAFT"},
+            "updateInput": {"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE"},
+            "invalidExtensionInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000", "status": "DRAFT"}
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["createNative"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["updateNative"]["marketingActivity"],
+        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+    );
+    assert_eq!(
+        response.body["data"]["invalidExtension"]["userErrors"],
+        json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingNativeActivityRead($activityId: ID!) { marketingActivity(id: $activityId) { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } }
+        "#,
+        json!({"activityId": "gid://shopify/MarketingActivity/1"}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivity"],
+        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+    );
+}
+
+#[test]
+fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsEmptyRead {
+          inventoryItems(first: 1, query: "id:0") { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty.body["data"]["inventoryItems"],
+        json!({"nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+
+    let properties = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryPropertiesRead { inventoryProperties { quantityNames { name displayName isInUse belongsTo comprises } } }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        properties.body["data"]["inventoryProperties"]["quantityNames"][0],
+        json!({"name": "available", "displayName": "Available", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []})
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/1777251367654", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7},
+            {"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318463282", "quantity": 2}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
+        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
+            ["name"],
+        json!("on_hand")
+    );
+
+    let read_after_set = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "productId": "gid://shopify/Product/10171266400562"}),
+    ));
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(9)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["quantity"],
+        json!(7)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][1]["quantities"]
+            [1]["quantity"],
+        json!(2)
+    );
+
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) {
+          inventoryMoveQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason referenceDocumentUri changes { name delta quantityAfterChange ledgerDocumentUri location { id name } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/1777251367654", "changes": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "quantity": 3, "from": {"locationId": "gid://shopify/Location/106318430514", "name": "available"}, "to": {"locationId": "gid://shopify/Location/106318430514", "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654"}}]}}),
+    ));
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][0]["delta"],
+        json!(-3)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][1]["delta"],
+        json!(3)
+    );
+
+    let read_after_move = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+          }
+          product(id: $productId) { totalInventory }
+        }
+        "#,
+        json!({"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "productId": "gid://shopify/Product/10171266400562"}),
+    ));
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(6)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["quantity"],
+        json!(4)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["quantity"],
+        json!(3)
+    );
+
+    let blocked_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) { inventorySetQuantities(input: $input) { userErrors { field message } } }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7}]}}),
+    ));
+    assert_eq!(
+        blocked_set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([{"field": ["input", "ignoreCompareQuantity"], "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."}])
+    );
+
+    let blocked_move = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) { inventoryMoveQuantities(input: $input) { userErrors { field message } } }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/blocked", "changes": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "quantity": 1, "from": {"locationId": "gid://shopify/Location/106318430514", "name": "available"}, "to": {"locationId": "gid://shopify/Location/106318463282", "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/blocked"}}]}}),
+    ));
+    assert_eq!(
+        blocked_move.body["data"]["inventoryMoveQuantities"]["userErrors"],
+        json!([{"field": ["input", "changes", "0"], "message": "The quantities can't be moved between different locations."}])
+    );
+}
+
+#[test]
+fn inventory_fixture_backed_downstream_reads_replay_captured_shapes() {
+    let quantity_contract: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
+    ))
+    .unwrap();
+    let reason_validation: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
+    ))
+    .unwrap();
+    let adjust_derived: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
+    ))
+    .unwrap();
+    let adjust_quantities: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
+    ))
+    .unwrap();
+    let item_update: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-item-update-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let contract_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql"
+        ),
+        json!({
+            "inventoryItemId": quantity_contract["setup"]["product"]["inventoryItemId"],
+            "productId": quantity_contract["setup"]["product"]["productId"]
+        }),
+    ));
+    assert_eq!(
+        contract_read.body["data"],
+        quantity_contract["downstreamRead"]["data"]
+    );
+
+    let reason_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventory-reason-validation-downstream.graphql"
+        ),
+        json!({"inventoryItemId": reason_validation["setup"]["inventoryItemId"]}),
+    ));
+    assert_eq!(
+        reason_read.body["data"],
+        reason_validation["downstreamAfterRejected"]["data"]
+    );
+
+    let derived_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-downstream.graphql"),
+        adjust_derived["setup"]["variables"].clone(),
+    ));
+    assert_eq!(
+        derived_read.body["data"],
+        adjust_derived["downstreamRead"]["data"]
+    );
+
+    let adjust_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryAdjustQuantities-downstream-read.graphql"
+        ),
+        adjust_quantities["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        adjust_read.body["data"],
+        adjust_quantities["downstreamRead"]["data"]
+    );
+
+    let non_available_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryAdjustQuantities-non-available-downstream-read.graphql"
+        ),
+        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        non_available_read.body["data"],
+        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["data"]
+    );
+
+    let item_update_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventoryItemUpdate-downstream-read.graphql"
+        ),
+        item_update["mutation"]["downstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        item_update_read.body["data"],
+        item_update["mutation"]["downstreamRead"]["data"]
+    );
+}
+
+#[test]
+fn inventory_transfer_lifecycle_local_staging_replays_captured_shapes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventory-transfer-create.graphql"),
+        fixture["workflow"]["createDraft"]["variables"].clone(),
+    ));
+    assert_eq!(create_response.body["data"], fixture["draftCreate"]["data"]);
+    let transfer_id = create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
+        ["id"]
+        .as_str()
+        .unwrap();
+
+    let ready_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventory-transfer-mark-ready.graphql"),
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        ready_response.body["data"],
+        fixture["readyTransition"]["data"]
+    );
+
+    let inventory_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql"
+        ),
+        fixture["workflow"]["afterReadyInventoryRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        inventory_read.body["data"],
+        fixture["readyInventoryReadAfterWriteGraphql"]["data"]
+    );
+
+    let cancel_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventory-transfer-cancel.graphql"),
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        cancel_response.body["data"],
+        fixture["cancelReadyTransfer"]["data"]
+    );
+
+    let delete_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/inventory-transfer-delete.graphql"),
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        delete_response.body["data"],
+        fixture["deleteNonDraftGuardrail"]["data"]
+    );
+}
+
+#[test]
+fn selling_plan_downstream_reads_replay_captured_membership_shapes() {
+    let lifecycle: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
+    ))
+    .unwrap();
+    let relationship: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let lifecycle_variables = json!({
+        "productId": "gid://shopify/Product/10171897807154",
+        "variantId": "gid://shopify/ProductVariant/51104286736690"
+    });
+    for (capture_index, label) in [
+        (4_usize, "after create"),
+        (6, "after product removal"),
+        (10, "after variant add"),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../config/parity-requests/products/selling-plan-group-downstream-read.graphql"
+            ),
+            lifecycle_variables.clone(),
+        ));
+        assert_eq!(
+            response.body["data"], lifecycle["captures"][capture_index]["response"]["data"],
+            "selling plan lifecycle downstream read {label} should match capture"
+        );
+    }
+
+    let relationship_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql"
+        ),
+        relationship["sellingPlanDownstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(
+        relationship_response.body["data"],
+        relationship["sellingPlanDownstreamRead"]["response"]["data"]
+    );
+}
+
+#[test]
+fn combined_listing_product_create_preserves_captured_parent_roles() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    for operation_key in ["createParentAlready", "createParentEditRemove"] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql"
+            ),
+            fixture["operations"][operation_key]["request"]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body["data"], fixture["operations"][operation_key]["response"]["data"],
+            "combined listing productCreate {operation_key} should preserve requested parent role"
+        );
+    }
+}
+
+#[test]
+fn online_store_mobile_platform_application_lifecycle_and_validation_are_local() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateCreate {
+          appleCreate: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.old", universalLinksEnabled: false, sharedWebCredentialsEnabled: true, appClipsEnabled: false, appClipApplicationId: "com.example.apple.old.Clip" } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+          androidCreate: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.old", appLinksEnabled: false, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let apple_id = create.body["data"]["appleCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let android_id = create.body["data"]["androidCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"],
+        json!({
+            "appleCreate": {"mobilePlatformApplication": {"__typename": "AppleApplication", "id": apple_id, "appId": "com.example.apple.old", "universalLinksEnabled": false, "sharedWebCredentialsEnabled": true, "appClipsEnabled": false, "appClipApplicationId": "com.example.apple.old.Clip"}, "userErrors": []},
+            "androidCreate": {"mobilePlatformApplication": {"__typename": "AndroidApplication", "id": android_id, "applicationId": "com.example.android.old", "appLinksEnabled": false, "sha256CertFingerprints": ["AA:BB"]}, "userErrors": []}
+        })
+    );
+
+    let apple_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateApple($id: ID!) {
+          mobilePlatformApplicationUpdate(id: $id, input: { apple: { appId: "com.example.apple.new", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: "com.example.apple.new.Clip" } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"id": apple_id}),
+    ));
+    assert_eq!(
+        apple_update.body["data"]["mobilePlatformApplicationUpdate"]["mobilePlatformApplication"]
+            ["appId"],
+        json!("com.example.apple.new")
+    );
+    assert_eq!(
+        apple_update.body["data"]["mobilePlatformApplicationUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let android_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateAndroid($id: ID!) {
+          mobilePlatformApplicationUpdate(id: $id, input: { android: { applicationId: "com.example.android.new", appLinksEnabled: true, sha256CertFingerprints: ["CC:DD", "EE:FF"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"id": android_id}),
+    ));
+    assert_eq!(
+        android_update.body["data"]["mobilePlatformApplicationUpdate"]["mobilePlatformApplication"]
+            ["applicationId"],
+        json!("com.example.android.new")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($appleId: ID!, $androidId: ID!) {
+          apple: mobilePlatformApplication(id: $appleId) { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+          android: mobilePlatformApplication(id: $androidId) { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+        }
+        "#,
+        json!({"appleId": apple_id, "androidId": android_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["apple"]["appId"],
+        json!("com.example.apple.new")
+    );
+    assert_eq!(
+        read.body["data"]["android"]["sha256CertFingerprints"],
+        json!(["CC:DD", "EE:FF"])
+    );
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateValidation($appleId: ID!, $androidId: ID!, $missingId: ID!) {
+          platformMismatch: mobilePlatformApplicationUpdate(id: $androidId, input: { apple: { appId: "com.example.wrong-platform" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          missing: mobilePlatformApplicationUpdate(id: $missingId, input: { apple: { appId: "com.example.missing" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          blankApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "  " } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+        }
+        "#,
+        json!({"appleId": apple_id, "androidId": android_id, "missingId": "gid://shopify/MobilePlatformApplication/9999999999"}),
+    ));
+    assert_eq!(
+        validation.body["data"]["platformMismatch"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+    assert_eq!(
+        validation.body["data"]["missing"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        validation.body["data"]["blankAndroid"]["userErrors"][0]["code"],
+        json!("BLANK")
+    );
+    assert_eq!(
+        validation.body["data"]["blankApple"]["userErrors"][0]["code"],
+        json!("BLANK")
+    );
+}
+
+#[test]
+fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
+    let mut proxy = snapshot_proxy();
+
+    let script_validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagCreateValidatesSrc {
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        script_validation.body["data"]["blank"]["userErrors"][0],
+        json!({"code": "BLANK", "field": ["input", "src"], "message": "Source can't be blank"})
+    );
+    assert_eq!(
+        script_validation.body["data"]["tooLong"]["userErrors"][0]["code"],
+        json!("TOO_LONG")
+    );
+    assert_eq!(
+        script_validation.body["data"]["invalid"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+    assert_eq!(
+        script_validation.body["data"]["http"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
+    let create_script = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateValidationCreate {
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create_script.body["data"]["scriptTagCreate"]["scriptTag"],
+        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false})
+    );
+
+    let script_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateEventForceOnload {
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["event"],
+        json!("onload")
+    );
+    assert_eq!(
+        script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["cache"],
+        json!(true)
+    );
+
+    let web_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateValidationLocalRuntime {
+          create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        web_pixel.body["data"]["invalidJson"]["userErrors"][0]["code"],
+        json!("INVALID_CONFIGURATION_JSON")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["validUpdate"]["webPixel"]["settings"],
+        json!({"accountID": "abc"})
+    );
+
+    let theme_files = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeFilesChecksumsAndValidation {
+          themeCreate(source: "https://example.com/har-585-theme.zip", name: "HAR 585 theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        theme_files.body["data"]["first"]["upsertedThemeFiles"][0]["checksumMd5"],
+        json!("5d41402abc4b2a76b9719d911017c592")
+    );
+    assert_eq!(
+        theme_files.body["data"]["second"]["upsertedThemeFiles"][0]["size"],
+        json!(11)
+    );
+    assert_eq!(
+        theme_files.body["data"]["invalid"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+}
+
+#[test]
+fn online_store_storefront_access_token_edges_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFirst {
+          storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
+            storefrontAccessToken { id title accessToken accessScopes { handle } }
+            shop { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let first_token = first.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(first_token.starts_with("shpat_"));
+    assert_eq!(
+        first.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": {
+                "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+                "title": "Hydrogen",
+                "accessToken": first_token,
+                "accessScopes": [
+                    {"handle": "unauthenticated_read_product_listings"},
+                    {"handle": "unauthenticated_read_product_inventory"}
+                ]
+            },
+            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "userErrors": []
+        })
+    );
+
+    let mut filtered_request = json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFilteredScopes {
+          storefrontAccessTokenCreate(input: { title: "Hydrogen filtered" }) {
+            storefrontAccessToken { id title accessToken accessScopes { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    filtered_request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,unauthenticated_read_customers,unauthenticated_read_product_inventory,write_orders"
+            .to_string(),
+    );
+    let filtered = proxy.process_request(filtered_request);
+    let filtered_token = filtered.body["data"]["storefrontAccessTokenCreate"]
+        ["storefrontAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap();
+    assert!(filtered_token.starts_with("shpat_"));
+    assert_ne!(filtered_token, first_token);
+    assert_eq!(
+        filtered.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
+            ["accessScopes"],
+        json!([
+            {"handle": "unauthenticated_read_customers"},
+            {"handle": "unauthenticated_read_product_inventory"}
+        ])
+    );
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeBlankTitle {
+          storefrontAccessTokenCreate(input: { title: "   " }) {
+            storefrontAccessToken { id }
+            shop { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": null,
+            "shop": {"id": "gid://shopify/Shop/92891250994"},
+            "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
+        })
+    );
+
+    for index in 0..98 {
+        let fill = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {
+              storefrontAccessTokenCreate(input: { title: $title }) {
+                storefrontAccessToken { id }
+                userErrors { code field message }
+              }
+            }
+            "#,
+            json!({"title": format!("token {index}")}),
+        ));
+        assert_eq!(
+            fill.body["data"]["storefrontAccessTokenCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeLimit {
+          storefrontAccessTokenCreate(input: { title: "One too many" }) {
+            storefrontAccessToken { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        limit.body["data"]["storefrontAccessTokenCreate"],
+        json!({
+            "storefrontAccessToken": null,
+            "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
+        })
+    );
+}
+
+#[test]
+fn online_store_pixel_endpoint_edges_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let web_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStorePixelLocalRuntimeEdges {
+          create: webPixelCreate(webPixel: {}) { webPixel { id status settings webhookEndpointAddress } userErrors { __typename code field message } }
+          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id status } userErrors { __typename code field message } }
+          missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status webhookEndpointAddress } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        web_pixel.body["data"]["create"],
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "NEEDS_CONFIGURATION", "settings": null, "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        web_pixel.body["data"]["duplicate"],
+        json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]})
+    );
+    assert_eq!(
+        web_pixel.body["data"]["missingUpdate"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["invalidJson"]["userErrors"][0]["code"],
+        json!("INVALID_CONFIGURATION_JSON")
+    );
+    assert_eq!(
+        web_pixel.body["data"]["validUpdate"]["webPixel"],
+        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}, "status": "CONNECTED", "webhookEndpointAddress": null})
+    );
+
+    let missing_server = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreServerPixelMissingEndpointUpdate {
+          eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/missing") {
+            serverPixel { id webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_server.body["data"]["eventBridgeServerPixelUpdate"],
+        json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]})
+    );
+
+    let server_pixel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreServerPixelEndpointLocalRuntimeEdges {
+          create: serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
+          invalidArn: eventBridgeServerPixelUpdate(arn: "not-an-arn") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          blankPubSub: pubSubServerPixelUpdate(pubSubProject: "", pubSubTopic: " ") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        server_pixel.body["data"]["create"],
+        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "CONNECTED", "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        server_pixel.body["data"]["invalidArn"]["userErrors"][0]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["blankPubSub"]["userErrors"],
+        json!([
+            {"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubProject"], "message": "pubSubProject can't be blank"},
+            {"__typename": "ServerPixelUserError", "code": "INVALID_FIELD_ARGUMENTS", "field": ["pubSubTopic"], "message": "pubSubTopic can't be blank"}
+        ])
+    );
+    assert_eq!(
+        server_pixel.body["data"]["eventBridge"]["serverPixel"]["webhookEndpointAddress"],
+        json!("arn:aws:events:us-east-1:123456789012:event-bus/local")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],
+        json!("project/topic")
+    );
+}
+
+#[test]
+fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeCreate {
+          first: themeCreate(source: "https://example.com/current.zip", name: "Current main", role: MAIN) { theme { id role name } userErrors { field message code } }
+          second: themeCreate(source: "https://example.com/next.zip", name: "Next main", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } }
+          demo: themeCreate(source: "https://example.com/demo.zip", name: "Demo theme", role: DEMO) { theme { id role name } userErrors { field message code } }
+          locked: themeCreate(source: "https://example.com/locked.zip", name: "Locked fixture", role: LOCKED) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["first"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        created.body["data"]["second"]["theme"]["role"],
+        json!("UNPUBLISHED")
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimePublish {
+          publishSecond: themePublish(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") { theme { id role } userErrors { field message } }
+          rejectDemo: themePublish(id: "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic") { theme { id role } userErrors { field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish.body["data"]["publishSecond"],
+        json!({"theme": {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "MAIN"}, "userErrors": []})
+    );
+    assert_eq!(
+        publish.body["data"]["rejectDemo"],
+        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Theme cannot be published from role DEMO"}]})
+    );
+
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish {
+          previous: theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { id role name }
+          mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["previous"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "UNPUBLISHED", "name": "Current main"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["mains"]["nodes"],
+        json!([{"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Next main"}])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeUpdate {
+          locked: themeUpdate(id: "gid://shopify/OnlineStoreTheme/4?shopify-draft-proxy=synthetic", input: { name: "Renamed" }) { theme { id role name } userErrors { field message code } }
+          blank: themeUpdate(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", input: { name: "   " }) { theme { id role name } userErrors { field message code } }
+          valid: themeUpdate(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", input: { name: "Renamed fixture" }) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        update.body["data"]["locked"],
+        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Locked themes cannot be modified.", "code": "CANNOT_UPDATE_LOCKED_THEME"}]})
+    );
+    assert_eq!(
+        update.body["data"]["blank"],
+        json!({"theme": null, "userErrors": [{"field": ["input", "name"], "message": "Name can't be blank", "code": "INVALID"}]})
+    );
+    assert_eq!(
+        update.body["data"]["valid"],
+        json!({"theme": {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "UNPUBLISHED", "name": "Renamed fixture"}, "userErrors": []})
+    );
+
+    let delete_only_main_proxy = {
+        let mut proxy = snapshot_proxy();
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation RustOnlineStoreThemeLocalRuntimeOnlyMainSetup {
+              themeCreate(source: "https://example.com/current.zip", name: "Only main", role: MAIN) { theme { id role name } userErrors { field message code } }
+            }
+            "#,
+            json!({}),
+        ));
+        proxy
+    };
+    let mut delete_only_main_proxy = delete_only_main_proxy;
+    let only_main = delete_only_main_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeOnlyMainDelete {
+          themeDelete(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        only_main.body["data"]["themeDelete"],
+        json!({"deletedThemeId": null, "userErrors": [{"field": ["id"], "message": "You can't delete your only published theme.", "code": "INVALID"}]})
+    );
+
+    let delete_non_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDeleteNonMain {
+          deleteDemo: themeDelete(id: "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+          deleteFormerMain: themeDelete(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { deletedThemeId userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete_non_main.body["data"]["deleteDemo"],
+        json!({"deletedThemeId": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        delete_non_main.body["data"]["deleteFormerMain"],
+        json!({"deletedThemeId": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+}
+
+#[test]
+fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeCreate {
+          themeCreate(source: "https://example.com/theme.zip", name: "HAR 585 Theme") { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let upserts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeUpsert {
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        upserts.body["data"]["first"]["upsertedThemeFiles"][0],
+        json!({"filename": "templates/index.json", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+    );
+    assert_eq!(
+        upserts.body["data"]["second"]["upsertedThemeFiles"][0],
+        json!({"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+    );
+    assert_eq!(
+        upserts.body["data"]["invalid"],
+        json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
+    );
+
+    let copy_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
+          missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
+          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
+          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        copy_delete.body["data"]["missingCopy"],
+        json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
+        json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["requiredDelete"]["userErrors"],
+        json!([
+            {"field": ["files", "0"], "message": "File is required and can't be deleted", "code": "INVALID"},
+            {"field": ["files", "1"], "message": "File is required and can't be deleted", "code": "INVALID"}
+        ])
+    );
+    assert_eq!(
+        copy_delete.body["data"]["deleteCopy"],
+        json!({"deletedThemeFiles": [{"filename": "assets/copy.js"}], "userErrors": []})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeFileLocalRuntimeRead {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["theme"]["files"]["nodes"],
+        json!([
+            {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
+            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}
+        ])
+    );
+}
+
+#[test]
+fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let seeded = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } } nodes { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Metaobject/185593102642",
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        seeded.body["data"]["catalog"]["nodes"][0]["id"],
+        json!("gid://shopify/Metaobject/185593102642")
+    );
+    assert_eq!(
+        seeded.body["data"]["detail"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+    assert_eq!(
+        seeded.body["data"]["byHandle"]["titleField"]["value"],
+        json!("HAR-240 title 1777156845370")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Metaobject/185593102642"}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": "gid://shopify/Metaobject/185593102642", "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Metaobject/185593102642",
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalog"],
+        json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"metaobject": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370", "capabilities": {"publishable": {"status": "ACTIVE"}}, "fields": [{"key": "title", "value": "HAR-240 title 1777156845370"}, {"key": "body", "value": "HAR-240 body 1777156845370"}]}}),
+    ));
+    let created_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(created_id.starts_with("gid://shopify/Metaobject/"));
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+
+    let after_create = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt } } nodes { id handle type displayName updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id handle type displayName updatedAt }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt }
+        }
+        "#,
+        json!({
+            "id": created_id,
+            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
+            "type": "codex_har_240_1777156845370"
+        }),
+    ));
+    assert_eq!(
+        after_create.body["data"]["catalog"]["nodes"][0]["id"],
+        created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+    );
+    assert_eq!(
+        after_create.body["data"]["byHandle"]["displayName"],
+        json!("HAR-240 title 1777156845370")
+    );
+}
+
+#[test]
+fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_delete() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Reference source", "contentType": "IMAGE", "filename": "reference-source.jpg", "originalSource": "https://cdn.example.com/reference-source.jpg"}]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
+            "userErrors": []
+        })
+    );
+
+    let attach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceAttach($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"files": [{"id": "gid://shopify/MediaImage/2", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
+    ));
+    assert_eq!(
+        attach.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{"field": ["files"], "message": "Non-ready files cannot be updated.", "code": "NON_READY_STATE"}]})
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceProductRead($productId: ID!) {
+          product(id: $productId) { id title media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/429001"}),
+    ));
+    assert_eq!(
+        product_read.body["data"]["product"],
+        json!({"id": "gid://shopify/Product/429001", "title": "File reference target", "media": {"nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}})
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead {
+          files(first: 10) { nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"],
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/39516006482153"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/39516006482153"], "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FileDeleteMediaReferenceDownstream($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/9264121479401"}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"],
+        json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
+    );
+}
+
+#[test]
+fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileDeleteTypedGidRoundtripCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id alt createdAt fileStatus } userErrors { field message code } }
+        }
+        "#,
+        json!({"files": [
+            {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete actual 1777945543894"},
+            {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete wrong type 1777945543894"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({"files": [
+            {"id": "gid://shopify/MediaImage/2", "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
+            {"id": "gid://shopify/MediaImage/3", "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
+        ], "userErrors": []})
+    );
+
+    let delete_actual = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+    ));
+    assert_eq!(
+        delete_actual.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/2"], "userErrors": []})
+    );
+
+    let delete_wrong_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileDeleteParity($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/Video/3"]}),
+    ));
+    assert_eq!(
+        delete_wrong_type.body["data"]["fileDelete"],
+        json!({"deletedFileIds": ["gid://shopify/MediaImage/3"], "userErrors": []})
+    );
+}
+
+#[test]
+fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
+    let mut proxy = snapshot_proxy();
+
+    let pin_a = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionPinByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionPin(identifier: $identifier) {
+            pinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+    ));
+    assert_eq!(
+        pin_a.body["data"]["metafieldDefinitionPin"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        pin_a.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
+        json!(3)
+    );
+
+    let pin_b = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionPinByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionPin(identifier: $identifier) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+        }
+        "#,
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_b"}}),
+    ));
+    assert_eq!(
+        pin_b.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
+        json!(4)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionPinningRead($namespace: String!) {
+          byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_a" }) { id key pinnedPosition }
+          pinned: metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION, pinnedStatus: PINNED) { nodes { key pinnedPosition } }
+        }
+        "#,
+        json!({"namespace": "metafield_definition_pin_moyouov1"}),
+    ));
+    assert_eq!(
+        read.body["data"]["byIdentifier"]["pinnedPosition"],
+        json!(3)
+    );
+    assert_eq!(
+        read.body["data"]["pinned"]["nodes"],
+        json!([
+            {"key": "pin_b", "pinnedPosition": 4},
+            {"key": "pin_a", "pinnedPosition": 3}
+        ])
+    );
+
+    let unpin_a = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUnpinByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionUnpin(identifier: $identifier) { unpinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+        }
+        "#,
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+    ));
+    assert_eq!(
+        unpin_a.body["data"]["metafieldDefinitionUnpin"]["unpinnedDefinition"]["pinnedPosition"],
+        Value::Null
+    );
+
+    let limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionPinLimitAndConstraintGuard($namespace: String!, $categoryId: String!) {
+          create01: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_01", name: "HAR 699 pin 01", type: "single_line_text_field" }) { createdDefinition { id key } userErrors { field message code } }
+          pin01: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_01" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+          create21: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_21", name: "HAR 699 pin 21", type: "single_line_text_field" }) { createdDefinition { id key } userErrors { field message code } }
+          pin21: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_21" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+          constrainedCreate: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "constrained", name: "HAR 699 constrained", type: "single_line_text_field", constraints: { key: "category", values: [$categoryId] } }) { createdDefinition { id key constraints { key } } userErrors { field message code } }
+          constrainedPin: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+        }
+        "#,
+        json!({"namespace": "har699", "categoryId": "gid://shopify/TaxonomyCategory/sg-4-17-2-17"}),
+    ));
+    assert_eq!(
+        limit.body["data"]["pin01"]["pinnedDefinition"]["pinnedPosition"],
+        json!(1)
+    );
+    assert_eq!(
+        limit.body["data"]["pin21"]["userErrors"][0]["code"],
+        json!("PINNED_LIMIT_REACHED")
+    );
+    assert_eq!(
+        limit.body["data"]["constrainedPin"]["userErrors"][0]["code"],
+        json!("UNSUPPORTED_PINNING")
+    );
+}
+
+#[test]
+fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let product_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionLifecycleMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "boolean", "type": "boolean", "value": "true"},
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "json", "type": "json", "value": "{\"ingredient\":\"flour\",\"amount\":0.3}"},
+            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "number_decimal", "type": "number_decimal", "value": "10.4"}
+        ]}),
+    ));
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][0]["jsonValue"],
+        json!(true)
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][1]["jsonValue"],
+        json!({"ingredient": "flour", "amount": 0.3})
+    );
+    assert_eq!(
+        product_set.body["data"]["metafieldsSet"]["metafields"][2]["jsonValue"],
+        json!("10.4")
+    );
+
+    let product_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomDataMetafieldTypeMatrixRead($id: ID!, $namespace: String!) {
+          product(id: $id) { id metafields(first: 100, namespace: $namespace) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/10173071262002", "namespace": "har294_test"}),
+    ));
+    assert_eq!(
+        product_read.body["data"]["product"]["id"],
+        json!("gid://shopify/Product/10173071262002")
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        product_read.body["data"]["product"]["metafields"]["nodes"][1]["key"],
+        json!("json")
+    );
+
+    let customer_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionNonProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value", "type": "single_line_text_field", "value": "CUSTOMER metafieldsSet value"}]}),
+    ));
+    assert_eq!(
+        customer_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let customer_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionNonProductCustomerMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {
+          customer(id: $id) { id metafield(namespace: $namespace, key: $key) { id namespace key type value } metafields(first: 10, namespace: $namespace) { nodes { id namespace key type value } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value"}),
+    ));
+    assert_eq!(
+        customer_read.body["data"]["customer"]["metafield"]["value"],
+        json!("CUSTOMER metafieldsSet value")
+    );
+    assert_eq!(
+        customer_read.body["data"]["customer"]["metafields"]["nodes"][0]["key"],
+        json!("value")
+    );
+}
+
+#[test]
+fn metafields_app_namespace_set_delete_stages_product_readback() {
+    let mut proxy = snapshot_proxy();
+
+    let set_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+    ));
+    assert_eq!(
+        set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!("app--347082227713--value_namespace_mowuw5ai")
+    );
+
+    let read_after_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $canonicalNamespace: String!, $defaultNamespace: String!, $key: String!, $defaultKey: String!) {
+          product(id: $productId) {
+            id
+            canonical: metafield(namespace: $canonicalNamespace, key: $key) { id namespace key type value }
+            defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) { id namespace key type value }
+          }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+    ));
+    assert_eq!(
+        read_after_canonical.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10180596236594",
+            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"},
+            "defaulted": null
+        })
+    );
+
+    let set_default = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}]}),
+    ));
+    assert_eq!(
+        set_default.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!("app--347082227713")
+    );
+
+    let delete_canonical = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsDeleteAppNamespaceResolution($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
+    ));
+    assert_eq!(
+        delete_canonical.body["data"]["metafieldsDelete"],
+        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier"}], "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $canonicalNamespace: String!, $defaultNamespace: String!, $key: String!, $defaultKey: String!) {
+          product(id: $productId) {
+            id
+            canonical: metafield(namespace: $canonicalNamespace, key: $key) { id namespace key type value }
+            defaulted: metafield(namespace: $defaultNamespace, key: $defaultKey) { id namespace key type value }
+          }
+        }
+        "#,
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10180596236594",
+            "canonical": null,
+            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": "app--347082227713", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
+        })
+    );
+}
+
+#[test]
+fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/0",
+            "input": {
+                "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "price": {"amount": "12.00", "currencyCode": "CAD"}}],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_price_list.body["data"]["quantityPricingByVariantUpdate"]["productVariants"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_price_list.body["data"]["quantityPricingByVariantUpdate"]["userErrors"][0],
+        json!({"__typename": "QuantityPricingByVariantUserError", "field": ["priceListId"], "code": "PRICE_LIST_NOT_FOUND", "message": "Price list not found."})
+    );
+
+    let duplicate_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) { productVariants { id } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/31575376178",
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": ["gid://shopify/ProductVariant/49875425296690", "gid://shopify/ProductVariant/49875425296690"],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        duplicate_delete.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let cleanup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) { deletedQuantityRulesVariantIds userErrors { field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "variantIds": ["gid://shopify/ProductVariant/49875425296690"]}),
+    ));
+    assert_eq!(
+        cleanup.body["data"]["quantityRulesDelete"],
+        json!({"deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"], "userErrors": []})
+    );
+
+    let unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/0", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        unknown_variant.body["data"]["quantityRulesAdd"]["quantityRules"],
+        json!([])
+    );
+    assert_eq!(
+        unknown_variant.body["data"]["quantityRulesAdd"]["userErrors"][0],
+        json!({"field": ["quantityRules", "0", "variantId"], "code": "PRODUCT_VARIANT_DOES_NOT_EXIST", "message": "Product variant ID does not exist."})
+    );
+
+    let unknown_quantity_rules_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/999", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        unknown_quantity_rules_price_list.body["data"]["quantityRulesAdd"],
+        json!({"quantityRules": [], "userErrors": [{"__typename": "QuantityRuleUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_DOES_NOT_EXIST"}]})
+    );
+
+    let valid_quantity_rules_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
+        }
+        "#,
+        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+    ));
+    assert_eq!(
+        valid_quantity_rules_add.body["data"]["quantityRulesAdd"],
+        json!({"quantityRules": [{"minimum": 2, "maximum": 10, "increment": 2, "productVariant": {"id": "gid://shopify/ProductVariant/49875425296690"}}], "userErrors": []})
+    );
+
+    let invalid_quantity_rule_cases = [
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 0, "maximum": 10, "increment": 1}]),
+            json!([
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be greater than or equal to one.", "code": "GREATER_THAN_OR_EQUAL_TO"},
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "increment"], "message": "Increment must be lower than or equal to the minimum.", "code": "INCREMENT_IS_GREATER_THAN_MINIMUM"}
+            ]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 1, "maximum": 10, "increment": 0}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "increment"], "message": "Increment must be greater than or equal to one.", "code": "GREATER_THAN_OR_EQUAL_TO" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 10, "maximum": 5, "increment": 1}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be lower than or equal to the maximum.", "code": "MINIMUM_IS_GREATER_THAN_MAXIMUM" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 5, "maximum": 12, "increment": 3}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "minimum"], "message": "Minimum must be a multiple of the increment.", "code": "MINIMUM_NOT_MULTIPLE_OF_INCREMENT" }]),
+        ),
+        (
+            json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 6, "maximum": 10, "increment": 3}]),
+            json!([{ "__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "maximum"], "message": "Maximum must be a multiple of the increment.", "code": "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT" }]),
+        ),
+        (
+            json!([
+                {"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2},
+                {"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 4, "maximum": 12, "increment": 2}
+            ]),
+            json!([
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "0", "variantId"], "message": "Quantity rule inputs must be unique by variant id.", "code": "DUPLICATE_INPUT_FOR_VARIANT"},
+                {"__typename": "QuantityRuleUserError", "field": ["quantityRules", "1", "variantId"], "message": "Quantity rule inputs must be unique by variant id.", "code": "DUPLICATE_INPUT_FOR_VARIANT"}
+            ]),
+        ),
+    ];
+    for (quantity_rules, user_errors) in invalid_quantity_rule_cases {
+        let invalid = proxy.process_request(json_graphql_request(
+            r#"
+            mutation QuantityRulesAddValidation($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+              quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+                quantityRules { minimum maximum increment productVariant { id } }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({"priceListId": "gid://shopify/PriceList/31575376178", "quantityRules": quantity_rules}),
+        ));
+        assert_eq!(
+            invalid.body["data"]["quantityRulesAdd"],
+            json!({"quantityRules": [], "userErrors": user_errors})
+        );
+    }
+
+    let fr_ca = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id subfolderSuffix rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "fr-CA", "alternateLocales": [], "subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        fr_ca.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"]["locale"],
+        json!("fr-CA")
+    );
+    assert_eq!(
+        fr_ca.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+
+    let multi = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
+    ));
+    assert_eq!(
+        multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/intl/"},
+            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/intl/fr/"},
+            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/intl/de/"}
+        ])
+    );
+}
+
+#[test]
+fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
+    // root URL construction for subfolder/domain routing, Shopify locale normalization,
+    // aggregate locale errors, subfolder validation ordering, create/update readback,
+    // unknown-domain create guards, and taken-suffix/no-op update behavior.
+    let create_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+          webPresenceUpdate(id: $id, input: $input) {
+            webPresence {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketWebPresenceHelperLocalRuntimeRead {
+          webPresences(first: 10) {
+            nodes {
+              id subfolderSuffix
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+            }
+          }
+        }
+    "#;
+
+    let mut proxy = snapshot_proxy();
+    let subfolder = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
+    ));
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        Value::Null
+    );
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://acme.myshopify.com/intl/"},
+            {"locale": "fr", "url": "https://acme.myshopify.com/intl/fr/"},
+            {"locale": "de", "url": "https://acme.myshopify.com/intl/de/"}
+        ])
+    );
+
+    let domain = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/1000"}}),
+    ));
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        json!({"id": "gid://shopify/Domain/1000", "host": "acme.myshopify.com", "url": "https://acme.myshopify.com", "sslEnabled": true})
+    );
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://acme.myshopify.com/"},
+            {"locale": "fr", "url": "https://acme.myshopify.com/fr/"}
+        ])
+    );
+    assert_eq!(
+        domain.body["data"]["webPresenceCreate"]["webPresence"]["subfolderSuffix"],
+        Value::Null
+    );
+
+    let mut locale_proxy = snapshot_proxy();
+    let normalized = locale_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "EN-us", "alternateLocales": ["ZH-hant-tw", "pt-br"], "subfolderSuffix": "us"}}),
+    ));
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "en-US", "primary": true})
+    );
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([
+            {"locale": "zh-Hant-TW", "primary": false},
+            {"locale": "pt-BR", "primary": false}
+        ])
+    );
+    assert_eq!(
+        normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en-US", "url": "https://acme.myshopify.com/us/"},
+            {"locale": "zh-Hant-TW", "url": "https://acme.myshopify.com/us/zh-Hant-TW/"},
+            {"locale": "pt-BR", "url": "https://acme.myshopify.com/us/pt-BR/"}
+        ])
+    );
+
+    let invalid_locales = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "fr-CA", "alternateLocales": ["fr", "zz", "pt-BR", "yy"], "subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        invalid_locales.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_locales.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{"__typename": "MarketUserError", "field": ["input", "alternateLocales"], "message": "Invalid locale codes: zz, and yy", "code": "INVALID"}])
+    );
+
+    let validation_cases = [
+        (
+            json!({"defaultLocale": "en", "domainId": "gid://shopify/Domain/1000", "subfolderSuffix": "fr"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Cannot have both a subfolder suffix and a domain.", "code": "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN" }]),
+        ),
+        (
+            json!({"defaultLocale": "en"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Requires a domain or subfolder suffix.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "x"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "Latn"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix cannot be a script code", "code": "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "us2"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "1"}),
+            json!([
+                { "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS" },
+                { "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }
+            ]),
+        ),
+        (
+            json!({"defaultLocale": "en", "subfolderSuffix": "Latn1"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS" }]),
+        ),
+        (
+            json!({"defaultLocale": "en", "domainId": "gid://shopify/Domain/9999"}),
+            json!([{ "__typename": "MarketUserError", "field": ["input", "domainId"], "message": "Domain does not exist", "code": "DOMAIN_NOT_FOUND" }]),
+        ),
+    ];
+    for (input, expected_errors) in validation_cases {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["webPresenceCreate"]["webPresence"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceCreate"]["userErrors"],
+            expected_errors
+        );
+    }
+
+    let mut duplicate_proxy = snapshot_proxy();
+    let deduped = duplicate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "fr"], "subfolderSuffix": "dup"}}),
+    ));
+    assert_eq!(
+        deduped.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "fr", "primary": false }])
+    );
+    let taken = duplicate_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "dup"}}),
+    ));
+    assert_eq!(
+        taken.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        taken.body["data"]["webPresenceCreate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    let deduped_read = duplicate_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        deduped_read.body["data"]["webPresences"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let mut update_proxy = snapshot_proxy();
+    let create = update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["es"], "subfolderSuffix": "intl"}}),
+    ));
+    let id = create.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update_default = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"defaultLocale": "fr"}}),
+    ));
+    assert_eq!(
+        update_default.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "fr", "primary": true})
+    );
+    assert_eq!(
+        update_default.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "es", "primary": false }])
+    );
+    let update_alternates = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"alternateLocales": ["de"]}}),
+    ));
+    assert_eq!(
+        update_alternates.body["data"]["webPresenceUpdate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "fr", "primary": true})
+    );
+    assert_eq!(
+        update_alternates.body["data"]["webPresenceUpdate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "de", "primary": false }])
+    );
+    let empty_noop = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {}}),
+    ));
+    assert_eq!(
+        empty_noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
+        json!("intl")
+    );
+    let ignored_domain = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": id, "input": {"domainId": "gid://shopify/Domain/9999"}}),
+    ));
+    assert_eq!(
+        ignored_domain.body["data"]["webPresenceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        ignored_domain.body["data"]["webPresenceUpdate"]["webPresence"]["id"],
+        json!(id)
+    );
+
+    for (input, expected) in [
+        (
+            json!({"defaultLocale": ""}),
+            json!({"field": ["input", "defaultLocale"], "message": "Default locale can't be blank", "code": "CANNOT_SET_DEFAULT_LOCALE_TO_NULL"}),
+        ),
+        (
+            json!({"defaultLocale": "bogus"}),
+            json!({"field": ["input", "defaultLocale"], "message": "Invalid locale codes: bogus", "code": "INVALID"}),
+        ),
+        (
+            json!({"subfolderSuffix": "en1"}),
+            json!({"field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must contain only letters", "code": "SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS"}),
+        ),
+    ] {
+        let response = update_proxy.process_request(json_graphql_request(
+            update_query,
+            json!({"id": id, "input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["webPresence"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["field"],
+            expected["field"]
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["message"],
+            expected["message"]
+        );
+        assert_eq!(
+            response.body["data"]["webPresenceUpdate"]["userErrors"][0]["code"],
+            expected["code"]
+        );
+    }
+
+    let mut taken_update_proxy = snapshot_proxy();
+    let first = taken_update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "fr"}}),
+    ));
+    let first_id = first.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _second = taken_update_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "de"}}),
+    ));
+    let conflict = taken_update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_id, "input": {"subfolderSuffix": "de"}}),
+    ));
+    assert_eq!(
+        conflict.body["data"]["webPresenceUpdate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        conflict.body["data"]["webPresenceUpdate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    let noop = taken_update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_id, "input": {"subfolderSuffix": "fr"}}),
+    ));
+    assert_eq!(
+        noop.body["data"]["webPresenceUpdate"]["webPresence"]["subfolderSuffix"],
+        json!("fr")
+    );
+}
+
+#[test]
+fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
+    // Ports old Gleam proxy tests around marketCreate validation/staging:
+    // - status/enabled mismatch and partial-input defaults
+    // - price-inclusion projection and location-condition rejection
+    // - currency settings flags/read-after-write, invalid base currency, manual FX rate
+    // - duplicate/unsupported country-region guards without staging rejected records
+    // - generated handle slugification/deduplication and explicit duplicate handle/name errors
+    let create_query = r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id name handle status enabled
+              priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy }
+              currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketCreateLocalRuntimeRead($id: ID!) {
+          market(id: $id) {
+            id name handle status enabled
+            priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy }
+            currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled }
+          }
+        }
+    "#;
+
+    let mut mismatch_proxy = snapshot_proxy();
+    for input in [
+        json!({"name": "Mismatch", "status": "DRAFT", "enabled": true, "regions": [{"countryCode": "US"}]}),
+        json!({"name": "Mismatch", "status": "ACTIVE", "enabled": false, "regions": [{"countryCode": "US"}]}),
+    ] {
+        let response = mismatch_proxy
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["marketCreate"],
+            json!({
+                "market": null,
+                "userErrors": [{"__typename": "MarketUserError", "field": ["input"], "message": "Invalid status and enabled combination.", "code": "INVALID_STATUS_AND_ENABLED_COMBINATION"}]
+            })
+        );
+    }
+
+    let mut partial_proxy = snapshot_proxy();
+    let enabled_only = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Enabled Only", "enabled": true, "regions": [{"countryCode": "US"}]}}),
+    ));
+    assert_eq!(
+        enabled_only.body["data"]["marketCreate"]["market"],
+        json!({
+            "id": "gid://shopify/Market/1",
+            "name": "Enabled Only",
+            "handle": "enabled-only",
+            "status": "ACTIVE",
+            "enabled": true,
+            "priceInclusions": null,
+            "currencySettings": null
+        })
+    );
+    let draft = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Draft", "status": "DRAFT", "enabled": false}}),
+    ));
+    assert_eq!(
+        draft.body["data"]["marketCreate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        draft.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(false)
+    );
+
+    let mut price_proxy = snapshot_proxy();
+    let price_create = price_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Pricing",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
+            "priceInclusions": {"taxPricingStrategy": "ADD_TAXES_AT_CHECKOUT", "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"}
+        }}),
+    ));
+    assert_eq!(
+        price_create.body["data"]["marketCreate"]["market"]["priceInclusions"],
+        json!({"inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE", "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"})
+    );
+    let price_read = price_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(
+        price_read.body["data"]["market"]["priceInclusions"],
+        json!({"inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE", "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"})
+    );
+
+    let location_price_error = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Location Pricing",
+            "conditions": {"locationsCondition": {"locationIds": ["gid://shopify/Location/1"]}},
+            "priceInclusions": {"taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE", "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"}
+        }}),
+    ));
+    assert_eq!(
+        location_price_error.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "priceInclusions"], "message": "Inclusive pricing cannot be added to a market with the specified condition types.", "code": "INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"}]
+        })
+    );
+
+    let mut currency_proxy = snapshot_proxy();
+    let currency_create = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Currency Flags", "status": "ACTIVE", "enabled": true, "currencySettings": {"baseCurrency": "USD", "localCurrencies": true, "roundingEnabled": true}}}),
+    ));
+    assert_eq!(
+        currency_create.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "USD", "currencyName": "US Dollar"}, "localCurrencies": true, "roundingEnabled": true})
+    );
+    let currency_read = currency_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(
+        currency_read.body["data"]["market"]["currencySettings"],
+        currency_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+
+    for input in [
+        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
+        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XAF"}}),
+    ] {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"][0],
+            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrency"], "message": "Base currency is invalid", "code": "INVALID"})
+        );
+    }
+    for input in [
+        json!({"name": "Manual Rate", "currencySettings": {"baseCurrency": "USD", "baseCurrencyManualRate": 0}}),
+        json!({"name": "Manual Rate", "currencySettings": {"baseCurrency": "USD", "baseCurrencyManualRate": -1.5}}),
+    ] {
+        let response = snapshot_proxy()
+            .process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"][0],
+            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrencyManualRate"], "message": "Enter a rate above 0.", "code": null})
+        );
+    }
+
+    let mut region_proxy = snapshot_proxy();
+    let first_ca = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Local", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        first_ca.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+    let duplicate_ca = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Duplicate", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        duplicate_ca.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "Code has already been taken", "code": "TAKEN"})
+    );
+    let unsupported = region_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Unsupported", "regions": [{"countryCode": "US"}, {"countryCode": "CU"}]}}),
+    ));
+    assert_eq!(
+        unsupported.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "CU is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"})
+    );
+    assert!(!region_proxy
+        .get_state_snapshot()
+        .to_string()
+        .contains("Unsupported"));
+
+    let mut handle_proxy = snapshot_proxy();
+    for (name, expected_handle) in [
+        ("Europe", "europe"),
+        ("Europe!", "europe-1"),
+        ("Europe?", "europe-2"),
+    ] {
+        let response = handle_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": name}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["handle"],
+            json!(expected_handle)
+        );
+    }
+    let slug = snapshot_proxy().process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "  North & South / EU!  "}}),
+    ));
+    assert_eq!(
+        slug.body["data"]["marketCreate"]["market"]["handle"],
+        json!("north-south-eu")
+    );
+
+    let mut duplicate_name_proxy = snapshot_proxy();
+    let _ = duplicate_name_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    let duplicate_name = duplicate_name_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    assert_eq!(
+        duplicate_name.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
+    );
+    let mut duplicate_handle_proxy = snapshot_proxy();
+    let _ = duplicate_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Europe"}}),
+    ));
+    let duplicate_handle = duplicate_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Other", "handle": "Europe"}}),
+    ));
+    assert_eq!(
+        duplicate_handle.body["data"]["marketCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "handle"], "message": "Generated handle has already been taken", "code": "GENERATED_DUPLICATED_HANDLE"})
+    );
+}
+
+#[test]
+fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
+    // required/invalid status, required context/market IDs, unsupported country contexts,
+    // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
+    // and catalogContextUpdate add/remove validation/readback.
+    let create_query = r#"
+        mutation RustCatalogLocalRuntimeCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let validation_cases = [
+        (
+            json!({"title": "EU Catalog", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "status"], "message": "Status is required", "code": "REQUIRED"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "DISABLED", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "status"], "message": "Status is invalid", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Context is required", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds", "0"], "message": "Market does not exist", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": []}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": []}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "countryCodes"], "message": "Country codes can't be blank", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context", "driverType"], "message": "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "code": "INVALID"}),
+        ),
+        (
+            json!({"title": "", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/missing"]}}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "title"], "message": "Title can't be blank", "code": "BLANK"}),
+        ),
+    ];
+    for (input, error) in validation_cases {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [error]})
+        );
+    }
+
+    let mut proxy = snapshot_proxy();
+    let market_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    assert_eq!(
+        market_create.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+
+    let unknown_price_list = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/9999999999"}}),
+    ));
+    assert_eq!(
+        unknown_price_list.body["data"]["catalogCreate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list not found.", "code": "PRICE_LIST_NOT_FOUND"}]})
+    );
+    let unknown_publication = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "publicationId": "gid://shopify/Publication/9999999999"}}),
+    ));
+    assert_eq!(
+        unknown_publication.body["data"]["catalogCreate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication not found.", "code": "PUBLICATION_NOT_FOUND"}]})
+    );
+
+    let catalog_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    assert_eq!(
+        catalog_create.body["data"]["catalogCreate"],
+        json!({
+            "catalog": {"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}},
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustCatalogLocalRuntimeRead($id: ID!) {
+          catalog(id: $id) { id title status markets(first: 5) { nodes { id } } }
+          catalogs(first: 5, type: MARKET) { nodes { id title status markets(first: 5) { nodes { id } } } }
+        }
+        "#,
+        json!({"id": "gid://shopify/MarketCatalog/3"}),
+    ));
+    assert_eq!(
+        read.body["data"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}})
+    );
+    assert_eq!(
+        read.body["data"]["catalogs"]["nodes"],
+        json!([{"id": "gid://shopify/MarketCatalog/3", "title": "EU Catalog", "status": "ACTIVE", "markets": {"nodes": [{"id": "gid://shopify/Market/1"}]}}])
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/MarketCatalog/missing"}),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["catalogDelete"],
+        json!({"deletedId": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["id"], "message": "Catalog does not exist", "code": "CATALOG_NOT_FOUND"}]})
+    );
+
+    let unknown_context_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/404", "add": {"marketIds": ["gid://shopify/Market/404"]}}),
+    ));
+    assert_eq!(
+        unknown_context_catalog.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["catalogId"], "message": "Catalog does not exist", "code": "CATALOG_NOT_FOUND"}]})
+    );
+
+    let missing_contexts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!) {
+          catalogContextUpdate(catalogId: $catalogId) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3"}),
+    ));
+    assert_eq!(
+        missing_contexts.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [{"__typename": "CatalogUserError", "field": ["contextsToAdd"], "message": "Must have `contexts_to_add` or `contexts_to_remove` argument.", "code": "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE"}]})
+    );
+
+    let missing_market_contexts = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!, $remove: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) { catalog { id } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": ["gid://shopify/Market/404"]}, "remove": {"marketIds": ["gid://shopify/Market/405"]}}),
+    ));
+    assert_eq!(
+        missing_market_contexts.body["data"]["catalogContextUpdate"],
+        json!({"catalog": null, "userErrors": [
+            {"__typename": "CatalogUserError", "field": ["contextsToAdd", "marketIds", "0"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"},
+            {"__typename": "CatalogUserError", "field": ["contextsToRemove", "marketIds", "0"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}
+        ]})
+    );
+
+    let second_market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "North America", "regions": [{"countryCode": "US"}]}}),
+    ));
+    let second_market_id = second_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let context_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeContextUpdate($catalogId: ID!, $add: CatalogContextInput!, $remove: CatalogContextInput!) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog { id markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "add": {"marketIds": [second_market_id]}, "remove": {"marketIds": ["gid://shopify/Market/1"]}}),
+    ));
+    assert_eq!(
+        context_update.body["data"]["catalogContextUpdate"],
+        json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
+    );
+}
+
+#[test]
+fn market_catalog_relation_tail_helpers_ported_from_gleam() {
+    // Ports the remaining old Gleam markets_mutation tail helpers around:
+    // - marketCreate plan-limit skip cases in the Rust local-runtime shape
+    // - marketUpdate unknown catalog/web-presence link additions
+    // - catalogDelete detaching a surviving price list
+    // - catalogCreate/catalogUpdate taken price-list/publication relation guards
+    let market_create_query = r#"
+        mutation RustMarketCreateLocalRuntimeRelationCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id name status enabled catalogs(first: 5) { nodes { id } } webPresences(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_create_query = r#"
+        mutation RustCatalogLocalRuntimeRelationCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id title status priceList { id } publication { id } markets(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_update_query = r#"
+        mutation RustCatalogLocalRuntimeRelationUpdate($id: ID!, $input: CatalogUpdateInput!) {
+          catalogUpdate(id: $id, input: $input) { catalog { id priceList { id } publication { id } } userErrors { __typename field message code } }
+        }
+    "#;
+    let catalog_delete_query = r#"
+        mutation RustCatalogLocalRuntimeRelationDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { __typename field message code } }
+        }
+    "#;
+    let price_list_create_query = r#"
+        mutation RustPriceListLocalRuntimeRelationCreate($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) { priceList { id catalog { id } } userErrors { __typename field message code } }
+        }
+    "#;
+    let price_list_read_query = r#"
+        query RustPriceListLocalRuntimeRelationRead($catalogId: ID!, $priceListId: ID!) {
+          catalog(id: $catalogId) { id }
+          priceList(id: $priceListId) { id catalog { id } }
+        }
+    "#;
+    let market_update_query = r#"
+        mutation RustMarketRelationsLocalRuntimeUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              catalogs(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+              webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let web_presence_create_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeRelationCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) { webPresence { id markets(first: 5) { nodes { id } } } userErrors { __typename field message code } }
+        }
+    "#;
+    let web_presence_read_query = r#"
+        query RustMarketWebPresenceHelperLocalRuntimeRelationRead {
+          webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+        }
+    "#;
+    let catalog_read_query = r#"
+        query RustCatalogLocalRuntimeRelationRead($id: ID!) {
+          catalog(id: $id) { id markets(first: 5) { nodes { id } } priceList { id } publication { id } }
+        }
+    "#;
+
+    let mut plan_skip_proxy = snapshot_proxy();
+    let home_style = plan_skip_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Markets Home", "status": "ACTIVE", "enabled": true}}),
+    ));
+    assert_eq!(home_style.status, 200);
+    assert_eq!(
+        home_style.body["data"]["marketCreate"]["market"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        home_style.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(true)
+    );
+    let draft_style = plan_skip_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Draft", "status": "DRAFT", "enabled": false}}),
+    ));
+    assert_eq!(
+        draft_style.body["data"]["marketCreate"]["market"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(
+        draft_style.body["data"]["marketCreate"]["market"]["enabled"],
+        json!(false)
+    );
+
+    let mut detach_proxy = snapshot_proxy();
+    let _market = detach_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Attached Market"}}),
+    ));
+    let catalog = detach_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Attached Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let price_list = detach_proxy.process_request(json_graphql_request(
+        price_list_create_query,
+        json!({"input": {"name": "Attached Price List", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": catalog_id}}),
+    ));
+    let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete = detach_proxy.process_request(json_graphql_request(
+        catalog_delete_query,
+        json!({"id": catalog_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["catalogDelete"]["userErrors"],
+        json!([])
+    );
+    let detach_read = detach_proxy.process_request(json_graphql_request(
+        price_list_read_query,
+        json!({"catalogId": catalog.body["data"]["catalogCreate"]["catalog"]["id"], "priceListId": price_list_id}),
+    ));
+    assert_eq!(detach_read.body["data"]["catalog"], Value::Null);
+    assert_eq!(
+        detach_read.body["data"]["priceList"]["catalog"],
+        Value::Null
+    );
+
+    let mut relation_proxy = snapshot_proxy();
+    let market = relation_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    assert_eq!(
+        market.body["data"]["marketCreate"]["market"]["id"],
+        json!("gid://shopify/Market/1")
+    );
+    let first_catalog = relation_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "First Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/1", "publicationId": "gid://shopify/Publication/1"}}),
+    ));
+    assert_eq!(
+        first_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let second_catalog = relation_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Second Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for (input, expected_error) in [
+        (
+            json!({"title": "Price List Taken", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "priceListId": "gid://shopify/PriceList/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list has already been taken", "code": "TAKEN"}),
+        ),
+        (
+            json!({"title": "Publication Taken", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}, "publicationId": "gid://shopify/Publication/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication is already attached to another catalog", "code": "PUBLICATION_TAKEN"}),
+        ),
+    ] {
+        let response = relation_proxy.process_request(json_graphql_request(
+            catalog_create_query,
+            json!({"input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+    }
+
+    for (input, expected_error) in [
+        (
+            json!({"priceListId": "gid://shopify/PriceList/9999999999"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list not found.", "code": "PRICE_LIST_NOT_FOUND"}),
+        ),
+        (
+            json!({"publicationId": "gid://shopify/Publication/9999999999"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication not found.", "code": "PUBLICATION_NOT_FOUND"}),
+        ),
+        (
+            json!({"priceListId": "gid://shopify/PriceList/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "priceListId"], "message": "Price list has already been taken", "code": "TAKEN"}),
+        ),
+        (
+            json!({"publicationId": "gid://shopify/Publication/1"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "publicationId"], "message": "Publication is already attached to another catalog", "code": "PUBLICATION_TAKEN"}),
+        ),
+    ] {
+        let response = relation_proxy.process_request(json_graphql_request(
+            catalog_update_query,
+            json!({"id": second_catalog_id, "input": input}),
+        ));
+        assert_eq!(
+            response.body["data"]["catalogUpdate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+    }
+
+    let mut update_proxy = snapshot_proxy();
+    let _primary = update_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Primary"}}),
+    ));
+    let _secondary = update_proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Secondary"}}),
+    ));
+    let linked_catalog = update_proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Linked Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/2"]}}}),
+    ));
+    let linked_catalog_id = linked_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_catalog_link = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]}}),
+    ));
+    assert_eq!(
+        unknown_catalog_link.body["data"]["marketUpdate"],
+        json!({"market": null, "userErrors": [{"__typename": "MarketUserError", "field": ["input", "catalogsToAdd"], "message": "The following customization IDs were not found: 9999999999", "code": "CUSTOMIZATIONS_NOT_FOUND"}]})
+    );
+    let add_catalog = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToAdd": [linked_catalog_id]}}),
+    ));
+    assert_eq!(
+        add_catalog.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]
+            ["nodes"],
+        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+    );
+    let catalog_read = update_proxy.process_request(json_graphql_request(
+        catalog_read_query,
+        json!({"id": linked_catalog_id}),
+    ));
+    assert_eq!(
+        catalog_read.body["data"]["catalog"]["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+    );
+    let remove_catalog = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"catalogsToDelete": [linked_catalog_id]}}),
+    ));
+    assert_eq!(
+        remove_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"],
+        json!([])
+    );
+
+    let web_presence = update_proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "intl"}}),
+    ));
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_web_presence_link = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]}}),
+    ));
+    assert_eq!(
+        unknown_web_presence_link.body["data"]["marketUpdate"],
+        json!({"market": null, "userErrors": [{"__typename": "MarketUserError", "field": ["input", "webPresencesToAdd"], "message": "The following customization IDs were not found: 9999999999", "code": "CUSTOMIZATIONS_NOT_FOUND"}]})
+    );
+    let add_web_presence = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToAdd": [web_presence_id]}}),
+    ));
+    assert_eq!(
+        add_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"][0]
+            ["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/1"}])
+    );
+    let web_presence_read =
+        update_proxy.process_request(json_graphql_request(web_presence_read_query, json!({})));
+    assert_eq!(
+        web_presence_read.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{"id": "gid://shopify/Market/1"}])
+    );
+    let remove_web_presence = update_proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": "gid://shopify/Market/1", "input": {"webPresencesToDelete": [web_presence_id]}}),
+    ));
+    assert_eq!(
+        remove_web_presence.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn price_list_fixed_prices_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam fixed-price helper behavior from markets_mutation_test.gleam:
+    // by-product bulk validation/staging, fixed price add/update/delete lifecycle,
+    // duplicate variant last-wins semantics, price-list/variant/currency guards,
+    // missing fixed-price deletion errors, and downstream selected price-list readback.
+    let read_query = r#"
+        query RustPriceListFixedPricesLocalRuntimeRead($id: ID!) {
+          priceList(id: $id) {
+            id
+            fixedPricesCount
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  originType
+                  price { amount currencyCode }
+                  compareAtPrice { amount currencyCode }
+                  variant { id product { id title } }
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let by_product_update_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeByProductUpdate($priceListId: ID!, $pricesToAdd: [PriceListFixedPriceByProductInput!]!, $pricesToDeleteByProductIds: [ID!]!) {
+          priceListFixedPricesByProductUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, pricesToDeleteByProductIds: $pricesToDeleteByProductIds) {
+            priceList { id fixedPricesCount }
+            pricesToAddProducts { id title }
+            pricesToDeleteProducts { id title }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let mut noop_proxy = snapshot_proxy();
+    let noop = noop_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(noop.status, 200);
+    assert_eq!(
+        noop.body["data"]["priceListFixedPricesByProductUpdate"],
+        json!({
+            "priceList": null,
+            "pricesToAddProducts": [],
+            "pricesToDeleteProducts": [],
+            "userErrors": [{"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "No update operations specified.", "code": "NO_UPDATE_OPERATIONS_SPECIFIED"}]
+        })
+    );
+    let noop_read = noop_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    assert_eq!(
+        noop_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+
+    let mut invalid_bulk_proxy = snapshot_proxy();
+    let invalid_bulk = invalid_bulk_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({
+            "priceListId": "gid://shopify/PriceList/test",
+            "pricesToAdd": [
+                {"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "USD"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "GBP"}},
+                {"productId": "gid://shopify/Product/test", "price": {"amount": "13.00", "currencyCode": "EUR"}}
+            ],
+            "pricesToDeleteByProductIds": ["gid://shopify/Product/test", "gid://shopify/Product/test"]
+        }),
+    ));
+    let invalid_bulk_errors = invalid_bulk.body["data"]["priceListFixedPricesByProductUpdate"]
+        ["userErrors"]
+        .as_array()
+        .unwrap();
+    for expected_error in [
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
+        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "Product IDs cannot be both added and deleted.", "code": "ID_MUST_BE_MUTUALLY_EXCLUSIVE"}),
+    ] {
+        assert!(
+            invalid_bulk_errors.contains(&expected_error),
+            "missing fixed-price by-product validation error: {expected_error:?}\nbody={:?}",
+            invalid_bulk.body
+        );
+    }
+    let invalid_bulk_read = invalid_bulk_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    assert_eq!(
+        invalid_bulk_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+
+    let missing_products = snapshot_proxy().process_request(json_graphql_request(
+        by_product_update_query,
+        json!({
+            "priceListId": "gid://shopify/PriceList/test",
+            "pricesToAdd": [{"productId": "gid://shopify/Product/missing", "price": {"amount": "12.00", "currencyCode": "EUR"}}],
+            "pricesToDeleteByProductIds": ["gid://shopify/Product/missing-delete"]
+        }),
+    ));
+    let missing_product_errors = missing_products.body["data"]
+        ["priceListFixedPricesByProductUpdate"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "productId"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
+    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds", "0"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
+
+    let mut limit_proxy = snapshot_proxy();
+    let limit = limit_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test-9999", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(
+        limit.body["data"]["priceListFixedPricesByProductUpdate"]["userErrors"][0]["code"],
+        json!("PRICE_LIMIT_EXCEEDED")
+    );
+    let limit_read = limit_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test-9999"}),
+    ));
+    assert_eq!(
+        limit_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(9999)
+    );
+
+    let mut by_product_proxy = snapshot_proxy();
+    let valid_bulk = by_product_proxy.process_request(json_graphql_request(
+        by_product_update_query,
+        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
+    ));
+    assert_eq!(
+        valid_bulk.body["data"]["priceListFixedPricesByProductUpdate"],
+        json!({
+            "priceList": {"id": "gid://shopify/PriceList/test", "fixedPricesCount": 1},
+            "pricesToAddProducts": [{"id": "gid://shopify/Product/test", "title": "Test product"}],
+            "pricesToDeleteProducts": [],
+            "userErrors": []
+        })
+    );
+    let valid_bulk_read = by_product_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/test"}),
+    ));
+    let fixed_price_node = &valid_bulk_read.body["data"]["priceList"]["prices"]["edges"][0]["node"];
+    assert_eq!(
+        fixed_price_node["price"],
+        json!({"amount": "12.0", "currencyCode": "EUR"})
+    );
+    assert_eq!(
+        fixed_price_node["compareAtPrice"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+    assert_eq!(
+        fixed_price_node["variant"]["product"],
+        json!({"id": "gid://shopify/Product/test", "title": "Test product"})
+    );
+
+    let add_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeAdd($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { originType price { amount currencyCode } variant { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeUpdate($priceListId: ID!, $pricesToAdd: [PriceListPriceInput!]!, $variantIdsToDelete: [ID!]!) {
+          priceListFixedPricesUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, variantIdsToDelete: $variantIdsToDelete) {
+            priceList { id fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { price { amount currencyCode } variant { id } } } } }
+            pricesAdded { price { amount currencyCode } variant { id } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation RustPriceListFixedPricesLocalRuntimeDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          priceListFixedPricesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let missing_price_list = snapshot_proxy().process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/missing", "prices": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}}]}),
+    ));
+    assert_eq!(
+        missing_price_list.body["data"]["priceListFixedPricesAdd"],
+        json!({"prices": [], "userErrors": [{"__typename": "PriceListPriceUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"}]})
+    );
+
+    let validation = snapshot_proxy().process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/missing", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "10.00", "currencyCode": "USD"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "11.00", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    let validation_errors = validation.body["data"]["priceListFixedPricesAdd"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "0", "variantId"], "message": "Product variant ID does not exist.", "code": "VARIANT_NOT_FOUND"})));
+    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "1", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"})));
+    assert_eq!(
+        validation.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+
+    let mut duplicate_proxy = snapshot_proxy();
+    let duplicate_add = duplicate_proxy.process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "13.75", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    assert_eq!(
+        duplicate_add.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([{"originType": "FIXED", "price": {"amount": "13.75", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
+    );
+    let duplicate_update = duplicate_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "14.00", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}
+        ], "variantIdsToDelete": []}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([{"price": {"amount": "15.0", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
+    );
+    assert_eq!(
+        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let mut lifecycle_proxy = snapshot_proxy();
+    let add = lifecycle_proxy.process_request(json_graphql_request(
+        add_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
+            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
+            {"variantId": "gid://shopify/ProductVariant/beta", "price": {"amount": "20.00", "currencyCode": "EUR"}}
+        ]}),
+    ));
+    assert_eq!(add.status, 200);
+    let update = lifecycle_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": ["gid://shopify/ProductVariant/beta"]}),
+    ));
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!(["gid://shopify/ProductVariant/beta"])
+    );
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["fixedPricesCount"],
+        json!(1)
+    );
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["prices"]["edges"][0]
+            ["node"]["price"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+    let delete = lifecycle_proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["priceListFixedPricesDelete"],
+        json!({"deletedFixedPriceVariantIds": ["gid://shopify/ProductVariant/alpha"], "userErrors": []})
+    );
+    let lifecycle_read = lifecycle_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/PriceList/fixed"}),
+    ));
+    assert_eq!(
+        lifecycle_read.body["data"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+    assert_eq!(
+        lifecycle_read.body["data"]["priceList"]["prices"]["edges"],
+        json!([])
+    );
+
+    let update_adds_missing = snapshot_proxy().process_request(json_graphql_request(
+        update_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": []}),
+    ));
+    assert_eq!(
+        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["priceList"]
+            ["fixedPricesCount"],
+        json!(1)
+    );
+    assert_eq!(
+        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"][0]["price"],
+        json!({"amount": "15.0", "currencyCode": "EUR"})
+    );
+
+    let missing_fixed_delete = snapshot_proxy().process_request(json_graphql_request(
+        delete_query,
+        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
+    ));
+    assert_eq!(
+        missing_fixed_delete.body["data"]["priceListFixedPricesDelete"]["userErrors"][0],
+        json!({"__typename": "PriceListPriceUserError", "field": ["variantIds", "0"], "message": "Only fixed prices can be deleted.", "code": "PRICE_NOT_FIXED"})
+    );
+}
+
+#[test]
+fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
+    // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
+    // staged reads, catalog attachment, and null-catalog detachment.
+    let create_query = r#"
+        mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency parent { adjustment { type value } } catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList { id name currency parent { adjustment { type value } } catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let validation_cases = [
+        (
+            json!({"name": "EUR", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "currency"], "message": "Currency can't be blank", "code": "BLANK"}),
+        ),
+        (
+            json!({"name": "EUR", "currency": "EUR"}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent"], "message": "Parent must exist", "code": "REQUIRED"}),
+        ),
+        (
+            json!({"name": "EUR", "currency": "EUR", "parent": {"adjustment": {"type": "FIXED", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "type"], "message": "Type is invalid", "code": "INVALID"}),
+        ),
+        (
+            json!({"name": "", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name can't be blank", "code": "BLANK"}),
+        ),
+        (
+            json!({"name": "Negative", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": -10}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+        (
+            json!({"name": "Too Low", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+        (
+            json!({"name": "Too High", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_INCREASE", "value": 5000}}}),
+            json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}),
+        ),
+    ];
+    for (input, error) in validation_cases {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["priceListCreate"],
+            json!({"priceList": null, "userErrors": [error]})
+        );
+    }
+
+    let mut proxy = snapshot_proxy();
+    let dkk = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(dkk.status, 200);
+    assert_eq!(
+        dkk.body["data"]["priceListCreate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": null}, "userErrors": []})
+    );
+
+    let zero_adjustment = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Zero", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}}}),
+    ));
+    assert_eq!(
+        zero_adjustment.body["data"]["priceListCreate"]["priceList"]["id"],
+        json!("gid://shopify/PriceList/2")
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Denmark", "currency": "CAD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"}]})
+    );
+
+    let unique_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Unique A"}}),
+    ));
+    assert_eq!(
+        unique_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": []})
+    );
+    let duplicate_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"name": "Denmark"}}),
+    ));
+    assert_eq!(
+        duplicate_update.body["data"]["priceListUpdate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"}]})
+    );
+    let invalid_parent_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/2", "input": {"parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}}}),
+    ));
+    assert_eq!(
+        invalid_parent_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null}, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "value"], "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.", "code": "INVALID_ADJUSTMENT_VALUE"}]})
+    );
+    let read_after_failed_update = proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead($id: ID!) {
+          priceList(id: $id) { id name currency parent { adjustment { type value } } catalog { id } }
+        }
+        "#,
+        json!({"id": "gid://shopify/PriceList/2"}),
+    ));
+    assert_eq!(
+        read_after_failed_update.body["data"]["priceList"],
+        json!({"id": "gid://shopify/PriceList/2", "name": "Unique A", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 0}}, "catalog": null})
+    );
+
+    let typed_errors = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustPriceListLocalRuntimeTypedErrors {
+          priceListCreate(input: { name: "", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { __typename field message code } }
+          priceListUpdate(id: "gid://shopify/PriceList/0", input: { name: "Missing" }) { priceList { id } userErrors { __typename field message code } }
+          priceListDelete(id: "gid://shopify/PriceList/0") { deletedId userErrors { __typename field message code } }
+          quantityRulesDelete(priceListId: "gid://shopify/PriceList/0", variantIds: ["gid://shopify/ProductVariant/0"]) { deletedQuantityRulesVariantIds userErrors { __typename field message code } }
+          webPresenceCreate(input: { defaultLocale: "en", subfolderSuffix: "x" }) { webPresence { id } userErrors { __typename field message code } }
+          webPresenceUpdate(id: "gid://shopify/MarketWebPresence/0", input: { defaultLocale: "en" }) { webPresence { id } userErrors { __typename field message code } }
+          webPresenceDelete(id: "gid://shopify/MarketWebPresence/0") { deletedId userErrors { __typename field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        typed_errors.body["data"]["priceListCreate"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["input", "name"], "message": "Name can't be blank", "code": "BLANK"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["priceListUpdate"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["id"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["priceListDelete"]["userErrors"][0],
+        json!({"__typename": "PriceListUserError", "field": ["id"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["quantityRulesDelete"]["userErrors"][0],
+        json!({"__typename": "QuantityRuleUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_DOES_NOT_EXIST"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceCreate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["input", "subfolderSuffix"], "message": "Subfolder suffix must be at least 2 letters", "code": "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceUpdate"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["id"], "message": "The market web presence wasn't found.", "code": "WEB_PRESENCE_NOT_FOUND"})
+    );
+    assert_eq!(
+        typed_errors.body["data"]["webPresenceDelete"]["userErrors"][0],
+        json!({"__typename": "MarketUserError", "field": ["id"], "message": "The market web presence wasn't found.", "code": "WEB_PRESENCE_NOT_FOUND"})
+    );
+
+    let mut attached_proxy = snapshot_proxy();
+    attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let attached = attached_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "DKK", "catalogId": "gid://shopify/MarketCatalog/3", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        attached.body["data"]["priceListCreate"]["priceList"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3"})
+    );
+    let currency_mismatch_update = attached_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": "gid://shopify/PriceList/5", "input": {"currency": "USD"}}),
+    ));
+    assert_eq!(
+        currency_mismatch_update.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalog": {"id": "gid://shopify/MarketCatalog/3"}}, "userErrors": []})
+    );
+    let detached = attached_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) { priceList { id catalog { id } } userErrors { __typename field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/PriceList/5", "input": {"catalogId": null}}),
+    ));
+    assert_eq!(
+        detached.body["data"]["priceListUpdate"],
+        json!({"priceList": {"id": "gid://shopify/PriceList/5", "catalog": null}, "userErrors": []})
+    );
+    let readback = attached_proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead($catalogId: ID!, $priceListId: ID!) {
+          catalog(id: $catalogId) { id priceList { id } }
+          priceList(id: $priceListId) { id catalog { id } }
+          priceLists(first: 10) { nodes { id name currency } }
+        }
+        "#,
+        json!({"catalogId": "gid://shopify/MarketCatalog/3", "priceListId": "gid://shopify/PriceList/5"}),
+    ));
+    assert_eq!(
+        readback.body["data"]["catalog"],
+        json!({"id": "gid://shopify/MarketCatalog/3", "priceList": null})
+    );
+    assert_eq!(
+        readback.body["data"]["priceList"],
+        json!({"id": "gid://shopify/PriceList/5", "catalog": null})
+    );
+    assert_eq!(
+        readback.body["data"]["priceLists"]["nodes"][0],
+        json!({"id": "gid://shopify/PriceList/5", "name": "EU Prices", "currency": "USD"})
+    );
+}
+
+#[test]
+fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
+    // Ports old Gleam proxy tests:
+    // - market_localizations_register_rejects_more_than_100_keys_test
+    // - market_localizations_register_returns_translation_error_for_missing_resource_test
+    // - market_localizations_remove_returns_translation_error_for_missing_resource_test
+    // - market_localizations_register_validates_market_key_digest_and_value_test
+    // - market_localizations_register_stages_seeded_content_test
+    // - market_localizations_remove_deletes_matching_staged_records_test
+    // - market_localizations_remove_returns_null_when_no_staged_records_match_test
+    // - market_localizations_remove_unmatched_filters_noop_test
+    // - market_localizations_remove_returns_removed_staged_rows_test
+    let mut proxy = snapshot_proxy();
+    let resource_id = "gid://shopify/Metafield/localizable";
+    let register_query = r#"
+        mutation RustMarketLocalizationsLocalRuntimeRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { __typename field code }
+          }
+        }
+    "#;
+    let remove_query = r#"
+        mutation RustMarketLocalizationsLocalRuntimeRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {
+          marketLocalizationsRemove(resourceId: $resourceId, marketLocalizationKeys: $keys, marketIds: $marketIds) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { __typename field code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketLocalizationsLocalRuntimeRead($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            marketLocalizableContent { key value digest }
+            marketLocalizations { key value outdated market { id name } }
+          }
+        }
+    "#;
+    let valid_title = json!({
+        "marketId": "gid://shopify/Market/ca",
+        "key": "title",
+        "value": "Titre",
+        "marketLocalizableContentDigest": "digest-title"
+    });
+    let valid_subtitle = json!({
+        "marketId": "gid://shopify/Market/ca",
+        "key": "subtitle",
+        "value": "Sous-titre",
+        "marketLocalizableContentDigest": "digest-subtitle"
+    });
+
+    let too_many = (1..=101)
+        .map(|index| {
+            json!({
+                "marketId": format!("gid://shopify/Market/{index}"),
+                "key": "title",
+                "value": "Titre",
+                "marketLocalizableContentDigest": "digest-title"
+            })
+        })
+        .collect::<Vec<_>>();
+    let too_many_response = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "marketLocalizations": too_many}),
+    ));
+    assert_eq!(too_many_response.status, 200);
+    assert_eq!(
+        too_many_response.body["data"]["marketLocalizationsRegister"],
+        json!({
+            "marketLocalizations": null,
+            "userErrors": [{"__typename": "TranslationUserError", "field": ["resourceId"], "code": "TOO_MANY_KEYS_FOR_RESOURCE"}]
+        })
+    );
+
+    let missing_register = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "marketLocalizations": [valid_title.clone()]}),
+    ));
+    assert_eq!(
+        missing_register.body["data"]["marketLocalizationsRegister"]["userErrors"][0],
+        json!({"__typename": "TranslationUserError", "field": ["resourceId"], "code": "RESOURCE_NOT_FOUND"})
+    );
+
+    let missing_remove = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": "gid://shopify/Metafield/missing", "keys": [], "marketIds": []}),
+    ));
+    assert_eq!(
+        missing_remove.body["data"]["marketLocalizationsRemove"],
+        json!({
+            "marketLocalizations": null,
+            "userErrors": [{"__typename": "TranslationUserError", "field": ["resourceId"], "code": "RESOURCE_NOT_FOUND"}]
+        })
+    );
+
+    let validation_cases = [
+        (
+            json!({"marketId": "gid://shopify/Market/missing", "key": "title", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "marketId"], "code": "MARKET_DOES_NOT_EXIST"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "value", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "key"], "code": "INVALID_KEY_FOR_MODEL"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "title", "value": "Titre", "marketLocalizableContentDigest": "stale"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "marketLocalizableContentDigest"], "code": "INVALID_MARKET_LOCALIZABLE_CONTENT"}),
+        ),
+        (
+            json!({"marketId": "gid://shopify/Market/ca", "key": "title", "value": "", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "value"], "code": "FAILS_RESOURCE_VALIDATION"}),
+        ),
+    ];
+    for (input, expected_error) in validation_cases {
+        let response = proxy.process_request(json_graphql_request(
+            register_query,
+            json!({"resourceId": resource_id, "marketLocalizations": [input]}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketLocalizationsRegister"],
+            json!({"marketLocalizations": null, "userErrors": [expected_error]})
+        );
+    }
+
+    let register = proxy.process_request(json_graphql_request(
+        register_query,
+        json!({"resourceId": resource_id, "marketLocalizations": [valid_title.clone(), valid_subtitle.clone()]}),
+    ));
+    assert_eq!(
+        register.body["data"]["marketLocalizationsRegister"],
+        json!({
+            "marketLocalizations": [
+                {"key": "title", "value": "Titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}},
+                {"key": "subtitle", "value": "Sous-titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}
+            ],
+            "userErrors": []
+        })
+    );
+
+    let read_after_register = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_register.body["data"]["marketLocalizableResource"]["marketLocalizableContent"],
+        json!([
+            {"key": "title", "value": "Title", "digest": "digest-title"},
+            {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
+        ])
+    );
+    assert_eq!(
+        read_after_register.body["data"]["marketLocalizableResource"]["marketLocalizations"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    for (keys, market_ids) in [
+        (json!([]), json!(["gid://shopify/Market/ca"])),
+        (json!(["unknown"]), json!(["gid://shopify/Market/ca"])),
+        (json!(["title"]), json!(["gid://shopify/Market/missing"])),
+    ] {
+        let noop = proxy.process_request(json_graphql_request(
+            remove_query,
+            json!({"resourceId": resource_id, "keys": keys, "marketIds": market_ids}),
+        ));
+        assert_eq!(
+            noop.body["data"]["marketLocalizationsRemove"],
+            json!({"marketLocalizations": null, "userErrors": []})
+        );
+    }
+
+    let remove_title = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["title"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        remove_title.body["data"]["marketLocalizationsRemove"],
+        json!({
+            "marketLocalizations": [{"key": "title", "value": "Titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}],
+            "userErrors": []
+        })
+    );
+    let read_after_title_remove = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_title_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([{"key": "subtitle", "value": "Sous-titre", "outdated": false, "market": {"id": "gid://shopify/Market/ca", "name": "Canada"}}])
+    );
+
+    let remove_subtitle = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["subtitle"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        remove_subtitle.body["data"]["marketLocalizationsRemove"]["marketLocalizations"][0]["key"],
+        json!("subtitle")
+    );
+    let second_remove = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["subtitle"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        second_remove.body["data"]["marketLocalizationsRemove"],
+        json!({"marketLocalizations": null, "userErrors": []})
+    );
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([])
+    );
+}
+
+#[test]
+fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+    let helper_query =
+        include_str!("../config/parity-requests/products/product-helper-roots-read.graphql");
+    let helper = proxy.process_request(json_graphql_request(
+        helper_query,
+        json!({
+            "helperProductId": "gid://shopify/Product/9801098789170",
+            "productHandle": "the-inventory-not-tracked-snowboard",
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "missingProductId": "gid://shopify/Product/999999999999",
+            "missingVariantId": "gid://shopify/ProductVariant/999999999999",
+            "missingJobId": "gid://shopify/ProductDuplicateJob/999999999999",
+            "missingOperationId": "gid://shopify/ProductSetOperation/999999999999"
+        }),
+    ));
+    assert_eq!(helper.status, 200);
+    assert_eq!(
+        helper.body["data"]["byId"],
+        json!({
+            "id": "gid://shopify/Product/9801098789170",
+            "handle": "the-inventory-not-tracked-snowboard",
+            "title": "The Inventory Not Tracked Snowboard"
+        })
+    );
+    assert_eq!(helper.body["data"]["missingProduct"], Value::Null);
+    assert_eq!(
+        helper.body["data"]["variantById"],
+        json!({
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Default Title",
+            "sku": "sku-untracked-1",
+            "product": { "id": "gid://shopify/Product/9801098789170" }
+        })
+    );
+    assert_eq!(
+        helper.body["data"]["productVariantsCount"],
+        json!({ "count": 2279, "precision": "EXACT" })
+    );
+    assert_eq!(
+        helper.body["data"]["productDuplicateJob"],
+        json!({ "id": "gid://shopify/ProductDuplicateJob/999999999999", "done": true })
+    );
+
+    let variant_query =
+        include_str!("../config/parity-requests/products/product-variants-read.graphql");
+    let variant = proxy.process_request(json_graphql_request(
+        variant_query,
+        json!({
+            "productId": "gid://shopify/Product/8971842846953",
+            "variantId": "gid://shopify/ProductVariant/48540157378793",
+            "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
+        }),
+    ));
+    assert_eq!(variant.status, 200);
+    assert_eq!(
+        variant.body["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"],
+        variant.body["data"]["variant"]["inventoryItem"]
+    );
+    assert_eq!(
+        variant.body["data"]["stock"],
+        variant.body["data"]["variant"]["inventoryItem"]
+    );
+    assert_eq!(
+        variant.body["data"]["stockBackreference"]["variant"],
+        json!({
+            "id": "gid://shopify/ProductVariant/48540157378793",
+            "title": "Default Title",
+            "sku": null,
+            "inventoryQuantity": 0,
+            "product": {
+                "id": "gid://shopify/Product/8971842846953",
+                "title": "Test Product - 6635"
+            }
+        })
+    );
+}
+
+#[test]
+fn collections_catalog_read_replays_captured_catalog_branches() {
+    let mut proxy = snapshot_proxy();
+    let query = include_str!("../config/parity-requests/products/collections-catalog-read.graphql");
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "catalogFirst": 20,
+            "first": 3,
+            "titleWildcardQuery": "title:VAN*",
+            "customTypeQuery": "collection_type:custom",
+            "smartTypeQuery": "collection_type:smart",
+            "updatedSortQuery": "collection_type:smart",
+            "emptyQuery": "title:No collection should match this 157*",
+            "productMembershipQuery": "product_id:8397255672041"
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    let first_collection = &response.body["data"]["collections"]["edges"][0]["node"];
+    assert_eq!(
+        first_collection["id"],
+        json!("gid://shopify/Collection/402476531945")
+    );
+    assert_eq!(first_collection["legacyResourceId"], json!("402476531945"));
+    assert_eq!(first_collection["title"], json!("Home page"));
+    assert_eq!(first_collection["handle"], json!("frontpage"));
+    assert_eq!(
+        first_collection["products"]["edges"][0]["node"],
+        json!({
+            "id": "gid://shopify/Product/8397254426857",
+            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+            "handle": "vans-authentic-lo-pro-burgandy-white",
+            "vendor": "VANS"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["emptyUnmatched"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["titleWildcard"]["edges"][0]["node"]["handle"],
+        json!("vans")
+    );
+}
+
+fn assert_product_fixture_backed_read_matches_capture(
+    query: &str,
+    variables: Value,
+    fixture: &str,
+) {
+    let mut proxy = snapshot_proxy();
+    let expected: Value = serde_json::from_str(fixture).expect("product read fixture must parse");
+    let expected_data = expected
+        .get("data")
+        .or_else(|| {
+            expected
+                .get("response")
+                .and_then(|response| response.get("data"))
+        })
+        .cloned()
+        .unwrap_or(Value::Null);
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"], expected_data);
+}
+
+#[test]
+fn product_catalog_and_search_reads_replay_captured_fixture_data() {
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-catalog-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-catalog-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-sort-keys-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-sort-keys-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-sort-keys.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-pagination-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-pagination-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-pagination.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-advanced-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-advanced-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-advanced-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-or-precedence-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-or-precedence-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-or-precedence.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-relevance-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-relevance-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-relevance-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-search-grammar-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-search-grammar-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-grammar.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/products-variant-search-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/products-variant-search-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-variant-search.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/product-detail-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/product-detail-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-detail.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/product-metafields-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/product-metafields-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"),
+    );
+    assert_product_fixture_backed_read_matches_capture(
+        include_str!("../config/parity-requests/products/collection-detail-read.graphql"),
+        serde_json::from_str(include_str!("../config/parity-requests/products/collection-detail-read.variables.json")).unwrap(),
+        include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"),
+    );
+}
+
+fn captured_payload_data(fixture: &Value, path: &[&str]) -> Value {
+    let mut value = fixture;
+    for key in path {
+        value = &value[*key];
+    }
+    value
+        .get("response")
+        .and_then(|response| response.get("payload"))
+        .or_else(|| value.get("response"))
+        .and_then(|response| response.get("data"))
+        .or_else(|| value.get("data"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+#[test]
+fn product_create_rich_fixture_readbacks_preserve_captured_product_shapes() {
+    let create_cases = [
+        (
+            include_str!("../config/parity-requests/products/productCreate-with-options-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"),
+            &[][..],
+            "options",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-with-options-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"),
+            &[][..],
+            "options",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-inventory-read-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-inventory-read-downstream.graphql"),
+            include_str!("../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"),
+            &[][..],
+            "inventory",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-category-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-category-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"),
+            &[][..],
+            "category",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-collections-to-join-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-collections-to-join-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"),
+            &[][..],
+            "collections",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-requires-selling-plan-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-requires-selling-plan-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"),
+            &[][..],
+            "requiresSellingPlan",
+        ),
+        (
+            include_str!("../config/parity-requests/products/productCreate-dropped-inputs-parity.graphql"),
+            include_str!("../config/parity-requests/products/productCreate-dropped-inputs-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"),
+            &["giftCardAndMetafields"][..],
+            "giftCard",
+        ),
+    ];
+
+    for (mutation_query, downstream_query, fixture_source, section_path, kind) in create_cases {
+        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
+        let mut proxy = snapshot_proxy();
+        let mutation_section = if section_path.is_empty() {
+            &fixture["mutation"]
+        } else {
+            &fixture[section_path[0]]["mutation"]
+        };
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            mutation_section["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200, "{kind} mutation status");
+        assert_eq!(
+            mutation.body["data"],
+            captured_payload_data(&fixture, &[section_path, &["mutation"]].concat()),
+            "{kind} mutation data"
+        );
+
+        let product_id = mutation.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap();
+        let downstream_variables = match kind {
+            "inventory" => json!({
+                "productId": product_id,
+                "variantId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"],
+                "inventoryItemId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
+            }),
+            _ => json!({ "id": product_id }),
+        };
+        let downstream =
+            proxy.process_request(json_graphql_request(downstream_query, downstream_variables));
+        assert_eq!(downstream.status, 200, "{kind} downstream status");
+        assert_eq!(
+            downstream.body["data"],
+            captured_payload_data(&fixture, &[section_path, &["downstreamRead"]].concat()),
+            "{kind} downstream data"
+        );
+    }
+}
+
+#[test]
+fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_shapes() {
+    let query = include_str!(
+        "../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"
+    );
+    for (product_id, fixture_source, expected_sku) in [
+        (
+            "gid://shopify/Product/10172135506226",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"),
+            "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+        ),
+        (
+            "gid://shopify/Product/10172135440690",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-default-standalone.json"),
+            "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+        ),
+        (
+            "gid://shopify/Product/10172135538994",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json"),
+            "HERMES-1777346728237-BULK-REMOVE-CUSTOM",
+        ),
+        (
+            "gid://shopify/Product/10172135473458",
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-default-standalone.json"),
+            "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+        ),
+    ] {
+        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"], fixture["downstreamRead"]["data"]);
+        assert_eq!(
+            response.body["data"]["product"]["variants"]["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|variant| variant["sku"] == json!(expected_sku)),
+            true
+        );
+    }
+}
+
+#[test]
+fn product_set_fixture_replay_preserves_mutation_and_downstream_product_graphs() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/productSet-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/productSet-downstream-read.graphql");
+
+    let create = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"], fixture["mutation"]["response"]["data"]);
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+            ["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 2, "updatedAt": "2026-04-25T23:03:30Z"},
+            {"name": "on_hand", "quantity": 2, "updatedAt": null},
+            {"name": "incoming", "quantity": 0, "updatedAt": null}
+        ])
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(create_read.status, 200);
+    assert_eq!(create_read.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        create_read.body["data"]["variantOne"]["id"],
+        create_read.body["data"]["product"]["variants"]["nodes"][0]["id"]
+    );
+    assert_eq!(
+        create_read.body["data"]["variantOne"]["inventoryItem"],
+        create_read.body["data"]["stockOne"]
+            .as_object()
+            .map(|stock| {
+                let mut item = stock.clone();
+                item.remove("variant");
+                Value::Object(item)
+            })
+            .unwrap()
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["update"]["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"],
+        fixture["update"]["mutation"]["response"]["data"]
+    );
+
+    let update_read = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["update"]["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(update_read.status, 200);
+    assert_eq!(
+        update_read.body["data"],
+        fixture["update"]["downstreamRead"]["data"]
+    );
+    assert_eq!(
+        update_read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("GRAPH-BLUE-UPDATED-1777158209644")
+    );
+}
+
+#[test]
+fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+    let set_query = include_str!(
+        "../config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql"
+    );
+    let read_query = include_str!(
+        "../config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql"
+    );
+
+    for batch in fixture["metafieldBatches"].as_array().unwrap() {
+        let set_variables = batch["mutation"]["request"]["variables"].clone();
+        let set_response = proxy.process_request(json_graphql_request(set_query, set_variables));
+        assert_eq!(set_response.status, 200);
+        assert_eq!(
+            set_response.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            set_response.body["data"]["metafieldsSet"]["metafields"]
+                .as_array()
+                .unwrap()
+                .len(),
+            batch["mutation"]["request"]["variables"]["metafields"]
+                .as_array()
+                .unwrap()
+                .len()
+        );
+
+        let read_variables = batch["downstreamRead"]["request"]["variables"].clone();
+        let read_response = proxy.process_request(json_graphql_request(read_query, read_variables));
+        assert_eq!(read_response.status, 200);
+        let expected_nodes = batch["downstreamRead"]["response"]["data"]["product"]["metafields"]
+            ["nodes"]
+            .as_array()
+            .unwrap();
+        let actual_nodes = read_response.body["data"]["product"]["metafields"]["nodes"]
+            .as_array()
+            .unwrap();
+        assert_eq!(actual_nodes.len(), expected_nodes.len());
+        assert_eq!(actual_nodes[0]["namespace"], expected_nodes[0]["namespace"]);
+        assert_eq!(actual_nodes[0]["key"], expected_nodes[0]["key"]);
+        assert_eq!(actual_nodes[0]["type"], expected_nodes[0]["type"]);
+        assert_eq!(actual_nodes[0]["value"], expected_nodes[0]["value"]);
+        assert_eq!(actual_nodes[0]["jsonValue"], expected_nodes[0]["jsonValue"]);
+        assert_eq!(actual_nodes[0]["ownerType"], expected_nodes[0]["ownerType"]);
+    }
+}
+
+#[test]
+fn product_metafields_set_replays_captured_product_owned_readbacks() {
+    let cases = [
+        "metafields-set-parity.json",
+        "metafields-set-cas-success-parity.json",
+        "metafields-set-stale-digest-parity.json",
+        "metafields-set-duplicate-input-parity.json",
+        "metafields-set-missing-type-parity.json",
+        "metafields-set-null-create-parity.json",
+        "metafields-set-missing-namespace-parity.json",
+        "metafields-set-over-limit-parity.json",
+    ];
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
+
+    for case in cases {
+        let fixture: Value = serde_json::from_str(match case {
+            "metafields-set-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json"),
+            "metafields-set-cas-success-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-cas-success-parity.json"),
+            "metafields-set-stale-digest-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json"),
+            "metafields-set-duplicate-input-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-duplicate-input-parity.json"),
+            "metafields-set-missing-type-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-type-parity.json"),
+            "metafields-set-null-create-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-null-create-parity.json"),
+            "metafields-set-missing-namespace-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"),
+            "metafields-set-over-limit-parity.json" => include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-over-limit-parity.json"),
+            _ => unreachable!(),
+        })
+        .unwrap();
+        let mut proxy = snapshot_proxy();
+
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            fixture["mutation"]["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200, "{case}");
+        assert_eq!(
+            mutation.body["data"], fixture["mutation"]["response"]["data"],
+            "{case} mutation payload"
+        );
+
+        let downstream = proxy.process_request(json_graphql_request(
+            read_query,
+            fixture["downstreamReadVariables"].clone(),
+        ));
+        assert_eq!(downstream.status, 200, "{case}");
+        assert_eq!(
+            downstream.body["data"], fixture["downstreamRead"]["data"],
+            "{case} downstream payload"
+        );
+    }
+}
+
+#[test]
+fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbacks() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"
+    ))
+    .unwrap();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-owner-expansion.graphql");
+    let read_query = include_str!(
+        "../config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql"
+    );
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"],
+        fixture["mutation"]["response"]["data"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        downstream.body["data"]["product"]["variants"]["nodes"][0]["care"]["value"],
+        json!("Spot clean")
+    );
+    assert_eq!(
+        downstream.body["data"]["collection"]["season"]["value"],
+        json!("Winter")
+    );
+}
+
+#[test]
+fn product_metafields_delete_replays_captured_product_owned_readback() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"
+    ))
+    .unwrap();
+    let mutation_query =
+        include_str!("../config/parity-requests/products/metafieldsDelete-parity-plan.graphql");
+    let read_query =
+        include_str!("../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
+    let mut proxy = snapshot_proxy();
+
+    let mutation = proxy.process_request(json_graphql_request(
+        mutation_query,
+        fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"],
+        fixture["mutation"]["response"]["data"]
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        read_query,
+        fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(
+        downstream.body["data"]["product"]["primarySpec"],
+        Value::Null
+    );
+}
+
+#[test]
+fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
+    let mut proxy = snapshot_proxy();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsAddParityPlan($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { id tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["existing", "hermes-summer-1777416213315", "hermes-sale-1777416213315"]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["tagsAdd"],
+        json!({
+            "node": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let add_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsAddDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id tags }
+          products(first: 10, query: $query) { nodes { id tags } }
+          productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "query": "tag:hermes-sale-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        add_read.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+
+    let mut proxy = snapshot_proxy();
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsRemoveParityPlan($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { id tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["hermes-sale-1777416213315", "missing"]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["tagsRemove"],
+        json!({
+            "node": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let remove_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsRemoveDownstreamRead($id: ID!, $remainingQuery: String!, $removedQuery: String!) {
+          product(id: $id) { id tags }
+          remaining: products(first: 10, query: $remainingQuery) { nodes { id tags } }
+          removed: products(first: 10, query: $removedQuery) { nodes { id tags } }
+          remainingCount: productsCount(query: $remainingQuery) { count precision }
+          removedCount: productsCount(query: $removedQuery) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "remainingQuery": "tag:hermes-summer-1777416213315",
+            "removedQuery": "tag:hermes-sale-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        remove_read.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            },
+            "remaining": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "removed": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "remainingCount": { "count": 1, "precision": "EXACT" },
+            "removedCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let mut proxy = snapshot_proxy();
+    let multi = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { __typename ... on Product { id title tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10178790424882",
+            "tags": ["hermes-tags-added-1778091014318"]
+        }),
+    ));
+    assert_eq!(
+        multi.body["data"]["tagsAdd"],
+        json!({
+            "node": {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178790424882",
+                "title": "Hermes Tags Product 1778091014318",
+                "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+        })
+    );
+
+    let multi_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TagsMultiResourceProductRead($productId: ID!) {
+          product(id: $productId) { id title tags }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/10178790424882" }),
+    ));
+    assert_eq!(
+        multi_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/10178790424882",
+            "title": "Hermes Tags Product 1778091014318",
+            "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        })
+    );
+}
+
+#[test]
+fn product_change_status_stages_archived_status_and_downstream_read_lag() {
+    let mut proxy = snapshot_proxy();
+
+    let changed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusParityPlan($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/10173064872242",
+            "status": "ARCHIVED"
+        }),
+    ));
+    assert_eq!(
+        changed.body["data"]["productChangeStatus"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED",
+                "updatedAt": "2026-04-28T22:43:34Z"
+            },
+            "userErrors": []
+        })
+    );
+
+    let null_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusNullLiteralConformance {
+          productChangeStatus(productId: null, status: ARCHIVED) {
+            product { id status updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        null_id.body["errors"][0]["message"],
+        json!("Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.")
+    );
+    assert_eq!(
+        null_id.body["errors"][0]["path"],
+        json!([
+            "mutation ProductChangeStatusNullLiteralConformance",
+            "productChangeStatus",
+            "productId"
+        ])
+    );
+    assert_eq!(
+        null_id.body["errors"][0]["extensions"],
+        json!({"code": "argumentLiteralsIncompatible", "typeName": "Field", "argumentName": "productId"})
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductChangeStatusDownstreamRead($id: ID!, $query: String!) {
+          product(id: $id) { id status updatedAt }
+          products(first: 10, query: $query) { nodes { id status } }
+          productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "query": "status:archived tag:hermes-state-1777416213315"
+        }),
+    ));
+    assert_eq!(
+        downstream.body["data"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED",
+                "updatedAt": "2026-04-28T22:43:34Z"
+            },
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
+}
+
+#[test]
+fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantCreate-parity-plan.graphql"),
+        json!({
+            "input": {
+                "productId": "gid://shopify/Product/9259552407785",
+                "title": "Blue",
+                "sku": "HERMES-BULK-810153-BLUE",
+                "barcode": "2222222222222",
+                "price": "26.00",
+                "inventoryQuantity": 0,
+                "selectedOptions": [{ "name": "Color", "value": "Blue" }],
+                "inventoryItem": { "tracked": true, "requiresShipping": false }
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9259552407785",
+            "totalInventory": 0,
+            "tracksInventory": true
+        })
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
+        json!("HERMES-BULK-810153-BLUE")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"],
+        json!({
+            "id": "gid://shopify/InventoryItem/53053417259241",
+            "tracked": true,
+            "requiresShipping": false
+        })
+    );
+
+    let create_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productVariantCreate-downstream-read.graphql"
+        ),
+        json!({ "id": "gid://shopify/Product/9259552407785" }),
+    ));
+    assert_eq!(
+        create_read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/9259552407785",
+            "totalInventory": 0,
+            "tracksInventory": true
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantUpdate-parity-plan.graphql"),
+        json!({
+            "input": {
+                "id": "gid://shopify/ProductVariant/50905436913897",
+                "title": "Red",
+                "sku": "HERMES-BULK-810153-RED",
+                "barcode": "1111111111111",
+                "price": "24.00",
+                "compareAtPrice": "30.00",
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [{ "name": "Color", "value": "Red" }],
+                "inventoryItem": { "tracked": true, "requiresShipping": true }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"],
+        json!({
+            "id": "gid://shopify/ProductVariant/50905436913897",
+            "title": "Red",
+            "sku": "HERMES-BULK-810153-RED",
+            "barcode": "1111111111111",
+            "price": "24.00",
+            "compareAtPrice": "30.00",
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [{ "name": "Color", "value": "Red" }],
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53053417160937",
+                "tracked": true,
+                "requiresShipping": true
+            }
+        })
+    );
+
+    let update_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantUpdate-downstream-read.graphql"),
+        json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
+    ));
+    assert_eq!(
+        update_read.body["data"]["product"]["variants"]["nodes"][0]["id"],
+        json!("gid://shopify/ProductVariant/50905436913897")
+    );
+    assert_eq!(update_read.body["data"]["products"], json!({ "nodes": [] }));
+    assert_eq!(
+        update_read.body["data"]["skuCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantDelete-parity-plan.graphql"),
+        json!({ "id": "gid://shopify/ProductVariant/50905436913897" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"],
+        json!({
+            "deletedProductVariantId": "gid://shopify/ProductVariant/50905436913897",
+            "userErrors": []
+        })
+    );
+
+    let delete_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productVariantsBulkDelete-downstream-read.graphql"),
+        json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
+    ));
+    assert_eq!(
+        delete_read.body["data"]["product"]["variants"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductVariant/50905437012201",
+            "title": "Blue",
+            "sku": "HERMES-BULK-810153-BLUE",
+            "barcode": "2222222222222",
+            "price": "26.00",
+            "compareAtPrice": "30.00",
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }],
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53053417259241",
+                "tracked": true,
+                "requiresShipping": false
+            }
+        }])
+    );
+}
+
+#[test]
+fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-parity-plan.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/9257218801897",
+                "title": "Hermes Product Conformance 1776550632328 Updated",
+                "vendor": "HERMES-LABS",
+                "productType": "TEST-GOODS",
+                "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+                "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
+                "templateSuffix": "product-mutation-updated",
+                "seo": {
+                    "title": "Hermes Product 1776550632328 Updated",
+                    "description": "Updated Hermes product mutation conformance 1776550632328"
+                }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let update_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"],
+        update_fixture["mutation"]["response"]["data"]["productUpdate"]["product"]
+    );
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-parity-plan.graphql"),
+        json!({ "input": { "id": "gid://shopify/Product/9257218801897" } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"],
+        json!({
+            "deletedProductId": "gid://shopify/Product/9257218801897",
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-parity-plan.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/9257218801897",
+                "title": ""
+            }
+        }),
+    ));
+    assert_eq!(blank.status, 200);
+    let blank_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        blank.body["data"],
+        blank_fixture["mutation"]["response"]["data"]
+    );
+
+    let too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-too-long-handle-parity.graphql"),
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10170567196978",
+                "handle": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+        }),
+    ));
+    assert_eq!(too_long.status, 200);
+    assert_eq!(
+        too_long.body["data"]["productUpdate"],
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/10170567196978",
+                "title": "HAR-22 update seed 1777153541365",
+                "handle": "har-22-update-seed-1777153541365"
+            },
+            "userErrors": [{
+                "field": ["handle"],
+                "message": "Handle is too long (maximum is 255 characters)"
+            }]
+        })
+    );
+}
+
+#[test]
+fn product_update_tag_normalization_limits_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-tag-normalization-setup.graphql"
+        ),
+        json!({
+            "product": {
+                "title": "HAR tag normalization seed",
+                "tags": ["base"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mixed = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": [" Red ", "red", "RED", " big   sale "]
+            }
+        }),
+    ));
+    assert_eq!(mixed.status, 200);
+    assert_eq!(
+        mixed.body["data"]["productUpdate"]["product"]["tags"],
+        json!(["big   sale", "Red"])
+    );
+    assert_eq!(mixed.body["data"]["productUpdate"]["userErrors"], json!([]));
+
+    let too_many_tags: Vec<String> = (0..251).map(|index| format!("tag-{index:03}")).collect();
+    let too_many = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": too_many_tags
+            }
+        }),
+    ));
+    assert_eq!(too_many.status, 200);
+    assert!(too_many.body.get("data").is_none());
+    assert_eq!(
+        too_many.body["errors"][0]["message"],
+        json!("The input array size of 251 is greater than the maximum allowed of 250.")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["productUpdate", "product", "tags"])
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"],
+        json!({ "code": "MAX_INPUT_SIZE_EXCEEDED" })
+    );
+
+    let too_long = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productUpdate-tag-normalization.graphql"),
+        json!({
+            "product": {
+                "id": product_id,
+                "tags": ["x".repeat(256)]
+            }
+        }),
+    ));
+    assert_eq!(too_long.status, 200);
+    assert_eq!(
+        too_long.body["data"]["productUpdate"]["product"]["tags"],
+        json!(["big   sale", "Red"])
+    );
+    assert_eq!(
+        too_long.body["data"]["productUpdate"]["userErrors"],
+        json!([{ "field": ["tags"], "message": "Product tags is invalid" }])
+    );
+}
+
+#[test]
+fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let inline_missing = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-inline-missing-id-parity.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(inline_missing.status, 200);
+    assert!(inline_missing.body.get("data").is_none());
+    assert_eq!(
+        inline_missing.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+            "locations": [{ "line": 3, "column": 26 }],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "ProductDeleteInput"
+            }
+        })
+    );
+
+    let inline_null = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-inline-null-id-parity.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(inline_null.status, 200);
+    assert!(inline_null.body.get("data").is_none());
+    assert_eq!(
+        inline_null.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [{ "line": 3, "column": 26 }],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "id"
+            }
+        })
+    );
+
+    let variable_missing = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-variable-missing-id-parity.graphql"
+        ),
+        json!({ "input": {} }),
+    ));
+    assert_eq!(variable_missing.status, 200);
+    assert!(variable_missing.body.get("data").is_none());
+    assert_eq!(
+        variable_missing.body["errors"][0],
+        json!({
+            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [{ "line": 2, "column": 37 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [{
+                    "path": ["id"],
+                    "explanation": "Expected value to not be null"
+                }]
+            }
+        })
+    );
+}
+
+#[test]
+fn product_create_length_validation_errors_match_shopify_shapes() {
+    let mut proxy = snapshot_proxy();
+    let too_long = "a".repeat(260);
+
+    let handle = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-too-long-handle-parity.graphql"
+        ),
+        json!({
+            "product": {
+                "title": "HAR too-long handle",
+                "handle": too_long
+            }
+        }),
+    ));
+    assert_eq!(handle.status, 200);
+    assert_eq!(handle.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        handle.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["handle"], "message": "Handle is too long (maximum is 255 characters)" }])
+    );
+
+    let vendor = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-input-validation.graphql"),
+        json!({
+            "product": {
+                "title": "HAR too-long vendor",
+                "vendor": "v".repeat(256)
+            }
+        }),
+    ));
+    assert_eq!(vendor.status, 200);
+    assert_eq!(vendor.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        vendor.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["vendor"], "message": "Vendor is too long (maximum is 255 characters)" }])
+    );
+
+    let product_type = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-input-validation.graphql"),
+        json!({
+            "product": {
+                "title": "HAR too-long product type",
+                "productType": "t".repeat(256)
+            }
+        }),
+    ));
+    assert_eq!(product_type.status, 200);
+    assert_eq!(
+        product_type.body["data"]["productCreate"]["product"],
+        json!(null)
+    );
+    assert_eq!(
+        product_type.body["data"]["productCreate"]["userErrors"],
+        json!([
+            { "field": ["productType"], "message": "Product type is too long (maximum is 255 characters)" },
+            { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
+        ])
+    );
+}
+
+#[test]
+fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let downstream_query = include_str!(
+        "../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+    );
+
+    let create_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
+    ));
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionsCreate-parity-plan.graphql"),
+        create_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"],
+        create_fixture["mutation"]["response"]["data"]
+    );
+    let create_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": create.body["data"]["productOptionsCreate"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        create_read.body["data"],
+        create_fixture["downstreamRead"]["data"]
+    );
+
+    let update_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json"
+    ));
+    let update = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionUpdate-parity-plan.graphql"),
+        update_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"],
+        update_fixture["mutation"]["response"]["data"]
+    );
+    let update_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": update.body["data"]["productOptionUpdate"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        update_read.body["data"],
+        update_fixture["downstreamRead"]["data"]
+    );
+
+    let delete_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-delete-parity.json"
+    ));
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productOptionsDelete-parity-plan.graphql"),
+        delete_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"],
+        delete_fixture["mutation"]["response"]["data"]
+    );
+    let delete_read = proxy.process_request(json_graphql_request(
+        downstream_query,
+        json!({ "id": delete.body["data"]["productOptionsDelete"]["product"]["id"].clone() }),
+    ));
+    assert_eq!(
+        delete_read.body["data"],
+        delete_fixture["downstreamRead"]["data"]
+    );
+}
+
+#[test]
+fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
+    let cases = [
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-create.graphql"),
+            include_str!("../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-leave-as-is-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"),
+        ),
+        (
+            include_str!("../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
+            include_str!("../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
+            include_str!("../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"),
+        ),
+    ];
+
+    for (mutation_query, downstream_query, fixture_source) in cases {
+        let mut proxy = snapshot_proxy();
+        let fixture = product_fixture(fixture_source);
+        let mutation = proxy.process_request(json_graphql_request(
+            mutation_query,
+            fixture["mutation"]["variables"].clone(),
+        ));
+        assert_eq!(mutation.status, 200);
+        assert_eq!(
+            mutation.body["data"],
+            fixture["mutation"]["response"]["data"]
+        );
+
+        let product_id = mutation.body["data"]["productOptionsCreate"]["product"]["id"].clone();
+        let downstream = proxy.process_request(json_graphql_request(
+            downstream_query,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(downstream.status, 200);
+        assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+    }
+}
+
+#[test]
+fn product_duplicate_replays_captured_sync_and_async_readbacks() {
+    let mut proxy = snapshot_proxy();
+
+    let sync_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
+    ));
+    let duplicate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-parity-plan.graphql"),
+        sync_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"],
+        sync_fixture["mutation"]["response"]["data"]
+    );
+    let duplicate_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-downstream-read.graphql"),
+        json!({ "id": duplicate.body["data"]["productDuplicate"]["newProduct"]["id"].clone() }),
+    ));
+    assert_eq!(duplicate_read.status, 200);
+    assert_eq!(
+        duplicate_read.body["data"],
+        sync_fixture["downstreamRead"]["data"]
+    );
+
+    let mut async_proxy = snapshot_proxy();
+    let async_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
+    ));
+    let async_duplicate = async_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-async.graphql"),
+        async_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(async_duplicate.status, 200);
+    assert_eq!(
+        async_duplicate.body["data"],
+        async_fixture["mutation"]["response"]["data"]
+    );
+    let operation = async_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-operation-read.graphql"),
+        json!({
+            "id": async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
+        }),
+    ));
+    assert_eq!(operation.status, 200);
+    assert_eq!(
+        operation.body["data"],
+        async_fixture["operationRead"]["response"]["data"]
+    );
+    let async_read = async_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDuplicate-async-product-read.graphql"
+        ),
+        json!({ "id": operation.body["data"]["productOperation"]["newProduct"]["id"].clone() }),
+    ));
+    assert_eq!(async_read.status, 200);
+    assert_eq!(
+        async_read.body["data"],
+        async_fixture["downstreamRead"]["response"]["data"]
+    );
+
+    let mut missing_proxy = snapshot_proxy();
+    let missing_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
+    ));
+    let missing_duplicate = missing_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-async.graphql"),
+        missing_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(missing_duplicate.status, 200);
+    assert_eq!(
+        missing_duplicate.body["data"],
+        missing_fixture["mutation"]["response"]["data"]
+    );
+    let missing_operation = missing_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDuplicate-operation-read.graphql"),
+        json!({
+            "id": missing_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
+        }),
+    ));
+    assert_eq!(missing_operation.status, 200);
+    assert_eq!(
+        missing_operation.body["data"],
+        missing_fixture["operationRead"]["response"]["data"]
+    );
+}
+
+#[test]
+fn product_delete_async_operation_preserves_pending_delete_readbacks() {
+    let mut proxy = snapshot_proxy();
+    let fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-delete-async-operation.json"
+    ));
+
+    let source_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-async-source-create.graphql"
+        ),
+        fixture["setup"]["sourceCreate"]["variables"].clone(),
+    ));
+    assert_eq!(source_create.status, 200);
+    let product_id = source_create.body["data"]["productSet"]["product"]["id"].clone();
+    assert!(product_id.as_str().unwrap().contains("/Product/"));
+    assert_eq!(
+        source_create.body["data"]["productSet"]["product"]["title"],
+        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["title"]
+    );
+    assert_eq!(
+        source_create.body["data"]["productSet"]["product"]["status"],
+        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["status"]
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-operation.graphql"),
+        json!({ "input": { "id": product_id.clone() }, "synchronous": false }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["status"],
+        "CREATED"
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["productDelete"]["productDeleteOperation"]["userErrors"],
+        json!([])
+    );
+    let operation_id = delete.body["data"]["productDelete"]["productDeleteOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductDeleteOperation/"));
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-operation.graphql"),
+        json!({ "input": { "id": product_id.clone() }, "synchronous": false }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"],
+        fixture["duplicateMutation"]["response"]["data"]
+    );
+
+    let immediate_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-async-product-read.graphql"),
+        json!({ "id": product_id.clone() }),
+    ));
+    assert_eq!(immediate_read.status, 200);
+    assert_eq!(immediate_read.body["data"]["product"]["id"], product_id);
+    assert_eq!(
+        immediate_read.body["data"]["product"]["title"],
+        fixture["downstreamRead"]["response"]["data"]["product"]["title"]
+    );
+    assert_eq!(
+        immediate_read.body["data"]["product"]["status"],
+        fixture["downstreamRead"]["response"]["data"]["product"]["status"]
+    );
+
+    let operation_read = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productDelete-operation-read.graphql"),
+        json!({ "id": operation_id.clone() }),
+    ));
+    assert_eq!(operation_read.status, 200);
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["__typename"],
+        "ProductDeleteOperation"
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["id"],
+        operation_id
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["deletedProductId"],
+        product_id
+    );
+    assert_eq!(
+        operation_read.body["data"]["productOperation"]["userErrors"],
+        json!([])
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productDelete-operation-node-read.graphql"
+        ),
+        json!({ "id": operation_id.clone() }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body["data"]["node"]["id"], operation_id);
+    assert_eq!(
+        node_read.body["data"]["node"]["deletedProductId"],
+        product_id
+    );
+    assert_eq!(node_read.body["data"]["node"]["status"], "COMPLETE");
+}
+
+#[test]
+fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
+    let validation_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
+    ));
+    let relationship_fixture = product_fixture(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    ));
+
+    let mut validation_proxy = snapshot_proxy();
+    let created = validation_proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/productCreate-parity-plan.graphql"),
+        validation_fixture["captures"]["productCreate"]["variables"].clone(),
+    ));
+    assert_eq!(created.status, 200);
+    let staged_product_id = created.body["data"]["productCreate"]["product"]["id"].clone();
+    let validation_read = validation_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-relationship-product-options-read.graphql"
+        ),
+        json!({ "productId": staged_product_id }),
+    ));
+    assert_eq!(validation_read.status, 200);
+    assert_eq!(
+        validation_read.body["data"]["product"]["options"],
+        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["options"]
+    );
+    assert_eq!(
+        validation_read.body["data"]["product"]["variants"],
+        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["variants"]
+    );
+
+    let mut relationship_proxy = snapshot_proxy();
+    let relationship_read = relationship_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-relationship-product-options-read.graphql"
+        ),
+        relationship_fixture["optionDownstreamRead"]["variables"].clone(),
+    ));
+    assert_eq!(relationship_read.status, 200);
+    assert_eq!(
+        relationship_read.body["data"],
+        relationship_fixture["optionDownstreamRead"]["response"]["data"]
+    );
+}
+
+#[test]
+fn collection_membership_downstream_reads_replay_captured_shapes() {
+    let mut proxy = snapshot_proxy();
+
+    let add_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-add-products-parity.json"
+    ))
+    .unwrap();
+    let add_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/collectionAddProducts-downstream-read.graphql"
+        ),
+        add_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        add_response.body,
+        json!({ "data": add_fixture["downstreamRead"]["data"] })
+    );
+
+    let create_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-initial-products-parity.json"
+    ))
+    .unwrap();
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../config/parity-requests/products/collectionCreate-initial-products-downstream-read.graphql"),
+        create_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        create_response.body,
+        json!({ "data": create_fixture["downstreamRead"]["data"] })
+    );
+
+    let reorder_fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
+    ))
+    .unwrap();
+    let reorder_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/collectionReorderProducts-downstream-read.graphql"
+        ),
+        reorder_fixture["downstreamReadVariables"].clone(),
+    ));
+    assert_eq!(
+        reorder_response.body,
+        json!({ "data": reorder_fixture["downstreamRead"]["data"] })
+    );
+}
+
+#[test]
+fn product_contextual_pricing_price_list_read_replays_captured_shape() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-contextual-pricing-price-list-parity.json"
+    ))
+    .unwrap();
+    let variables: Value = serde_json::from_str(include_str!(
+        "../config/parity-requests/products/product-contextual-pricing-price-list-read.variables.json"
+    ))
+    .unwrap();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-contextual-pricing-price-list-read.graphql"
+        ),
+        variables,
+    ));
+
+    assert_eq!(response.body, json!({ "data": fixture["data"] }));
+}
+
+#[test]
+fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
+    ))
+    .unwrap();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-then-bulkCreate-derived-create.graphql"
+        ),
+        fixture["create"]["variables"].clone(),
+    ));
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+    assert!(product_id.is_string());
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql"
+        ),
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(
+        downstream.body["data"]["product"]["totalInventory"],
+        json!(0)
+    );
+}
+
+#[test]
+fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json"
+    ))
+    .unwrap();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-invalid-search-query-create.graphql"
+        ),
+        fixture["captures"]["productCreate"]["variables"].clone(),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["id"],
+        fixture["captures"]["productCreate"]["result"]["payload"]["data"]["productCreate"]
+            ["product"]["id"]
+    );
+
+    for capture in [
+        "validTagSearchAfterCreate",
+        "fieldOpenParenSearchAfterCreate",
+        "fieldQuotedOpenParenSearchAfterCreate",
+        "bareLeadingParenSearchAfterCreate",
+        "danglingOrSearchAfterCreate",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../config/parity-requests/products/product-invalid-search-query-search.graphql"
+            ),
+            fixture["captures"][capture]["variables"].clone(),
+        ));
+        assert_eq!(
+            response.body["data"], fixture["captures"][capture]["result"]["payload"]["data"],
+            "{capture}"
+        );
+    }
+}
+
+#[test]
+fn product_media_validation_downstream_read_preserves_seed_and_mixed_create_media() {
+    let mut proxy = snapshot_proxy();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json"
+    ))
+    .unwrap();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../config/parity-requests/products/product-media-validation-downstream-read.graphql"
+        ),
+        json!({ "productId": "gid://shopify/Product/10170577518898" }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"]
+    );
+}

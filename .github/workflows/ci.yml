@@ -13,18 +13,17 @@ permissions:
   pull-requests: write
 
 jobs:
-  gleam:
-    name: Gleam
+  rust:
+    name: Rust
     runs-on: ubuntu-latest
     env:
       NODE_VERSION: '22'
-      OTP_VERSION: '28'
-      ELIXIR_VERSION: '1.18'
-      GLEAM_VERSION: '1.16.0'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,13 +32,6 @@ jobs:
 
       - name: Enable Corepack
         run: corepack enable
-
-      - name: Setup BEAM (Erlang + Elixir + Gleam)
-        uses: erlef/setup-beam@v1
-        with:
-          otp-version: ${{ env.OTP_VERSION }}
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          gleam-version: ${{ env.GLEAM_VERSION }}
 
       - name: Resolve pnpm store path
         shell: bash
@@ -53,23 +45,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-${{ env.NODE_VERSION }}-pnpm-
 
-      - name: Restore Gleam build cache
-        uses: actions/cache@v4
-        with:
-          path: build
-          key: ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-${{ hashFiles('gleam.toml', 'manifest.toml', 'src/**/*.gleam', 'test/**/*.gleam') }}
-
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Lint TypeScript interop, tooling, and Gleam formatting
+      - name: Check Rust port fixture invariants
+        run: corepack pnpm rust-port:fixture-invariants
+
+      - name: Enforce no remaining Gleam files
+        run: corepack pnpm rust-port:no-gleam-report
+
+      - name: Rust format check
+        run: corepack pnpm rust:fmt
+
+      - name: Rust tests
+        run: corepack pnpm rust:test
+
+      - name: Lint TypeScript interop and tooling
         run: corepack pnpm lint
 
       - name: Typecheck TypeScript interop and tooling
         run: corepack pnpm typecheck
-
-      - name: Check Gleam operation registry drift
-        run: corepack pnpm gleam:registry:check
 
       - name: Check conformance metadata
         run: corepack pnpm conformance:check
@@ -100,7 +95,7 @@ jobs:
           mkdir -p .conformance/main
           echo "No main conformance baseline artifact found; PR status will omit the baseline comparison."
 
-      - name: Generate Gleam conformance status report
+      - name: Generate Rust conformance status report
         id: conformance_status
         run: >
           corepack pnpm conformance:status --
@@ -108,26 +103,11 @@ jobs:
           --output-json .conformance/current/conformance-status-report.json
           --output-markdown .conformance/current/conformance-status-comment.md
 
-      - name: Check Gleam port coverage gates
-        run: corepack pnpm gleam:port:coverage
-
       - name: Build TypeScript interop output
         run: corepack pnpm build
 
-      - name: Gleam format check
-        run: corepack pnpm gleam:format:check
-
-      - name: Gleam tests and parity specs (JavaScript target)
-        run: corepack pnpm gleam:test:js
-
-      - name: Gleam tests and parity specs (Erlang target)
-        run: corepack pnpm gleam:test:erlang
-
       - name: Node ESM consumer smoke
-        run: corepack pnpm gleam:smoke:js
-
-      - name: Elixir BEAM interop smoke
-        run: corepack pnpm elixir:smoke
+        run: corepack pnpm test
 
       - name: Upload main conformance baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

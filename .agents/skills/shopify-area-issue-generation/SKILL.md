@@ -124,7 +124,7 @@ Relevant sources:
 ## Validation
 
 - [ ] `corepack pnpm conformance:check`
-- [ ] `corepack pnpm gleam:test`
+- [ ] `corepack pnpm rust:test`
 - [ ] `corepack pnpm typecheck`
 - [ ] <Targeted integration/unit/conformance command for this slice.>
 ```
