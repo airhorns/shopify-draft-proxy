@@ -36,7 +36,7 @@ Local staged mutations:
   HTTP adapter accepts bytes posted back to those placeholder routes only as an
   in-memory staged-upload handoff for local `bulkOperationRunMutation` imports;
   it does not prove external media upload success.
-- HAR-405 captured live Shopify Admin GraphQL 2026-04 staged upload targets for
+- Live Shopify Admin GraphQL 2026-04 captures cover staged upload targets for
   representative IMAGE, FILE, VIDEO, and MODEL_3D inputs. The proxy now matches
   the captured target count, selected `userErrors` shape, parameter order, and
   parameter names for those resources. IMAGE and FILE use Shopify's captured
@@ -70,7 +70,7 @@ Local staged mutations:
   policy values. Static non-secret form values match the capture where Shopify
   returns them: MIME `Content-Type`, `success_action_status: 201`,
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
-- HAR-704 captured staged upload validation behavior for Admin GraphQL 2026-04.
+- Admin GraphQL 2026-04 captures cover staged upload validation behavior.
   `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
   field-scoped `userErrors` entry and a null placeholder target. Invalid enum
   resource values are rejected as top-level GraphQL `INVALID_VARIABLE` errors
@@ -182,24 +182,29 @@ Local staged mutations:
   until the media model stores the relevant Shopify failure rows/statuses.
 - Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
 
-## Historical and developer notes
+### Unsupported and boundary behavior
 
-### Conformance notes
+- Full Shopify file search and sort-key semantics remain unsupported.
+- The proxy does not create cloud storage objects, transfer upload bytes to Shopify storage, or model Shopify's asynchronous external media processing.
+- `fileAcknowledgeUpdateFailed` preserves the local payload and validation shape for existing `READY` records, but it does not clear real failed inner media state because the normalized model does not store Shopify `MediaError`, `mediaWarnings`, `mediaable.status`, or preview-image failure rows.
+- Shopify backend quota/throttle and file-lock states are represented only through documented deterministic local affordances or explicit gaps; they are not claimed as live backend fidelity without fixture-backed state.
+
+### Evidence
 
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
 - Existing live captures confirm Shopify serializes `FileStatus` enum values as
   `UPLOADED`, `PROCESSING`, `READY`, and `FAILED` in the covered Files API
   flows. Fresh public-URL `MediaImage` creates in the checked-in 2025-01 and
-  2026-04 media captures returned `UPLOADED`, and the HAR-708 immediate
+  2026-04 media captures returned `UPLOADED`, and the immediate
   reverse-ordered `files` read observed Shopify advancing that new file to
   `PROCESSING`; failed source processing returned `FAILED`.
-- HAR-313 adds local executable coverage for `files`, `fileSavedSearches`,
+- Local executable coverage covers `files`, `fileSavedSearches`,
   `stagedUploadsCreate`, and the former explicit
   `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
-  payload capture was added in HAR-405 for IMAGE, FILE, VIDEO, and MODEL_3D
+  payload captures cover IMAGE, FILE, VIDEO, and MODEL_3D
   target metadata while preserving the no-upload/no-storage runtime boundary.
-- HAR-375 adds local executable coverage for `fileAcknowledgeUpdateFailed`
+- Local executable coverage for `fileAcknowledgeUpdateFailed` covers
   acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`
   list, accepts READY files, reports `FILE_DOES_NOT_EXIST` for unknown/deleted
@@ -207,26 +212,26 @@ Local staged mutations:
   create. A safely staged bad-source update stayed READY in the capture and was
   accepted by acknowledgement, so richer external update-failure generation is
   documented as an upload boundary rather than fabricated locally.
-- HAR-706 narrows that support claim: until the normalized media model stores
+- Until the normalized media model stores
   Shopify `MediaError` / `mediaWarnings` rows and separate inner mediaable or
   preview-image failure statuses, acknowledgement is intentionally a no-op for
   READY files. It preserves the mutation payload shape, parent READY
   validation, downstream empty error/warning list shape, and raw mutation log
   behavior without stamping synthetic acknowledgement metadata.
-- HAR-429 adds executable local-runtime parity for the Files API product-reference
+- Executable local-runtime parity covers the Files API product-reference
   lifecycle: a local `fileCreate` MediaImage is updated through
   `fileUpdate.referencesToAdd`, becomes visible in downstream `product.media`,
   and remains visible through top-level `files`. This is intentionally local
   evidence because external upload byte transfer is still outside the proxy
   boundary; existing live Files API fixtures anchor the generic create/update
   payload family.
-- HAR-534 migrates the remaining media parity scenarios to cassette-backed
-  LiveHybrid execution. `fileUpdate.referencesToAdd` uses a product hydrate
+- Remaining media parity scenarios use cassette-backed LiveHybrid execution.
+  `fileUpdate.referencesToAdd` uses a product hydrate
   cassette entry before local staging, and `fileDelete` of a product-owned
   MediaImage uses a media-reference hydrate entry before staging the local
   delete and downstream product-media removal.
 
-### Validation anchors
+### Validation
 
 - Conformance fixtures and requests: `config/parity-specs/media/file*.json` and matching files under `config/parity-requests/media/`
 - Input-class originalSource validation parity:

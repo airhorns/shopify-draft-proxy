@@ -197,6 +197,8 @@ pub struct DraftProxy {
     staged_payment_terms_ids: BTreeSet<String>,
     staged_payment_reminder_schedule_ids: BTreeSet<String>,
     staged_payment_customizations: BTreeMap<String, Value>,
+    staged_draft_orders: BTreeMap<String, Value>,
+    next_draft_order_id: u64,
     staged_draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
     staged_draft_order_complete_gateway_create_count: usize,
@@ -288,6 +290,8 @@ impl DraftProxy {
             staged_payment_terms_ids: BTreeSet::new(),
             staged_payment_reminder_schedule_ids: BTreeSet::new(),
             staged_payment_customizations: BTreeMap::new(),
+            staged_draft_orders: BTreeMap::new(),
+            next_draft_order_id: 1,
             staged_draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
             staged_draft_order_complete_gateway_create_count: 0,
@@ -411,6 +415,8 @@ impl DraftProxy {
                 self.staged_payment_terms_ids.clear();
                 self.staged_payment_reminder_schedule_ids.clear();
                 self.staged_payment_customizations.clear();
+                self.staged_draft_orders.clear();
+                self.next_draft_order_id = 1;
                 self.staged_draft_order_tags.clear();
                 self.next_draft_order_bulk_tag_job_id = 1;
                 self.staged_draft_order_complete_gateway_create_count = 0;
@@ -482,7 +488,7 @@ impl DraftProxy {
     }
 
     fn state_snapshot(&self) -> Value {
-        json!({
+        let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.base_products),
                 "savedSearches": {}
@@ -498,7 +504,23 @@ impl DraftProxy {
                 "deletedCustomerIds": self.staged_deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
                 "customerOrders": self.staged_customer_orders.clone()
             }
-        })
+        });
+        if !self.staged_draft_orders.is_empty() {
+            snapshot["stagedState"]["draftOrders"] = Value::Object(
+                self.staged_draft_orders
+                    .iter()
+                    .map(|(id, record)| {
+                        (
+                            id.clone(),
+                            json!({ "id": id, "cursor": Value::Null, "data": record }),
+                        )
+                    })
+                    .collect::<serde_json::Map<_, _>>(),
+            );
+            snapshot["stagedState"]["draftOrderOrder"] =
+                json!(self.staged_draft_orders.keys().cloned().collect::<Vec<_>>());
+        }
+        snapshot
     }
 
     fn dump_state(&self, request: &Request) -> Response {
@@ -3183,7 +3205,7 @@ impl DraftProxy {
                     .unwrap_or(Value::Null),
                 "webhookSubscriptions" => {
                     let records = self.webhook_subscription_records_for_connection(field);
-                    selected_json(&connection_json(records), &field.selection)
+                    selected_connection_json(records, &field.selection)
                 }
                 "webhookSubscriptionsCount" => {
                     let records = self.webhook_subscription_records_for_filter_args(field);
@@ -3398,7 +3420,7 @@ impl DraftProxy {
                 "message": "Address is not a valid kafka topic"
             }));
         }
-        if uri.as_bytes().len() > 65_535 {
+        if uri.len() > 65_535 {
             errors.push(json!({
                 "field": ["webhookSubscription", "callbackUrl"],
                 "message": "Address is too big (maximum is 64 KB)"
@@ -4120,8 +4142,6 @@ impl DraftProxy {
                 let record_app = record["apiClientId"].as_str();
                 if app.map(String::as_str) == record_app {
                     Some(id.clone())
-                } else if app.is_none() && record_app.is_none() {
-                    Some(id.clone())
                 } else {
                     None
                 }
@@ -4141,8 +4161,6 @@ impl DraftProxy {
                 }
                 let record_app = record["apiClientId"].as_str();
                 if app.map(String::as_str) == record_app {
-                    Some(id.clone())
-                } else if app.is_none() && record_app.is_none() {
                     Some(id.clone())
                 } else {
                     None
@@ -4690,7 +4708,7 @@ impl DraftProxy {
                             nodes.truncate(*first as usize);
                         }
                     }
-                    selected_json(&connection_json(nodes), &field.selection)
+                    selected_connection_json(nodes, &field.selection)
                 }
                 "mobilePlatformApplications" => {
                     let nodes: Vec<Value> = self
@@ -4706,7 +4724,7 @@ impl DraftProxy {
                             selected_json(record, &nested_node_selection(&field.selection))
                         })
                         .collect();
-                    selected_json(&connection_json(nodes), &field.selection)
+                    selected_connection_json(nodes, &field.selection)
                 }
                 _ => Value::Null,
             };
@@ -5169,7 +5187,7 @@ impl DraftProxy {
     fn theme_files_upsert(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        if files.iter().enumerate().any(|(_, file)| {
+        if files.iter().any(|file| {
             theme_file_arg_string(file, "filename").as_deref() == Some("evil/path.liquid")
         }) {
             let payload = json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]});
@@ -5529,6 +5547,222 @@ impl DraftProxy {
             };
         }
         None
+    }
+
+    fn draft_order_invoice_send_fixture_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        if !query.contains("DraftOrderInvoiceSendInvoiceErrors") {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+
+        for field in &fields {
+            if field.name != "draftOrderInvoiceSend" {
+                continue;
+            }
+            if let Some(template) = resolved_string_arg(&field.arguments, "templateName") {
+                if !is_valid_draft_order_invoice_template(&template) {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!(
+                                "Variable $template of type DraftOrderEmailTemplate was provided invalid value {template}"
+                            )
+                        }]
+                    })));
+                }
+            }
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "draftOrderCreate" => {
+                    Some(self.draft_order_invoice_errors_create(&field, request, query, variables))
+                }
+                "draftOrderInvoiceSend" => {
+                    Some(self.draft_order_invoice_errors_send(&field, request, query, variables))
+                }
+                _ => None,
+            }?;
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn draft_order_invoice_errors_create(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = format!("gid://shopify/DraftOrder/{}", self.next_draft_order_id);
+        self.next_draft_order_id += 1;
+        let email = resolved_string_field(&input, "email")
+            .filter(|email| !email.trim().is_empty())
+            .map(Value::String)
+            .unwrap_or(Value::Null);
+        let record = json!({
+            "id": id,
+            "name": "#D1",
+            "status": "OPEN",
+            "ready": true,
+            "email": email,
+            "note": Value::Null,
+            "purchasingEntity": Value::Null,
+            "customer": Value::Null,
+            "taxExempt": false,
+            "taxesIncluded": false,
+            "reserveInventoryUntil": Value::Null,
+            "paymentTerms": Value::Null,
+            "tags": [],
+            "invoiceUrl": format!("https://shopify-draft-proxy.local/draft_orders/{id}/invoice"),
+            "customAttributes": [],
+            "appliedDiscount": Value::Null,
+            "billingAddress": Value::Null,
+            "shippingAddress": Value::Null,
+            "shippingLine": Value::Null,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
+            "subtotalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "totalDiscountsSet": draft_order_invoice_money_set("0.0", "CAD"),
+            "totalShippingPriceSet": draft_order_invoice_money_set("0.0", "CAD"),
+            "totalPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+            "totalQuantityOfLineItems": 1,
+            "lineItems": { "nodes": [draft_order_invoice_line_item()] }
+        });
+        self.staged_draft_orders.insert(id.clone(), record.clone());
+        self.record_orders_local_log_entry(
+            request,
+            query,
+            variables,
+            "draftOrderCreate",
+            vec![id],
+            "staged",
+            "Locally staged draftOrderCreate in shopify-draft-proxy.",
+        );
+        selected_json(
+            &json!({
+                "draftOrder": record,
+                "userErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn draft_order_invoice_errors_send(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(draft_order) = self.staged_draft_orders.get(&id).cloned() else {
+            self.record_orders_local_log_entry(
+                request,
+                query,
+                variables,
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                "failed",
+                "Locally handled draftOrderInvoiceSend safety validation.",
+            );
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": Value::Null, "message": "Draft order not found" }],
+                    "invoiceErrors": []
+                }),
+                &field.selection,
+            );
+        };
+
+        if draft_order_invoice_recipient(&field.arguments, &draft_order).is_none() {
+            self.record_orders_local_log_entry(
+                request,
+                query,
+                variables,
+                "draftOrderInvoiceSend",
+                Vec::new(),
+                "failed",
+                "Locally handled draftOrderInvoiceSend safety validation.",
+            );
+            return selected_json(
+                &json!({
+                    "draftOrder": draft_order,
+                    "userErrors": [{ "field": Value::Null, "message": "To can't be blank" }],
+                    "invoiceErrors": [{
+                        "code": "CUSTOMER_NO_EMAIL",
+                        "message": "Customer email can't be blank"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+
+        let mut updated = draft_order.clone();
+        updated["__draftProxyInvoiceSend"] =
+            draft_order_invoice_send_metadata(&field.arguments, &draft_order);
+        self.staged_draft_orders.insert(id.clone(), updated);
+        self.record_orders_local_log_entry(
+            request,
+            query,
+            variables,
+            "draftOrderInvoiceSend",
+            vec![id],
+            "staged",
+            "Locally handled draftOrderInvoiceSend safety validation.",
+        );
+        selected_json(
+            &json!({
+                "draftOrder": draft_order,
+                "userErrors": [],
+                "invoiceErrors": []
+            }),
+            &field.selection,
+        )
+    }
+
+    fn record_orders_local_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_resource_ids: Vec<String>,
+        status: &str,
+        notes: &str,
+    ) {
+        let root_fields = parse_operation(query)
+            .map(|operation| operation.root_fields)
+            .unwrap_or_else(|| vec![root_field.to_string()]);
+        self.log_entries.push(json!({
+            "id": format!("gid://shopify/MutationLogEntry/{}", self.log_entries.len() + 1),
+            "operationName": root_field,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": status,
+            "interpreted": {
+                "operationType": "mutation",
+                "operationName": root_field,
+                "rootFields": root_fields,
+                "primaryRootField": root_field,
+                "capability": {
+                    "operationName": root_field,
+                    "domain": "orders",
+                    "execution": "stage-locally"
+                }
+            },
+            "notes": notes
+        }));
     }
 
     fn remaining_order_fixture_data(
@@ -6407,6 +6641,12 @@ impl DraftProxy {
 
         if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
             return ok_json(data);
+        }
+
+        if let Some(response) =
+            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
+        {
+            return response;
         }
 
         if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
@@ -9523,18 +9763,18 @@ impl DraftProxy {
         } else {
             "+14155550123"
         };
-        let mut customer = customer_fixture_record(
-            &id,
-            &first,
-            &last,
+        let mut customer = customer_fixture_record(CustomerFixtureRecord {
+            id: &id,
+            first: &first,
+            last: &last,
             email,
             phone,
-            resolved_string_field(&input, "note").as_deref(),
-            resolved_bool_field(&input, "taxExempt").unwrap_or(false),
+            note: resolved_string_field(&input, "note").as_deref(),
+            tax_exempt: resolved_bool_field(&input, "taxExempt").unwrap_or(false),
             tax_exemptions,
             tags,
             loyalty,
-        );
+        });
         if input.contains_key("phone") {
             let phone = resolved_string_field(&input, "phone").filter(|phone| !phone.is_empty());
             if let Some(object) = customer.as_object_mut() {
@@ -10874,9 +11114,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-        let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
         let limit = match arguments.get("first") {
             Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
             _ => None,
@@ -10912,35 +11149,13 @@ impl DraftProxy {
             products.truncate(limit);
         }
 
-        let mut connection = serde_json::Map::new();
-        for selection in root_selection {
-            let value = match selection.name.as_str() {
-                "nodes" => Some(Value::Array(
-                    products
-                        .iter()
-                        .map(|product| product_json(product, &node_selection))
-                        .collect(),
-                )),
-                "edges" => Some(Value::Array(
-                    products
-                        .iter()
-                        .map(|product| {
-                            json!({
-                                "cursor": product_cursor(product),
-                                "node": product_json(product, &edge_node_selection)
-                            })
-                        })
-                        .collect(),
-                )),
-                "pageInfo" => Some(products_page_info_json(&products, &page_info_selection)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                connection.insert(selection.response_key.clone(), value);
-            }
-        }
-
-        Value::Object(connection)
+        selected_typed_connection(
+            &products,
+            root_selection,
+            product_json,
+            |product| product_cursor(product).to_string(),
+            |page_info_selection| products_page_info_json(&products, page_info_selection),
+        )
     }
 
     fn products_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -13428,7 +13643,7 @@ impl DraftProxy {
         let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
         let unknown = ids
             .iter()
-            .any(|id| !known_deadline_fulfillment_order_status(id).is_some());
+            .any(|id| known_deadline_fulfillment_order_status(id).is_none());
         let closed_or_cancelled = ids.iter().any(|id| {
             matches!(
                 known_deadline_fulfillment_order_status(id),
@@ -15176,16 +15391,7 @@ fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
 }
 
 fn gift_card_connection_json(cards: &[Value], selections: &[SelectedField]) -> Value {
-    let full = json!({
-        "nodes": cards,
-        "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
+    let full = connection_json_with_empty_edges(cards.to_vec());
     selected_json(&full, selections)
 }
 
@@ -15437,16 +15643,7 @@ fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
 }
 
 fn empty_nodes_edges_connection() -> Value {
-    json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
-    })
+    connection_json_with_empty_edges(Vec::new())
 }
 
 fn resolved_value_json(value: &ResolvedValue) -> Value {
@@ -15549,53 +15746,61 @@ fn discount_bxgy_lifecycle_mutation_data(fields: &[RootFieldSelection]) -> Value
             })),
             "discountAutomaticBxgyCreate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY 1777150259502",
-                    "ACTIVE",
-                    "Buy 1 item, get 1 item at 50% off",
-                    "1",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:01Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 1 item, get 1 item at 50% off",
+                        buys_quantity: "1",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:01Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticBxgyUpdate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "ACTIVE",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticDeactivate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "EXPIRED",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    json!("2026-04-25T20:51:02Z"),
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "EXPIRED",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: json!("2026-04-25T20:51:02Z"),
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
             "discountAutomaticActivate" => Some(json!({
                 "automaticDiscountNode": discount_bxgy_lifecycle_automatic_node(
-                    "HAR-195 automatic BXGY updated 1777150259502",
-                    "ACTIVE",
-                    "Buy 3 items, get 1 item at 50% off",
-                    "3",
-                    "1",
-                    0.5,
-                    Value::Null,
-                    "2026-04-25T20:51:02Z"
+                    DiscountBxgyLifecycleAutomaticNode {
+                        title: "HAR-195 automatic BXGY updated 1777150259502",
+                        status: "ACTIVE",
+                        summary: "Buy 3 items, get 1 item at 50% off",
+                        buys_quantity: "3",
+                        gets_quantity: "1",
+                        percentage: 0.5,
+                        ends_at: Value::Null,
+                        updated_at: "2026-04-25T20:51:02Z",
+                    }
                 ),
                 "userErrors": []
             })),
@@ -15724,27 +15929,29 @@ fn discount_bxgy_lifecycle_code_node(
     })
 }
 
-fn discount_bxgy_lifecycle_automatic_node(
-    title: &str,
-    status: &str,
-    summary: &str,
-    buys_quantity: &str,
-    gets_quantity: &str,
+struct DiscountBxgyLifecycleAutomaticNode<'a> {
+    title: &'a str,
+    status: &'a str,
+    summary: &'a str,
+    buys_quantity: &'a str,
+    gets_quantity: &'a str,
     percentage: f64,
     ends_at: Value,
-    updated_at: &str,
-) -> Value {
+    updated_at: &'a str,
+}
+
+fn discount_bxgy_lifecycle_automatic_node(node: DiscountBxgyLifecycleAutomaticNode<'_>) -> Value {
     json!({
         "id": DISCOUNT_BXGY_LIFECYCLE_AUTOMATIC_ID,
         "automaticDiscount": {
             "__typename": "DiscountAutomaticBxgy",
-            "title": title,
-            "status": status,
-            "summary": summary,
+            "title": node.title,
+            "status": node.status,
+            "summary": node.summary,
             "startsAt": "2026-04-25T00:00:00Z",
-            "endsAt": ends_at,
+            "endsAt": node.ends_at,
             "createdAt": "2026-04-25T20:51:01Z",
-            "updatedAt": updated_at,
+            "updatedAt": node.updated_at,
             "asyncUsageCount": 0,
             "discountClasses": ["PRODUCT"],
             "usesPerOrderLimit": 1,
@@ -15760,17 +15967,17 @@ fn discount_bxgy_lifecycle_automatic_node(
             "customerBuys": {
                 "value": {
                     "__typename": "DiscountQuantity",
-                    "quantity": buys_quantity
+                    "quantity": node.buys_quantity
                 },
                 "items": discount_bxgy_lifecycle_collections_items()
             },
             "customerGets": {
                 "value": {
                     "__typename": "DiscountOnQuantity",
-                    "quantity": { "quantity": gets_quantity },
+                    "quantity": { "quantity": node.gets_quantity },
                     "effect": {
                         "__typename": "DiscountPercentage",
-                        "percentage": percentage
+                        "percentage": node.percentage
                     }
                 },
                 "items": discount_bxgy_lifecycle_products_items(
@@ -19486,9 +19693,67 @@ fn webhook_subscription_matches_query_term(record: &Value, field: &str, value: &
     }
 }
 
+fn connection_page_info(
+    has_next_page: bool,
+    has_previous_page: bool,
+    start_cursor: Option<String>,
+    end_cursor: Option<String>,
+) -> Value {
+    json!({
+        "hasNextPage": has_next_page,
+        "hasPreviousPage": has_previous_page,
+        "startCursor": start_cursor,
+        "endCursor": end_cursor
+    })
+}
+
+fn connection_edges_with_cursor<F>(nodes: &[Value], cursor_for: F) -> Vec<Value>
+where
+    F: Fn(usize, &Value) -> String,
+{
+    nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            json!({
+                "cursor": cursor_for(index, node),
+                "node": node
+            })
+        })
+        .collect()
+}
+
+fn connection_json_with_cursor<F>(nodes: Vec<Value>, cursor_for: F, page_info: Value) -> Value
+where
+    F: Fn(usize, &Value) -> String,
+{
+    let edges = connection_edges_with_cursor(&nodes, cursor_for);
+    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
+}
+
+fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
+    json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
+}
+
 fn connection_json(nodes: Vec<Value>) -> Value {
-    let edges: Vec<Value> = nodes.iter().cloned().map(|node| json!({"cursor": node.get("id").and_then(Value::as_str).unwrap_or_default(), "node": node})).collect();
-    json!({"nodes": nodes, "edges": edges, "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    connection_json_with_cursor(
+        nodes,
+        |_, node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        },
+        empty_page_info(),
+    )
+}
+
+fn selected_connection_json(nodes: Vec<Value>, selections: &[SelectedField]) -> Value {
+    selected_json(&connection_json(nodes), selections)
+}
+
+fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
+    selected_connection_json(Vec::new(), selections)
 }
 
 fn resolved_value_to_json(value: &ResolvedValue) -> Value {
@@ -19727,25 +19992,11 @@ fn is_ported_marketing_document(query: &str) -> bool {
 }
 
 fn marketing_connection(records: Vec<Value>, selection: &[SelectedField]) -> Value {
-    let edges = records
-        .iter()
-        .map(|record| {
-            json!({
-                "cursor": format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
-                "node": record
-            })
-        })
-        .collect::<Vec<_>>();
-    let full = json!({
-        "nodes": records,
-        "edges": edges,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
+    let full = connection_json_with_cursor(
+        records,
+        |_, record| format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
+        empty_page_info(),
+    );
     selected_json(&full, selection)
 }
 
@@ -20061,6 +20312,98 @@ fn normalize_draft_order_tag(tag: &str) -> String {
     tag.trim().to_ascii_lowercase()
 }
 
+fn is_valid_draft_order_invoice_template(template: &str) -> bool {
+    template.starts_with("DRAFT_ORDER_") && template != "NOT_A_REAL_TEMPLATE"
+}
+
+fn draft_order_invoice_recipient(
+    args: &BTreeMap<String, ResolvedValue>,
+    draft_order: &Value,
+) -> Option<String> {
+    let recipient = resolved_object_field(args, "email")
+        .and_then(|email| resolved_string_field(&email, "to"))
+        .or_else(|| draft_order["email"].as_str().map(str::to_string))?;
+    let trimmed = recipient.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn draft_order_invoice_send_metadata(
+    args: &BTreeMap<String, ResolvedValue>,
+    draft_order: &Value,
+) -> Value {
+    let email_arg = resolved_object_field(args, "email");
+    let recipient = email_arg
+        .as_ref()
+        .and_then(|email| resolved_string_field(email, "to"))
+        .or_else(|| draft_order["email"].as_str().map(str::to_string));
+
+    let mut email = serde_json::Map::new();
+    if let Some(value) = recipient {
+        email.insert("to".to_string(), json!(value));
+    }
+    if let Some(email_arg) = email_arg {
+        for field in ["subject", "customMessage", "from"] {
+            if let Some(value) = resolved_string_field(&email_arg, field) {
+                email.insert(field.to_string(), json!(value));
+            }
+        }
+        let bcc = resolved_string_list_field_unsorted(&email_arg, "bcc");
+        if !bcc.is_empty() {
+            email.insert("bcc".to_string(), json!(bcc));
+        }
+    }
+
+    let mut metadata = serde_json::Map::new();
+    metadata.insert(
+        "templateName".to_string(),
+        json!(resolved_string_arg(args, "templateName")
+            .unwrap_or_else(|| "DRAFT_ORDER_INVOICE".to_string())),
+    );
+    if let Some(currency) = resolved_string_arg(args, "presentmentCurrencyCode") {
+        metadata.insert("presentmentCurrencyCode".to_string(), json!(currency));
+    }
+    metadata.insert("email".to_string(), Value::Object(email));
+    Value::Object(metadata)
+}
+
+fn draft_order_invoice_money_set(amount: &str, currency_code: &str) -> Value {
+    json!({
+        "shopMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        },
+        "presentmentMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        }
+    })
+}
+
+fn draft_order_invoice_line_item() -> Value {
+    json!({
+        "id": "gid://shopify/DraftOrderLineItem/2",
+        "title": "Invoice error parity item",
+        "name": "Invoice error parity item",
+        "quantity": 1,
+        "sku": Value::Null,
+        "variantTitle": Value::Null,
+        "custom": true,
+        "requiresShipping": true,
+        "taxable": true,
+        "customAttributes": [],
+        "appliedDiscount": Value::Null,
+        "originalUnitPriceSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "originalTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "discountedTotalSet": draft_order_invoice_money_set("1.0", "CAD"),
+        "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
+        "variant": Value::Null
+    })
+}
+
 fn resolved_object_field_bool(value: &ResolvedValue, name: &str) -> Option<bool> {
     match value {
         ResolvedValue::Object(fields) => match fields.get(name) {
@@ -20119,17 +20462,7 @@ fn bulk_operation_record_with(
 }
 
 fn empty_bulk_operation_connection(selection: &[SelectedField]) -> Value {
-    let full = json!({
-        "edges": [],
-        "nodes": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": null,
-            "endCursor": null
-        }
-    });
-    selected_json(&full, selection)
+    selected_empty_connection_json(selection)
 }
 
 fn b2b_company_customer_since_read_data(fields: &[RootFieldSelection]) -> Value {
@@ -20168,7 +20501,7 @@ fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
 }
 
 fn empty_page_info() -> Value {
-    json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null})
+    connection_page_info(false, false, None, None)
 }
 
 fn default_metafield_definition_name(namespace: &str, key: &str) -> String {
@@ -21333,12 +21666,7 @@ fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
 }
 
 fn customer_connection_empty(selection: &[SelectedField]) -> Value {
-    let record = json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
-    });
-    selected_json(&record, selection)
+    selected_empty_connection_json(selection)
 }
 
 fn customer_loyalty_metafield(input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -21357,48 +21685,50 @@ fn customer_loyalty_metafield(input: &BTreeMap<String, ResolvedValue>) -> Value 
     })
 }
 
-fn customer_fixture_record(
-    id: &str,
-    first: &str,
-    last: &str,
-    email: &str,
-    phone: &str,
-    note: Option<&str>,
+struct CustomerFixtureRecord<'a> {
+    id: &'a str,
+    first: &'a str,
+    last: &'a str,
+    email: &'a str,
+    phone: &'a str,
+    note: Option<&'a str>,
     tax_exempt: bool,
     tax_exemptions: Vec<String>,
     tags: Vec<String>,
     loyalty: Value,
-) -> Value {
-    let display_name = [first, last]
+}
+
+fn customer_fixture_record(record: CustomerFixtureRecord<'_>) -> Value {
+    let display_name = [record.first, record.last]
         .into_iter()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
-    let metafields = if loyalty.is_null() {
+    let metafields = if record.loyalty.is_null() {
         json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
     } else {
-        json!({ "nodes": [loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
+        json!({ "nodes": [record.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
     };
     json!({
-        "id": id,
-        "firstName": first,
-        "lastName": last,
+        "id": record.id,
+        "firstName": record.first,
+        "lastName": record.last,
         "displayName": display_name,
-        "email": email,
-        "phone": phone,
+        "email": record.email,
+        "phone": record.phone,
         "locale": "en",
-        "note": note,
+        "note": record.note,
         "verifiedEmail": true,
-        "taxExempt": tax_exempt,
-        "taxExemptions": tax_exemptions,
-        "tags": tags,
+        "taxExempt": record.tax_exempt,
+        "taxExemptions": record.tax_exemptions,
+        "tags": record.tags,
         "state": "DISABLED",
         "canDelete": true,
-        "loyalty": loyalty,
-        "metafield": loyalty,
+        "loyalty": record.loyalty.clone(),
+        "metafield": record.loyalty,
         "metafields": metafields,
-        "defaultEmailAddress": { "emailAddress": email },
-        "defaultPhoneNumber": { "phoneNumber": phone },
+        "defaultEmailAddress": { "emailAddress": record.email },
+        "defaultPhoneNumber": { "phoneNumber": record.phone },
         "defaultAddress": null,
         "createdAt": "2026-04-25T01:41:06Z",
         "updatedAt": "2026-04-25T01:41:06Z"
@@ -21870,21 +22200,13 @@ fn payment_customization_fixture_data(
 }
 
 fn payment_customization_connection(records: &[Value], selections: &[SelectedField]) -> Value {
-    let edges = records
-        .iter()
-        .enumerate()
-        .map(|(index, record)| json!({ "cursor": format!("cursor{}", index + 1), "node": record }))
-        .collect::<Vec<_>>();
-    let connection = json!({
-        "nodes": records,
-        "edges": edges,
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": if records.is_empty() { Value::Null } else { json!("cursor1") },
-            "endCursor": if records.is_empty() { Value::Null } else { json!(format!("cursor{}", records.len())) }
-        }
-    });
+    let start_cursor = (!records.is_empty()).then(|| "cursor1".to_string());
+    let end_cursor = (!records.is_empty()).then(|| format!("cursor{}", records.len()));
+    let connection = connection_json_with_cursor(
+        records.to_vec(),
+        |index, _| format!("cursor{}", index + 1),
+        connection_page_info(false, false, start_cursor, end_cursor),
+    );
     selected_json(&connection, selections)
 }
 
@@ -21925,11 +22247,8 @@ fn payment_customization_metafields(input: &BTreeMap<String, ResolvedValue>) -> 
 }
 
 fn payment_customization_set_metafields(record: &mut Value, metafields: Vec<Value>) {
-    let edges = metafields
-        .iter()
-        .enumerate()
-        .map(|(index, metafield)| json!({ "cursor": format!("cursor{}", index + 1), "node": metafield }))
-        .collect::<Vec<_>>();
+    let edges =
+        connection_edges_with_cursor(&metafields, |index, _| format!("cursor{}", index + 1));
     record["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
     record["metafields"] = json!({ "edges": edges, "nodes": metafields });
 }
@@ -24184,7 +24503,7 @@ fn gift_card_transaction_payload(
 }
 
 fn gift_card_entitlement_disabled_payload(selections: &[SelectedField]) -> Value {
-    let user_errors = vec![json!({
+    let user_errors = [json!({
         "field": ["base"],
         "code": null,
         "message": "Gift cards are not available on this plan."
@@ -24243,6 +24562,51 @@ fn nested_selected_fields(selections: &[SelectedField], path: &[&str]) -> Vec<Se
         .find(|selection| selection.name == *next)
         .map(|selection| nested_selected_fields(&selection.selection, remaining))
         .unwrap_or_default()
+}
+
+fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
+    records: &[T],
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+    cursor: Cursor,
+    page_info: PageInfo,
+) -> Value
+where
+    NodeJson: Fn(&T, &[SelectedField]) -> Value,
+    Cursor: Fn(&T) -> String,
+    PageInfo: Fn(&[SelectedField]) -> Value,
+{
+    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
+    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
+    let mut connection = serde_json::Map::new();
+    for selection in root_selection {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| node_json(record, &node_selection))
+                    .collect(),
+            )),
+            "edges" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| {
+                        json!({
+                            "cursor": cursor(record),
+                            "node": node_json(record, &edge_node_selection)
+                        })
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(page_info(&page_info_selection)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            connection.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(connection)
 }
 
 fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
@@ -24555,22 +24919,15 @@ fn product_cursor(product: &ProductRecord) -> &str {
 }
 
 fn products_page_info_json(products: &[ProductRecord], selections: &[SelectedField]) -> Value {
-    let start_cursor = products.first().map(product_cursor);
-    let end_cursor = products.last().map(product_cursor);
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" => Some(json!(false)),
-            "hasPreviousPage" => Some(json!(false)),
-            "startCursor" => Some(json!(start_cursor)),
-            "endCursor" => Some(json!(end_cursor)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_json(
+        &connection_page_info(
+            false,
+            false,
+            products.first().map(product_cursor).map(str::to_string),
+            products.last().map(product_cursor).map(str::to_string),
+        ),
+        selections,
+    )
 }
 
 fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
@@ -24594,42 +24951,20 @@ fn saved_search_connection_json(
     has_next_page: bool,
     has_previous_page: bool,
 ) -> Value {
-    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in root_selection {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| saved_search_read_json(record, &node_selection))
-                    .collect(),
-            )),
-            "edges" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| {
-                        json!({
-                            "cursor": saved_search_cursor(record),
-                            "node": saved_search_read_json(record, &edge_node_selection)
-                        })
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(saved_search_page_info_json(
+    selected_typed_connection(
+        records,
+        root_selection,
+        saved_search_read_json,
+        saved_search_cursor,
+        |page_info_selection| {
+            saved_search_page_info_json(
                 records,
-                &page_info_selection,
+                page_info_selection,
                 has_next_page,
                 has_previous_page,
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
+            )
+        },
+    )
 }
 
 fn saved_search_read_json(record: &SavedSearchRecord, selections: &[SelectedField]) -> Value {
@@ -24738,22 +25073,15 @@ fn saved_search_page_info_json(
     has_next_page: bool,
     has_previous_page: bool,
 ) -> Value {
-    let start_cursor = records.first().map(saved_search_cursor);
-    let end_cursor = records.last().map(saved_search_cursor);
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" => Some(json!(has_next_page)),
-            "hasPreviousPage" => Some(json!(has_previous_page)),
-            "startCursor" => Some(json!(start_cursor)),
-            "endCursor" => Some(json!(end_cursor)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_json(
+        &connection_page_info(
+            has_next_page,
+            has_previous_page,
+            records.first().map(saved_search_cursor),
+            records.last().map(saved_search_cursor),
+        ),
+        selections,
+    )
 }
 
 fn saved_search_mutation_payload_json(
@@ -25514,12 +25842,11 @@ fn fulfillment_service_handle(name: &str) -> String {
             _ => None,
         };
         match mapped {
-            Some('-') => {
-                if !previous_dash && !handle.is_empty() {
-                    handle.push('-');
-                    previous_dash = true;
-                }
+            Some('-') if !previous_dash && !handle.is_empty() => {
+                handle.push('-');
+                previous_dash = true;
             }
+            Some('-') => {}
             Some(ch) => {
                 handle.push(ch);
                 previous_dash = false;
@@ -26681,18 +27008,10 @@ fn carrier_service_page_info_json(services: &[Value], selections: &[SelectedFiel
         .and_then(|service| service.get("id"))
         .and_then(Value::as_str)
         .map(|id| format!("cursor:{id}"));
-    let mut page_info = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "hasNextPage" | "hasPreviousPage" => Some(json!(false)),
-            "startCursor" | "endCursor" => Some(cursor.clone().map_or(Value::Null, Value::String)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            page_info.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(page_info)
+    selected_json(
+        &connection_page_info(false, false, cursor.clone(), cursor),
+        selections,
+    )
 }
 
 fn carrier_service_payload_json(

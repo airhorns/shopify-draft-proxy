@@ -1,0 +1,23 @@
+mutation DraftOrderInvoiceSendInvoiceErrors(
+  $id: ID!
+  $email: EmailInput
+  $currency: CurrencyCode
+  $template: DraftOrderEmailTemplate
+) {
+  draftOrderInvoiceSend(id: $id, email: $email, presentmentCurrencyCode: $currency, templateName: $template) {
+    draftOrder {
+      id
+      status
+      email
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+    invoiceErrors {
+      code
+      message
+    }
+  }
+}

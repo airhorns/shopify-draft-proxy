@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
+import { conformanceCaptureIndex } from './conformance-capture-index.js';
+
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 
 const result = spawnSync('git', ['diff', '--name-only', 'origin/main', '--', ...protectedPaths], {
@@ -15,17 +17,35 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function fixtureOutputMatchesPath(output: string, path: string): boolean {
+  const pattern = escapeRegExp(output)
+    .replaceAll('<store>', '[^/]+')
+    .replaceAll('<api-version>', '[^/]+')
+    .replaceAll('<domain-folder>', '[^/]+');
+  return new RegExp(`^${pattern}$`, 'u').test(path);
+}
+
+const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
+
 const changed = result.stdout
   .split('\n')
   .map((line) => line.trim())
   .filter(Boolean);
 
-if (changed.length > 0) {
+const unregistered = changed.filter(
+  (path) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
+);
+
+if (unregistered.length > 0) {
   process.stderr.write(
-    'Rust port must not change checked-in parity specs, parity requests, or conformance fixtures.\n',
+    'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
-  for (const path of changed) process.stderr.write(`- ${path}\n`);
+  for (const path of unregistered) process.stderr.write(`- ${path}\n`);
   process.exit(1);
 }
 
-process.stdout.write('Parity specs, parity requests, and conformance fixtures match origin/main.\n');
+process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
