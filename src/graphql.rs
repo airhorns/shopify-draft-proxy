@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use graphql_parser::query::{
     parse_query, Definition, Field, OperationDefinition, Selection, Value,
 };
+use graphql_parser::Pos;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedValue {
@@ -13,6 +14,37 @@ pub enum ResolvedValue {
     Null,
     List(Vec<ResolvedValue>),
     Object(BTreeMap<String, ResolvedValue>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceLocation {
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawArgumentValue {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    Null,
+    Enum(String),
+    List(Vec<RawArgumentValue>),
+    Object(BTreeMap<String, RawArgumentValue>),
+    Variable {
+        name: String,
+        value: Option<ResolvedValue>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParsedDocument {
+    pub operation_type: OperationType,
+    pub operation_name: Option<String>,
+    pub operation_path: String,
+    pub location: SourceLocation,
+    pub root_fields: Vec<RootFieldSelection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +65,8 @@ pub struct SelectedField {
 pub struct RootFieldSelection {
     pub name: String,
     pub response_key: String,
+    pub location: SourceLocation,
+    pub raw_arguments: BTreeMap<String, RawArgumentValue>,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
 }
@@ -50,72 +84,105 @@ impl ParsedOperation {
     }
 }
 
-pub fn parse_operation(query: &str) -> Option<ParsedOperation> {
-    let document = parse_query::<&str>(query).ok()?;
+impl RawArgumentValue {
+    pub fn resolved_value(&self) -> ResolvedValue {
+        match self {
+            Self::String(value) => ResolvedValue::String(value.clone()),
+            Self::Int(value) => ResolvedValue::Int(*value),
+            Self::Float(value) => ResolvedValue::Float(*value),
+            Self::Bool(value) => ResolvedValue::Bool(*value),
+            Self::Null => ResolvedValue::Null,
+            Self::Enum(value) => ResolvedValue::String(value.clone()),
+            Self::List(values) => {
+                ResolvedValue::List(values.iter().map(Self::resolved_value).collect())
+            }
+            Self::Object(fields) => ResolvedValue::Object(
+                fields
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.resolved_value()))
+                    .collect(),
+            ),
+            Self::Variable { value, .. } => value.clone().unwrap_or(ResolvedValue::Null),
+        }
+    }
 
-    document
+    pub fn is_literal_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
+    pub fn is_unbound_variable(&self) -> bool {
+        matches!(self, Self::Variable { value: None, .. })
+    }
+}
+
+pub fn parse_operation(query: &str) -> Option<ParsedOperation> {
+    let document = parsed_document(query, &BTreeMap::new())?;
+    Some(ParsedOperation {
+        operation_type: document.operation_type,
+        root_fields: document
+            .root_fields
+            .into_iter()
+            .map(|field| field.name)
+            .collect(),
+    })
+}
+
+pub fn parsed_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<ParsedDocument> {
+    parsed_document_with_operation_name(query, variables, None)
+}
+
+pub fn parsed_document_with_operation_name(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    operation_name: Option<&str>,
+) -> Option<ParsedDocument> {
+    let document = parse_query::<&str>(query).ok()?;
+    let fragments = fragment_selections(&document.definitions);
+    let operation = document
         .definitions
-        .into_iter()
-        .find_map(|definition| match definition {
-            Definition::Operation(operation) => parsed_operation_from_definition(operation),
+        .iter()
+        .filter_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
             Definition::Fragment(_) => None,
         })
+        .find(|operation| operation_name_matches(operation, operation_name))?;
+
+    let (operation_type, name, location, selections) = operation_parts(operation);
+    Some(ParsedDocument {
+        operation_type,
+        operation_name: name.map(str::to_string),
+        operation_path: operation_path(operation_type, name),
+        location: source_location(location),
+        root_fields: root_field_selections(selections, variables, &fragments),
+    })
 }
 
 pub fn root_field_arguments(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    let document = parse_query::<&str>(query).ok()?;
-    let operation = document
-        .definitions
-        .into_iter()
-        .find_map(|definition| match definition {
-            Definition::Operation(operation) => Some(operation),
-            Definition::Fragment(_) => None,
-        })?;
-    let root_field = first_field_selection(operation)?;
-
-    Some(field_arguments(root_field, variables))
+    let root_field = root_fields(query, variables)?.into_iter().next()?;
+    Some(root_field.arguments)
 }
 
 pub fn root_fields(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Vec<RootFieldSelection>> {
-    let document = parse_query::<&str>(query).ok()?;
-    let operation = document
-        .definitions
-        .into_iter()
-        .find_map(|definition| match definition {
-            Definition::Operation(operation) => Some(operation),
-            Definition::Fragment(_) => None,
-        })?;
-
-    Some(
-        operation_field_selections(operation)
-            .into_iter()
-            .map(|field| RootFieldSelection {
-                name: field.name.to_string(),
-                response_key: field.alias.unwrap_or(field.name).to_string(),
-                arguments: field_arguments(field.clone(), variables),
-                selection: selected_fields(field.selection_set.items, variables),
-            })
-            .collect(),
-    )
+    Some(parsed_document(query, variables)?.root_fields)
 }
 
 pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
     let root_field = first_root_field(query)?;
-    Some(selected_fields(
-        root_field.selection_set.items,
-        &BTreeMap::new(),
-    ))
+    Some(root_field.selection)
 }
 
 pub fn root_field_response_key(query: &str) -> Option<String> {
     let root_field = first_root_field(query)?;
-    Some(root_field.alias.unwrap_or(root_field.name).to_string())
+    Some(root_field.response_key)
 }
 
 pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
@@ -124,167 +191,214 @@ pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<
 
 pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
     let root_field = first_root_field(query)?;
-    nested_selection(root_field.selection_set.items, path, &BTreeMap::new())
+    nested_selected_field(&root_field.selection, path).map(|field| field.selection.clone())
 }
 
-fn first_root_field<'a>(query: &'a str) -> Option<Field<'a, &'a str>> {
-    let document = parse_query::<&str>(query).ok()?;
-    let operation = document
-        .definitions
-        .into_iter()
-        .find_map(|definition| match definition {
-            Definition::Operation(operation) => Some(operation),
-            Definition::Fragment(_) => None,
-        })?;
-    first_field_selection(operation)
-}
-
-fn parsed_operation_from_definition<'a>(
-    operation: OperationDefinition<'a, &'a str>,
-) -> Option<ParsedOperation> {
-    match operation {
-        OperationDefinition::SelectionSet(selection_set) => Some(ParsedOperation {
-            operation_type: OperationType::Query,
-            root_fields: field_names(selection_set.items),
-        }),
-        OperationDefinition::Query(query) => Some(ParsedOperation {
-            operation_type: OperationType::Query,
-            root_fields: field_names(query.selection_set.items),
-        }),
-        OperationDefinition::Mutation(mutation) => Some(ParsedOperation {
-            operation_type: OperationType::Mutation,
-            root_fields: field_names(mutation.selection_set.items),
-        }),
-        OperationDefinition::Subscription(subscription) => Some(ParsedOperation {
-            operation_type: OperationType::Subscription,
-            root_fields: field_names(subscription.selection_set.items),
-        }),
-    }
-}
-
-fn field_names<'a>(selections: Vec<Selection<'a, &'a str>>) -> Vec<String> {
-    selections
-        .into_iter()
-        .filter_map(|selection| match selection {
-            Selection::Field(field) => Some(field.name.to_string()),
-            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
-        })
-        .collect()
+fn first_root_field(query: &str) -> Option<RootFieldSelection> {
+    root_fields(query, &BTreeMap::new())?.into_iter().next()
 }
 
 fn selected_fields<'a>(
-    selections: Vec<Selection<'a, &'a str>>,
+    selections: &'a [Selection<'a, &'a str>],
     variables: &BTreeMap<String, ResolvedValue>,
+    fragments: &FragmentSelections<'a>,
 ) -> Vec<SelectedField> {
     selections
-        .into_iter()
+        .iter()
         .flat_map(|selection| match selection {
             Selection::Field(field) => vec![SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
-                arguments: field_arguments(field.clone(), variables),
-                selection: selected_fields(field.selection_set.items, variables),
+                arguments: field_arguments(field, variables),
+                selection: selected_fields(&field.selection_set.items, variables, fragments),
             }],
             Selection::InlineFragment(fragment) => {
-                selected_fields(fragment.selection_set.items, variables)
+                selected_fields(&fragment.selection_set.items, variables, fragments)
             }
-            Selection::FragmentSpread(_) => Vec::new(),
+            Selection::FragmentSpread(fragment) => fragments
+                .get(fragment.fragment_name)
+                .map(|selection_set| selected_fields(selection_set, variables, fragments))
+                .unwrap_or_default(),
         })
         .collect()
 }
 
 fn field_arguments<'a>(
-    field: Field<'a, &'a str>,
+    field: &Field<'a, &'a str>,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> BTreeMap<String, ResolvedValue> {
+    raw_field_arguments(field, variables)
+        .into_iter()
+        .map(|(name, value)| (name, value.resolved_value()))
+        .collect()
+}
+
+fn raw_field_arguments<'a>(
+    field: &Field<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> BTreeMap<String, RawArgumentValue> {
     field
         .arguments
-        .into_iter()
-        .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+        .iter()
+        .map(|(name, value)| (name.to_string(), raw_argument_value(value, variables)))
         .collect()
 }
 
-fn operation_field_selections<'a>(
-    operation: OperationDefinition<'a, &'a str>,
-) -> Vec<Field<'a, &'a str>> {
-    let selections = match operation {
-        OperationDefinition::SelectionSet(selection_set) => selection_set.items,
-        OperationDefinition::Query(query) => query.selection_set.items,
-        OperationDefinition::Mutation(mutation) => mutation.selection_set.items,
-        OperationDefinition::Subscription(subscription) => subscription.selection_set.items,
-    };
+type FragmentSelections<'a> = BTreeMap<&'a str, &'a [Selection<'a, &'a str>]>;
 
-    selections
-        .into_iter()
-        .filter_map(|selection| match selection {
-            Selection::Field(field) => Some(field),
-            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
+fn fragment_selections<'a>(definitions: &'a [Definition<'a, &'a str>]) -> FragmentSelections<'a> {
+    definitions
+        .iter()
+        .filter_map(|definition| match definition {
+            Definition::Fragment(fragment) => {
+                Some((fragment.name, fragment.selection_set.items.as_slice()))
+            }
+            Definition::Operation(_) => None,
         })
         .collect()
 }
 
-fn nested_selection<'a>(
-    selections: Vec<Selection<'a, &'a str>>,
+fn operation_name_matches<'a>(
+    operation: &'a OperationDefinition<'a, &'a str>,
+    expected_name: Option<&str>,
+) -> bool {
+    expected_name.is_none_or(|expected_name| operation_parts(operation).1 == Some(expected_name))
+}
+
+fn operation_parts<'a>(
+    operation: &'a OperationDefinition<'a, &'a str>,
+) -> (
+    OperationType,
+    Option<&'a str>,
+    Pos,
+    &'a [Selection<'a, &'a str>],
+) {
+    match operation {
+        OperationDefinition::SelectionSet(selection_set) => (
+            OperationType::Query,
+            None,
+            selection_set.span.0,
+            selection_set.items.as_slice(),
+        ),
+        OperationDefinition::Query(query) => (
+            OperationType::Query,
+            query.name,
+            query.position,
+            query.selection_set.items.as_slice(),
+        ),
+        OperationDefinition::Mutation(mutation) => (
+            OperationType::Mutation,
+            mutation.name,
+            mutation.position,
+            mutation.selection_set.items.as_slice(),
+        ),
+        OperationDefinition::Subscription(subscription) => (
+            OperationType::Subscription,
+            subscription.name,
+            subscription.position,
+            subscription.selection_set.items.as_slice(),
+        ),
+    }
+}
+
+fn operation_path(operation_type: OperationType, name: Option<&str>) -> String {
+    let operation_type = match operation_type {
+        OperationType::Query => "query",
+        OperationType::Mutation => "mutation",
+        OperationType::Subscription => "subscription",
+    };
+    name.map_or_else(
+        || operation_type.to_string(),
+        |name| format!("{operation_type} {name}"),
+    )
+}
+
+fn root_field_selections<'a>(
+    selections: &'a [Selection<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
+    fragments: &FragmentSelections<'a>,
+) -> Vec<RootFieldSelection> {
+    let mut fields = Vec::new();
+    collect_root_field_selections(selections, variables, fragments, &mut fields);
+    fields
+}
+
+fn collect_root_field_selections<'a>(
+    selections: &'a [Selection<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
+    fragments: &FragmentSelections<'a>,
+    fields: &mut Vec<RootFieldSelection>,
+) {
+    for selection in selections {
+        match selection {
+            Selection::Field(field) => fields.push(RootFieldSelection {
+                name: field.name.to_string(),
+                response_key: field.alias.unwrap_or(field.name).to_string(),
+                location: source_location(field.position),
+                raw_arguments: raw_field_arguments(field, variables),
+                arguments: field_arguments(field, variables),
+                selection: selected_fields(&field.selection_set.items, variables, fragments),
+            }),
+            Selection::InlineFragment(fragment) => collect_root_field_selections(
+                &fragment.selection_set.items,
+                variables,
+                fragments,
+                fields,
+            ),
+            Selection::FragmentSpread(fragment) => {
+                if let Some(selection_set) = fragments.get(fragment.fragment_name) {
+                    collect_root_field_selections(selection_set, variables, fragments, fields);
+                }
+            }
+        }
+    }
+}
+
+fn nested_selected_field<'a>(
+    selections: &'a [SelectedField],
     path: &[&str],
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Vec<SelectedField>> {
+) -> Option<&'a SelectedField> {
     let (next, remaining) = path.split_first()?;
-    selections
-        .into_iter()
-        .find_map(|selection| match selection {
-            Selection::Field(field) if field.name == *next && remaining.is_empty() => {
-                Some(selected_fields(field.selection_set.items, variables))
-            }
-            Selection::Field(field) if field.name == *next => {
-                nested_selection(field.selection_set.items, remaining, variables)
-            }
-            Selection::Field(_) | Selection::FragmentSpread(_) | Selection::InlineFragment(_) => {
-                None
-            }
-        })
+    selections.iter().find_map(|selection| match selection {
+        field if field.name == *next && remaining.is_empty() => Some(field),
+        field if field.name == *next => nested_selected_field(&field.selection, remaining),
+        _ => None,
+    })
 }
 
-fn first_field_selection<'a>(
-    operation: OperationDefinition<'a, &'a str>,
-) -> Option<Field<'a, &'a str>> {
-    let selections = match operation {
-        OperationDefinition::SelectionSet(selection_set) => selection_set.items,
-        OperationDefinition::Query(query) => query.selection_set.items,
-        OperationDefinition::Mutation(mutation) => mutation.selection_set.items,
-        OperationDefinition::Subscription(subscription) => subscription.selection_set.items,
-    };
-
-    selections
-        .into_iter()
-        .find_map(|selection| match selection {
-            Selection::Field(field) => Some(field),
-            Selection::FragmentSpread(_) | Selection::InlineFragment(_) => None,
-        })
-}
-
-fn resolve_value<'a>(
-    value: Value<'a, &'a str>,
+fn raw_argument_value<'a>(
+    value: &Value<'a, &'a str>,
     variables: &BTreeMap<String, ResolvedValue>,
-) -> ResolvedValue {
+) -> RawArgumentValue {
     match value {
-        Value::Variable(name) => variables.get(name).cloned().unwrap_or(ResolvedValue::Null),
-        Value::Int(number) => ResolvedValue::Int(number.as_i64().unwrap_or_default()),
-        Value::Float(value) => ResolvedValue::Float(value),
-        Value::String(value) => ResolvedValue::String(value),
-        Value::Boolean(value) => ResolvedValue::Bool(value),
-        Value::Null => ResolvedValue::Null,
-        Value::Enum(value) => ResolvedValue::String(value.to_string()),
-        Value::List(values) => ResolvedValue::List(
+        Value::Variable(name) => RawArgumentValue::Variable {
+            name: name.to_string(),
+            value: variables.get(*name).cloned(),
+        },
+        Value::Int(number) => RawArgumentValue::Int(number.as_i64().unwrap_or_default()),
+        Value::Float(value) => RawArgumentValue::Float(*value),
+        Value::String(value) => RawArgumentValue::String(value.to_string()),
+        Value::Boolean(value) => RawArgumentValue::Bool(*value),
+        Value::Null => RawArgumentValue::Null,
+        Value::Enum(value) => RawArgumentValue::Enum(value.to_string()),
+        Value::List(values) => RawArgumentValue::List(
             values
-                .into_iter()
-                .map(|value| resolve_value(value, variables))
+                .iter()
+                .map(|value| raw_argument_value(value, variables))
                 .collect(),
         ),
-        Value::Object(fields) => ResolvedValue::Object(
+        Value::Object(fields) => RawArgumentValue::Object(
             fields
-                .into_iter()
-                .map(|(name, value)| (name.to_string(), resolve_value(value, variables)))
+                .iter()
+                .map(|(name, value)| (name.to_string(), raw_argument_value(value, variables)))
                 .collect(),
         ),
+    }
+}
+
+fn source_location(position: Pos) -> SourceLocation {
+    SourceLocation {
+        line: position.line,
+        column: position.column,
     }
 }

@@ -77,8 +77,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 Run the full Rust-port gate before pushing:
 
 ```bash
-corepack pnpm rust-port:fixture-invariants
-corepack pnpm rust-port:no-gleam-report
+corepack pnpm conformance:fixture-invariants
 corepack pnpm rust:fmt
 corepack pnpm rust:clippy
 corepack pnpm rust:test
