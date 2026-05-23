@@ -30,11 +30,54 @@ pub enum CapabilityDomain {
     Unknown,
 }
 
+impl CapabilityDomain {
+    pub fn registry_name(self) -> &'static str {
+        match self {
+            Self::Products => "products",
+            Self::AdminPlatform => "admin-platform",
+            Self::B2b => "b2b",
+            Self::Apps => "apps",
+            Self::Media => "media",
+            Self::BulkOperations => "bulk-operations",
+            Self::Customers => "customers",
+            Self::Orders => "orders",
+            Self::StoreProperties => "store-properties",
+            Self::Discounts => "discounts",
+            Self::Events => "events",
+            Self::Functions => "functions",
+            Self::Payments => "payments",
+            Self::Marketing => "marketing",
+            Self::OnlineStore => "online-store",
+            Self::SavedSearches => "saved-searches",
+            Self::Privacy => "privacy",
+            Self::Segments => "segments",
+            Self::ShippingFulfillments => "shipping-fulfillments",
+            Self::GiftCards => "gift-cards",
+            Self::Webhooks => "webhooks",
+            Self::Localization => "localization",
+            Self::Markets => "markets",
+            Self::Metafields => "metafields",
+            Self::Metaobjects => "metaobjects",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapabilityExecution {
     OverlayRead,
     StageLocally,
     Passthrough,
+}
+
+impl CapabilityExecution {
+    pub fn registry_name(self) -> &'static str {
+        match self {
+            Self::OverlayRead => "overlay-read",
+            Self::StageLocally => "stage-locally",
+            Self::Passthrough => "passthrough",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,11 +92,37 @@ pub struct OperationRegistryEntry {
     pub support_notes: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalDispatchRoot {
+    pub name: &'static str,
+    pub operation_type: OperationType,
+    pub domain: CapabilityDomain,
+    pub execution: CapabilityExecution,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationCapability {
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
     pub operation_name: Option<String>,
+}
+
+pub fn local_dispatch_roots() -> &'static [LocalDispatchRoot] {
+    &LOCAL_DISPATCH_ROOTS
+}
+
+pub fn local_dispatch_root(
+    operation_type: OperationType,
+    domain: CapabilityDomain,
+    execution: CapabilityExecution,
+    root_field: &str,
+) -> Option<&'static LocalDispatchRoot> {
+    LOCAL_DISPATCH_ROOTS.iter().find(|root| {
+        root.operation_type == operation_type
+            && root.domain == domain
+            && root.execution == execution
+            && root.name == root_field
+    })
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
@@ -174,7 +243,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Products,
             execution: CapabilityExecution::StageLocally,
             implemented: true,
-            match_names: strings(&["tagsAdd", "TagsAdd"]),
+            match_names: strings(&["tagsAdd"]),
             runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
@@ -184,7 +253,7 @@ pub fn default_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Products,
             execution: CapabilityExecution::StageLocally,
             implemented: true,
-            match_names: strings(&["tagsRemove", "TagsRemove"]),
+            match_names: strings(&["tagsRemove"]),
             runtime_tests: strings(&["tests/graphql_routes.rs"]),
             support_notes: None,
         },
@@ -271,14 +340,72 @@ fn saved_search_query(name: &str) -> OperationRegistryEntry {
         domain: CapabilityDomain::SavedSearches,
         execution: CapabilityExecution::OverlayRead,
         implemented: true,
-        match_names: vec![name.to_string()],
+        match_names: match_names_with_pascal(name),
         runtime_tests: strings(&["tests/graphql_routes.rs"]),
         support_notes: None,
     }
 }
 
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 23] = [
+    local_query("product", CapabilityDomain::Products),
+    local_query("products", CapabilityDomain::Products),
+    local_query("productsCount", CapabilityDomain::Products),
+    local_query("productByIdentifier", CapabilityDomain::Products),
+    local_mutation("productCreate", CapabilityDomain::Products),
+    local_mutation("productUpdate", CapabilityDomain::Products),
+    local_mutation("productDelete", CapabilityDomain::Products),
+    local_mutation("productChangeStatus", CapabilityDomain::Products),
+    local_mutation("productVariantCreate", CapabilityDomain::Products),
+    local_mutation("productVariantUpdate", CapabilityDomain::Products),
+    local_mutation("productVariantDelete", CapabilityDomain::Products),
+    local_mutation("tagsAdd", CapabilityDomain::Products),
+    local_mutation("tagsRemove", CapabilityDomain::Products),
+    local_query(
+        "automaticDiscountSavedSearches",
+        CapabilityDomain::SavedSearches,
+    ),
+    local_query("codeDiscountSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("collectionSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("customerSavedSearches", CapabilityDomain::SavedSearches),
+    local_query(
+        "discountRedeemCodeSavedSearches",
+        CapabilityDomain::SavedSearches,
+    ),
+    local_query("draftOrderSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("fileSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("productSavedSearches", CapabilityDomain::SavedSearches),
+    local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+];
+
+const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
+    LocalDispatchRoot {
+        name,
+        operation_type: OperationType::Query,
+        domain,
+        execution: CapabilityExecution::OverlayRead,
+    }
+}
+
+const fn local_mutation(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
+    LocalDispatchRoot {
+        name,
+        operation_type: OperationType::Mutation,
+        domain,
+        execution: CapabilityExecution::StageLocally,
+    }
+}
+
 fn strings(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_string()).collect()
+}
+
+fn match_names_with_pascal(name: &str) -> Vec<String> {
+    let mut pascal = name.to_string();
+    if let Some(first) = pascal.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    vec![name.to_string(), pascal]
 }
 
 fn nonempty(value: &str) -> Option<&str> {

@@ -88,6 +88,7 @@ App/test harness
 - typed registry of operation capability metadata
 - classifies implemented roots by domain and execution kind
 - keeps unimplemented/unknown roots explicit so metadata alone does not imply runtime support
+- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, implemented registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
 
 ### `src/upstream.rs`
 
