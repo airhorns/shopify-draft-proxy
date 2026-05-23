@@ -273,7 +273,7 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
     json!({
         "__typename": "GiftCard",
         "id": id,
-        "legacyResourceId": id.rsplit('/').next().unwrap_or(id),
+        "legacyResourceId": resource_id_path_tail(id),
         "lastCharacters": "2053",
         "maskedCode": "•••• •••• •••• 2053",
         "enabled": true,

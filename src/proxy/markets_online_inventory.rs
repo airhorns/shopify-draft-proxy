@@ -207,7 +207,7 @@ pub(in crate::proxy) fn set_price_list_catalog_relation(
 pub(in crate::proxy) fn missing_customization_message(ids: &[String]) -> String {
     let suffixes = ids
         .iter()
-        .map(|id| id.rsplit('/').next().unwrap_or(id).to_string())
+        .map(|id| resource_id_path_tail(id).to_string())
         .collect::<Vec<_>>();
     format!(
         "The following customization IDs were not found: {}",
@@ -1010,12 +1010,7 @@ pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) 
 }
 
 pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
-    let suffix = id
-        .rsplit('/')
-        .next()
-        .and_then(|tail| tail.split('?').next())
-        .and_then(|number| number.parse::<u64>().ok())
-        .unwrap_or(0);
+    let suffix = resource_id_tail(id).parse::<u64>().ok().unwrap_or(0);
     let token = match suffix {
         1 => "bcc6fd83f41123b4",
         3 => "43199f7763e24d2f",
@@ -1275,13 +1270,7 @@ pub(in crate::proxy) fn webhook_uri_host(uri: &str) -> Option<String> {
 }
 
 pub(in crate::proxy) fn webhook_subscription_legacy_id(id: &str) -> String {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or_default()
-        .to_string()
+    resource_id_tail(id).to_string()
 }
 
 pub(in crate::proxy) fn webhook_subscription_numeric_id(record: &Value) -> u64 {
@@ -1676,7 +1665,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         &tactic,
         resolved_string_field(&input, "referringDomain").as_deref(),
     );
-    let numeric = id.rsplit('/').next().unwrap_or("1");
+    let numeric = resource_id_path_tail(id);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
@@ -2062,7 +2051,7 @@ pub(in crate::proxy) fn bulk_operation_record_with(
         "objectCount": if completed { count } else { "0" },
         "rootObjectCount": if completed { count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", id.rsplit('/').next().unwrap_or("local"))) } else { Value::Null },
+        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
         "partialDataUrl": null,
         "query": query
     })

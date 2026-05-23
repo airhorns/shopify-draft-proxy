@@ -670,6 +670,7 @@ mod media_products_saved_searches;
 mod metafields_orders_payments;
 mod online_store_orders_payments;
 mod product_helpers;
+mod resource_ids;
 mod routing;
 
 #[allow(unused_imports)]
@@ -698,6 +699,8 @@ pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::resource_ids::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
 

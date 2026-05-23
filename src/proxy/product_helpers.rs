@@ -2131,13 +2131,7 @@ pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> Strin
 }
 
 pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or(id)
-        .to_string()
+    resource_id_tail(id).to_string()
 }
 
 pub(in crate::proxy) fn saved_search_filters(query: &str) -> Vec<(String, String)> {

@@ -509,7 +509,7 @@ impl DraftProxy {
                         let numeric_id = current
                             .get("id")
                             .and_then(Value::as_str)
-                            .and_then(|id| id.rsplit('/').next())
+                            .map(resource_id_tail)
                             .unwrap_or_default();
                         let payload = json!({
                             "unpinnedDefinition": Value::Null,
