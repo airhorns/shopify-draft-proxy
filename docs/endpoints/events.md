@@ -1,34 +1,46 @@
 # Events
 
+This endpoint group covers the top-level Shopify Admin GraphQL Event catalog roots: `event`, `events`, and `eventsCount`.
+
 ## Current support and limitations
 
-### Supported read roots
+### Supported roots
 
-- `event`
-- `events`
-- `eventsCount`
+Read roots:
 
-### Snapshot behavior
+- `event(id:)`
+- `events(...)`
+- `eventsCount(...)`
 
-- Snapshot mode currently models the no-data branch only.
-- `event(id:)` returns `null` for absent event IDs.
+Mutation roots:
+
+- None. Top-level event emission is not modeled as a mutation surface in this endpoint group.
+
+### Local behavior
+
+Snapshot mode models the checked-in no-data branch only:
+
+- `event(id:)` returns `null` for absent Event GIDs.
 - `events(...)` returns a non-null empty connection with selected `nodes`, `edges`, and `pageInfo` fields, false page booleans, and null cursors.
 - `eventsCount(...)` returns `{ count: 0, precision: "EXACT" }`.
-- Events read handling has cut over to the Gleam port; the legacy TypeScript runtime handler has been removed.
 
-## Historical and developer notes
+The captured empty Event selection includes `id`, `action`, `appTitle`, `attributeToApp`, `attributeToUser`, `createdAt`, `criticalAlert`, and `message`, plus `BasicEvent` fields such as `additionalContent`, `additionalData`, `arguments`, `author`, `hasAdditionalContent`, `secondaryMessage`, `subjectId`, and `subjectType`. Because the evidence is empty/null, the local handler must not invent values for those fields.
 
-### Captured scope and gaps
+### Boundaries
 
-Root-operation introspection confirms the Admin GraphQL `event`, `events`, and `eventsCount` roots exist in the 2025-01 captured schema inventory. HAR-323 also captured the top-level no-data payload shape against `harry-test-heelo.myshopify.com` on 2026-04-26: unknown `event(id:)` returns `null`, `events(first:, query:, sortKey: ID, reverse:)` returns an empty connection for an impossible `id:` query, and `eventsCount(query:)` returns exact zero.
+- Non-empty event catalogs, search/filter/sort behavior, count precision beyond exact zero, and pagination over real events remain unsupported.
+- Supported mutations in other domains do not write into a shared top-level Event catalog. Domain-owned event surfaces, such as discount detail events and fulfillment events, remain documented and modeled by their owning endpoint groups.
+- No event root is registry-only or validation-only in this group; the supported read roots are intentionally limited to the no-data shape above.
 
-The captured top-level `Event` interface selected `id`, `action`, `appTitle`, `attributeToApp`, `attributeToUser`, `createdAt`, `criticalAlert`, and `message`, with a `BasicEvent` fragment for `additionalContent`, `additionalData`, `arguments`, `author`, `hasAdditionalContent`, `secondaryMessage`, `subjectId`, and `subjectType`. Because the capture is intentionally empty/null, local snapshot mode must not invent values for those fields.
+### Evidence
 
-Staged mutations in other domains do not yet write into a shared top-level Event catalog. Domain-specific event surfaces that already have conformance-backed models, such as discount detail events and fulfillment events, remain owned by those endpoint implementations. Broader top-level event emission should wait for a dedicated live capture that establishes event type, subject, message, argument, filter, sort, count, and pagination behavior.
+- `config/parity-specs/events/event-empty-read.json`
+- `config/parity-requests/events/event-empty-read.graphql`
+- `config/parity-requests/events/event-empty-read.variables.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
+- `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
-### Validation anchors
+### Validation
 
-- Runtime shape coverage: `test/shopify_draft_proxy/proxy/events_test.gleam` and `test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`
-- Executable parity: `config/parity-specs/events/event-empty-read.json`
-- Live fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
-- Root presence evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
+- `corepack pnpm parity -- event-empty-read`
+- `corepack pnpm conformance:check`
