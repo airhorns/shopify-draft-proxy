@@ -57,6 +57,9 @@ jobs:
       - name: Rust format check
         run: corepack pnpm rust:fmt
 
+      - name: Rust clippy
+        run: corepack pnpm rust:clippy
+
       - name: Rust tests
         run: corepack pnpm rust:test
 

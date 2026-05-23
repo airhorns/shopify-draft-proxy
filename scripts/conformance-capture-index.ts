@@ -5400,6 +5400,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-invoice-errors-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-invoice-errors-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for private draftOrderInvoiceSend invoiceErrors plus presentment/template invoice metadata.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}draft-order-invoice-send-invoice-errors.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-invoice-errors.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime because the public Admin schema does not expose the private invoice error field or template/presentment arguments; no Shopify cleanup required.',
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+  },
+  {
     domain: 'discounts',
     captureId: 'discounts',
     scriptPath: 'scripts/capture-discount-conformance.ts',

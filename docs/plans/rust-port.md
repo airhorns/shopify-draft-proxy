@@ -169,7 +169,7 @@
 
 **Steps:**
 
-1. Write tests that discover all 910 specs and validate schema/inventory without executing domain behavior.
+1. Write tests that discover all 911 specs and validate schema/inventory without executing domain behavior.
 2. Port cassette playback and JSONPath diff behavior.
 3. Make the runner execute the same strict comparisons as the Gleam runner.
 
