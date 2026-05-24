@@ -2,12 +2,17 @@ import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  listImplementedOperationRegistryEntries,
-  listOperationRegistryEntries,
-} from '../../scripts/support/operation-registry.js';
+import { loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+
+function listOperationRegistryEntries() {
+  return loadOperationRegistry(repoRoot);
+}
+
+function listImplementedOperationRegistryEntries() {
+  return listOperationRegistryEntries().filter((entry) => entry.implemented);
+}
 
 describe('operation registry', () => {
   it('keeps implemented capability names unique', () => {

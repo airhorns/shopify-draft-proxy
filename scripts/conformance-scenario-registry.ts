@@ -1,20 +1,22 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   conformanceScenarioOverridesSchema,
+  operationRegistrySchema,
   parseJsonFileWithSchema,
   paritySpecSchema,
   type ConformanceScenarioOverride,
   type OperationRegistryEntry,
   type ParitySpec,
 } from './support/json-schemas.js';
-import { loadOperationRegistryFromSource } from './support/operation-registry.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const paritySpecDirectory = path.join('config', 'parity-specs');
 const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.json');
+const registryCache = new Map<string, OperationRegistryEntry[]>();
 
 export type ConformanceScenario = {
   id: string;
@@ -112,7 +114,63 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
 }
 
 export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegistryEntry[] {
-  return loadOperationRegistryFromSource(repoRoot);
+  const cacheKey = path.resolve(repoRoot);
+  const cached = registryCache.get(cacheKey);
+  if (cached) {
+    return cloneRegistryEntries(cached);
+  }
+
+  let output: string;
+  try {
+    output = execFileSync('cargo', ['run', '--quiet', '--bin', 'operation-registry-json'], {
+      cwd: cacheKey,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    const stderr = stderrFromExecError(error);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to export operation registry from Rust: ${stderr ?? message}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Rust operation registry export produced invalid JSON: ${message}`);
+  }
+
+  const registry = operationRegistrySchema.parse(parsed);
+  registryCache.set(cacheKey, registry);
+  return cloneRegistryEntries(registry);
+}
+
+function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): OperationRegistryEntry[] {
+  return registryEntries.map((entry) => ({
+    ...entry,
+    matchNames: [...entry.matchNames],
+    runtimeTests: [...entry.runtimeTests],
+  }));
+}
+
+function stderrFromExecError(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('stderr' in error)) {
+    return null;
+  }
+
+  const stderr = (error as { stderr?: unknown }).stderr;
+  if (Buffer.isBuffer(stderr)) {
+    const text = stderr.toString('utf8').trim();
+    return text.length > 0 ? text : null;
+  }
+
+  if (typeof stderr === 'string') {
+    const text = stderr.trim();
+    return text.length > 0 ? text : null;
+  }
+
+  return null;
 }
 
 function addScenarioForOperation(

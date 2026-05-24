@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { listOperationRegistryEntries } from '../../scripts/support/operation-registry.js';
+import { loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
 
 type OperationRegistryEntry = {
   name: string;
@@ -16,7 +16,7 @@ type OperationRegistryEntry = {
 describe('order editing live support registry/docs', () => {
   it('keeps the first four order-edit roots as declared gaps while the notes stay anchored to captured validation evidence', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const registry = listOperationRegistryEntries() as OperationRegistryEntry[];
+    const registry = loadOperationRegistry(repoRoot) as OperationRegistryEntry[];
     const weirdNotes = readFileSync(resolve(repoRoot, 'docs/hard-and-weird-notes.md'), 'utf8');
 
     for (const name of ['orderEditBegin', 'orderEditAddVariant', 'orderEditSetQuantity', 'orderEditCommit']) {
