@@ -229,3 +229,165 @@ fn gid_resource_type(id: &str) -> Option<&str> {
         .next()
         .filter(|part| !part.is_empty())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use serde_json::{json, Value};
+
+    use super::*;
+
+    const SYNTHETIC_ONE: &str = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic";
+    const SYNTHETIC_TWO: &str = "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic";
+    const AUTHORITATIVE_ONE: &str = "gid://shopify/SavedSearch/12345";
+    const AUTHORITATIVE_TWO: &str = "gid://shopify/SavedSearch/67890";
+
+    #[test]
+    fn commit_gid_resource_type_extracts_resource_type_and_rejects_invalid_gids() {
+        assert_eq!(
+            gid_resource_type("gid://shopify/SavedSearch/12"),
+            Some("SavedSearch")
+        );
+        assert_eq!(gid_resource_type(SYNTHETIC_ONE), Some("SavedSearch"));
+        assert_eq!(gid_resource_type("not-a-gid"), None);
+        assert_eq!(gid_resource_type(""), None);
+        assert_eq!(gid_resource_type("gid://shopify/"), None);
+    }
+
+    #[test]
+    fn commit_replay_body_prefers_raw_body_and_rewrites_all_mapped_synthetic_ids() {
+        let entry = json!({
+            "query": "mutation { ignored }",
+            "variables": { "ignored": true },
+            "rawBody": json!({
+                "query": "mutation UpdateSavedSearches($ids: [ID!]!) { savedSearchUpdate(ids: $ids) { savedSearch { id } } }",
+                "variables": { "ids": [SYNTHETIC_ONE, SYNTHETIC_TWO] }
+            }).to_string()
+        });
+        let id_map = BTreeMap::from([
+            (SYNTHETIC_ONE.to_string(), AUTHORITATIVE_ONE.to_string()),
+            (SYNTHETIC_TWO.to_string(), AUTHORITATIVE_TWO.to_string()),
+        ]);
+
+        let body = replay_body(&entry, &id_map);
+
+        assert!(body.contains(AUTHORITATIVE_ONE));
+        assert!(body.contains(AUTHORITATIVE_TWO));
+        assert!(!body.contains(SYNTHETIC_ONE));
+        assert!(!body.contains(SYNTHETIC_TWO));
+        assert!(!body.contains("ignored"));
+    }
+
+    #[test]
+    fn commit_replay_body_falls_back_to_query_and_variables_for_legacy_log_entries() {
+        let entry = json!({
+            "query": "mutation LegacyCommit($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id } } }",
+            "variables": { "input": { "name": "Open orders", "query": "status:open" } }
+        });
+
+        let body = replay_body(&entry, &BTreeMap::new());
+        let parsed = serde_json::from_str::<Value>(&body).expect("fallback body should be JSON");
+
+        assert_eq!(parsed["query"], entry["query"]);
+        assert_eq!(parsed["variables"], entry["variables"]);
+    }
+
+    #[test]
+    fn commit_graphql_error_detection_matches_top_level_error_semantics() {
+        assert!(has_graphql_errors(
+            &json!({ "errors": [{ "message": "boom" }] })
+        ));
+        assert!(has_graphql_errors(
+            &json!({ "errors": { "message": "boom" } })
+        ));
+        assert!(!has_graphql_errors(&json!({ "errors": [] })));
+        assert!(!has_graphql_errors(&json!({ "errors": null })));
+        assert!(!has_graphql_errors(&json!({ "data": { "ok": true } })));
+    }
+
+    #[test]
+    fn commit_authoritative_id_mapping_pairs_multiple_synthetics_with_distinct_ids() {
+        let entry = json!({
+            "stagedResourceIds": [
+                SYNTHETIC_ONE,
+                { "nested": [SYNTHETIC_TWO, "gid://shopify/SavedSearch/non-synthetic"] }
+            ]
+        });
+        let response = json!({
+            "data": {
+                "savedSearchCreate": {
+                    "savedSearches": [
+                        { "id": AUTHORITATIVE_ONE },
+                        { "id": AUTHORITATIVE_ONE },
+                        { "id": SYNTHETIC_ONE },
+                        { "id": AUTHORITATIVE_TWO }
+                    ],
+                    "userErrors": []
+                }
+            }
+        });
+        let mut id_map = BTreeMap::new();
+
+        let mapped = record_authoritative_id_mappings(&mut id_map, &entry, &response);
+
+        assert_eq!(
+            id_map.get(SYNTHETIC_ONE).map(String::as_str),
+            Some(AUTHORITATIVE_ONE)
+        );
+        assert_eq!(
+            id_map.get(SYNTHETIC_TWO).map(String::as_str),
+            Some(AUTHORITATIVE_TWO)
+        );
+        assert_eq!(mapped[SYNTHETIC_ONE], json!(AUTHORITATIVE_ONE));
+        assert_eq!(mapped[SYNTHETIC_TWO], json!(AUTHORITATIVE_TWO));
+        assert_eq!(
+            mapped
+                .as_object()
+                .expect("mapped ids should be an object")
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn commit_authoritative_id_mapping_skips_non_synthetic_and_wrong_type_ids() {
+        let entry = json!({
+            "stagedResourceIds": [
+                "gid://shopify/SavedSearch/ordinary",
+                SYNTHETIC_ONE
+            ]
+        });
+        let response = json!({
+            "data": {
+                "webhookSubscriptionCreate": {
+                    "webhookSubscription": {
+                        "id": "gid://shopify/WebhookSubscription/99"
+                    }
+                }
+            }
+        });
+        let mut id_map = BTreeMap::new();
+
+        let mapped = record_authoritative_id_mappings(&mut id_map, &entry, &response);
+
+        assert!(id_map.is_empty());
+        assert_eq!(mapped, json!({}));
+    }
+
+    #[test]
+    fn commit_authoritative_id_mapping_does_not_overwrite_existing_mappings() {
+        let entry = json!({ "stagedResourceIds": [SYNTHETIC_ONE] });
+        let response = json!({ "id": AUTHORITATIVE_TWO });
+        let mut id_map =
+            BTreeMap::from([(SYNTHETIC_ONE.to_string(), AUTHORITATIVE_ONE.to_string())]);
+
+        let mapped = record_authoritative_id_mappings(&mut id_map, &entry, &response);
+
+        assert_eq!(
+            id_map.get(SYNTHETIC_ONE).map(String::as_str),
+            Some(AUTHORITATIVE_ONE)
+        );
+        assert_eq!(mapped, json!({}));
+    }
+}

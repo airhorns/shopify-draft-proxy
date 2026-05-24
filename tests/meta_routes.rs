@@ -1176,6 +1176,18 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
     let log = proxy.process_request(request("GET", "/__meta/log"));
     assert_eq!(log.body["entries"][0]["status"], json!("committed"));
     assert_eq!(log.body["entries"][1]["status"], json!("committed"));
+
+    let second_commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(second_commit.status, 200);
+    assert_eq!(
+        second_commit.body,
+        json!({ "ok": true, "committed": 0, "failed": 0, "stopIndex": null, "attempts": [] })
+    );
+    assert_eq!(
+        replayed.len(),
+        2,
+        "already committed entries should not be replayed again"
+    );
 }
 
 #[test]
