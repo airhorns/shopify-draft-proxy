@@ -119,7 +119,7 @@ evidence and porting targets rather than full current-domain support.
 
 ### Evidence
 
-- Registry status: `config/operation-registry.json`
+- Registry status: `src/operation_registry.rs`
 - Runtime tail-helper coverage: `tests/graphql_routes.rs`
 - Read and lifecycle parity specs: `config/parity-specs/b2b/*.json`
 - Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`

@@ -83,7 +83,7 @@ the generic parity replay cannot isolate cleanly.
 
 ### Evidence
 
-- Registry status: `config/operation-registry.json`
+- Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
 - Parity specs: `config/parity-specs/localization/*.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`

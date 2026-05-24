@@ -118,7 +118,7 @@ derivations are not synthesized beyond the checked-in evidence.
 
 ### Evidence
 
-- Registry status: `config/operation-registry.json`
+- Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
 - Markets parity specs: `config/parity-specs/markets/*.json`
 - Related product contextual-pricing parity: `config/parity-specs/products/product-contextual-pricing-price-list-read.json`

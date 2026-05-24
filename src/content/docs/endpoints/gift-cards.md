@@ -9,7 +9,7 @@ Gift-card reads and lifecycle mutations are modeled as local-first Admin GraphQL
 
 ## Current support and limitations
 
-`config/operation-registry.json` currently keeps gift-card roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
+`src/operation_registry.rs` currently keeps gift-card roots conservative with `implemented: false`. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures; registry presence alone is not support.
 
 ### Supported roots
 

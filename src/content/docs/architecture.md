@@ -76,4 +76,4 @@ Endpoint-specific quirks and coverage notes live in `docs/endpoints/`. High-leve
 
 ## Operation Registry
 
-The generated operation registry maps operation names to capability metadata. A registered supported operation is a commitment to local lifecycle behavior and downstream read-after-write effects. Branch-only or validation-only handling is documented as a guardrail, not full support.
+The Rust operation registry maps operation names to capability metadata and exposes the local dispatch root inventory used by runtime gates and tests. TypeScript tooling reads that same metadata through the Rust `operation-registry-json` exporter instead of a second checked-in JSON registry. A registered supported operation is a commitment to local lifecycle behavior and downstream read-after-write effects. Branch-only or validation-only handling is documented as a guardrail, not full support.
