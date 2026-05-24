@@ -30,6 +30,22 @@ fn request_with_body(method: &str, path: &str, body: &str) -> Request {
     }
 }
 
+fn request_with_headers(
+    method: &str,
+    path: &str,
+    headers: impl IntoIterator<Item = (&'static str, &'static str)>,
+) -> Request {
+    Request {
+        method: method.to_string(),
+        path: path.to_string(),
+        headers: headers
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect(),
+        body: String::new(),
+    }
+}
+
 fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
@@ -58,12 +74,14 @@ fn expected_local_staged_log(
     domain: &str,
     staged_resource_ids: Value,
 ) -> Value {
+    let raw_body = expected_raw_graphql_body(query, &variables);
     json!({
         "id": id,
         "operationName": null,
         "path": "/admin/api/2026-04/graphql.json",
         "query": query,
         "variables": variables,
+        "rawBody": raw_body,
         "stagedResourceIds": staged_resource_ids,
         "status": "staged",
         "interpreted": {
@@ -79,6 +97,14 @@ fn expected_local_staged_log(
         },
         "notes": "Supported mutation staged locally; commit replays the original raw mutation."
     })
+}
+
+fn expected_raw_graphql_body(query: &str, variables: &Value) -> String {
+    if variables == &json!({}) {
+        json!({ "query": query }).to_string()
+    } else {
+        json!({ "query": query, "variables": variables }).to_string()
+    }
 }
 
 fn assert_single_local_staged_log(
@@ -283,7 +309,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
     assert_eq!(empty_commit.status, 200);
     assert_eq!(
         empty_commit.body,
-        json!({ "ok": true, "committed": 0, "failed": 0 })
+        json!({ "ok": true, "committed": 0, "failed": 0, "stopIndex": null, "attempts": [] })
     );
 
     let dump = default_proxy.process_request(request_with_body(
@@ -1078,38 +1104,68 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
     let create_query =
         "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
     let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }";
+    let create_body =
+        json!({ "query": create_query, "operationName": "CreateForCommit" }).to_string();
+    let update_body =
+        json!({ "query": update_query, "variables": { "title": "Updated product" } }).to_string();
     assert_eq!(
-        proxy
-            .process_request(graphql_request(
-                &json!({ "query": create_query }).to_string()
-            ))
-            .status,
+        proxy.process_request(graphql_request(&create_body)).status,
         200
     );
     assert_eq!(
-        proxy
-            .process_request(graphql_request(
-                &json!({ "query": update_query, "variables": { "title": "Updated product" } })
-                    .to_string(),
-            ))
-            .status,
+        proxy.process_request(graphql_request(&update_body)).status,
         200
     );
 
-    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    let commit = proxy.process_request(request_with_headers(
+        "POST",
+        "/__meta/commit",
+        [
+            ("authorization", "Bearer commit-token"),
+            ("x-shopify-access-token", "shpat_commit"),
+        ],
+    ));
     assert_eq!(commit.status, 200);
     assert_eq!(
         commit.body,
-        json!({ "ok": true, "committed": 2, "failed": 0 })
+        json!({
+            "ok": true,
+            "committed": 2,
+            "failed": 0,
+            "stopIndex": null,
+            "attempts": [
+                {
+                    "index": 0,
+                    "logId": "log-1",
+                    "status": "committed",
+                    "request": { "method": "POST", "path": "/admin/api/2026-04/graphql.json" },
+                    "response": { "status": 200, "body": { "data": { "ok": true } } },
+                    "mappedIds": {}
+                },
+                {
+                    "index": 1,
+                    "logId": "log-2",
+                    "status": "committed",
+                    "request": { "method": "POST", "path": "/admin/api/2026-04/graphql.json" },
+                    "response": { "status": 200, "body": { "data": { "ok": true } } },
+                    "mappedIds": {}
+                }
+            ]
+        })
     );
 
     let replayed = replayed.lock().unwrap();
     assert_eq!(replayed.len(), 2);
     assert_eq!(replayed[0].method, "POST");
     assert_eq!(replayed[0].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(replayed[0].headers["authorization"], "Bearer commit-token");
+    assert_eq!(
+        replayed[0].headers["x-shopify-access-token"],
+        "shpat_commit"
+    );
     assert_eq!(
         serde_json::from_str::<Value>(&replayed[0].body).unwrap(),
-        json!({ "query": create_query, "variables": {} })
+        json!({ "query": create_query, "operationName": "CreateForCommit" })
     );
     assert_eq!(replayed[1].path, "/admin/api/2026-04/graphql.json");
     assert_eq!(
@@ -1120,10 +1176,96 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
     let log = proxy.process_request(request("GET", "/__meta/log"));
     assert_eq!(log.body["entries"][0]["status"], json!("committed"));
     assert_eq!(log.body["entries"][1]["status"], json!("committed"));
+
+    let second_commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(second_commit.status, 200);
+    assert_eq!(
+        second_commit.body,
+        json!({ "ok": true, "committed": 0, "failed": 0, "stopIndex": null, "attempts": [] })
+    );
+    assert_eq!(
+        replayed.len(),
+        2,
+        "already committed entries should not be replayed again"
+    );
 }
 
 #[test]
-fn commit_stops_on_first_upstream_failure_and_persists_failed_status() {
+fn commit_rewrites_later_replay_bodies_with_authoritative_ids() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "productCreate": {
+                        "product": { "id": "gid://shopify/Product/999" },
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({ "data": { "productUpdate": { "product": { "id": "gid://shopify/Product/999" }, "userErrors": [] } } }))
+        }
+    });
+
+    let create_query =
+        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create = proxy.process_request(graphql_request(
+        &json!({ "query": create_query }).to_string(),
+    ));
+    assert_eq!(create.status, 200);
+    let synthetic_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_query = "mutation UpdateProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }";
+    let update_body = json!({
+        "query": update_query,
+        "variables": {
+            "product": {
+                "id": synthetic_id,
+                "title": "Authoritative update"
+            }
+        }
+    })
+    .to_string();
+    let update = proxy.process_request(graphql_request(&update_body));
+    assert_eq!(update.status, 200);
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(
+        commit.body["attempts"][0]["mappedIds"],
+        json!({ synthetic_id.clone(): "gid://shopify/Product/999" })
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let update_replay = serde_json::from_str::<Value>(&replayed[1].body).unwrap();
+    assert_eq!(
+        update_replay["variables"]["product"]["id"],
+        json!("gid://shopify/Product/999")
+    );
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert!(
+        log.body["entries"][1]["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains(&synthetic_id),
+        "the persisted original raw mutation should not be rewritten"
+    );
+}
+
+#[test]
+fn commit_stops_on_first_transport_failure_and_persists_failed_status() {
     let attempts = Arc::new(Mutex::new(0usize));
     let attempts_for_transport = Arc::clone(&attempts);
     let mut proxy = snapshot_proxy().with_commit_transport(move |_request| {
@@ -1165,6 +1307,15 @@ fn commit_stops_on_first_upstream_failure_and_persists_failed_status() {
             "ok": false,
             "committed": 0,
             "failed": 1,
+            "stopIndex": 0,
+            "attempts": [{
+                "index": 0,
+                "logId": "log-1",
+                "status": "failed",
+                "request": { "method": "POST", "path": "/admin/api/2026-04/graphql.json" },
+                "response": { "status": 500, "body": { "errors": [{ "message": "upstream failed" }] } },
+                "error": "Upstream commit failed for log-1 with status 500"
+            }],
             "error": "Upstream commit failed for log-1 with status 500"
         })
     );
@@ -1173,6 +1324,54 @@ fn commit_stops_on_first_upstream_failure_and_persists_failed_status() {
     let log = proxy.process_request(request("GET", "/__meta/log"));
     assert_eq!(log.body["entries"][0]["status"], json!("failed"));
     assert_eq!(log.body["entries"][1]["status"], json!("staged"));
+}
+
+#[test]
+fn commit_stops_on_graphql_errors_after_committing_prior_entries() {
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |_request| {
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        match *attempts {
+            1 => ok_transport_response(json!({ "data": { "ok": true } })),
+            2 => ok_transport_response(json!({
+                "data": null,
+                "errors": [{ "message": "GraphQL validation failed" }]
+            })),
+            _ => ok_transport_response(json!({ "data": { "ok": true } })),
+        }
+    });
+
+    for title in ["First product", "Second product", "Third product"] {
+        let query = format!(
+            "mutation {{ productCreate(product: {{ title: \"{title}\" }}) {{ product {{ id }} }} }}"
+        );
+        assert_eq!(
+            proxy
+                .process_request(graphql_request(&json!({ "query": query }).to_string()))
+                .status,
+            200
+        );
+    }
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 502);
+    assert_eq!(commit.body["ok"], json!(false));
+    assert_eq!(commit.body["committed"], json!(1));
+    assert_eq!(commit.body["failed"], json!(1));
+    assert_eq!(commit.body["stopIndex"], json!(1));
+    assert_eq!(
+        commit.body["error"],
+        json!("Upstream commit failed for log-2 with GraphQL errors")
+    );
+    assert_eq!(commit.body["attempts"].as_array().unwrap().len(), 2);
+    assert_eq!(*attempts.lock().unwrap(), 2);
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(log.body["entries"][0]["status"], json!("committed"));
+    assert_eq!(log.body["entries"][1]["status"], json!("failed"));
+    assert_eq!(log.body["entries"][2]["status"], json!("staged"));
 }
 
 #[test]
