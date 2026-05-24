@@ -836,31 +836,6 @@ pub(in crate::proxy) fn product_variant_node_read_data(
     json!({ "node": node })
 }
 
-pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let Some(value) = record.get(&selection.name) else {
-            continue;
-        };
-        let value = if selection.selection.is_empty() {
-            value.clone()
-        } else if value.is_null() {
-            Value::Null
-        } else if let Some(values) = value.as_array() {
-            Value::Array(
-                values
-                    .iter()
-                    .map(|item| selected_json(item, &selection.selection))
-                    .collect(),
-            )
-        } else {
-            selected_json(value, &selection.selection)
-        };
-        fields.insert(selection.response_key.clone(), value);
-    }
-    Value::Object(fields)
-}
-
 pub(in crate::proxy) fn gift_card_payload_json(
     gift_card: &Value,
     selections: &[SelectedField],
@@ -1025,20 +1000,6 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
         }
     }
     Value::Object(payload)
-}
-
-pub(in crate::proxy) fn nested_selected_fields(
-    selections: &[SelectedField],
-    path: &[&str],
-) -> Vec<SelectedField> {
-    let Some((next, remaining)) = path.split_first() else {
-        return selections.to_vec();
-    };
-    selections
-        .iter()
-        .find(|selection| selection.name == *next)
-        .map(|selection| nested_selected_fields(&selection.selection, remaining))
-        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
@@ -2131,13 +2092,7 @@ pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> Strin
 }
 
 pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or(id)
-        .to_string()
+    resource_id_tail(id).to_string()
 }
 
 pub(in crate::proxy) fn saved_search_filters(query: &str) -> Vec<(String, String)> {
@@ -2253,11 +2208,11 @@ pub(in crate::proxy) fn product_delete_required_id_error(
             value: Some(ResolvedValue::Object(input)),
         } => match input.get("id") {
             None => Some(product_delete_variable_required_id_error(
-                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
             )),
             Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
-                resolved_value_to_json(&ResolvedValue::Object(input.clone())),
+                resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
             )),
             _ => None,

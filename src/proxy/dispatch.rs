@@ -1397,6 +1397,11 @@ impl DraftProxy {
             return self.location_add_resource_limit(&query);
         }
 
+        if operation.operation_type == OperationType::Mutation && root_field == "locationDeactivate"
+        {
+            return self.location_deactivate(&query, &variables, request);
+        }
+
         if operation.operation_type == OperationType::Mutation
             && root_field == "fulfillmentOrderMove"
             && is_fulfillment_order_move_assignment_status_request(&variables)
