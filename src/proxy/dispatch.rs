@@ -1,6 +1,58 @@
 use super::*;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn finalize_mutation_outcome(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        outcome: MutationOutcome,
+    ) -> Response {
+        for draft in outcome.log_drafts {
+            self.record_mutation_log_draft(request, query, variables, draft);
+        }
+        outcome.response
+    }
+
+    fn record_mutation_log_draft(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        draft: LogDraft,
+    ) {
+        let root_field = draft.root_field;
+        let staged_resource_ids = draft.staged_resource_ids;
+        let status = draft.status;
+        let capability_domain = draft.capability_domain;
+        let capability_execution = draft.capability_execution;
+        let notes = draft.notes;
+        let root_fields = parse_operation(query)
+            .map(|operation| operation.root_fields)
+            .unwrap_or_else(|| vec![root_field.clone()]);
+        self.log_entries.push(json!({
+            "id": format!("log-{}", self.log_entries.len() + 1),
+            "operationName": null,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "stagedResourceIds": staged_resource_ids,
+            "status": status,
+            "interpreted": {
+                "operationType": "mutation",
+                "operationName": root_field.clone(),
+                "rootFields": root_fields,
+                "primaryRootField": root_field.clone(),
+                "capability": {
+                    "operationName": root_field,
+                    "domain": capability_domain,
+                    "execution": capability_execution
+                }
+            },
+            "notes": notes
+        }));
+    }
+
     pub(in crate::proxy) fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -1344,6 +1396,11 @@ impl DraftProxy {
             return self.location_add_resource_limit(&query);
         }
 
+        if operation.operation_type == OperationType::Mutation && root_field == "locationDeactivate"
+        {
+            return self.location_deactivate(&query, &variables, request);
+        }
+
         if operation.operation_type == OperationType::Mutation
             && root_field == "fulfillmentOrderMove"
             && is_fulfillment_order_move_assignment_status_request(&variables)
@@ -1961,12 +2018,14 @@ impl DraftProxy {
             if let Some(response) = saved_search_required_input_error(&query, &variables) {
                 return response;
             }
-            return self.saved_search_mutation_fields(&query, &variables, request);
+            let outcome = self.saved_search_mutation_fields(&query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Mutation {
             if query.contains("ProductDeleteAsyncSourceCreate") {
-                return self.product_delete_async_source_create(&query, &variables, request);
+                let outcome = self.product_delete_async_source_create(&query, &variables);
+                return self.finalize_mutation_outcome(request, &query, &variables, outcome);
             }
             if query.contains("ProductSetParityPlan") {
                 if let Some(data) = self.product_set_fixture_backed_mutation_data(&variables) {
@@ -2089,22 +2148,26 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
-                self.product_create(&query, &variables, request)
+                let outcome = self.product_create(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productUpdate" =>
             {
-                self.product_update(&query, &variables, request)
+                let outcome = self.product_update(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productDelete" =>
             {
-                self.product_delete(&query, &variables, request)
+                let outcome = self.product_delete(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productChangeStatus" =>
             {
-                self.product_change_status(&query, &variables, request)
+                let outcome = self.product_change_status(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (_, _)
                 if operation.operation_type == OperationType::Mutation
@@ -2120,7 +2183,8 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
-                self.product_tags_mutation(root_field, &query, &variables, request)
+                let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
                 "data": self.saved_search_overlay_read_fields(&query, &variables)
@@ -2128,7 +2192,8 @@ impl DraftProxy {
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
                 if root_field == "savedSearchCreate" =>
             {
-                self.saved_search_mutation_fields(&query, &variables, request)
+                let outcome = self.saved_search_mutation_fields(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(
