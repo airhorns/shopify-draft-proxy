@@ -3,8 +3,6 @@ title: 'Localization'
 description: 'Coverage notes and fidelity boundaries for Localization.'
 ---
 
-<!-- Mirrored from docs/endpoints/localization.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL locale, shop-locale,
 translatable-resource, and translation roots.
 

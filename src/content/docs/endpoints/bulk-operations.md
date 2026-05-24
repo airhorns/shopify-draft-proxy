@@ -3,8 +3,6 @@ title: 'Bulk Operations Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Bulk Operations Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/bulk-operations.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL's root-level asynchronous export/import API for `BulkOperation` jobs. It does not cover product variant bulk mutations, inventory bulk toggles, discount bulk roots, or metaobject bulk delete.
 
 ## Current support and limitations

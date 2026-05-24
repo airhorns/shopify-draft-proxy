@@ -3,8 +3,6 @@ title: 'Selling Plans'
 description: 'Coverage notes and fidelity boundaries for Selling Plans.'
 ---
 
-<!-- Mirrored from docs/endpoints/selling-plans.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The selling-plans group covers the Shopify Admin GraphQL selling-plan group
 roots that product subscription flows need.
 

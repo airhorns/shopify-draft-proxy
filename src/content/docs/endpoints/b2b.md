@@ -3,8 +3,6 @@ title: 'B2B Company, Contact, And Location Roots'
 description: 'Coverage notes and fidelity boundaries for B2B Company, Contact, And Location Roots.'
 ---
 
-<!-- Mirrored from docs/endpoints/b2b.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group tracks Shopify Admin GraphQL Business Customers roots for
 companies, company contacts, company locations, roles, staff assignments,
 company-location tax settings, and B2B address behavior.

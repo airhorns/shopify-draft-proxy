@@ -72,7 +72,7 @@ Effective reads merge base and staged state. Commit drains staged work only afte
 
 Each Admin API area owns its query builders, mutation interpreters, serializers, and state mutators. Large domains may split implementation under subdirectories while keeping a stable public entry point.
 
-Endpoint-specific quirks and coverage notes live in `docs/endpoints/`. High-level runtime shape lives in `docs/architecture.md`.
+Endpoint-specific quirks and coverage notes live in `src/content/docs/endpoints/`. High-level runtime shape lives in `docs/architecture.md`.
 
 ## Operation Registry
 

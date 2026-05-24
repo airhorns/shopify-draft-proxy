@@ -3,8 +3,6 @@ title: 'Shipping And Fulfillments Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Shipping And Fulfillments Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/shipping-fulfillments.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL shipping, delivery settings,
 carrier service, fulfillment service, delivery profile, fulfillment order,
 fulfillment, local pickup, shipping package, reverse logistics, and
@@ -143,7 +141,7 @@ verified through local state/log behavior and targeted validation.
 Reverse delivery and order-edit shipping-line roots are modeled through the
 orders and returns local graph when covered by their parity specs. Their
 caller-visible order and return effects should be read with
-`docs/endpoints/orders.md` and `docs/endpoints/returns.md`.
+`/endpoints/orders/` and `/endpoints/returns/`.
 
 ### Boundaries
 

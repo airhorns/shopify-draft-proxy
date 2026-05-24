@@ -3,8 +3,6 @@ title: 'Metaobjects Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Metaobjects Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/metaobjects.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The metaobjects group covers Shopify Admin GraphQL custom data roots. Runtime support now models definition reads/lifecycle mutations plus the core entry row lifecycle locally.
 
 ## Current support and limitations

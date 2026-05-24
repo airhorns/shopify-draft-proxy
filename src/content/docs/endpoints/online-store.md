@@ -3,8 +3,6 @@ title: 'Online Store Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Online Store Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/online-store.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The online-store group tracks Admin GraphQL roots for storefront content and presentation: articles, blogs, pages, comments, navigation menus, themes and theme files, script tags, storefront pixels, server pixels, storefront access tokens, and mobile platform applications.
 
 ## Current support and limitations

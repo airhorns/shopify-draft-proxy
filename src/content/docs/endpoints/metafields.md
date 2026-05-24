@@ -3,8 +3,6 @@ title: 'Metafields'
 description: 'Coverage notes and fidelity boundaries for Metafields.'
 ---
 
-<!-- Mirrored from docs/endpoints/metafields.md so the Starlight site exposes the canonical endpoint notes. -->
-
 ## Current support and limitations
 
 ### Metafield definition reads

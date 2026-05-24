@@ -3,8 +3,6 @@ title: 'Events'
 description: 'Coverage notes and fidelity boundaries for Events.'
 ---
 
-<!-- Mirrored from docs/endpoints/events.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers the top-level Shopify Admin GraphQL Event catalog roots: `event`, `events`, and `eventsCount`.
 
 ## Current support and limitations

@@ -3,8 +3,6 @@ title: 'Discounts Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Discounts Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/discounts.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The discounts group has catalog-first local read support. Keep discount-specific capture, access-scope, and compatibility notes here instead of in `docs/architecture.md`.
 
 ## Current support and limitations

@@ -3,8 +3,6 @@ title: 'Apps, Billing, And Access'
 description: 'Coverage notes and fidelity boundaries for Apps, Billing, And Access.'
 ---
 
-<!-- Mirrored from docs/endpoints/apps.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL app identity, app installation, app billing, access-scope, uninstall, and delegated-access roots. The mutation roots are sensitive because they can affect billing, app grants, app installation state, or delegated credentials in real Shopify.
 
 ## Current support and limitations

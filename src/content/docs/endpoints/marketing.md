@@ -3,8 +3,6 @@ title: 'Marketing'
 description: 'Coverage notes and fidelity boundaries for Marketing.'
 ---
 
-<!-- Mirrored from docs/endpoints/marketing.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL marketing activity, marketing event, external marketing activity, and marketing engagement roots.
 
 ## Current support and limitations

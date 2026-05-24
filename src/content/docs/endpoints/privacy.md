@@ -3,8 +3,6 @@ title: 'Privacy Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Privacy Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/privacy.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The privacy group covers shop-level privacy settings, consent policy configuration, and the customer data-sale opt-out mutation. It does not cover customer marketing consent or legal shop policy body content.
 
 ## Current support and limitations

@@ -3,8 +3,6 @@ title: 'Gift Cards Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Gift Cards Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/gift-cards.md so the Starlight site exposes the canonical endpoint notes. -->
-
 Gift-card reads and lifecycle mutations are modeled as local-first Admin GraphQL support. Supported gift-card mutations update normalized in-memory state and retain the original raw request for commit replay, without sending writes or notification side effects to Shopify during normal runtime handling.
 
 ## Current support and limitations

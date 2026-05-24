@@ -3,8 +3,6 @@ title: 'Markets Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Markets Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/markets.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL Markets roots for markets,
 catalogs, price lists, quantity pricing, web presences, resolved buyer values,
 and market-localized content.

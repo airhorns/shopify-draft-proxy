@@ -3,8 +3,6 @@ title: 'Store Properties Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Store Properties Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/store-properties.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers shop-level Admin GraphQL roots for shop metadata,
 locations, business entities, legal shop policies, generic publishable
 operations, and related store-property utility reads.
@@ -93,7 +91,7 @@ fields only where captured.
   behavior for those inputs only. They do not make the corresponding mutation
   roots generally supported.
 - Shipping package and local pickup behavior are documented under
-  `docs/endpoints/shipping-fulfillments.md` because their caller-visible effects
+  `/endpoints/shipping-fulfillments/` because their caller-visible effects
   live in shipping and delivery settings.
 - Unsupported mutation documents outside the ported local slices follow the
   configured unsupported path and must remain visible in logs/observability.

@@ -3,8 +3,6 @@ title: 'Segments Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Segments Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/segments.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL segment catalog, filter metadata, segment lifecycle, and customer segment member query roots.
 
 ## Current support and limitations

@@ -3,8 +3,6 @@ title: 'Webhooks'
 description: 'Coverage notes and fidelity boundaries for Webhooks.'
 ---
 
-<!-- Mirrored from docs/endpoints/webhooks.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL API-created webhook subscription roots for catalog reads, count reads, local subscription staging, and local deregistration. It does not cover app configuration/TOML webhook subscriptions or actual webhook delivery.
 
 ## Current support and limitations

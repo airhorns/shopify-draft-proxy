@@ -3,8 +3,6 @@ title: 'Admin Platform Utility Roots'
 description: 'Coverage notes and fidelity boundaries for Admin Platform Utility Roots.'
 ---
 
-<!-- Mirrored from docs/endpoints/admin-platform.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Admin GraphQL platform and utility roots that are not owned by a single merchant resource family: `publicApiVersions`, generic Node dispatch, jobs, taxonomy, domains, backup regions, staff access, and Flow helper mutations.
 
 ## Current support and limitations

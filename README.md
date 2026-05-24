@@ -138,7 +138,7 @@ Those routes are artifact-serving surfaces, not permission to weaken domain fide
 
 Coverage is domain-specific. A root is not considered supported until the local lifecycle and downstream read-after-write behavior are modeled for that domain. Validation-only or branch-only handling is documented as a guardrail, not full support.
 
-Current Rust runtime coverage includes product reads/mutations, saved-search roots, staged upload handling, meta route state/log/reset/dump/restore, commit replay, and live-hybrid passthrough/reject semantics. Endpoint-specific coverage notes live under `docs/endpoints/`.
+Current Rust runtime coverage includes product reads/mutations, saved-search roots, staged upload handling, meta route state/log/reset/dump/restore, commit replay, and live-hybrid passthrough/reject semantics. Endpoint-specific coverage notes live under `src/content/docs/endpoints/`.
 
 ## Conformance testing
 

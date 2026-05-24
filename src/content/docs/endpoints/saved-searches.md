@@ -3,8 +3,6 @@ title: 'Saved Searches and URL Redirects'
 description: 'Coverage notes and fidelity boundaries for Saved Searches and URL Redirects.'
 ---
 
-<!-- Mirrored from docs/endpoints/saved-searches.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The saved-searches group is scoped to Shopify Admin `SavedSearch` records for products, collections, orders, draft orders, files, and discount saved-search roots. URL redirect mutation/import roots are tracked here only as explicit unsupported coverage; the supported URL redirect read overlay is documented with online-store content.
 
 ## Current support and limitations
@@ -56,7 +54,7 @@ The saved-searches group is scoped to Shopify Admin `SavedSearch` records for pr
 
 ### Registry-only URL redirect roots
 
-URL redirect mutation/import roots are intentionally registered as unimplemented coverage, not supported local behavior. The read roots `urlRedirect` and `urlRedirects` have a narrow local overlay for redirect rows staged by metaobject handle updates, documented in `docs/endpoints/online-store.md`; that does not imply support for URL redirect mutation lifecycle roots.
+URL redirect mutation/import roots are intentionally registered as unimplemented coverage, not supported local behavior. The read roots `urlRedirect` and `urlRedirects` have a narrow local overlay for redirect rows staged by metaobject handle updates, documented in `/endpoints/online-store/`; that does not imply support for URL redirect mutation lifecycle roots.
 
 - `urlRedirectSavedSearches` and `urlRedirectsCount` returned access denied requiring `read_online_store_navigation` in the saved-search blocker capture.
 - `urlRedirectCreate` and `urlRedirectImportCreate` returned access denied requiring `write_online_store_navigation`.

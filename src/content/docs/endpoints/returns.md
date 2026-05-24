@@ -3,8 +3,6 @@ title: 'Returns Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Returns Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/returns.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The returns group is modeled as an order-backed reverse-logistics slice. The local source of truth is the normalized
 `Order.returns` array, so supported return writes update order state and downstream reads without sending runtime
 mutations to Shopify.

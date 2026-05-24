@@ -3,8 +3,6 @@ title: 'Customers Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Customers Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/customers.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The customers group has Rust runtime local slices for the documented parity-backed flows, but the whole registry domain is not complete yet. Keep new customer-specific quirks here instead of in `docs/architecture.md`.
 
 ## Current support and limitations

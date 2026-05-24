@@ -3,8 +3,6 @@ title: 'Media Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Media Endpoint Group.'
 ---
 
-<!-- Mirrored from docs/endpoints/media.md so the Starlight site exposes the canonical endpoint notes. -->
-
 The media group covers the Admin Files API roots that can be modeled without
 performing external upload/storage side effects. Product-specific media roots
 remain documented with products because they stage product-owned media records.

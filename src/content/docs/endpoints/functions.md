@@ -3,8 +3,6 @@ title: 'Functions'
 description: 'Coverage notes and fidelity boundaries for Functions.'
 ---
 
-<!-- Mirrored from docs/endpoints/functions.md so the Starlight site exposes the canonical endpoint notes. -->
-
 This endpoint group covers Shopify Function-backed Admin metadata roots for validations, cart transforms, Shopify Function catalog reads, and tax app readiness.
 
 ## Current support and limitations
