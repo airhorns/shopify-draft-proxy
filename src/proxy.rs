@@ -736,6 +736,7 @@ pub struct DraftProxy {
 mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
+mod commit;
 mod core;
 mod discounts;
 mod dispatch;
@@ -746,7 +747,10 @@ mod media_products_saved_searches;
 mod metafields_orders_payments;
 mod online_store_orders_payments;
 mod product_helpers;
+mod resolved_values;
+mod resource_ids;
 mod routing;
+mod selection;
 
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
@@ -754,6 +758,8 @@ pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
 pub(in crate::proxy) use self::app_shipping_helpers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::b2b_customers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::commit::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::core::*;
 #[allow(unused_imports)]
@@ -775,7 +781,13 @@ pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::resolved_values::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::resource_ids::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::selection::*;
 
 #[cfg(test)]
 mod store_tests {

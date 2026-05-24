@@ -2526,6 +2526,7 @@ impl DraftProxy {
             "path": request.path,
             "query": query,
             "variables": resolved_variables_json(variables),
+            "rawBody": request.body,
             "stagedResourceIds": staged_resource_ids,
             "status": "staged",
             "interpreted": {
@@ -2613,6 +2614,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_resource_ids,
                 "status": "staged",
                 "interpreted": {
@@ -2713,6 +2715,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_ids,
                 "status": "staged",
                 "interpreted": {
@@ -2890,6 +2893,7 @@ impl DraftProxy {
                 "path": request.path,
                 "query": query,
                 "variables": resolved_variables_json(variables),
+                "rawBody": request.body,
                 "stagedResourceIds": staged_ids,
                 "status": "staged",
                 "interpreted": {
@@ -2973,7 +2977,7 @@ impl DraftProxy {
                     return true;
                 }
                 let id = card.get("id").and_then(Value::as_str).unwrap_or_default();
-                let legacy = id.rsplit('/').next().unwrap_or(id);
+                let legacy = resource_id_path_tail(id);
                 query.contains(legacy)
             })
             .cloned()
@@ -2983,6 +2987,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
-        format!("gid://shopify/{resource_type}/{id}?shopify-draft-proxy=synthetic")
+        synthetic_shopify_gid(resource_type, id)
     }
 }

@@ -25,33 +25,45 @@ Use the registry helpers here before adding capability metadata or support disco
 
 Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
 
-## `src/proxy.rs` Selection And Connection Helpers
+## Selection And Connection Helpers
 
-Several generic serializers live near the bottom of `src/proxy.rs` and should be reused before adding local copies.
+Several generic serializers live under `src/proxy/` and should be reused before adding local copies.
 
-- `selected_json(...)`, `nullable_selected_json(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)` handle alias-aware selected-field projection.
-- `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_connection_json(...)`, `selected_empty_connection_json(...)`, `connection_edges_with_cursor(...)`, and `connection_page_info(...)` provide common Shopify connection envelopes.
-- `selected_typed_connection(...)` is available when a domain has typed records but needs standard selected connection output.
+- `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
+- `src/proxy/product_helpers.rs` owns typed resource serializers and connection helpers such as `selected_typed_connection(...)` and product/saved-search JSON builders.
+- `src/proxy/markets_online_inventory.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_empty_connection_json(...)`, and `connection_page_info(...)`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
 
-## Resource Identity And Handle Helpers
+## `src/proxy/resource_ids.rs` Resource Identity Helpers
 
-Check existing helpers before adding GID, cursor, handle, or slug code.
+Check these helpers before adding GID tail extraction, resource-type parsing, or synthetic GID construction.
 
-- `next_proxy_synthetic_gid(...)` allocates stable per-instance synthetic IDs.
-- `owner_type_from_gid(...)`, `is_safe_no_data_node_gid(...)`, and resource-specific ID helpers cover common GID handling.
-- `slugify_handle(...)`, `normalize_localized_handle(...)`, `fulfillment_service_handle(...)`, product handle lookup helpers, and saved-search ID helpers cover existing Shopify-like handle and ID behavior.
+- `shopify_gid(...)` and `synthetic_shopify_gid(...)` build canonical Shopify Admin GIDs.
+- `resource_id_path_tail(...)` preserves the raw final path segment; use it only when existing Shopify-like behavior keeps query suffixes.
+- `resource_id_tail(...)` returns the final path segment without a query suffix for legacy-resource-id/token comparisons.
+- `shopify_gid_resource_type(...)` parses the resource type from complete `gid://shopify/...` IDs.
+- `next_proxy_synthetic_gid(...)` allocates stable per-instance synthetic IDs and delegates formatting to the shared resource-ID helpers.
 
-When a new domain needs ID or handle behavior, prefer extracting a shared helper from the current Rust code over creating another resource-local variant.
+Handle and slug behavior remains separate because Shopify semantics vary by domain: `src/proxy/app_shipping_helpers.rs` owns `slugify_handle(...)` and `fulfillment_service_handle(...)`; product and saved-search handle lookup helpers live in `src/proxy/product_helpers.rs`.
+
+When a new domain needs ID behavior, extend `src/proxy/resource_ids.rs` instead of creating another resource-local parser. When a new domain needs handle behavior, first inspect the existing domain-specific handle helpers and extract only when semantics are genuinely shared.
+
+## `src/proxy/resolved_values.rs` Resolved Argument Serialization
+
+Use these helpers before adding resource-local `ResolvedValue` serializers.
+
+- `resolved_value_json(...)` converts GraphQL `ResolvedValue` trees into JSON while preserving strings, numbers, booleans, nulls, lists, and objects.
+- `resolved_variables_json(...)` serializes resolved variable maps for log metadata and validation payloads.
+
+Input readers that need the inverse conversion from JSON into resolved GraphQL values should use `resolved_value_from_json(...)` in `src/proxy/routing.rs`.
 
 ## Metafields And Custom Data
 
-Check the existing metafield helpers in `src/proxy.rs` before adding metafield-specific parsing or projection.
+Check the existing metafield helpers before adding metafield-specific parsing or projection.
 
-- `owner_metafields_set(...)` and `owner_metafields_read(...)` handle owner-scoped metafield staging and reads.
-- `metafield_json_value(...)`, `custom_data_metafield_type_matrix_record(...)`, and `canonical_app_metafield_namespace(...)` cover common custom-data value and app-namespace behavior.
-- Metafield definition helpers around `metafield_definition_*` handle definition IDs, defaults, pinning, and read serialization.
+- `src/proxy/media_products_saved_searches.rs` owns `owner_metafields_set(...)`, `owner_metafields_read(...)`, and metafield definition pinning/lifecycle read handlers.
+- `src/proxy/metafields_orders_payments.rs` owns `metafield_json_value(...)`, `custom_data_metafield_type_matrix_record(...)`, `canonical_app_metafield_namespace(...)`, and shared `metafield_definition_*` value/ID helpers.
 
 Owner-specific validation and storage should stay in the owning domain branch, but scalar parsing and projection should reuse shared helpers when possible.
 
