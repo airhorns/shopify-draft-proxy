@@ -163,7 +163,7 @@ caller-visible order and return effects should be read with
 
 ### Evidence
 
-- Registry status: `config/operation-registry.json`
+- Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
 - Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
 - Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`

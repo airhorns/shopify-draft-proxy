@@ -4,7 +4,7 @@ The privacy group covers shop-level privacy settings, consent policy configurati
 
 ## Current support and limitations
 
-`config/operation-registry.json` currently keeps all privacy roots conservative with `implemented: false`, and `src/proxy.rs` does not currently dispatch a Rust privacy-domain local handler. Checked-in parity specs and fixtures remain useful evidence for the intended `dataSaleOptOut` behavior, but they do not make the root supported by the current Rust runtime until a local dispatcher is present.
+`src/operation_registry.rs` currently keeps all privacy roots conservative with `implemented: false`, and `src/proxy.rs` does not currently dispatch a Rust privacy-domain local handler. Checked-in parity specs and fixtures remain useful evidence for the intended `dataSaleOptOut` behavior, but they do not make the root supported by the current Rust runtime until a local dispatcher is present.
 
 ### Registry-only roots
 

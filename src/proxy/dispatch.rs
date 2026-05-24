@@ -2132,66 +2132,83 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        let has_local_dispatch = local_dispatch_root(
+            operation.operation_type,
+            capability.domain,
+            capability.execution,
+            root_field,
+        )
+        .is_some();
         if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
             return ok_json(json!({ "data": data }));
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if matches!(
-                    root_field,
-                    "product" | "products" | "productsCount" | "productByIdentifier"
-                ) =>
+                if has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "product" | "products" | "productsCount" | "productByIdentifier"
+                    ) =>
             {
                 ok_json(json!({
                     "data": self.product_overlay_read_fields(&query, &variables)
                 }))
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productCreate" =>
+                if has_local_dispatch && root_field == "productCreate" =>
             {
                 let outcome = self.product_create(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productUpdate" =>
+                if has_local_dispatch && root_field == "productUpdate" =>
             {
                 let outcome = self.product_update(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productDelete" =>
+                if has_local_dispatch && root_field == "productDelete" =>
             {
                 let outcome = self.product_delete(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productChangeStatus" =>
+                if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (_, _)
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                ok_json(json!({
-                    "data": product_variant_compat_mutation_data(root_field, &variables)
-                }))
+                let outcome = MutationOutcome::staged(
+                    ok_json(json!({
+                        "data": product_variant_compat_mutation_data(root_field, &variables)
+                    })),
+                    LogDraft::staged(root_field, "products", Vec::new()),
+                );
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(root_field, "tagsAdd" | "tagsRemove") =>
+                if has_local_dispatch && matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
                 let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(&query, &variables)
-            })),
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
+                if has_local_dispatch =>
+            {
+                ok_json(json!({
+                    "data": self.saved_search_overlay_read_fields(&query, &variables)
+                }))
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
-                if root_field == "savedSearchCreate" =>
+                if has_local_dispatch && root_field == "savedSearchCreate" =>
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
