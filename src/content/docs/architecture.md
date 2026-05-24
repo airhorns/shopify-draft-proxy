@@ -19,7 +19,7 @@ App or test harness
       -> supported root: local domain command + staged state + synthesized payload
       -> unsupported root: passthrough or reject
     -> meta path
-      -> health/config/log/state/reset/commit
+      -> health/config/log/state/reset/dump/restore/commit
 ```
 
 The JavaScript package wraps the HTTP surface exposed by `src/bin/shopify-draft-proxy-server.rs`.
@@ -55,7 +55,7 @@ Unsupported mutations use the configured escape hatch:
 - `passthrough` forwards the request upstream and records that fact.
 - `reject` returns a 400 GraphQL error envelope before any upstream mutation call.
 
-`POST /__meta/commit` intentionally replays staged raw mutations upstream in original order.
+`POST /__meta/commit` intentionally replays staged raw mutations upstream in original order. Commit replay lives in `src/proxy/commit.rs`, uses the commit request's auth headers, maps successful synthetic IDs to authoritative Shopify IDs for later replay bodies, and stops on the first transport or GraphQL error while reporting per-attempt details.
 
 ## State Model
 
@@ -66,7 +66,7 @@ The store is normalized into base and staged buckets:
 - `mutationLog` preserves the original raw GraphQL mutation requests plus interpreted command metadata.
 - `syntheticIdentityRegistry` mints stable local IDs, timestamps, handles, and cursors.
 
-Effective reads merge base and staged state. Commit drains staged work by replaying the original raw mutations.
+Effective reads merge base and staged state. Commit drains staged work only after successful upstream replay.
 
 ## Domain Modules
 
