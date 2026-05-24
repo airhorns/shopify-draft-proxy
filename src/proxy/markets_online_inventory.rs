@@ -207,7 +207,7 @@ pub(in crate::proxy) fn set_price_list_catalog_relation(
 pub(in crate::proxy) fn missing_customization_message(ids: &[String]) -> String {
     let suffixes = ids
         .iter()
-        .map(|id| id.rsplit('/').next().unwrap_or(id).to_string())
+        .map(|id| resource_id_path_tail(id).to_string())
         .collect::<Vec<_>>();
     format!(
         "The following customization IDs were not found: {}",
@@ -1003,19 +1003,14 @@ pub(in crate::proxy) fn is_storefront_access_token_record(record: &Value) -> boo
 pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) -> Option<Value> {
     match value {
         ResolvedValue::String(raw) => serde_json::from_str::<Value>(raw).ok(),
-        ResolvedValue::Object(_) | ResolvedValue::List(_) => Some(resolved_value_to_json(value)),
+        ResolvedValue::Object(_) | ResolvedValue::List(_) => Some(resolved_value_json(value)),
         ResolvedValue::Null => None,
-        _ => Some(resolved_value_to_json(value)),
+        _ => Some(resolved_value_json(value)),
     }
 }
 
 pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
-    let suffix = id
-        .rsplit('/')
-        .next()
-        .and_then(|tail| tail.split('?').next())
-        .and_then(|number| number.parse::<u64>().ok())
-        .unwrap_or(0);
+    let suffix = resource_id_tail(id).parse::<u64>().ok().unwrap_or(0);
     let token = match suffix {
         1 => "bcc6fd83f41123b4",
         3 => "43199f7763e24d2f",
@@ -1275,13 +1270,7 @@ pub(in crate::proxy) fn webhook_uri_host(uri: &str) -> Option<String> {
 }
 
 pub(in crate::proxy) fn webhook_subscription_legacy_id(id: &str) -> String {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or_default()
-        .to_string()
+    resource_id_tail(id).to_string()
 }
 
 pub(in crate::proxy) fn webhook_subscription_numeric_id(record: &Value) -> u64 {
@@ -1448,25 +1437,6 @@ pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedFie
     selected_connection_json(Vec::new(), selections)
 }
 
-pub(in crate::proxy) fn resolved_value_to_json(value: &ResolvedValue) -> Value {
-    match value {
-        ResolvedValue::String(value) => json!(value),
-        ResolvedValue::Int(value) => json!(value),
-        ResolvedValue::Float(value) => json!(value),
-        ResolvedValue::Bool(value) => json!(value),
-        ResolvedValue::Null => Value::Null,
-        ResolvedValue::List(values) => {
-            Value::Array(values.iter().map(resolved_value_to_json).collect())
-        }
-        ResolvedValue::Object(fields) => Value::Object(
-            fields
-                .iter()
-                .map(|(key, value)| (key.clone(), resolved_value_to_json(value)))
-                .collect(),
-        ),
-    }
-}
-
 pub(in crate::proxy) fn is_inventory_quantity_document(query: &str) -> bool {
     [
         "InventoryItemsEmptyRead",
@@ -1492,6 +1462,126 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
         }),
         selection,
     )
+}
+
+pub(in crate::proxy) fn inventory_levels_connection_selected_json(
+    inventory_item_id: &str,
+    levels: &[(String, BTreeMap<String, i64>)],
+    selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                levels
+                    .iter()
+                    .map(|(location_id, quantities)| {
+                        inventory_level_selected_json(
+                            inventory_item_id,
+                            location_id,
+                            quantities,
+                            &selection.selection,
+                        )
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(selected_json(
+                &json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                }),
+                &selection.selection,
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+pub(in crate::proxy) fn inventory_level_selected_json(
+    inventory_item_id: &str,
+    location_id: &str,
+    quantities: &BTreeMap<String, i64>,
+    selections: &[SelectedField],
+) -> Value {
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "id" => Some(json!(inventory_level_id(inventory_item_id, location_id))),
+            "isActive" => Some(json!(true)),
+            "item" => Some(selected_json(
+                &json!({ "id": inventory_item_id }),
+                &selection.selection,
+            )),
+            "location" => Some(selected_json(
+                &json!({
+                    "id": location_id,
+                    "name": inventory_location_name(location_id)
+                }),
+                &selection.selection,
+            )),
+            "quantities" => Some(Value::Array(
+                inventory_quantity_names(&selection.arguments)
+                    .into_iter()
+                    .map(|name| {
+                        selected_json(
+                            &json!({
+                                "name": name,
+                                "quantity": quantities.get(&name).copied().unwrap_or(0),
+                                "updatedAt": null
+                            }),
+                            &selection.selection,
+                        )
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    match arguments.get("names") {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => vec![
+            "available".to_string(),
+            "on_hand".to_string(),
+            "damaged".to_string(),
+        ],
+    }
+}
+
+fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
+    format!(
+        "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
+        resource_id_tail(inventory_item_id),
+        resource_id_tail(location_id),
+        inventory_item_id
+    )
+}
+
+fn resource_id_tail(id: &str) -> &str {
+    id.rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .split('?')
+        .next()
+        .unwrap_or(id)
 }
 
 pub(in crate::proxy) fn inventory_properties_json() -> Value {
@@ -1529,6 +1619,8 @@ pub(in crate::proxy) fn inventory_change_json(
 
 pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static str {
     match location_id {
+        "gid://shopify/Location/1" => "Source location",
+        "gid://shopify/Location/2" => "Destination location",
         "gid://shopify/Location/106318430514" => "Shop location",
         "gid://shopify/Location/106318463282" => "My Custom Location",
         _ => "Shop location",
@@ -1676,7 +1768,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         &tactic,
         resolved_string_field(&input, "referringDomain").as_deref(),
     );
-    let numeric = id.rsplit('/').next().unwrap_or("1");
+    let numeric = resource_id_path_tail(id);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
@@ -2062,7 +2154,7 @@ pub(in crate::proxy) fn bulk_operation_record_with(
         "objectCount": if completed { count } else { "0" },
         "rootObjectCount": if completed { count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", id.rsplit('/').next().unwrap_or("local"))) } else { Value::Null },
+        "url": if completed { json!(format!("/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
         "partialDataUrl": null,
         "query": query
     })

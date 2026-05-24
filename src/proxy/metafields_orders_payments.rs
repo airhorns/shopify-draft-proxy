@@ -250,14 +250,11 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 }
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
-    if id.contains("/Customer/") {
-        "CUSTOMER"
-    } else if id.contains("/Order/") {
-        "ORDER"
-    } else if id.contains("/Company/") {
-        "COMPANY"
-    } else {
-        "PRODUCT"
+    match shopify_gid_resource_type(id) {
+        Some("Customer") => "CUSTOMER",
+        Some("Order") => "ORDER",
+        Some("Company") => "COMPANY",
+        _ => "PRODUCT",
     }
 }
 
@@ -1341,27 +1338,6 @@ pub(in crate::proxy) fn delivery_settings_read_data(fields: &[RootFieldSelection
     Value::Object(data)
 }
 
-pub(in crate::proxy) fn selected_child_selection(
-    selections: &[SelectedField],
-    name: &str,
-) -> Option<Vec<SelectedField>> {
-    selections
-        .iter()
-        .find(|selection| selection.name == name)
-        .map(|selection| selection.selection.clone())
-}
-
-pub(in crate::proxy) fn selected_fields_named(
-    selections: &[SelectedField],
-    names: &[&str],
-) -> Vec<SelectedField> {
-    selections
-        .iter()
-        .filter(|selection| names.iter().any(|name| selection.name == *name))
-        .cloned()
-        .collect()
-}
-
 pub(in crate::proxy) fn product_helper_roots_read_payload() -> Value {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"
@@ -2126,11 +2102,12 @@ pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
     }
 
     let template_id = resolved_string_field(&attrs, "paymentTermsTemplateId").unwrap_or_default();
-    let id_suffix = reference_id
-        .rsplit('/')
-        .next()
-        .filter(|suffix| !suffix.is_empty())
-        .unwrap_or("1");
+    let reference_tail = resource_id_tail(&reference_id);
+    let id_suffix = if reference_tail.is_empty() {
+        "1"
+    } else {
+        reference_tail
+    };
     let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
     staged_payment_terms_ids.insert(terms_id.clone());
     let record = if template_id == "gid://shopify/PaymentTermsTemplate/1" {

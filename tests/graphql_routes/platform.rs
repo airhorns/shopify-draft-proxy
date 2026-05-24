@@ -429,6 +429,214 @@ fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejec
 }
 
 #[test]
+fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
+    let mut proxy = snapshot_proxy();
+    let source_location_id = "gid://shopify/Location/1";
+    let destination_location_id = "gid://shopify/Location/2";
+    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let set_quantities = r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name delta location { id } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let seed = proxy.process_request(json_graphql_request(
+        set_quantities,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [
+                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5 },
+                    { "inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9 }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeactivateRelocation($source: ID!, $destination: ID!) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+            location { isActive hasActiveInventory deletable }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "source": source_location_id, "destination": destination_location_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": { "isActive": false, "hasActiveInventory": false, "deletable": true },
+            "locationDeactivateUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($itemId: ID!, $source: ID!) {
+          inventoryItem(id: $itemId) {
+            locationsCount { count precision }
+            inventoryLevel(locationId: $source) {
+              id
+              location { id name }
+              quantities(names: ["available", "on_hand"]) { name quantity }
+            }
+            inventoryLevels(first: 10) {
+              nodes {
+                id
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "itemId": inventory_item_id, "source": source_location_id }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["inventoryItem"],
+        json!({
+            "locationsCount": { "count": 1, "precision": "EXACT" },
+            "inventoryLevel": null,
+            "inventoryLevels": {
+                "nodes": [{
+                    "id": "gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                    "location": { "id": destination_location_id, "name": "Destination location" },
+                    "quantities": [
+                        { "name": "available", "quantity": 14 },
+                        { "name": "on_hand", "quantity": 14 }
+                    ]
+                }]
+            }
+        })
+    );
+}
+
+#[test]
+fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
+    let mut proxy = snapshot_proxy();
+    let source_location_id = "gid://shopify/Location/1";
+    let inactive_destination_location_id = "gid://shopify/Location/inactive";
+    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let set_quantities = r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name delta location { id } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let seed = proxy.process_request(json_graphql_request(
+        set_quantities,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [
+                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5 },
+                    { "inventoryItemId": inventory_item_id, "locationId": inactive_destination_location_id, "quantity": 9 }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeactivateRelocationGuard($source: ID!, $destination: ID!) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+            location { isActive hasActiveInventory deletable }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "source": source_location_id, "destination": inactive_destination_location_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": { "isActive": true, "hasActiveInventory": true, "deletable": false },
+            "locationDeactivateUserErrors": [{
+                "field": ["destinationLocationId"],
+                "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
+                "message": "Location could not be deactivated because the destination location could be not found or is inactive."
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($itemId: ID!, $source: ID!) {
+          inventoryItem(id: $itemId) {
+            locationsCount { count precision }
+            inventoryLevel(locationId: $source) {
+              id
+              location { id name }
+              quantities(names: ["available", "on_hand"]) { name quantity }
+            }
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "itemId": inventory_item_id, "source": source_location_id }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["inventoryItem"],
+        json!({
+            "locationsCount": { "count": 2, "precision": "EXACT" },
+            "inventoryLevel": {
+                "id": "gid://shopify/InventoryLevel/tracked-1?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                "location": { "id": source_location_id, "name": "Source location" },
+                "quantities": [
+                    { "name": "available", "quantity": 5 },
+                    { "name": "on_hand", "quantity": 5 }
+                ]
+            },
+            "inventoryLevels": {
+                "nodes": [
+                    {
+                        "location": { "id": source_location_id },
+                        "quantities": [
+                            { "name": "available", "quantity": 5 },
+                            { "name": "on_hand", "quantity": 5 }
+                        ]
+                    },
+                    {
+                        "location": { "id": inactive_destination_location_id },
+                        "quantities": [
+                            { "name": "available", "quantity": 9 },
+                            { "name": "on_hand", "quantity": 9 }
+                        ]
+                    }
+                ]
+            }
+        })
+    );
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

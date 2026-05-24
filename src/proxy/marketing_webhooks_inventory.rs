@@ -1187,7 +1187,7 @@ impl DraftProxy {
                 }
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    selected_json(&self.inventory_item_json(&id), &field.selection)
+                    self.inventory_item_selected_json(&id, &field.selection)
                 }
                 "product" => selected_json(&json!({ "totalInventory": 0 }), &field.selection),
                 _ => Value::Null,
@@ -1240,31 +1240,72 @@ impl DraftProxy {
         None
     }
 
-    pub(in crate::proxy) fn inventory_item_json(&self, inventory_item_id: &str) -> Value {
+    fn inventory_item_selected_json(
+        &self,
+        inventory_item_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");
-        let levels = self
-            .store.staged.inventory_levels
+        let item_levels = self.inventory_levels_for_item(inventory_item_id);
+        let mut fields = serde_json::Map::new();
+        for selection in selections {
+            let value = match selection.name.as_str() {
+                "id" => Some(json!(inventory_item_id)),
+                "variant" => Some(selected_json(
+                    &json!({
+                        "inventoryQuantity": inventory_quantity,
+                        "product": { "totalInventory": 0 }
+                    }),
+                    &selection.selection,
+                )),
+                "locationsCount" => Some(selected_json(
+                    &json!({
+                        "count": item_levels.len(),
+                        "precision": "EXACT"
+                    }),
+                    &selection.selection,
+                )),
+                "inventoryLevel" => {
+                    let location_id = resolved_string_field(&selection.arguments, "locationId");
+                    let level = location_id.and_then(|location_id| {
+                        item_levels.iter().find(|(candidate_location_id, _)| {
+                            *candidate_location_id == location_id
+                        })
+                    });
+                    Some(level.map_or(Value::Null, |(location_id, quantities)| {
+                        inventory_level_selected_json(
+                            inventory_item_id,
+                            location_id,
+                            quantities,
+                            &selection.selection,
+                        )
+                    }))
+                }
+                "inventoryLevels" => Some(inventory_levels_connection_selected_json(
+                    inventory_item_id,
+                    &item_levels,
+                    &selection.selection,
+                )),
+                _ => None,
+            };
+            if let Some(value) = value {
+                fields.insert(selection.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn inventory_levels_for_item(
+        &self,
+        inventory_item_id: &str,
+    ) -> Vec<(String, BTreeMap<String, i64>)> {
+        self.store
+            .staged
+            .inventory_levels
             .iter()
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
-            .map(|((_, location_id), quantities)| {
-                json!({
-                    "location": { "id": location_id },
-                    "quantities": [
-                        { "name": "available", "quantity": quantities.get("available").copied().unwrap_or(0) },
-                        { "name": "on_hand", "quantity": quantities.get("on_hand").copied().unwrap_or(0) },
-                        { "name": "damaged", "quantity": quantities.get("damaged").copied().unwrap_or(0) }
-                    ]
-                })
-            })
-            .collect::<Vec<_>>();
-        json!({
-            "id": inventory_item_id,
-            "variant": {
-                "inventoryQuantity": inventory_quantity,
-                "product": { "totalInventory": 0 }
-            },
-            "inventoryLevels": { "nodes": levels }
-        })
+            .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone()))
+            .collect()
     }
 
     pub(in crate::proxy) fn inventory_total(&self, inventory_item_id: &str, name: &str) -> i64 {
