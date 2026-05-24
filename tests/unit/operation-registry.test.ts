@@ -41,7 +41,7 @@ describe('operation registry', () => {
     expect(executions.has('stage-locally')).toBe(true);
   });
 
-  it('loads the checked-in operation registry as the source of truth', () => {
+  it('loads the Rust operation registry as the source of truth', () => {
     expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
     expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
   });

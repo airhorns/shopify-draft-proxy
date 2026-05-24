@@ -1,4 +1,5 @@
 use crate::graphql::OperationType;
+use serde_json::{json, Map, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapabilityDomain {
@@ -126,167 +127,15 @@ pub fn local_dispatch_root(
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
-    vec![
-        OperationRegistryEntry {
-            name: "product".to_string(),
-            operation_type: OperationType::Query,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::OverlayRead,
-            implemented: true,
-            match_names: strings(&["product", "Product"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "products".to_string(),
-            operation_type: OperationType::Query,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::OverlayRead,
-            implemented: true,
-            match_names: strings(&["products", "Products"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productsCount".to_string(),
-            operation_type: OperationType::Query,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::OverlayRead,
-            implemented: true,
-            match_names: strings(&["productsCount", "ProductsCount"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productByIdentifier".to_string(),
-            operation_type: OperationType::Query,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::OverlayRead,
-            implemented: true,
-            match_names: strings(&["productByIdentifier", "ProductByIdentifier"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productCreate".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productCreate", "ProductCreate"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productUpdate".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productUpdate", "ProductUpdate"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productDelete".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productDelete", "ProductDelete"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productChangeStatus".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productChangeStatus", "ProductChangeStatus"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productVariantCreate".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productVariantCreate", "ProductVariantCreate"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productVariantUpdate".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productVariantUpdate", "ProductVariantUpdate"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "productVariantDelete".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["productVariantDelete", "ProductVariantDelete"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "tagsAdd".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["tagsAdd"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "tagsRemove".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::Products,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["tagsRemove"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        saved_search_query("automaticDiscountSavedSearches"),
-        saved_search_query("codeDiscountSavedSearches"),
-        saved_search_query("collectionSavedSearches"),
-        saved_search_query("customerSavedSearches"),
-        saved_search_query("discountRedeemCodeSavedSearches"),
-        saved_search_query("draftOrderSavedSearches"),
-        saved_search_query("fileSavedSearches"),
-        saved_search_query("orderSavedSearches"),
-        saved_search_query("productSavedSearches"),
-        OperationRegistryEntry {
-            name: "savedSearchCreate".to_string(),
-            operation_type: OperationType::Mutation,
-            domain: CapabilityDomain::SavedSearches,
-            execution: CapabilityExecution::StageLocally,
-            implemented: true,
-            match_names: strings(&["savedSearchCreate", "SavedSearchCreate"]),
-            runtime_tests: strings(&["tests/graphql_routes.rs"]),
-            support_notes: None,
-        },
-        OperationRegistryEntry {
-            name: "app".to_string(),
-            operation_type: OperationType::Query,
-            domain: CapabilityDomain::Apps,
-            execution: CapabilityExecution::OverlayRead,
-            implemented: false,
-            match_names: strings(&["app", "App"]),
-            runtime_tests: Vec::new(),
-            support_notes: None,
-        },
-    ]
+    crate::operation_registry_data::default_registry_entries()
+}
+
+pub fn default_registry_json_value() -> Value {
+    registry_json_value(&default_registry())
+}
+
+pub fn registry_json_value(registry: &[OperationRegistryEntry]) -> Value {
+    Value::Array(registry.iter().map(registry_entry_json_value).collect())
 }
 
 pub fn implemented_entries(registry: &[OperationRegistryEntry]) -> Vec<&OperationRegistryEntry> {
@@ -333,17 +182,25 @@ pub fn operation_capability(
     }
 }
 
-fn saved_search_query(name: &str) -> OperationRegistryEntry {
-    OperationRegistryEntry {
-        name: name.to_string(),
-        operation_type: OperationType::Query,
-        domain: CapabilityDomain::SavedSearches,
-        execution: CapabilityExecution::OverlayRead,
-        implemented: true,
-        match_names: match_names_with_pascal(name),
-        runtime_tests: strings(&["tests/graphql_routes.rs"]),
-        support_notes: None,
+fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
+    let mut object = Map::new();
+    object.insert("name".to_string(), json!(entry.name));
+    object.insert(
+        "type".to_string(),
+        json!(operation_type_registry_name(entry.operation_type)),
+    );
+    object.insert("domain".to_string(), json!(entry.domain.registry_name()));
+    object.insert(
+        "execution".to_string(),
+        json!(entry.execution.registry_name()),
+    );
+    object.insert("implemented".to_string(), json!(entry.implemented));
+    object.insert("matchNames".to_string(), json!(entry.match_names));
+    object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
+    if let Some(support_notes) = &entry.support_notes {
+        object.insert("supportNotes".to_string(), json!(support_notes));
     }
+    Value::Object(object)
 }
 
 const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 23] = [
@@ -396,22 +253,18 @@ const fn local_mutation(name: &'static str, domain: CapabilityDomain) -> LocalDi
     }
 }
 
-fn strings(values: &[&str]) -> Vec<String> {
-    values.iter().map(|value| (*value).to_string()).collect()
-}
-
-fn match_names_with_pascal(name: &str) -> Vec<String> {
-    let mut pascal = name.to_string();
-    if let Some(first) = pascal.get_mut(0..1) {
-        first.make_ascii_uppercase();
-    }
-    vec![name.to_string(), pascal]
-}
-
 fn nonempty(value: &str) -> Option<&str> {
     if value.is_empty() {
         None
     } else {
         Some(value)
+    }
+}
+
+fn operation_type_registry_name(operation_type: OperationType) -> &'static str {
+    match operation_type {
+        OperationType::Query => "query",
+        OperationType::Mutation => "mutation",
+        OperationType::Subscription => "subscription",
     }
 }

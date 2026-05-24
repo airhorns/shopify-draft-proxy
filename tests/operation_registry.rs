@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
 use pretty_assertions::assert_eq;
-use serde_json::Value;
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
     default_registry, find_entry, implemented_entries, local_dispatch_roots, operation_capability,
@@ -174,15 +173,6 @@ fn default_registry_runtime_tests_reference_current_rust_coverage_files() {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct RegistryKey {
-    operation_type: String,
-    name: String,
-    domain: String,
-    execution: String,
-    match_names: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct DispatchKey {
     operation_type: String,
     name: String,
@@ -207,30 +197,6 @@ fn implemented_registry_entries_have_executable_local_dispatch_roots() {
     );
 }
 
-#[test]
-fn implemented_runtime_registry_entries_match_checked_in_config_snapshot() {
-    let runtime_implemented: BTreeSet<RegistryKey> = implemented_entries(&default_registry())
-        .into_iter()
-        .map(registry_key_from_runtime_entry)
-        .collect();
-    let config_implemented = implemented_config_keys();
-
-    assert_eq!(
-        runtime_implemented, config_implemented,
-        "implemented Rust registry entries must match config/operation-registry.json"
-    );
-}
-
-fn registry_key_from_runtime_entry(entry: &OperationRegistryEntry) -> RegistryKey {
-    RegistryKey {
-        operation_type: operation_type_name(entry.operation_type).to_string(),
-        name: entry.name.clone(),
-        domain: entry.domain.registry_name().to_string(),
-        execution: entry.execution.registry_name().to_string(),
-        match_names: entry.match_names.clone(),
-    }
-}
-
 fn dispatch_key_from_registry_entry(entry: &OperationRegistryEntry) -> DispatchKey {
     DispatchKey {
         operation_type: operation_type_name(entry.operation_type).to_string(),
@@ -249,47 +215,6 @@ fn dispatch_key_from_local_root(
         domain: root.domain.registry_name().to_string(),
         execution: root.execution.registry_name().to_string(),
     }
-}
-
-fn implemented_config_keys() -> BTreeSet<RegistryKey> {
-    let config: Value = serde_json::from_str(include_str!("../config/operation-registry.json"))
-        .expect("operation registry config should parse");
-    let entries = config
-        .as_array()
-        .expect("operation registry config should be an array");
-
-    entries
-        .iter()
-        .filter(|entry| entry["implemented"].as_bool() == Some(true))
-        .map(|entry| RegistryKey {
-            operation_type: entry["type"]
-                .as_str()
-                .expect("implemented config entry should have a type")
-                .to_string(),
-            name: entry["name"]
-                .as_str()
-                .expect("implemented config entry should have a name")
-                .to_string(),
-            domain: entry["domain"]
-                .as_str()
-                .expect("implemented config entry should have a domain")
-                .to_string(),
-            execution: entry["execution"]
-                .as_str()
-                .expect("implemented config entry should have an execution")
-                .to_string(),
-            match_names: entry["matchNames"]
-                .as_array()
-                .expect("implemented config entry should have matchNames")
-                .iter()
-                .map(|name| {
-                    name.as_str()
-                        .expect("matchNames should be strings")
-                        .to_string()
-                })
-                .collect(),
-        })
-        .collect()
 }
 
 fn operation_type_name(operation_type: OperationType) -> &'static str {
