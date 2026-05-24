@@ -1424,6 +1424,7 @@ impl DraftProxy {
             "path": entry.request.path,
             "query": entry.query,
             "variables": resolved_variables_json(entry.variables),
+            "rawBody": entry.request.body,
             "stagedResourceIds": entry.staged_resource_ids,
             "status": entry.outcome.status,
             "interpreted": {

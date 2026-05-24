@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs` plus domain-specific modules under `src/proxy/`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, reusable upstream transport in `src/upstream.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The runtime is Rust, centered on `DraftProxy` in `src/proxy.rs` plus domain-specific modules under `src/proxy/`, commit replay in `src/proxy/commit.rs`, GraphQL parsing helpers in `src/graphql.rs`, operation metadata in `src/operation_registry.rs`, reusable upstream transport in `src/upstream.rs`, and the launchable HTTP bridge in `src/bin/shopify-draft-proxy-server.rs`.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -32,7 +32,7 @@ The TypeScript package under `js/` is intentionally thin: it starts and owns a R
    - reject with a 400 GraphQL error envelope before upstream transport when `unsupportedMutationMode` is `reject`
    - remain visible in logs/observability when proxied
 
-`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers.
+`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
 
 ## High-level request flow
 
@@ -64,9 +64,17 @@ App/test harness
 ### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
 
 - expose `process_request(...)` as the central route boundary
-- implement meta routes: health, config, log, state, reset, dump, restore, and commit
+- implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
+
+### `src/proxy/commit.rs`
+
+- owns `POST /__meta/commit` replay behavior
+- replays staged mutations in original log order using each entry's preserved raw GraphQL body and path
+- forwards the commit request's auth headers through the commit transport
+- maps synthetic Shopify GIDs from successful upstream responses to authoritative GIDs before replaying later bodies
+- stops on the first transport or GraphQL error, records the stopped index, and updates staged log statuses to committed/failed while leaving later staged entries untouched
 
 ### `src/proxy/*.rs` domain modules
 
