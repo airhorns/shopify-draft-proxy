@@ -122,11 +122,18 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
 
   let output: string;
   try {
-    output = execFileSync('cargo', ['run', '--quiet', '--bin', 'operation-registry-json'], {
-      cwd: cacheKey,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const exporterPath = operationRegistryExporterPath(cacheKey);
+    output = existsSync(exporterPath)
+      ? execFileSync(exporterPath, {
+          cwd: cacheKey,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+      : execFileSync('cargo', ['run', '--quiet', '--bin', 'operation-registry-json'], {
+          cwd: cacheKey,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
   } catch (error) {
     const stderr = stderrFromExecError(error);
     const message = error instanceof Error ? error.message : String(error);
@@ -144,6 +151,11 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
   const registry = operationRegistrySchema.parse(parsed);
   registryCache.set(cacheKey, registry);
   return cloneRegistryEntries(registry);
+}
+
+function operationRegistryExporterPath(repoRoot: string): string {
+  const executableName = process.platform === 'win32' ? 'operation-registry-json.exe' : 'operation-registry-json';
+  return path.join(repoRoot, 'target', 'debug', executableName);
 }
 
 function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): OperationRegistryEntry[] {

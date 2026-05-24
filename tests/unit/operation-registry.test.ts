@@ -5,9 +5,14 @@ import { describe, expect, it } from 'vitest';
 import { loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const operationRegistryEntries = loadOperationRegistry(repoRoot);
 
 function listOperationRegistryEntries() {
-  return loadOperationRegistry(repoRoot);
+  return operationRegistryEntries.map((entry) => ({
+    ...entry,
+    matchNames: [...entry.matchNames],
+    runtimeTests: [...entry.runtimeTests],
+  }));
 }
 
 function listImplementedOperationRegistryEntries() {
