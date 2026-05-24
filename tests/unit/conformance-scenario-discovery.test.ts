@@ -23,6 +23,7 @@ describe('conformance scenario discovery', () => {
   const paritySpecPaths = listConformanceParitySpecPaths(repoRoot);
   const scenarioOverrides = loadConformanceScenarioOverrides(repoRoot);
   const scenarios = loadConformanceScenarios(repoRoot);
+  const operationRegistry = loadOperationRegistry(repoRoot);
 
   it('uses parity specs as the scenario convention instead of generated or central manifests', () => {
     expect(existsSync(resolve(repoRoot, 'config/conformance-scenarios.json'))).toBe(false);
@@ -88,15 +89,14 @@ describe('conformance scenario discovery', () => {
       scenario.operationNames.map((operationName) => [`${scenario.id} -> ${operationName}`, operationName] as const),
     ),
   )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
-    const registry = loadOperationRegistry(repoRoot);
-    expect(registry.some((entry) => entry.name === operationName)).toBe(true);
+    expect(operationRegistry.some((entry) => entry.name === operationName)).toBe(true);
   });
 
   it('keeps every implemented operation covered by at least one discovered scenario', () => {
     const statusDocument = buildConformanceStatusDocument(repoRoot);
     const coveredOperationNames = new Set(statusDocument.coveredOperationNames);
 
-    for (const entry of loadOperationRegistry(repoRoot).filter((candidate) => candidate.implemented)) {
+    for (const entry of operationRegistry.filter((candidate) => candidate.implemented)) {
       expect(entry.runtimeTests?.length ?? 0).toBeGreaterThan(0);
       expect(coveredOperationNames.has(entry.name), `${entry.name} should have scenario or runtime-test coverage`).toBe(
         true,

@@ -1,8 +1,10 @@
+use std::collections::BTreeSet;
+
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
-    default_registry, find_entry, implemented_entries, operation_capability, CapabilityDomain,
-    CapabilityExecution, OperationRegistryEntry,
+    default_registry, find_entry, implemented_entries, local_dispatch_roots, operation_capability,
+    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
@@ -167,5 +169,58 @@ fn default_registry_runtime_tests_reference_current_rust_coverage_files() {
                 runtime_test
             );
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct DispatchKey {
+    operation_type: String,
+    name: String,
+    domain: String,
+    execution: String,
+}
+
+#[test]
+fn implemented_registry_entries_have_executable_local_dispatch_roots() {
+    let implemented: BTreeSet<DispatchKey> = implemented_entries(&default_registry())
+        .into_iter()
+        .map(dispatch_key_from_registry_entry)
+        .collect();
+    let dispatch_roots: BTreeSet<DispatchKey> = local_dispatch_roots()
+        .iter()
+        .map(dispatch_key_from_local_root)
+        .collect();
+
+    assert_eq!(
+        implemented, dispatch_roots,
+        "implemented registry entries and local dispatch roots must stay aligned"
+    );
+}
+
+fn dispatch_key_from_registry_entry(entry: &OperationRegistryEntry) -> DispatchKey {
+    DispatchKey {
+        operation_type: operation_type_name(entry.operation_type).to_string(),
+        name: entry.name.clone(),
+        domain: entry.domain.registry_name().to_string(),
+        execution: entry.execution.registry_name().to_string(),
+    }
+}
+
+fn dispatch_key_from_local_root(
+    root: &shopify_draft_proxy::operation_registry::LocalDispatchRoot,
+) -> DispatchKey {
+    DispatchKey {
+        operation_type: operation_type_name(root.operation_type).to_string(),
+        name: root.name.to_string(),
+        domain: root.domain.registry_name().to_string(),
+        execution: root.execution.registry_name().to_string(),
+    }
+}
+
+fn operation_type_name(operation_type: OperationType) -> &'static str {
+    match operation_type {
+        OperationType::Query => "query",
+        OperationType::Mutation => "mutation",
+        OperationType::Subscription => "subscription",
     }
 }

@@ -2,12 +2,22 @@ import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  listImplementedOperationRegistryEntries,
-  listOperationRegistryEntries,
-} from '../../scripts/support/operation-registry.js';
+import { loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const operationRegistryEntries = loadOperationRegistry(repoRoot);
+
+function listOperationRegistryEntries() {
+  return operationRegistryEntries.map((entry) => ({
+    ...entry,
+    matchNames: [...entry.matchNames],
+    runtimeTests: [...entry.runtimeTests],
+  }));
+}
+
+function listImplementedOperationRegistryEntries() {
+  return listOperationRegistryEntries().filter((entry) => entry.implemented);
+}
 
 describe('operation registry', () => {
   it('keeps implemented capability names unique', () => {
@@ -41,7 +51,7 @@ describe('operation registry', () => {
     expect(executions.has('stage-locally')).toBe(true);
   });
 
-  it('loads the checked-in operation registry as the source of truth', () => {
+  it('loads the Rust operation registry as the source of truth', () => {
     expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
     expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
   });

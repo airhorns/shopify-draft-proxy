@@ -96,6 +96,7 @@ App/test harness
 - typed registry of operation capability metadata
 - classifies implemented roots by domain and execution kind
 - keeps unimplemented/unknown roots explicit so metadata alone does not imply runtime support
+- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, implemented registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
 
 ### `src/upstream.rs`
 
@@ -135,7 +136,7 @@ The TypeScript package is not a second proxy implementation. New runtime behavio
 - Those paths must be registered in the conformance capture index when they drift from `origin/main`.
 - `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.
-- `config/operation-registry.json` is the TypeScript tooling snapshot of operation metadata. The executable Rust registry remains in `src/operation_registry.rs`.
+- `src/operation_registry.rs` is the executable source of truth for operation metadata. TypeScript tooling loads the same metadata through the Rust `operation-registry-json` exporter instead of maintaining a second checked-in JSON registry.
 
 ## State model
 

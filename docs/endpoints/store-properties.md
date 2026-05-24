@@ -95,7 +95,7 @@ fields only where captured.
 
 ### Evidence
 
-- Registry status: `config/operation-registry.json`
+- Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
 - Store-properties parity specs: `config/parity-specs/store-properties/*.json`
 - Store-properties fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`

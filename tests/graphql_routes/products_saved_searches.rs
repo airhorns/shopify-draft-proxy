@@ -3061,3 +3061,70 @@ fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
         json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownButUnimplemented" }] })
     );
 }
+
+#[test]
+fn local_dispatch_root_without_registry_classification_fails_closed() {
+    let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
+        "productCreate",
+        OperationType::Mutation,
+        CapabilityExecution::StageLocally,
+        true,
+    )]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productVariantCreate(input: {}) { productVariant { id } userErrors { message } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 400);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productVariantCreate" }] })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
+fn implemented_registry_entry_without_local_dispatch_fails_closed() {
+    let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
+        name: "unknownSavedSearches".to_string(),
+        operation_type: OperationType::Query,
+        domain: CapabilityDomain::SavedSearches,
+        execution: CapabilityExecution::OverlayRead,
+        implemented: true,
+        match_names: vec!["unknownSavedSearches".to_string()],
+        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        support_notes: None,
+    }]);
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 501);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: unknownSavedSearches" }] })
+    );
+}
+
+#[test]
+fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productVariantCreate(input: {}) { productVariant { id } userErrors { message } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["interpreted"]["capability"],
+        json!({
+            "operationName": "productVariantCreate",
+            "domain": "products",
+            "execution": "stage-locally"
+        })
+    );
+}
