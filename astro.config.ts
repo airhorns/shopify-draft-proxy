@@ -2,6 +2,8 @@ import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
+  site: 'https://airhorns.github.io',
+  base: '/shopify-draft-proxy',
   integrations: [
     starlight({
       title: 'Shopify Draft Proxy',

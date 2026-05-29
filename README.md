@@ -1,5 +1,7 @@
 # shopify-draft-proxy
 
+**[📖 Documentation →](https://airhorns.github.io/shopify-draft-proxy/)**
+
 `shopify-draft-proxy` is a high-fidelity Shopify Admin GraphQL digital twin for test environments.
 
 Point an app at this proxy instead of Shopify. Supported mutations are staged in local in-memory state, mutation payloads are synthesized with Shopify-like shapes, and later reads behave as if the writes happened. The real store remains unchanged during normal supported mutation handling until an explicit `/__meta/commit`.
