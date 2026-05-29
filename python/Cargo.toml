@@ -1,0 +1,16 @@
+[package]
+name = "shopify-draft-proxy-python"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "PyO3 bindings for shopify-draft-proxy"
+
+[lib]
+name = "shopify_draft_proxy_python"
+path = "rust/src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["abi3-py39"] }
+serde_json = "1"
+shopify-draft-proxy = { path = ".." }
