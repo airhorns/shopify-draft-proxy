@@ -2,7 +2,7 @@
 
 This folder contains the Ruby package surface for the Rust-backed Shopify Draft Proxy runtime.
 
-The gem is intentionally thin: it starts the Rust HTTP server and talks to its Shopify-like routes. It does not reimplement GraphQL routing, staging, commit replay, or Shopify domain behavior in Ruby.
+The gem is intentionally thin: it loads a native Ruby extension powered by the Rust `DraftProxy` library and calls that runtime in-process. It does not reimplement GraphQL routing, staging, commit replay, or Shopify domain behavior in Ruby.
 
 ## Usage
 
@@ -26,21 +26,24 @@ puts graphql.body
 proxy.dispose
 ```
 
-## Runtime Selection
+## Native Extension Build
 
-By default the gem runs:
-
-```bash
-cargo run --bin shopify-draft-proxy-server --quiet
-```
-
-from the repository root. For packaged or CI usage, build the Rust server first and point the gem at the binary:
+The native extension lives in `native/` and compiles to:
 
 ```bash
-cargo build --bin shopify-draft-proxy-server
-SHOPIFY_DRAFT_PROXY_SERVER_BIN=../target/debug/shopify-draft-proxy-server \
-  ruby -Ilib:test test/shopify_draft_proxy_smoke_test.rb
+ruby/lib/shopify_draft_proxy/shopify_draft_proxy_native.so
 ```
+
+For local development from the repository root:
+
+```bash
+cargo build --manifest-path ruby/native/Cargo.toml --target-dir target/ruby-native
+mkdir -p ruby/lib/shopify_draft_proxy
+cp target/ruby-native/debug/libshopify_draft_proxy_native.so \
+  ruby/lib/shopify_draft_proxy/shopify_draft_proxy_native.so
+```
+
+Each `ShopifyDraftProxy.create(...)` call owns an independent Rust `DraftProxy` instance in the current Ruby process. `dump_state` and `restore_state` use the same Rust state dump schema as the native runtime.
 
 ## Smoke Tests
 
@@ -50,4 +53,4 @@ From the repository root:
 corepack pnpm ruby:smoke
 ```
 
-The smoke runner builds the Rust server, then runs the Ruby Minitest suite. If local Ruby is unavailable, it falls back to Docker with the built server binary mounted into the container.
+The smoke runner builds the native extension, then runs the Ruby Minitest suite. If local Ruby is unavailable, it falls back to Docker and builds the extension inside the Ruby container.

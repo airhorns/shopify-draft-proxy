@@ -1,11 +1,12 @@
 /* oxlint-disable no-console -- CLI smoke runner reports selected Ruby execution path. */
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 const rubyDir = resolve(repoRoot, 'ruby');
-const serverBin = resolve(repoRoot, 'target/debug/shopify-draft-proxy-server');
+const nativeDir = resolve(rubyDir, 'native');
+const nativeLibDir = resolve(rubyDir, 'lib/shopify_draft_proxy');
+const nativeExtension = resolve(nativeLibDir, 'shopify_draft_proxy_native.so');
 
 function hasCommand(command: string): boolean {
   const result = spawnSync('sh', ['-lc', `command -v ${command} >/dev/null 2>&1`], {
@@ -26,18 +27,23 @@ function run(command: string, args: string[], options: { cwd?: string; env?: Nod
   }
 }
 
-run('cargo', ['build', '--bin', 'shopify-draft-proxy-server']);
-
-if (!existsSync(serverBin)) {
-  console.error(`Expected built Rust server at ${serverBin}`);
-  process.exit(1);
+function buildAndTestWithLocalRuby(): void {
+  run('cargo', [
+    'build',
+    '--manifest-path',
+    resolve(nativeDir, 'Cargo.toml'),
+    '--target-dir',
+    resolve(repoRoot, 'target/ruby-native'),
+  ]);
+  run('sh', [
+    '-lc',
+    `mkdir -p ${JSON.stringify(nativeLibDir)} && cp ${JSON.stringify(resolve(repoRoot, 'target/ruby-native/debug/libshopify_draft_proxy_native.so'))} ${JSON.stringify(nativeExtension)}`,
+  ]);
+  run('ruby', ['-Ilib:test', 'test/shopify_draft_proxy_smoke_test.rb'], { cwd: rubyDir });
 }
 
 if (hasCommand('ruby')) {
-  run('ruby', ['-Ilib:test', 'test/shopify_draft_proxy_smoke_test.rb'], {
-    cwd: rubyDir,
-    env: { ...process.env, SHOPIFY_DRAFT_PROXY_SERVER_BIN: serverBin },
-  });
+  buildAndTestWithLocalRuby();
   process.exit(0);
 }
 
@@ -51,16 +57,25 @@ const gid = process.getgid?.() ?? 1000;
 run('docker', [
   'run',
   '--rm',
-  '-u',
-  `${uid}:${gid}`,
   '-v',
   `${repoRoot}:/work`,
   '-w',
-  '/work/ruby',
-  '-e',
-  'SHOPIFY_DRAFT_PROXY_SERVER_BIN=/work/target/debug/shopify-draft-proxy-server',
+  '/work',
   'ruby:3.3',
-  'ruby',
-  '-Ilib:test',
-  'test/shopify_draft_proxy_smoke_test.rb',
+  'bash',
+  '-lc',
+  [
+    'set -euo pipefail',
+    'apt-get update >/dev/null',
+    'apt-get install -y --no-install-recommends curl ca-certificates build-essential pkg-config libclang-dev >/dev/null',
+    'curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal >/dev/null',
+    'source "$HOME/.cargo/env"',
+    'cargo build --manifest-path ruby/native/Cargo.toml --target-dir target/ruby-native',
+    'mkdir -p ruby/lib/shopify_draft_proxy',
+    'cp target/ruby-native/debug/libshopify_draft_proxy_native.so ruby/lib/shopify_draft_proxy/shopify_draft_proxy_native.so',
+    'cd ruby',
+    'ruby -Ilib:test test/shopify_draft_proxy_smoke_test.rb',
+    'cd /work',
+    `chown -R ${uid}:${gid} target/ruby-native ruby/lib/shopify_draft_proxy`,
+  ].join(' && '),
 ]);

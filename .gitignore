@@ -5,6 +5,8 @@ node_modules/
 build/
 dist/
 target/
+ruby/lib/shopify_draft_proxy/*.so
+ruby/native/Cargo.lock
 *.tsbuildinfo
 
 # Local environment secrets (keep examples tracked)
