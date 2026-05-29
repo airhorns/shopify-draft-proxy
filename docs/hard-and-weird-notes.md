@@ -2,7 +2,7 @@
 
 This file records implementation surprises and fidelity traps discovered while building Shopify Admin GraphQL parity.
 
-Endpoint docs are the source of truth for current support status, runtime behavior, validation anchors, and coverage gaps. Treat this file as a searchable field notebook: use it to find traps, fixture names, and historical failure modes, then confirm current behavior in `docs/endpoints/*.md`, the operation registry, parity specs, and tests before implementing.
+Endpoint docs are the source of truth for current support status, runtime behavior, validation anchors, and coverage gaps. Treat this file as a searchable field notebook: use it to find traps, fixture names, and historical failure modes, then confirm current behavior in `src/content/docs/endpoints/*.md`, the operation registry, parity specs, and tests before implementing.
 
 Entries below intentionally preserve old access and credential lessons when those lessons are still useful for diagnosing future regressions. Historical entries should not be read as current blockers unless an endpoint doc, parity spec, or fresh capture says the blocker is still active.
 
@@ -51,7 +51,7 @@ Historical context: the first product overlay implementation only supported a na
 - basic `pageInfo`
 - simple `first` slicing
 
-That early subset is not the current product coverage contract. Use `docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
+That early subset is not the current product coverage contract. Use `src/content/docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
 
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
@@ -374,7 +374,7 @@ Current `productUpdate` behavior is intentionally split by runtime mode:
 - in `snapshot` mode, an unknown product id now returns the live-backed Shopify userError slice (`field: ['id']`, `message: 'Product does not exist'`)
 - in `passthrough` / `live-hybrid` mode, the proxy still allows sparse staged updates/deletes before hydration so later overlay reads can apply those writes once the upstream product is learned
 
-That split is useful for the digital-twin architecture, but it is not a perfect one-to-one mirror of Shopify in every mode. Current product support and validation anchors live in `docs/endpoints/products.md`; this note is here to preserve the design trap that missing-record behavior can differ between snapshot proof and live-hybrid hydration.
+That split is useful for the digital-twin architecture, but it is not a perfect one-to-one mirror of Shopify in every mode. Current product support and validation anchors live in `src/content/docs/endpoints/products.md`; this note is here to preserve the design trap that missing-record behavior can differ between snapshot proof and live-hybrid hydration.
 
 ### Current: Product mutation validation parity is mode-sensitive
 
@@ -411,7 +411,7 @@ The `productBundleCreate-validation` fixture captured bundle validation behavior
 
 The first unattended orders-domain probes on this host settled an easy mistake to make when the same token already works for product/customer/collection/inventory write capture: Shopify's order-related surfaces do **not** open up uniformly under the current `shpca_...` user token.
 
-Current support status for orders, draft orders, returns, fulfillment, and order-editing lives in `docs/endpoints/orders.md`, `docs/endpoints/returns.md`, and `docs/endpoints/shipping-fulfillments.md`. The mixed chronology below is kept for diagnosis: older access-denied results explain how a credential can fail, while newer fixture-backed findings explain why those old access failures should not be reintroduced as current blocker claims.
+Current support status for orders, draft orders, returns, fulfillment, and order-editing lives in `src/content/docs/endpoints/orders.md`, `src/content/docs/endpoints/returns.md`, and `src/content/docs/endpoints/shipping-fulfillments.md`. The mixed chronology below is kept for diagnosis: older access-denied results explain how a credential can fail, while newer fixture-backed findings explain why those old access failures should not be reintroduced as current blocker claims.
 
 Current and historical live findings on this host:
 
@@ -443,7 +443,7 @@ Current and historical live findings on this host:
   - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-detail.json`
 - a later healthy-probe pass confirmed the current repo credential can now recapture that same happy-path slice directly on this host
   - practical consequence: `draftOrderCreate` is no longer the remaining live creation blocker on the current repo credential
-  - historical consequence at that point: `draftOrderComplete` became the next creation blocker, but newer evidence below and `docs/endpoints/orders.md` now cover the supported local completion slice
+  - historical consequence at that point: `draftOrderComplete` became the next creation blocker, but newer evidence below and `src/content/docs/endpoints/orders.md` now cover the supported local completion slice
 - `draftOrderComplete` exists in the current schema and is now captured for the draft-to-order bridge when the conformance credential can mark the draft as paid
 - but live `draftOrderComplete` has four easy-to-confuse branches on this host:
   - omitting the inline required `id` argument fails first with top-level GraphQL `missingRequiredArguments` (`Field 'draftOrderComplete' is missing required arguments: id`) before Shopify reaches the root's write-access gate
@@ -468,7 +468,7 @@ Current and historical live findings on this host:
   - non-null `paymentGatewayId` now consults the opt-in synthetic shop payment gateway catalog. Active fixture gateways produce a synthetic `SALE` or `AUTHORIZATION` transaction depending on `paymentPending`; missing/disabled fixture gateways return `payment_gateway_not_found` / `payment_gateway_disabled` on `["paymentGatewayId"]`.
 - superseded consequence: this was the right warning before the draft-to-order
   bridge had current evidence. Do not reintroduce speculative completion code,
-  but do not treat this as a current blocker either; `docs/endpoints/orders.md`
+  but do not treat this as a current blocker either; `src/content/docs/endpoints/orders.md`
   is now the source of truth for the supported local `draftOrderComplete` slice
   and remaining payment-term/payment-gateway boundaries.
 - refreshed draft-order family capture on this host settled four previously planned write scenarios:
@@ -495,7 +495,7 @@ Practical rule:
 - the first landed direct-order runtime slice is now: stage `orderCreate` locally, then replay the created order through immediate `order(id:)` and narrow staged `orders` / `ordersCount` reads without hitting upstream
 - broader live order catalog/count parity after create is still separate from that first staged runtime slice because the real store can already contain other merchant orders before the new create happens
 - do not proxy obviously invalid supported `orderCreate` requests upstream in `live-hybrid` once a captured GraphQL-validation slice already exists; on this host the missing-`$order` `INVALID_VARIABLE` branch is short-circuited locally and the happy-path create is now staged locally too
-- track direct orders (`orderCreate`), draft-order creation (`draftOrderCreate`), and draft-order completion (`draftOrderComplete`) as **separate** creation work items because they moved independently on this host; check `docs/endpoints/orders.md` for the current support boundary
+- track direct orders (`orderCreate`), draft-order creation (`draftOrderCreate`), and draft-order completion (`draftOrderComplete`) as **separate** creation work items because they moved independently on this host; check `src/content/docs/endpoints/orders.md` for the current support boundary
 - track draft-order _reads_ separately from draft-order _writes_; earlier captures showed read and write access could unblock in different phases
 - for direct orders, keep the earlier offline-token lesson recorded as historical context rather than a live blocker claim; the current repo credential can now capture the first `orderCreate` happy path on this host
 - for draft-order reads, let `corepack pnpm conformance:capture-orders` own the state transition explicitly:
@@ -506,7 +506,7 @@ Practical rule:
   - the local replay should interpret synthetic `after` / `before` cursors against the staged newest-first order and recompute `hasNextPage` / `hasPreviousPage` from the sliced window
   - on this repo that means `draftOrders(first: 1, after: <newest-cursor>)` should return the middle staged draft with both `hasNextPage` and `hasPreviousPage` true, while `draftOrders(last: 1, before: <middle-cursor>)` should return the newest staged draft with `hasNextPage: true` and `hasPreviousPage: false`
   - practical consequence: keep the synthetic cursor-window helper and the focused integration coverage aligned so later order-domain edits do not regress draft catalog pagination back to a naive `slice(0, first)` implementation
-- for draft-order completion, keep the older `write_draft_orders` plus mark-as-paid / payment-terms permission lesson as historical access context only; the current local staged behavior and remaining payment-term boundaries belong in `docs/endpoints/orders.md`
+- for draft-order completion, keep the older `write_draft_orders` plus mark-as-paid / payment-terms permission lesson as historical access context only; the current local staged behavior and remaining payment-term boundaries belong in `src/content/docs/endpoints/orders.md`
 - refresh order-family evidence with the current capture scripts instead of leaving order-domain creation assumptions stale
 
 ### Historical: repo-local auth refresh needed a client-id fallback
@@ -785,7 +785,7 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - superseded adjacent caution: the early `orderUpdate` slice did **not** prove
   the broader order-edit family by itself. Current calculated-order support has
-  since moved forward; use `docs/endpoints/orders.md` for the current supported
+  since moved forward; use `src/content/docs/endpoints/orders.md` for the current supported
   order-edit roots and keep this paragraph only as the historical warning
   against inferring one root family's behavior from another.
 
@@ -797,7 +797,7 @@ Practical rule:
 - keep `live-hybrid` conservative for any order-edit branch that lacks non-empty local order hydration/edit semantics; passthrough is safer than inventing order state outside the currently documented support boundary
 - do not let this small success erase the remaining creation/read blockers:
   direct order creation and draft-order payment-term behavior have separate
-  permission/capture histories, so check `docs/endpoints/orders.md` before
+  permission/capture histories, so check `src/content/docs/endpoints/orders.md` before
   treating either as blocked or fully modeled
 
 ### Current: Calculated-order edit evidence moved from access blocker to local session support
@@ -856,7 +856,7 @@ Practical rule:
 
 - treat `fulfillmentCreate` invalid-id handling as the first evidence-backed fulfillment increment, but do not stop there once later fulfillment roots reveal their own safe pre-access validation slices
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
-- do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `docs/endpoints/orders.md` and `docs/endpoints/shipping-fulfillments.md`
+- do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `src/content/docs/endpoints/orders.md` and `src/content/docs/endpoints/shipping-fulfillments.md`
 - once a fulfillment root has evidence-backed behavior, keep the operation registry and executable parity evidence aligned instead of leaving implemented behavior as free-text notes only
 - keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
