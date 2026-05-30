@@ -1,5 +1,7 @@
 # shopify-draft-proxy
 
+**[📖 Documentation →](https://airhorns.github.io/shopify-draft-proxy/)**
+
 `shopify-draft-proxy` is a high-fidelity Shopify Admin GraphQL digital twin for test environments.
 
 Point an app at this proxy instead of Shopify. Supported mutations are staged in local in-memory state, mutation payloads are synthesized with Shopify-like shapes, and later reads behave as if the writes happened. The real store remains unchanged during normal supported mutation handling until an explicit `/__meta/commit`.
@@ -138,7 +140,7 @@ Those routes are artifact-serving surfaces, not permission to weaken domain fide
 
 Coverage is domain-specific. A root is not considered supported until the local lifecycle and downstream read-after-write behavior are modeled for that domain. Validation-only or branch-only handling is documented as a guardrail, not full support.
 
-Current Rust runtime coverage includes product reads/mutations, saved-search roots, staged upload handling, meta route state/log/reset/dump/restore, commit replay, and live-hybrid passthrough/reject semantics. Endpoint-specific coverage notes live under `docs/endpoints/`.
+Current Rust runtime coverage includes product reads/mutations, saved-search roots, staged upload handling, meta route state/log/reset/dump/restore, commit replay, and live-hybrid passthrough/reject semantics. Endpoint-specific coverage notes live under `src/content/docs/endpoints/`.
 
 ## Conformance testing
 
