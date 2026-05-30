@@ -9,6 +9,9 @@ Gem::Specification.new do |spec|
   spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 3.1"
 
-  spec.files = Dir["lib/**/*.rb"] + Dir["native/**/*.{rs,toml}"] + ["README.md"]
+  spec.files = Dir["lib/**/*.rb"] + Dir["native/**/*.{rs,toml}"] + ["README.md", "Rakefile"]
   spec.require_paths = ["lib"]
+
+  spec.add_development_dependency "minitest", "~> 5.0"
+  spec.add_development_dependency "rake", "~> 13.0"
 end

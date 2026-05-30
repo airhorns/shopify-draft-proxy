@@ -37,10 +37,8 @@ ruby/lib/shopify_draft_proxy/shopify_draft_proxy_native.so
 For local development from the repository root:
 
 ```bash
-cargo build --manifest-path ruby/native/Cargo.toml --target-dir target/ruby-native
-mkdir -p ruby/lib/shopify_draft_proxy
-cp target/ruby-native/debug/libshopify_draft_proxy_native.so \
-  ruby/lib/shopify_draft_proxy/shopify_draft_proxy_native.so
+cd ruby
+bundle exec rake native:build
 ```
 
 Each `ShopifyDraftProxy.create(...)` call owns an independent Rust `DraftProxy` instance in the current Ruby process. `dump_state` and `restore_state` use the same Rust state dump schema as the native runtime.
@@ -53,4 +51,4 @@ From the repository root:
 corepack pnpm ruby:smoke
 ```
 
-The smoke runner builds the native extension, then runs the Ruby Minitest suite. If local Ruby is unavailable, it falls back to Docker and builds the extension inside the Ruby container.
+The smoke runner builds the native extension with Cargo, then runs the Ruby Minitest suite with Ruby from the local environment. The repository mise configuration includes Ruby for development shells and CI runs the same Minitest smoke suite in a dedicated Ruby job.
