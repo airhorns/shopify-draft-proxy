@@ -9,6 +9,14 @@ export default defineConfig({
       title: 'Shopify Draft Proxy',
       description: 'Docs for the Shopify Admin GraphQL digital twin / draft proxy.',
       lastUpdated: false,
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/airhorns/shopify-draft-proxy',
+        },
+      ],
+      customCss: ['./src/styles/custom.css'],
       sidebar: [
         {
           label: 'Start Here',

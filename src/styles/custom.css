@@ -1,0 +1,72 @@
+/* Custom theme for shopify-draft-proxy docs */
+/* Shopify-green accent instead of default purple */
+
+:root {
+  --sl-color-accent-low: #0a2e1a;
+  --sl-color-accent: #008060;
+  --sl-color-accent-high: #34d399;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eceef2;
+  --sl-color-gray-2: #c0c2c7;
+  --sl-color-gray-3: #888b96;
+  --sl-color-gray-4: #545861;
+  --sl-color-gray-5: #353841;
+  --sl-color-gray-6: #23262f;
+  --sl-color-black: #17181c;
+
+  /* Tighter, more purposeful font stack */
+  --sl-font: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* Slightly warmer dark background */
+[data-theme='dark'] {
+  --sl-color-bg: #16181d;
+  --sl-color-bg-nav: #1a1d24;
+  --sl-color-bg-sidebar: #1a1d24;
+}
+
+/* Cleaner header */
+header.header {
+  border-bottom: 1px solid var(--sl-color-gray-6);
+  background: var(--sl-color-bg-nav);
+}
+
+/* Make the site title feel bolder */
+.site-title {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+/* Code blocks: slightly rounded, darker background */
+.expressive-code .frame {
+  border-radius: 8px;
+}
+
+/* Badge-style inline code in headers */
+h1 code,
+h2 code,
+h3 code {
+  font-size: 0.85em;
+  background: var(--sl-color-gray-6);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+/* Sidebar active item with accent underline instead of background box */
+.sidebar a[aria-current='page'] {
+  color: var(--sl-color-accent-high);
+  font-weight: 600;
+}
+
+/* Slightly more breathing room in content */
+.sl-markdown-content {
+  line-height: 1.75;
+}
+
+/* Table of contents links */
+starlight-toc a {
+  font-size: 0.8125rem;
+}
