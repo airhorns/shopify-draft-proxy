@@ -2,9 +2,12 @@
 node_modules/
 
 # Build output
+.astro/
 build/
 dist/
 target/
+ruby/lib/shopify_draft_proxy/*.so
+ruby/native/Cargo.lock
 *.tsbuildinfo
 python/.venv/
 python/target/

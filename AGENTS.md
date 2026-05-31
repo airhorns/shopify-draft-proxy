@@ -40,7 +40,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 6. **Docs must stay current**
    - Update `docs/architecture.md` if runtime architecture changes.
-   - Put endpoint-specific quirks, field behavior, coverage notes, and conformance minutia in `docs/endpoints/<group>.md`, not in the high-level architecture doc.
+   - Put endpoint-specific quirks, field behavior, coverage notes, and conformance minutia in `src/content/docs/endpoints/<group>.md`, not in the high-level architecture doc.
    - Update `docs/original-intent.md` only if the project goal truly changes.
 
 7. **Keep ticket identifiers out of executable artifacts**

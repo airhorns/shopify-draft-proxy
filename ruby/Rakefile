@@ -1,0 +1,37 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "rake/testtask"
+
+repo_root = File.expand_path("..", __dir__)
+native_dir = File.join(__dir__, "native")
+native_target_dir = File.join(repo_root, "target", "ruby-native")
+native_lib_dir = File.join(__dir__, "lib", "shopify_draft_proxy")
+native_extension_source = File.join(native_target_dir, "debug", "libshopify_draft_proxy_native.so")
+native_extension_target = File.join(native_lib_dir, "shopify_draft_proxy_native.so")
+
+namespace :native do
+  desc "Build the Rust-backed Ruby native extension"
+  task :build do
+    sh(
+      "cargo",
+      "build",
+      "--manifest-path",
+      File.join(native_dir, "Cargo.toml"),
+      "--target-dir",
+      native_target_dir,
+    )
+    FileUtils.mkdir_p(native_lib_dir)
+    FileUtils.cp(native_extension_source, native_extension_target)
+  end
+end
+
+Rake::TestTask.new(:test) do |task|
+  task.libs = ["lib", "test"]
+  task.pattern = "test/**/*_test.rb"
+end
+
+desc "Build the native extension and run the Ruby Minitest smoke suite"
+task smoke: ["native:build", :test]
+
+task default: :smoke
