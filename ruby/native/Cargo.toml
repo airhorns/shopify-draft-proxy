@@ -1,0 +1,15 @@
+[package]
+name = "shopify-draft-proxy-ruby"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "shopify_draft_proxy_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+magnus = "0.8"
+serde_json = "1"
+shopify-draft-proxy = { path = "../.." }

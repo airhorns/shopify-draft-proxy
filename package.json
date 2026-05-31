@@ -41,6 +41,7 @@
     "conformance:capture-custom-data-field-types": "tsx ./scripts/capture-custom-data-field-type-conformance.ts",
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
     "e2e:product-create-commit-smoke": "tsx --no-experimental-require-module ./scripts/e2e-product-create-commit-smoke.mts",
+    "ruby:smoke": "cd ruby && bundle exec rake smoke",
     "rust:fmt": "cargo fmt --check",
     "rust:clippy": "cargo clippy --all-targets --all-features -- -D warnings",
     "rust:test": "cargo test --all-targets",
