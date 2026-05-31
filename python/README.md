@@ -34,6 +34,10 @@ create = proxy.process_graphql_request(
     }
 )
 assert create["status"] == 200
+
+commit = proxy.commit(headers={"authorization": "Bearer test-token"})
+assert commit["ok"] is True
+proxy.dispose()
 ```
 
 Each `DraftProxy` owns an independent native Rust `DraftProxy` instance. Multiple
@@ -62,9 +66,12 @@ Restore accepts the same dictionary shape returned by `dump_state`.
   `snapshot_path`, `unsupported_mutation_mode`, and optional `state`.
 - `process_request(method, path, body=None, headers=None)` returns
   `{ "status": int, "body": object, "headers": dict? }`.
-- `process_graphql_request(body, path="/admin/api/2025-01/graphql.json", headers=None)`
+- `process_graphql_request(body, api_version="2025-01", path=None, headers=None)`
   posts a Shopify Admin GraphQL request.
 - `get_config()`, `get_log()`, and `get_state()` expose the meta snapshots.
 - `dump_state(created_at=None)` returns the Rust state dump dictionary.
 - `restore_state(dump)` restores a Rust state dump.
 - `reset()` clears staged state and logs for that instance.
+- `commit(headers=None)` replays staged mutations through the Rust commit path.
+- `dispose()` and `origin()` are no-op compatibility helpers for parity with the
+  other language package surfaces.

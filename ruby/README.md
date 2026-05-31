@@ -43,6 +43,10 @@ bundle exec rake native:build
 
 Each `ShopifyDraftProxy.create(...)` call owns an independent Rust `DraftProxy` instance in the current Ruby process. `dump_state` and `restore_state` use the same Rust state dump schema as the native runtime.
 
+The package exposes `ShopifyDraftProxy::DRAFT_PROXY_STATE_DUMP_SCHEMA` with the
+current dump schema identifier so callers can validate serialized state before
+restoring it.
+
 ## Smoke Tests
 
 From the repository root:

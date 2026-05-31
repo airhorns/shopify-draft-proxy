@@ -16,6 +16,8 @@ def test_health_and_config_are_served_by_native_runtime() -> None:
     assert health["body"]["ok"] is True
     assert "shopify-draft-proxy" in health["body"]["message"]
     assert proxy.get_config()["runtime"]["readMode"] == "snapshot"
+    assert proxy.origin() is None
+    assert proxy.dispose() is None
 
 
 def test_multiple_instances_keep_staged_state_independent() -> None:
@@ -25,7 +27,8 @@ def test_multiple_instances_keep_staged_state_independent() -> None:
     create_response = first.process_graphql_request(
         {
             "query": 'mutation { savedSearchCreate(input: { name: "Promo orders", query: "tag:promo", resourceType: ORDER }) { savedSearch { id name query resourceType } userErrors { field message } } }'
-        }
+        },
+        api_version="2025-01",
     )
     assert create_response["status"] == 200
 
@@ -73,6 +76,7 @@ def test_dump_and_restore_round_trip_between_instances() -> None:
     ]
 
     restored.reset()
+    assert restored.commit(headers={"authorization": "Bearer test"})["ok"] is True
     reset_read = restored.process_graphql_request(
         {"query": '{ productSavedSearches(query: "Promo") { nodes { id name } } }'}
     )

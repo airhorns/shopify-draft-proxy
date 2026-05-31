@@ -10,8 +10,9 @@ use serde_json::{json, Map, Value};
 use shopify_draft_proxy::proxy::{
     Config, DraftProxy as RustDraftProxy, ReadMode, Request, Response, UnsupportedMutationMode,
 };
+use shopify_draft_proxy::upstream::HttpUpstreamClient;
 
-const DEFAULT_GRAPHQL_PATH: &str = "/admin/api/2025-01/graphql.json";
+const DEFAULT_API_VERSION: &str = "2025-01";
 const STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[pyclass(name = "DraftProxy")]
@@ -41,7 +42,11 @@ impl PyDraftProxy {
             shopify_admin_origin: shopify_admin_origin.to_string(),
             snapshot_path,
         };
-        let mut proxy = RustDraftProxy::new(config);
+        let upstream_client = HttpUpstreamClient::new(config.shopify_admin_origin.clone());
+        let commit_client = upstream_client.clone();
+        let mut proxy = RustDraftProxy::new(config)
+            .with_upstream_transport(move |request| upstream_client.send(request))
+            .with_commit_transport(move |request| commit_client.send(request));
         if let Some(state) = state {
             restore_native_state(&mut proxy, state)?;
         }
@@ -69,15 +74,24 @@ impl PyDraftProxy {
         response_to_py(py, response)
     }
 
-    #[pyo3(signature = (body, *, path = DEFAULT_GRAPHQL_PATH, headers = None))]
+    #[pyo3(signature = (body, *, api_version = DEFAULT_API_VERSION, path = None, headers = None))]
     fn process_graphql_request(
         &self,
         py: Python<'_>,
         body: &Bound<'_, PyAny>,
-        path: &str,
+        api_version: &str,
+        path: Option<String>,
         headers: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<PyObject> {
-        self.process_request(py, "POST", path, Some(body), headers)
+        let path = path.unwrap_or_else(|| format!("/admin/api/{api_version}/graphql.json"));
+        let request = Request {
+            method: "POST".to_string(),
+            path,
+            headers: content_type_headers(py_headers_to_map(headers)?),
+            body: py_body_to_string(Some(body))?,
+        };
+        let response = self.with_proxy(|proxy| proxy.process_request(request))?;
+        response_to_py(py, response)
     }
 
     fn get_config(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -146,6 +160,31 @@ impl PyDraftProxy {
             )));
         }
         Ok(())
+    }
+
+    #[pyo3(signature = (headers = None))]
+    fn commit(&self, py: Python<'_>, headers: Option<&Bound<'_, PyDict>>) -> PyResult<PyObject> {
+        let request = Request {
+            method: "POST".to_string(),
+            path: "/__meta/commit".to_string(),
+            headers: py_headers_to_map(headers)?,
+            body: String::new(),
+        };
+        let response = self.with_proxy(|proxy| proxy.process_request(request))?;
+        let status = response.status;
+        let body = response.body;
+        if status != 200 || !body.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+            return Err(PyRuntimeError::new_err(format!(
+                "DraftProxy.commit failed with status {status}: {body}"
+            )));
+        }
+        value_to_py(py, &body)
+    }
+
+    fn dispose(&self) {}
+
+    fn origin(&self) -> Option<String> {
+        None
     }
 }
 
@@ -256,6 +295,16 @@ fn py_headers_to_map(headers: Option<&Bound<'_, PyDict>>) -> PyResult<BTreeMap<S
         out.insert(key, value);
     }
     Ok(out)
+}
+
+fn content_type_headers(mut headers: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    if !headers
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("content-type"))
+    {
+        headers.insert("content-type".to_string(), "application/json".to_string());
+    }
+    headers
 }
 
 fn py_body_to_string(body: Option<&Bound<'_, PyAny>>) -> PyResult<String> {
