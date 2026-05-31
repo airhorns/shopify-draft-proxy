@@ -6,6 +6,8 @@
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
+The Python package under `python/` is also a thin embedding surface: it builds a PyO3 native extension that owns Rust `DraftProxy` instances in-process and calls the same Rust request/meta API used by the HTTP bridge.
+
 ## Read execution modes
 
 1. **live-hybrid**
@@ -126,6 +128,17 @@ App/test harness
 - expose the public TypeScript API and schema names for the Rust-backed runtime shim
 
 The TypeScript package is not a second proxy implementation. New runtime behavior belongs in Rust, with TypeScript only adapting public package ergonomics or test harnesses.
+
+## Python package surface
+
+### `python/`
+
+- builds a maturin/PyO3 native extension from `python/Cargo.toml`
+- depends on the main Rust library crate and stores a separate Rust `DraftProxy` inside each Python `DraftProxy` object
+- exposes `process_request`, `process_graphql_request`, `get_config`, `get_log`, `get_state`, `dump_state`, `restore_state`, and `reset`
+- uses the Rust `POST /__meta/dump` and `POST /__meta/restore` route behavior for serialization so Python dump/restore stays aligned with the canonical state schema
+
+The Python package is not a second proxy implementation and does not spawn the Rust HTTP server. It embeds the same Rust runtime in-process for Python tests.
 
 ## Conformance and parity tooling
 

@@ -17,7 +17,7 @@ class ShopifyDraftProxySmokeTest < Minitest::Test
     assert_equal true, health.body.fetch("ok")
 
     dump = proxy.dump_state(created_at: "2026-05-24T00:00:00.000Z")
-    assert_equal "shopify-draft-proxy-rust-state/v1", dump.fetch("schema")
+    assert_equal ShopifyDraftProxy::DRAFT_PROXY_STATE_DUMP_SCHEMA, dump.fetch("schema")
 
     restored = ShopifyDraftProxy.create(
       read_mode: "snapshot",

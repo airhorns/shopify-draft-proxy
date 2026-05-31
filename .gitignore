@@ -9,6 +9,11 @@ target/
 ruby/lib/shopify_draft_proxy/*.so
 ruby/native/Cargo.lock
 *.tsbuildinfo
+python/.venv/
+python/target/
+python/src/shopify_draft_proxy/_native*.so
+python/src/shopify_draft_proxy/__pycache__/
+python/tests/__pycache__/
 
 # Local environment secrets (keep examples tracked)
 .env
