@@ -8236,6 +8236,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-inline-consent-parity.json`,
+      'config/parity-specs/customers/customerUpdate-inline-consent-rejection.json',
       'config/parity-specs/customers/customerInputInlineConsent-parity.json',
       'config/parity-requests/customers/customerInputInlineConsent-create.graphql',
       'config/parity-requests/customers/customerInputInlineConsent-read.graphql',
