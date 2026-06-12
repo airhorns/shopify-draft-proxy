@@ -1,0 +1,55 @@
+{
+  "scenarioId": "product-status-enum-validation",
+  "operationNames": ["productChangeStatus", "productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-status-enum-validation.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 invalid ProductStatus enum validation evidence for productChangeStatus and productCreate. These branches reject before resolver execution, return top-level GraphQL errors, and stage no local mutation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "productChangeStatus-invalid-status-literal",
+        "capturePath": "$.validation.productChangeStatusInvalidLiteral.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productChangeStatus-invalid-status-literal.graphql",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "productChangeStatus-invalid-status-variable",
+        "capturePath": "$.validation.productChangeStatusInvalidVariable.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productChangeStatus-invalid-status-variable.graphql",
+          "variablesCapturePath": "$.validation.productChangeStatusInvalidVariable.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "productCreate-invalid-status-literal",
+        "capturePath": "$.validation.productCreateInvalidLiteral.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-invalid-status-literal.graphql",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "productCreate-invalid-status-variable",
+        "capturePath": "$.validation.productCreateInvalidVariable.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-invalid-status-variable.graphql",
+          "variablesCapturePath": "$.validation.productCreateInvalidVariable.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

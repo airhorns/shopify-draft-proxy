@@ -1390,9 +1390,13 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_create(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
+        if let Some(response) = product_create_status_validation_error(request, query, variables) {
+            return MutationOutcome::response(response);
+        }
         let Some(input) = product_create_input(query, variables) else {
             let response_key =
                 root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
@@ -1800,6 +1804,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_change_status(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -1833,6 +1838,17 @@ impl DraftProxy {
                 "productChangeStatus requires productId",
             ));
         };
+        if let Some(response) = product_status_argument_validation_error(
+            request,
+            query,
+            field,
+            "status",
+            "Field",
+            "productChangeStatus",
+            "ProductStatus!",
+        ) {
+            return MutationOutcome::response(response);
+        }
         let Some(status) = resolved_string_arg(&field.arguments, "status") else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2058,13 +2074,10 @@ impl DraftProxy {
         name: &str,
         except_id: Option<&str>,
     ) -> bool {
-        let normalized = name.trim().to_lowercase();
+        let candidate = name.trim();
         self.saved_search_records_for_resource(resource_type)
             .iter()
-            .any(|record| {
-                Some(record.id.as_str()) != except_id
-                    && record.name.trim().to_lowercase() == normalized
-            })
+            .any(|record| Some(record.id.as_str()) != except_id && record.name.trim() == candidate)
     }
 
     pub(in crate::proxy) fn saved_search_mutation_fields(

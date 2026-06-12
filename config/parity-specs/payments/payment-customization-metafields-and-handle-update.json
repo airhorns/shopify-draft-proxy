@@ -87,6 +87,71 @@
         ]
       },
       {
+        "name": "invalid-create-metafields-missing-subfields",
+        "capturePath": "$.operations.paymentCustomizationCreateInvalidMetafieldsMissingSubfields.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-invalid-metafields-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationCreateInvalidMetafieldsMissingSubfields.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "local-runtime-create-for-invalid-update",
+        "capturePath": "$.operations.paymentCustomizationCreate.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-metafields-create-local-runtime.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationCreate.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy generate independent payment customization IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy generate independent metafield IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent creation timestamps."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent update timestamps."
+          }
+        ]
+      },
+      {
+        "name": "invalid-update-metafields-present-invalid",
+        "capturePath": "$.operations.paymentCustomizationUpdateInvalidMetafields.response.data.paymentCustomizationUpdate",
+        "proxyPath": "$.data.paymentCustomizationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-invalid-metafields-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "local-runtime-create-for-invalid-update",
+              "path": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            },
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationUpdateInvalidMetafields.variables.input"
+            }
+          }
+        }
+      },
+      {
         "name": "update-function-handle-payload",
         "capturePath": "$.operations.paymentCustomizationUpdateHandle.response.data.paymentCustomizationUpdate",
         "proxyPath": "$.data.paymentCustomizationUpdate",
@@ -161,5 +226,5 @@
       }
     ]
   },
-  "notes": "Executable parity for paymentCustomizationCreate metafield staging, paymentCustomizationUpdate metafield replacement, functionHandle input update, and downstream paymentCustomization(id:) read-after-write. Shopify Admin 2026-04 does not expose paymentCustomization.functionHandle as an output field in the active schema, so this spec compares the resolved functionId while the runtime test asserts local functionHandle readback."
+  "notes": "Executable parity for paymentCustomizationCreate metafield staging, paymentCustomizationUpdate metafield replacement, invalid metafield userErrors, functionHandle input update, and downstream paymentCustomization(id:) read-after-write. The invalid metafield branches capture Core-style per-field INVALID_METAFIELDS messages for missing key/value, blank type, and too-short namespace. Shopify Admin 2026-04 does not expose paymentCustomization.functionHandle as an output field in the active schema, so this spec compares the resolved functionId while the runtime test asserts local functionHandle readback."
 }

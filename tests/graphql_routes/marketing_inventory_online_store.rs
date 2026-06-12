@@ -830,6 +830,172 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
 }
 
 #[test]
+fn online_store_mobile_platform_application_create_model_validations_do_not_stage() {
+    let mut proxy = snapshot_proxy();
+    let long_application_id = "a".repeat(101);
+    let long_app_clip_application_id = "c".repeat(256);
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationCreateModelValidation($longApplicationId: String!, $longAppClipApplicationId: String!) {
+          longAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: $longApplicationId, appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          missingAndroidFingerprints: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.missing.fingerprints", appLinksEnabled: true } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          emptyAndroidFingerprints: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.empty.fingerprints", appLinksEnabled: true, sha256CertFingerprints: [] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          longApple: mobilePlatformApplicationCreate(input: { apple: { appId: $longApplicationId, universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          missingAppClip: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.clip", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: true } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          longAppClip: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.clip.long", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: $longAppClipApplicationId } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({
+            "longApplicationId": long_application_id,
+            "longAppClipApplicationId": long_app_clip_application_id
+        }),
+    ));
+
+    assert_eq!(
+        validation.body["data"],
+        json!({
+            "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
+            "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
+fn online_store_mobile_platform_application_update_model_validations_do_not_mutate() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateCreate {
+          appleCreate: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.old", universalLinksEnabled: false, sharedWebCredentialsEnabled: true, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+            userErrors { code field message }
+          }
+          androidCreate: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android.old", appLinksEnabled: false, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let apple_id = create.body["data"]["appleCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let android_id = create.body["data"]["androidCreate"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let long_application_id = "a".repeat(101);
+    let long_app_clip_application_id = "c".repeat(256);
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateModelValidation($appleId: ID!, $androidId: ID!, $longApplicationId: String!, $longAppClipApplicationId: String!) {
+          longAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: $longApplicationId, appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          missingAndroidFingerprints: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "com.example.android.missing", appLinksEnabled: true } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          emptyAndroidFingerprints: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "com.example.android.new", appLinksEnabled: true, sha256CertFingerprints: [] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          longApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: $longApplicationId, universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          missingAppClip: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "com.example.apple.clip", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          longAppClip: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "com.example.apple.clip.long", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: $longAppClipApplicationId } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({
+            "appleId": apple_id,
+            "androidId": android_id,
+            "longApplicationId": long_application_id,
+            "longAppClipApplicationId": long_app_clip_application_id
+        }),
+    ));
+
+    assert_eq!(
+        validation.body["data"],
+        json!({
+            "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
+            "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($appleId: ID!, $androidId: ID!) {
+          apple: mobilePlatformApplication(id: $appleId) { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } }
+          android: mobilePlatformApplication(id: $androidId) { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+        }
+        "#,
+        json!({"appleId": apple_id, "androidId": android_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["apple"],
+        json!({"__typename": "AppleApplication", "id": apple_id, "appId": "com.example.apple.old", "universalLinksEnabled": false, "sharedWebCredentialsEnabled": true, "appClipsEnabled": false, "appClipApplicationId": ""})
+    );
+    assert_eq!(
+        read.body["data"]["android"],
+        json!({"__typename": "AndroidApplication", "id": android_id, "applicationId": "com.example.android.old", "appLinksEnabled": false, "sha256CertFingerprints": ["AA:BB"]})
+    );
+}
+
+#[test]
 fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let mut proxy = snapshot_proxy();
 

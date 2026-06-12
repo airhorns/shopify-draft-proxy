@@ -1,6 +1,24 @@
 use super::*;
 use crate::graphql::RawArgumentValue;
 
+const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+
+struct ProductStatusInputContext<'a> {
+    argument_name: &'a str,
+    input_object_type: &'a str,
+    field_name: &'a str,
+    expected_type: &'a str,
+}
+
+struct ProductStatusLiteralError<'a> {
+    value: &'a str,
+    argument_name: &'a str,
+    type_name: &'a str,
+    container_name: &'a str,
+    expected_type: &'a str,
+    location: Option<SourceLocation>,
+}
+
 pub(in crate::proxy) fn product_variant_compat_mutation_data(
     root_field: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -1683,13 +1701,23 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
         }));
     }
     let filters = saved_search_filters(query);
-    for (key, _) in &filters {
-        if !saved_search_known_filter(resource_type, key) {
-            errors.push(json!({
-                "field": ["input", "query"],
-                "message": format!("Query is invalid, '{}' is not a valid filter", key.trim_end_matches("_not"))
-            }));
-        }
+    let mut invalid_filters: Vec<String> = filters
+        .iter()
+        .filter_map(|(key, _)| {
+            if saved_search_known_filter(resource_type, key) {
+                None
+            } else {
+                Some(saved_search_base_filter_key(key).to_string())
+            }
+        })
+        .collect();
+    invalid_filters.sort();
+    invalid_filters.dedup();
+    for key in invalid_filters {
+        errors.push(json!({
+            "field": ["input", "query"],
+            "message": format!("Query is invalid, '{}' is not a valid filter", key)
+        }));
     }
     if resource_type == "PRODUCT" {
         let has_collection = filters.iter().any(|(key, _)| key == "collection_id");
@@ -1711,38 +1739,92 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
 }
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
-    let base_key = key
-        .trim_end_matches("_not")
-        .trim_end_matches("_min")
-        .trim_end_matches("_max");
+    let base_key = saved_search_base_filter_key(key);
     match resource_type {
         "PRODUCT" => {
             matches!(
                 base_key,
-                "title"
-                    | "tag"
-                    | "vendor"
+                "collection_id"
+                    | "created_at"
+                    | "error_feedback"
+                    | "handle"
+                    | "id"
+                    | "inventory_total"
+                    | "product_type"
+                    | "published_at"
+                    | "published_status"
                     | "sku"
                     | "status"
-                    | "collection_id"
-                    | "published_status"
-                    | "error_feedback"
-                    | "inventory_total"
+                    | "tag"
+                    | "title"
+                    | "updated_at"
+                    | "vendor"
             ) || base_key.starts_with("metafields.")
         }
+        "COLLECTION" => matches!(
+            base_key,
+            "collection_type"
+                | "handle"
+                | "id"
+                | "product_id"
+                | "product_publication_status"
+                | "publishable_status"
+                | "published_at"
+                | "published_status"
+                | "title"
+                | "updated_at"
+        ),
         "ORDER" => matches!(
             base_key,
-            "status"
+            "channel_id"
+                | "created_at"
+                | "customer_id"
+                | "email"
                 | "financial_status"
                 | "fulfillment_status"
-                | "vendor"
+                | "id"
+                | "location_id"
+                | "name"
+                | "processed_at"
+                | "sales_channel"
+                | "status"
                 | "tag"
-                | "reference_location_id"
+                | "test"
+                | "updated_at"
         ),
-        "DRAFT_ORDER" => matches!(base_key, "status" | "invoice_sent" | "source" | "vendor"),
-        "FILE" | "COLLECTION" | "DISCOUNT_REDEEM_CODE" => true,
+        "DRAFT_ORDER" => matches!(
+            base_key,
+            "created_at"
+                | "customer_id"
+                | "email"
+                | "id"
+                | "name"
+                | "status"
+                | "tag"
+                | "updated_at"
+        ),
+        "FILE" => matches!(
+            base_key,
+            "created_at"
+                | "filename"
+                | "id"
+                | "media_type"
+                | "original_source"
+                | "status"
+                | "updated_at"
+        ),
+        "DISCOUNT_REDEEM_CODE" => matches!(
+            base_key,
+            "code" | "created_at" | "discount_id" | "id" | "status" | "updated_at"
+        ),
         _ => true,
     }
+}
+
+fn saved_search_base_filter_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
 }
 
 pub(in crate::proxy) fn normalize_saved_search_query(query: &str) -> String {
@@ -1805,6 +1887,7 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
         "DRAFT_ORDER" => &["all drafts"][..],
         "FILE" => &["all files"][..],
         "COLLECTION" => &["all collections"][..],
+        "PRICE_RULE" => &["all price rules"][..],
         "DISCOUNT_REDEEM_CODE" => &["all codes"][..],
         _ => &[],
     };
@@ -1826,7 +1909,6 @@ pub(in crate::proxy) fn product_mutation_payload_json(
         }
     })
 }
-
 pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
     errors: Vec<Value>,
@@ -2107,6 +2189,317 @@ pub(in crate::proxy) fn product_input(
         Some(ResolvedValue::Object(input)) => Some(input),
         _ => None,
     }
+}
+
+pub(in crate::proxy) fn product_create_status_validation_error(
+    request: &Request,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let field = root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == "productCreate")?;
+    let (argument_name, input_object_type) = if field.raw_arguments.contains_key("product") {
+        ("product", "ProductCreateInput")
+    } else {
+        ("input", "ProductInput")
+    };
+    let input = field.raw_arguments.get(argument_name)?;
+    product_status_input_field_validation_error(
+        request,
+        query,
+        &field,
+        input,
+        ProductStatusInputContext {
+            argument_name,
+            input_object_type,
+            field_name: "status",
+            expected_type: "ProductStatus",
+        },
+    )
+}
+
+pub(in crate::proxy) fn product_status_argument_validation_error(
+    request: &Request,
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+    container_type_name: &str,
+    container_name: &str,
+    expected_type: &str,
+) -> Option<Response> {
+    let raw = field.raw_arguments.get(argument_name)?;
+    match raw {
+        RawArgumentValue::Variable { name, value } => {
+            let status = resolved_status_value(value.as_ref()?)?;
+            if product_status_allowed(&status, request) {
+                return None;
+            }
+            let definition = variable_definition_info(query, name);
+            let variable_type = definition
+                .as_ref()
+                .map(|definition| definition.type_display.clone())
+                .unwrap_or_else(|| expected_type.to_string());
+            let location = definition.map(|definition| definition.location);
+            Some(invalid_product_status_variable_error(
+                request,
+                name,
+                &variable_type,
+                value.as_ref()?,
+                None,
+                &status,
+                location,
+            ))
+        }
+        raw => {
+            let status = raw_product_status_value(raw)?;
+            if product_status_allowed(&status, request) {
+                return None;
+            }
+            Some(invalid_product_status_literal_error(
+                query,
+                field,
+                ProductStatusLiteralError {
+                    value: &status,
+                    argument_name,
+                    type_name: container_type_name,
+                    container_name,
+                    expected_type,
+                    location: None,
+                },
+            ))
+        }
+    }
+}
+
+fn product_status_input_field_validation_error(
+    request: &Request,
+    query: &str,
+    field: &RootFieldSelection,
+    input: &RawArgumentValue,
+    context: ProductStatusInputContext<'_>,
+) -> Option<Response> {
+    match input {
+        RawArgumentValue::Object(input) => {
+            let status = raw_product_status_value(input.get(context.field_name)?)?;
+            if product_status_allowed(&status, request) {
+                return None;
+            }
+            let location = root_argument_value_location(query, field, context.argument_name);
+            Some(invalid_product_status_literal_error(
+                query,
+                field,
+                ProductStatusLiteralError {
+                    value: &status,
+                    argument_name: context.field_name,
+                    type_name: "InputObject",
+                    container_name: context.input_object_type,
+                    expected_type: context.expected_type,
+                    location,
+                },
+            ))
+        }
+        RawArgumentValue::Variable { name, value } => {
+            let value = value.as_ref()?;
+            let status = match value {
+                ResolvedValue::Object(input) => resolved_string_field(input, context.field_name)?,
+                _ => return None,
+            };
+            if product_status_allowed(&status, request) {
+                return None;
+            }
+            let definition = variable_definition_info(query, name);
+            let variable_type = definition
+                .as_ref()
+                .map(|definition| definition.type_display.clone())
+                .unwrap_or_else(|| context.input_object_type.to_string());
+            let location = definition.map(|definition| definition.location);
+            Some(invalid_product_status_variable_error(
+                request,
+                name,
+                &variable_type,
+                value,
+                Some(context.field_name),
+                &status,
+                location,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn invalid_product_status_literal_error(
+    query: &str,
+    field: &RootFieldSelection,
+    error: ProductStatusLiteralError<'_>,
+) -> Response {
+    let operation_path = parsed_document(query, &BTreeMap::new())
+        .map(|document| document.operation_path)
+        .unwrap_or_else(|| "mutation".to_string());
+    let path = if error.type_name == "InputObject" {
+        let input_argument_name = field
+            .raw_arguments
+            .contains_key("product")
+            .then_some("product")
+            .or_else(|| field.raw_arguments.contains_key("input").then_some("input"))
+            .unwrap_or("input");
+        json!([
+            operation_path,
+            field.name.clone(),
+            input_argument_name,
+            error.argument_name
+        ])
+    } else {
+        json!([operation_path, field.name.clone(), error.argument_name])
+    };
+    let location = error.location.unwrap_or(field.location);
+    ok_json(json!({
+        "errors": [{
+            "message": format!(
+                "Argument '{}' on {} '{}' has an invalid value ({}). Expected type '{}'.",
+                error.argument_name, error.type_name, error.container_name, error.value, error.expected_type
+            ),
+            "locations": [{"line": location.line, "column": location.column}],
+            "path": path,
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": error.type_name,
+                "argumentName": error.argument_name
+            }
+        }]
+    }))
+}
+
+fn root_argument_value_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let mut line = field.location.line;
+    let mut column = field.location.column;
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = haystack.find(argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+
+    for ch in query[start..value_offset].chars() {
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    Some(SourceLocation { line, column })
+}
+
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn invalid_product_status_variable_error(
+    request: &Request,
+    variable_name: &str,
+    variable_type: &str,
+    value: &ResolvedValue,
+    field_name: Option<&str>,
+    invalid_status: &str,
+    location: Option<SourceLocation>,
+) -> Response {
+    let explanation = format!(
+        "Expected \"{}\" to be one of: {}",
+        invalid_status,
+        product_status_allowed_values_label(request)
+    );
+    let message = field_name.map_or_else(
+        || format!("Variable ${variable_name} of type {variable_type} was provided invalid value"),
+        |field_name| {
+            format!(
+                "Variable ${variable_name} of type {variable_type} was provided invalid value for {field_name} ({explanation})"
+            )
+        },
+    );
+    let path = field_name
+        .map(|field_name| json!([field_name]))
+        .unwrap_or_else(|| json!([]));
+    ok_json(json!({
+        "errors": [{
+            "message": message,
+            "locations": [{
+                "line": location.map(|location| location.line).unwrap_or(1),
+                "column": location.map(|location| location.column).unwrap_or(1)
+            }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": resolved_value_json(value),
+                "problems": [{
+                    "path": path,
+                    "explanation": explanation
+                }]
+            }
+        }]
+    }))
+}
+
+fn raw_product_status_value(value: &RawArgumentValue) -> Option<String> {
+    match value {
+        RawArgumentValue::Enum(value) | RawArgumentValue::String(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn resolved_status_value(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn product_status_allowed(status: &str, request: &Request) -> bool {
+    PRODUCT_STATUS_BASE_VALUES.contains(&status)
+        || (status == "UNLISTED" && product_status_allows_unlisted(request))
+}
+
+fn product_status_allowed_values_label(request: &Request) -> String {
+    let mut values = PRODUCT_STATUS_BASE_VALUES.to_vec();
+    if product_status_allows_unlisted(request) {
+        values.push("UNLISTED");
+    }
+    values.join(", ")
+}
+
+fn product_status_allows_unlisted(request: &Request) -> bool {
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2025, 10))
+}
+
+fn version_at_least(version: &str, minimum_year: u16, minimum_month: u8) -> bool {
+    let Some((year, month)) = parse_year_month_version(version) else {
+        return false;
+    };
+    (year, month) >= (minimum_year, minimum_month)
+}
+
+fn parse_year_month_version(version: &str) -> Option<(u16, u8)> {
+    let (year, month) = version.split_once('-')?;
+    Some((year.parse().ok()?, month.parse().ok()?))
 }
 
 pub(in crate::proxy) fn product_delete_required_id_error(

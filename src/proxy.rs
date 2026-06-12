@@ -8,8 +8,9 @@ use serde_json::{json, Value};
 
 use crate::graphql::{
     nested_root_field_path_selection, nested_root_field_selection, parse_operation,
-    root_field_arguments, root_field_response_key, root_field_selection, root_fields,
-    OperationType, ResolvedValue, RootFieldSelection, SelectedField,
+    parsed_document, root_field_arguments, root_field_response_key, root_field_selection,
+    root_fields, variable_definition_info, OperationType, ResolvedValue, RootFieldSelection,
+    SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, local_dispatch_root, operation_capability, CapabilityDomain,
@@ -214,6 +215,8 @@ struct StagedState {
     redeem_code_bulk_live_added: bool,
     redeem_code_bulk_live_deleted_seed: bool,
     backup_region: Value,
+    flow_signatures: Vec<Value>,
+    flow_trigger_receipts: Vec<Value>,
 }
 
 #[derive(Clone)]
@@ -406,6 +409,8 @@ impl Default for StagedState {
             redeem_code_bulk_live_added: false,
             redeem_code_bulk_live_deleted_seed: false,
             backup_region: backup_region_country("CA"),
+            flow_signatures: Vec::new(),
+            flow_trigger_receipts: Vec::new(),
         }
     }
 }

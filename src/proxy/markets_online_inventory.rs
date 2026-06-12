@@ -953,6 +953,7 @@ pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
 pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
     query.contains("MobilePlatformApplicationUpdate")
         || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
+        || query.contains("MobilePlatformApplicationCreateModelValidation")
         || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
         || query.contains("OnlineStoreIntegrationsLocalStaging")
         || query.contains("ScriptTagCreateValidatesSrc")

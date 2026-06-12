@@ -6,6 +6,7 @@
   "notes": [
     "Executable local-runtime fixture for Core locationActivate validation flags that are not exposed as public Admin GraphQL Location fields.",
     "The configured live conformance credential probes successfully, but the public test shop is not at its location limit and does not expose an incomplete mass-relocation job. The cassette-backed hydrate responses encode the Core validation flags described by the source evidence.",
+    "The HAS_ONGOING_RELOCATION message text is sourced from Shopify Core's shop_identity activate.has_ongoing_relocation i18n string, not from this synthetic local-runtime fixture.",
     "State is earned by replay: each locationActivate request hydrates the target location through StorePropertiesLocationHydrate before applying the supported mutation locally."
   ],
   "proxyVariables": {
@@ -32,8 +33,8 @@
           },
           "locationActivateUserErrors": [
             {
-              "field": ["locationId"],
               "code": "LOCATION_LIMIT",
+              "field": ["locationId"],
               "message": "Your shop has reached its location limit."
             }
           ]
@@ -49,9 +50,9 @@
           },
           "locationActivateUserErrors": [
             {
-              "field": ["locationId"],
               "code": "HAS_ONGOING_RELOCATION",
-              "message": "Location has an ongoing relocation."
+              "field": ["locationId"],
+              "message": "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later."
             }
           ]
         }

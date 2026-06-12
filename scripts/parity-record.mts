@@ -47,6 +47,7 @@ type SpecTargetRequest = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
+  apiVersion?: string;
   headers?: Record<string, string>;
 };
 
@@ -138,7 +139,12 @@ async function findSpecForScenario(scenarioId: string): Promise<string> {
 function loadDocumentVariablesAndHeaders(
   request: SpecTargetRequest | undefined,
   capture: unknown,
-): { document: string; variables: Record<string, unknown>; headers: Record<string, string> } | null {
+): {
+  document: string;
+  variables: Record<string, unknown>;
+  headers: Record<string, string>;
+  apiVersion?: string;
+} | null {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let document: string;
   if (request.documentCapturePath) {
@@ -167,7 +173,7 @@ function loadDocumentVariablesAndHeaders(
   } else if (request.variables) {
     variables = request.variables;
   }
-  return { document, variables, headers: request.headers ?? {} };
+  return { document, variables, headers: request.headers ?? {}, apiVersion: request.apiVersion };
 }
 
 function resolveJsonPath(value: unknown, path: string): unknown {
@@ -490,7 +496,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
           query: primary.document,
           variables,
         },
-        { headers: primary.headers },
+        { headers: primary.headers, apiVersion: primary.apiVersion },
       )) as RecordedResponse;
       responsesByName.set('primary', primaryResponse);
       previousResponse = primaryResponse;
@@ -510,7 +516,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
           query: loaded.document,
           variables,
         },
-        { headers: loaded.headers },
+        { headers: loaded.headers, apiVersion: loaded.apiVersion },
       )) as RecordedResponse;
       responsesByName.set(requestName, response);
       previousResponse = response;

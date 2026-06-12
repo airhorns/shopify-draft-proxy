@@ -1,6 +1,6 @@
 {
   "scenarioId": "payment-customization-metafields-and-handle-update",
-  "capturedAt": "2026-05-05T04:35:18.725Z",
+  "capturedAt": "2026-06-12T16:54:41.406Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "functionCatalog": {
@@ -12,6 +12,24 @@
             "title": "conformance-payment-customization",
             "handle": "conformance-payment-customization",
             "apiType": "payment_customization"
+          },
+          {
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "conformance-validation",
+            "handle": "conformance-validation",
+            "apiType": "cart_checkout_validation"
+          },
+          {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform"
+          },
+          {
+            "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+            "title": "conformance-discount",
+            "handle": "conformance-discount",
+            "apiType": "discount"
           }
         ]
       }
@@ -39,7 +57,7 @@
       "query": "#graphql\n  mutation PaymentCustomizationMetafieldsCreate($input: PaymentCustomizationInput!) {\n    paymentCustomizationCreate(paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-666 payment customization 1777955717944",
+          "title": "Draft proxy payment customization 1781283280364",
           "enabled": true,
           "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
           "metafields": [
@@ -56,20 +74,20 @@
         "data": {
           "paymentCustomizationCreate": {
             "paymentCustomization": {
-              "id": "gid://shopify/PaymentCustomization/163774770",
-              "title": "HAR-666 payment customization 1777955717944",
+              "id": "gid://shopify/PaymentCustomization/170983730",
+              "title": "Draft proxy payment customization 1781283280364",
               "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
               "metafields": {
                 "edges": [
                   {
                     "node": {
-                      "id": "gid://shopify/Metafield/43093549973810",
+                      "id": "gid://shopify/Metafield/43676949217586",
                       "namespace": "app--347082227713--har666",
                       "key": "probe",
                       "type": "single_line_text_field",
                       "value": "baz",
-                      "createdAt": "2026-05-05T04:35:18Z",
-                      "updatedAt": "2026-05-05T04:35:18Z"
+                      "createdAt": "2026-06-12T16:54:40Z",
+                      "updatedAt": "2026-06-12T16:54:40Z"
                     }
                   }
                 ]
@@ -94,9 +112,9 @@
     "paymentCustomizationUpdateMetafields": {
       "query": "#graphql\n  mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/PaymentCustomization/163774770",
+        "id": "gid://shopify/PaymentCustomization/170983730",
         "input": {
-          "title": "HAR-666 payment customization updated 1777955717944",
+          "title": "Draft proxy payment customization updated 1781283280364",
           "metafields": [
             {
               "namespace": "$app:har666",
@@ -111,20 +129,20 @@
         "data": {
           "paymentCustomizationUpdate": {
             "paymentCustomization": {
-              "id": "gid://shopify/PaymentCustomization/163774770",
-              "title": "HAR-666 payment customization updated 1777955717944",
+              "id": "gid://shopify/PaymentCustomization/170983730",
+              "title": "Draft proxy payment customization updated 1781283280364",
               "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
               "metafields": {
                 "edges": [
                   {
                     "node": {
-                      "id": "gid://shopify/Metafield/43093549973810",
+                      "id": "gid://shopify/Metafield/43676949217586",
                       "namespace": "app--347082227713--har666",
                       "key": "probe",
                       "type": "single_line_text_field",
                       "value": "qux",
-                      "createdAt": "2026-05-05T04:35:18Z",
-                      "updatedAt": "2026-05-05T04:35:18Z"
+                      "createdAt": "2026-06-12T16:54:40Z",
+                      "updatedAt": "2026-06-12T16:54:40Z"
                     }
                   }
                 ]
@@ -146,10 +164,109 @@
         }
       }
     },
+    "paymentCustomizationCreateInvalidMetafieldsMissingSubfields": {
+      "query": "#graphql\n  mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {\n    paymentCustomizationCreate(paymentCustomization: $input) {\n      paymentCustomization {\n        id\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "Draft proxy missing metafields 1781283280364",
+          "enabled": true,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "every other field missing"
+            },
+            {
+              "key": "every other field missing"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": null,
+            "userErrors": [
+              {
+                "field": ["paymentCustomization", "metafields", "0", "key"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+              },
+              {
+                "field": ["paymentCustomization", "metafields", "0", "value"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+              },
+              {
+                "field": ["paymentCustomization", "metafields", "1", "value"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationUpdateInvalidMetafields": {
+      "query": "#graphql\n  mutation RustPaymentCustomizationLocalRuntime($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      paymentCustomization {\n        id\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/170983730",
+        "input": {
+          "metafields": [
+            {
+              "namespace": "ab",
+              "key": "present",
+              "type": "",
+              "value": "present"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationUpdate": {
+            "paymentCustomization": null,
+            "userErrors": [
+              {
+                "field": ["paymentCustomization", "metafields", "0", "type"],
+                "code": "INVALID_METAFIELDS",
+                "message": "can't be blank"
+              },
+              {
+                "field": ["paymentCustomization", "metafields", "0", "namespace"],
+                "code": "INVALID_METAFIELDS",
+                "message": "is too short (minimum is 3 characters)"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "paymentCustomizationUpdateHandle": {
       "query": "#graphql\n  mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/PaymentCustomization/163774770",
+        "id": "gid://shopify/PaymentCustomization/170983730",
         "input": {
           "functionHandle": "conformance-payment-customization"
         }
@@ -158,20 +275,20 @@
         "data": {
           "paymentCustomizationUpdate": {
             "paymentCustomization": {
-              "id": "gid://shopify/PaymentCustomization/163774770",
-              "title": "HAR-666 payment customization updated 1777955717944",
+              "id": "gid://shopify/PaymentCustomization/170983730",
+              "title": "Draft proxy payment customization updated 1781283280364",
               "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
               "metafields": {
                 "edges": [
                   {
                     "node": {
-                      "id": "gid://shopify/Metafield/43093549973810",
+                      "id": "gid://shopify/Metafield/43676949217586",
                       "namespace": "app--347082227713--har666",
                       "key": "probe",
                       "type": "single_line_text_field",
                       "value": "qux",
-                      "createdAt": "2026-05-05T04:35:18Z",
-                      "updatedAt": "2026-05-05T04:35:18Z"
+                      "createdAt": "2026-06-12T16:54:40Z",
+                      "updatedAt": "2026-06-12T16:54:40Z"
                     }
                   }
                 ]
@@ -198,25 +315,25 @@
     "afterUpdates": {
       "query": "#graphql\n  query PaymentCustomizationMetafieldsRead($id: ID!) {\n    paymentCustomization(id: $id) {\n      id\n      title\n      functionId\n      metafields(first: 5) {\n        edges {\n          node {\n            id\n            namespace\n            key\n            type\n            value\n            createdAt\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/PaymentCustomization/163774770"
+        "id": "gid://shopify/PaymentCustomization/170983730"
       },
       "response": {
         "data": {
           "paymentCustomization": {
-            "id": "gid://shopify/PaymentCustomization/163774770",
-            "title": "HAR-666 payment customization updated 1777955717944",
+            "id": "gid://shopify/PaymentCustomization/170983730",
+            "title": "Draft proxy payment customization updated 1781283280364",
             "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
             "metafields": {
               "edges": [
                 {
                   "node": {
-                    "id": "gid://shopify/Metafield/43093549973810",
+                    "id": "gid://shopify/Metafield/43676949217586",
                     "namespace": "app--347082227713--har666",
                     "key": "probe",
                     "type": "single_line_text_field",
                     "value": "qux",
-                    "createdAt": "2026-05-05T04:35:18Z",
-                    "updatedAt": "2026-05-05T04:35:18Z"
+                    "createdAt": "2026-06-12T16:54:40Z",
+                    "updatedAt": "2026-06-12T16:54:40Z"
                   }
                 }
               ]
@@ -241,7 +358,7 @@
     "paymentCustomizationDelete": {
       "data": {
         "paymentCustomizationDelete": {
-          "deletedId": "gid://shopify/PaymentCustomization/163774770",
+          "deletedId": "gid://shopify/PaymentCustomization/170983730",
           "userErrors": []
         }
       },

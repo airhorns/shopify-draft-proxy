@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use graphql_parser::query::{
-    parse_query, Definition, Field, OperationDefinition, Selection, Value,
+    parse_query, Definition, Field, OperationDefinition, Selection, Type, Value,
 };
 use graphql_parser::Pos;
 
@@ -44,6 +44,7 @@ pub struct ParsedDocument {
     pub operation_name: Option<String>,
     pub operation_path: String,
     pub location: SourceLocation,
+    pub variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     pub root_fields: Vec<RootFieldSelection>,
 }
 
@@ -69,6 +70,14 @@ pub struct RootFieldSelection {
     pub raw_arguments: BTreeMap<String, RawArgumentValue>,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VariableDefinitionInfo {
+    pub name: String,
+    pub type_name: String,
+    pub type_display: String,
+    pub location: SourceLocation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,12 +159,14 @@ pub fn parsed_document_with_operation_name(
         })
         .find(|operation| operation_name_matches(operation, operation_name))?;
 
-    let (operation_type, name, location, selections) = operation_parts(operation);
+    let (operation_type, name, location, variable_definitions, selections) =
+        operation_parts(operation);
     Some(ParsedDocument {
         operation_type,
         operation_name: name.map(str::to_string),
         operation_path: operation_path(operation_type, name),
         location: source_location(location),
+        variable_definitions: variable_definition_infos(variable_definitions),
         root_fields: root_field_selections(selections, variables, &fragments),
     })
 }
@@ -187,6 +198,16 @@ pub fn root_field_response_key(query: &str) -> Option<String> {
 
 pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
     nested_root_field_path_selection(query, &[child_name])
+}
+
+pub fn variable_definition_info(
+    query: &str,
+    variable_name: &str,
+) -> Option<VariableDefinitionInfo> {
+    parsed_document(query, &BTreeMap::new())?
+        .variable_definitions
+        .get(variable_name)
+        .cloned()
 }
 
 pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
@@ -245,6 +266,14 @@ fn raw_field_arguments<'a>(
 }
 
 type FragmentSelections<'a> = BTreeMap<&'a str, &'a [Selection<'a, &'a str>]>;
+type VariableDefinitions<'a> = &'a [graphql_parser::query::VariableDefinition<'a, &'a str>];
+type OperationParts<'a> = (
+    OperationType,
+    Option<&'a str>,
+    Pos,
+    VariableDefinitions<'a>,
+    &'a [Selection<'a, &'a str>],
+);
 
 fn fragment_selections<'a>(definitions: &'a [Definition<'a, &'a str>]) -> FragmentSelections<'a> {
     definitions
@@ -265,39 +294,72 @@ fn operation_name_matches<'a>(
     expected_name.is_none_or(|expected_name| operation_parts(operation).1 == Some(expected_name))
 }
 
-fn operation_parts<'a>(
-    operation: &'a OperationDefinition<'a, &'a str>,
-) -> (
-    OperationType,
-    Option<&'a str>,
-    Pos,
-    &'a [Selection<'a, &'a str>],
-) {
+fn operation_parts<'a>(operation: &'a OperationDefinition<'a, &'a str>) -> OperationParts<'a> {
     match operation {
         OperationDefinition::SelectionSet(selection_set) => (
             OperationType::Query,
             None,
             selection_set.span.0,
+            &[],
             selection_set.items.as_slice(),
         ),
         OperationDefinition::Query(query) => (
             OperationType::Query,
             query.name,
             query.position,
+            query.variable_definitions.as_slice(),
             query.selection_set.items.as_slice(),
         ),
         OperationDefinition::Mutation(mutation) => (
             OperationType::Mutation,
             mutation.name,
             mutation.position,
+            mutation.variable_definitions.as_slice(),
             mutation.selection_set.items.as_slice(),
         ),
         OperationDefinition::Subscription(subscription) => (
             OperationType::Subscription,
             subscription.name,
             subscription.position,
+            subscription.variable_definitions.as_slice(),
             subscription.selection_set.items.as_slice(),
         ),
+    }
+}
+
+fn variable_definition_infos<'a>(
+    definitions: &'a [graphql_parser::query::VariableDefinition<'a, &'a str>],
+) -> BTreeMap<String, VariableDefinitionInfo> {
+    definitions
+        .iter()
+        .map(|definition| {
+            let type_display = graphql_type_display(&definition.var_type);
+            let type_name = graphql_named_type(&definition.var_type).unwrap_or(&type_display);
+            (
+                definition.name.to_string(),
+                VariableDefinitionInfo {
+                    name: definition.name.to_string(),
+                    type_name: type_name.to_string(),
+                    type_display,
+                    location: source_location(definition.position),
+                },
+            )
+        })
+        .collect()
+}
+
+fn graphql_type_display<'a>(type_: &Type<'a, &'a str>) -> String {
+    match type_ {
+        Type::NamedType(name) => (*name).to_string(),
+        Type::ListType(inner) => format!("[{}]", graphql_type_display(inner)),
+        Type::NonNullType(inner) => format!("{}!", graphql_type_display(inner)),
+    }
+}
+
+fn graphql_named_type<'a>(type_: &'a Type<'a, &'a str>) -> Option<&'a str> {
+    match type_ {
+        Type::NamedType(name) => Some(*name),
+        Type::ListType(inner) | Type::NonNullType(inner) => graphql_named_type(inner),
     }
 }
 

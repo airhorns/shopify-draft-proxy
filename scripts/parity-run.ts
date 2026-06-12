@@ -20,6 +20,7 @@ type ProxyRequestSpec = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
+  apiVersion?: string;
   headers?: Record<string, string>;
 };
 
@@ -74,7 +75,7 @@ type ProxyResponse = { status: number; body: unknown };
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
-const adminPath = '/admin/api/2026-04/graphql.json';
+const defaultAdminApiVersion = '2026-04';
 
 function log(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -241,7 +242,12 @@ async function loadRequest(
   capture: unknown,
   primaryResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
-): Promise<{ query: string; variables: Record<string, unknown>; headers: Record<string, string> } | null> {
+): Promise<{
+  query: string;
+  variables: Record<string, unknown>;
+  headers: Record<string, string>;
+  path: string;
+} | null> {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let query: string;
   if (request.documentCapturePath) {
@@ -262,7 +268,12 @@ async function loadRequest(
   else if (request.variables) variables = request.variables;
 
   variables = resolveSpecialVariables(variables, capture, primaryResponse, namedResponses) as Record<string, unknown>;
-  return { query, variables, headers: request.headers ?? {} };
+  return {
+    query,
+    variables,
+    headers: request.headers ?? {},
+    path: `/admin/api/${request.apiVersion ?? defaultAdminApiVersion}/graphql.json`,
+  };
 }
 
 type CassetteServer = {
@@ -370,11 +381,11 @@ async function startCassetteServer(): Promise<CassetteServer> {
 
 async function sendProxyRequest(
   proxy: DraftProxy,
-  request: { query: string; variables: Record<string, unknown>; headers: Record<string, string> },
+  request: { query: string; variables: Record<string, unknown>; headers: Record<string, string>; path: string },
 ): Promise<ProxyResponse> {
   return await proxy.processRequest({
     method: 'POST',
-    path: adminPath,
+    path: request.path,
     headers: { 'content-type': 'application/json', ...request.headers },
     body: { query: request.query, variables: request.variables },
   });

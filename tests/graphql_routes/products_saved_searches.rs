@@ -2480,14 +2480,15 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing_name() {
     let mut proxy = snapshot_proxy();
 
-    for (resource_type, name) in [
-        ("PRODUCT", "All products"),
-        ("PRODUCT", "ALL PRODUCTS"),
-        ("ORDER", "All"),
-        ("DRAFT_ORDER", "All Drafts"),
-        ("FILE", "All Files"),
-        ("COLLECTION", "All collections"),
-        ("DISCOUNT_REDEEM_CODE", "All codes"),
+    for (resource_type, name, query) in [
+        ("PRODUCT", "All products", "vendor:Acme"),
+        ("PRODUCT", "ALL PRODUCTS", "vendor:Acme"),
+        ("ORDER", "All", "status:open"),
+        ("DRAFT_ORDER", "All Drafts", "status:open"),
+        ("FILE", "All Files", "status:READY"),
+        ("COLLECTION", "All collections", "title:Sale"),
+        ("PRICE_RULE", "All price rules", "title:summer"),
+        ("DISCOUNT_REDEEM_CODE", "All codes", "code:SUMMER"),
     ] {
         let create = proxy.process_request(json_graphql_request(
             r#"
@@ -2498,7 +2499,7 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
               }
             }
             "#,
-            json!({ "input": { "resourceType": resource_type, "name": name, "query": "vendor:Acme" } }),
+            json!({ "input": { "resourceType": resource_type, "name": name, "query": query } }),
         ));
         assert_eq!(
             create.body["data"]["savedSearchCreate"],
@@ -2613,6 +2614,48 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
     assert_eq!(
         create_a.body["data"]["savedSearchCreate"]["userErrors"],
         json!([])
+    );
+
+    let case_primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCaseSensitivePrimary($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Case Sensitive", "query": "title:primary" } }),
+    ));
+    let case_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCaseSensitiveVariant($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "case sensitive", "query": "title:variant" } }),
+    ));
+    assert_eq!(
+        case_primary.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["name"],
+        json!("case sensitive")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["query"],
+        json!("title:variant")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["resourceType"],
+        json!("PRODUCT")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/SavedSearch/"))
     );
 }
 
@@ -2733,6 +2776,125 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
             "first": { "deletedSavedSearchId": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic", "userErrors": [] },
             "second": { "deletedSavedSearchId": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic", "userErrors": [] },
             "missing": { "deletedSavedSearchId": null, "userErrors": [{ "field": ["input", "id"], "message": "Saved Search does not exist" }] }
+        })
+    );
+}
+
+#[test]
+fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_core() {
+    let mut proxy = snapshot_proxy();
+
+    let product_allowlist = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchProductAllowlist($handle: SavedSearchCreateInput!, $created: SavedSearchCreateInput!, $productType: SavedSearchCreateInput!) {
+          handle: savedSearchCreate(input: $handle) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          created: savedSearchCreate(input: $created) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          productType: savedSearchCreate(input: $productType) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "handle": { "resourceType": "PRODUCT", "name": "Handle Filter", "query": "handle:alpha" },
+            "created": { "resourceType": "PRODUCT", "name": "Created Filter", "query": "created_at:>=2025-01-01" },
+            "productType": { "resourceType": "PRODUCT", "name": "Product Type Filter", "query": "product_type:Widget" }
+        }),
+    ));
+    assert_eq!(
+        product_allowlist.body["data"]["handle"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_allowlist.body["data"]["created"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_allowlist.body["data"]["productType"]["userErrors"],
+        json!([])
+    );
+
+    let resource_allowlist = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchResourceAllowlist($collection: SavedSearchCreateInput!, $draftOrder: SavedSearchCreateInput!, $file: SavedSearchCreateInput!, $discountCode: SavedSearchCreateInput!) {
+          collection: savedSearchCreate(input: $collection) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          draftOrder: savedSearchCreate(input: $draftOrder) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          file: savedSearchCreate(input: $file) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          discountCode: savedSearchCreate(input: $discountCode) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "collection": { "resourceType": "COLLECTION", "name": "Collection Handle", "query": "handle:summer" },
+            "draftOrder": { "resourceType": "DRAFT_ORDER", "name": "Draft Order Tag", "query": "tag:vip" },
+            "file": { "resourceType": "FILE", "name": "File Media Type", "query": "media_type:IMAGE" },
+            "discountCode": { "resourceType": "DISCOUNT_REDEEM_CODE", "name": "Discount Code", "query": "code:SUMMER" }
+        }),
+    ));
+    assert_eq!(
+        resource_allowlist.body["data"]["collection"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["draftOrder"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["file"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["discountCode"]["userErrors"],
+        json!([])
+    );
+
+    let unknown_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUnknownFilterCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Unknown Create", "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3 -aaa_filter:4" } }),
+    ));
+    assert_eq!(
+        unknown_create.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
+            ]
+        })
+    );
+
+    let update_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUpdateSeed($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Update Unknown Seed", "query": "vendor:Acme" } }),
+    ));
+    let update_id = update_seed.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap();
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUnknownFilterUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3" } }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Update Unknown Seed",
+                "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3",
+            "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
+            ]
         })
     );
 }
@@ -3108,6 +3270,168 @@ fn product_create_resolves_input_from_request_variables() {
             }
         })
     );
+}
+
+#[test]
+fn product_create_rejects_invalid_status_literals_and_variables_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidCreateStatusLiteral { productCreate(product: { title: \"Invalid status\", status: PUBLISHED }) { product { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'status' on InputObject 'ProductCreateInput' has an invalid value (PUBLISHED). Expected type 'ProductStatus'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidCreateStatusLiteral",
+            "productCreate",
+            "product",
+            "status"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "status"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidCreateStatusVariable($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Invalid status", "status": "ENABLED" } }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!(
+            "Variable $product of type ProductCreateInput! was provided invalid value for status (Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT)"
+        )
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": {
+                "title": "Invalid status",
+                "status": "ENABLED"
+            },
+            "problems": [{
+                "path": ["status"],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { title status } } }"}"#,
+    ));
+    assert_eq!(read_back.body["data"]["products"]["nodes"], json!([]));
+}
+
+#[test]
+fn product_change_status_rejects_invalid_status_without_staging() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidStatusLiteral { productChangeStatus(productId: \"gid://shopify/Product/1\", status: PUBLISHED) { product { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'status' on Field 'productChangeStatus' has an invalid value (PUBLISHED). Expected type 'ProductStatus!'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidStatusLiteral",
+            "productChangeStatus",
+            "status"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "status"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidStatusVariable($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/1", "status": "ENABLED" }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!("Variable $status of type ProductStatus! was provided invalid value")
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": "ENABLED",
+            "problems": [{
+                "path": [],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id status } }"}"#,
+    ));
+    assert_eq!(read_back.body["data"]["product"]["status"], json!("ACTIVE"));
 }
 
 #[test]

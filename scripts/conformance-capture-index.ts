@@ -985,6 +985,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-status-enum-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-status-enum-validation-conformance.ts',
+    purpose:
+      'ProductStatus enum schema-validation errors for invalid productChangeStatus status arguments and productCreate input.status values.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-status-enum-validation.json`,
+      'config/parity-specs/products/product-status-enum-validation.json',
+      'config/parity-requests/products/productChangeStatus-invalid-status-literal.graphql',
+      'config/parity-requests/products/productChangeStatus-invalid-status-variable.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-literal.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-variable.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; invalid enum inputs are rejected by Shopify schema validation before resolver execution and do not create or mutate products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:
@@ -4381,6 +4401,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-mobile-platform-application-model-validation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-mobile-platform-application-model-validation-local-runtime.ts',
+    purpose:
+      'mobilePlatformApplicationCreate model validation for application ID length, Android sha256CertFingerprints presence, and Apple appClipApplicationId presence/length.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
+      'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-body-script-verbatim-2025-01',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',
@@ -4680,6 +4719,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Counts current active merchant-managed locations, creates disposable active locations until the shop reaches the captured locationLimit, records the first over-cap locationAdd response, then deactivates and deletes every disposable location created by the recorder.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-activate-limit-relocation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-limit-relocation-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for locationActivate LOCATION_LIMIT, HAS_ONGOING_RELOCATION, and successful control branches; relocation message text is sourced from Shopify Core i18n because public Admin GraphQL cannot deterministically create an incomplete mass-relocation job.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}location-activate-limit-and-relocation.json`,
+      'config/parity-specs/store-properties/location-activate-limit-and-relocation.json',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime; the public disposable shop is not at its location limit and exposes no deterministic incomplete mass-relocation setup through Admin GraphQL, so no Shopify cleanup is required.',
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'store-properties',
@@ -6500,7 +6555,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
-    fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
+      'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
+      'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
+    ],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -6585,7 +6644,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-metafields-and-handle-update.json`,
       'config/parity-specs/payments/payment-customization-metafields-and-handle-update.json',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-update.graphql',
       'config/parity-requests/payments/payment-customization-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-metafields-create-local-runtime.graphql',
       'config/parity-requests/payments/payment-customization-metafields-read.graphql',
       'config/parity-requests/payments/payment-customization-metafields-update.graphql',
     ],
@@ -7779,10 +7841,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
-    purpose: 'Webhook subscription topic/format, cloud format, name, and duplicate active registration userErrors.',
+    purpose:
+      'Webhook subscription topic/format, cloud format, name, duplicate active registration userErrors, and same-endpoint different-format acceptance.',
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
-    fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
-    cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-topic-format-name-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates temporary SHOP_UPDATE and PRODUCTS_UPDATE webhook subscriptions and deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8280,6 +8347,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-inline-consent-parity.json`,
+      'config/parity-specs/customers/customerUpdate-inline-consent-rejection.json',
       'config/parity-specs/customers/customerInputInlineConsent-parity.json',
       'config/parity-requests/customers/customerInputInlineConsent-create.graphql',
       'config/parity-requests/customers/customerInputInlineConsent-read.graphql',
