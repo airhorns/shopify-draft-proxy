@@ -6600,6 +6600,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-create-validation-gaps.json`,
       'config/parity-specs/payments/payment-customization-create-validation-gaps.json',
+      'config/parity-specs/payments/payment-customization-create-required-fields.json',
       'config/parity-requests/payments/payment-customization-create-validation-gaps.graphql',
     ],
     cleanupBehavior:
