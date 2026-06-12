@@ -115,6 +115,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn bulk_operation_cancel(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
@@ -150,17 +151,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at) = if id == "gid://shopify/BulkOperation/7749099028786" {
-            (
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
-                "2026-05-05T20:33:59Z",
-            )
-        } else {
-            (
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
-                "2026-04-27T20:35:00Z",
-            )
-        };
+        let (query_text, created_at) = Self::bulk_operation_cancel_nonterminal_seed(request);
         let operation =
             bulk_operation_record_with(&id, "CANCELING", query_text, "0", created_at, "113499");
         self.store
@@ -169,6 +160,19 @@ impl DraftProxy {
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel_nonterminal_seed(request: &Request) -> (&'static str, &'static str) {
+        match admin_graphql_version(&request.path) {
+            Some("2025-01") => (
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+                "2026-05-05T20:33:59Z",
+            ),
+            _ => (
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+                "2026-04-27T20:35:00Z",
+            ),
+        }
     }
 
     pub(in crate::proxy) fn record_passthrough_log_entry(

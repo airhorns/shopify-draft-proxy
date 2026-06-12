@@ -267,6 +267,67 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
 }
 
 #[test]
+fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
+    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/9999999999999";
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation BulkOperationCancelParity($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type createdAt query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+
+    let cancel = proxy.process_request(cancel_request);
+
+    assert_eq!(cancel.status, 200);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["createdAt"],
+        json!("2026-05-05T20:33:59Z")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["query"],
+        json!("#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}")
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([
+            {
+                "field": null,
+                "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/9999999999999.",
+                "code": "OPERATION_IN_PROGRESS"
+            }
+        ])
+    );
+}
+
+#[test]
 fn bulk_operation_empty_connection_preserves_selection_aliases() {
     let mut proxy = snapshot_proxy();
 
