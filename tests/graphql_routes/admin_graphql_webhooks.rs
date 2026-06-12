@@ -384,6 +384,222 @@ fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
 }
 
 #[test]
+fn webhook_subscription_payload_fields_round_trip_through_create_update_and_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation {
+  webhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: {
+      uri: "https://hooks.example.com/payload-fields"
+      format: JSON
+      includeFields: ["id", "name"]
+      metafieldNamespaces: ["custom"]
+      filter: "customer_id:123"
+    }
+  ) {
+    webhookSubscription {
+      id
+      topic
+      format
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id = create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let created_at = create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+        ["createdAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "topic": "SHOP_UPDATE",
+            "format": "JSON",
+            "includeFields": ["id", "name"],
+            "metafieldNamespaces": ["custom"],
+            "filter": "customer_id:123",
+            "createdAt": created_at,
+            "updatedAt": created_at
+        })
+    );
+
+    let read_after_create = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($id: ID!) {
+  webhookSubscription(id: $id) {
+    id
+    includeFields
+    metafieldNamespaces
+    filter
+    createdAt
+    updatedAt
+  }
+  webhookSubscriptions(first: 10) {
+    nodes {
+      id
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        read_after_create.body["data"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "includeFields": ["id", "name"],
+            "metafieldNamespaces": ["custom"],
+            "filter": "customer_id:123",
+            "createdAt": created_at,
+            "updatedAt": created_at
+        })
+    );
+    assert_eq!(
+        read_after_create.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{
+            "id": webhook_id,
+            "includeFields": ["id", "name"],
+            "metafieldNamespaces": ["custom"],
+            "filter": "customer_id:123",
+            "createdAt": created_at,
+            "updatedAt": created_at
+        }])
+    );
+
+    let update_omitted_fields = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  webhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: { callbackUrl: "https://hooks.example.com/payload-fields-updated" }
+  ) {
+    webhookSubscription {
+      id
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]["userErrors"],
+        json!([])
+    );
+    let omitted_update_updated_at = update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]
+        ["webhookSubscription"]["updatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "includeFields": ["id", "name"],
+            "metafieldNamespaces": ["custom"],
+            "filter": "customer_id:123",
+            "createdAt": created_at,
+            "updatedAt": omitted_update_updated_at
+        })
+    );
+    assert_ne!(created_at, omitted_update_updated_at);
+
+    let update_empty_filter = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  webhookSubscriptionUpdate(id: $id, webhookSubscription: { filter: "" }) {
+    webhookSubscription {
+      id
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": webhook_id }),
+    ));
+    let empty_filter_updated_at = update_empty_filter.body["data"]["webhookSubscriptionUpdate"]
+        ["webhookSubscription"]["updatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        update_empty_filter.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "includeFields": ["id", "name"],
+            "metafieldNamespaces": ["custom"],
+            "filter": "",
+            "createdAt": created_at,
+            "updatedAt": empty_filter_updated_at
+        })
+    );
+    assert!(omitted_update_updated_at < empty_filter_updated_at);
+
+    let create_defaults = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation {
+  webhookSubscriptionCreate(
+    topic: ORDERS_CREATE
+    webhookSubscription: { uri: "https://hooks.example.com/payload-field-defaults" }
+  ) {
+    webhookSubscription {
+      id
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    ));
+    let default_subscription =
+        &create_defaults.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"];
+    assert_eq!(default_subscription["includeFields"], json!([]));
+    assert_eq!(default_subscription["metafieldNamespaces"], json!([]));
+    assert_eq!(default_subscription["filter"], Value::Null);
+    assert!(default_subscription["createdAt"].as_str().is_some());
+    assert_eq!(
+        default_subscription["updatedAt"],
+        default_subscription["createdAt"]
+    );
+}
+
+#[test]
 fn webhook_subscription_endpoint_uri_variants_match_old_gleam_helpers() {
     let mut proxy = snapshot_proxy();
 
