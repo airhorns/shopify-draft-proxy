@@ -728,6 +728,319 @@ fn webhook_subscription_validation_guards_match_old_gleam_cases() {
 }
 
 #[test]
+fn webhook_subscription_rejects_unknown_topic_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let inline_unknown_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation WebhookSubscriptionBogusTopic {
+          webhookSubscriptionCreate(topic: NOT_A_REAL_TOPIC, webhookSubscription: { uri: "https://hooks.example.com/bogus", format: JSON }) {
+            webhookSubscription { id topic uri }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(inline_unknown_topic.status, 200);
+    assert_eq!(
+        inline_unknown_topic.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (NOT_A_REAL_TOPIC). Expected type 'WebhookSubscriptionTopic!'.",
+                "locations": [{ "line": 3, "column": 11 }],
+                "path": ["mutation WebhookSubscriptionBogusTopic", "webhookSubscriptionCreate", "topic"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "topic"
+                }
+            }]
+        })
+    );
+    let count = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+        json!({}),
+    ));
+    assert_eq!(
+        count.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let variable_unknown_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation WebhookSubscriptionCreateParity(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id topic }
+            userErrors { field message }
+          }
+        }"#,
+        json!({
+            "topic": "NOT_A_REAL_TOPIC",
+            "webhookSubscription": {
+                "uri": "https://hooks.example.com/bogus-variable"
+            }
+        }),
+    ));
+    assert_eq!(variable_unknown_topic.status, 200);
+    assert_eq!(
+        variable_unknown_topic.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        variable_unknown_topic.body["errors"][0]["extensions"]["value"],
+        json!("NOT_A_REAL_TOPIC")
+    );
+    assert!(
+        variable_unknown_topic.body["errors"][0]["extensions"]["problems"][0]["explanation"]
+            .as_str()
+            .is_some_and(|message| message.contains("SHOP_UPDATE")
+                && message.contains("CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE"))
+    );
+    let count = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+        json!({}),
+    ));
+    assert_eq!(
+        count.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
+fn webhook_subscription_duplicate_scope_includes_format_filter_and_api_permission() {
+    let mut proxy = snapshot_proxy();
+
+    let create = |proxy: &mut DraftProxy, webhook_subscription: Value| {
+        proxy.process_request(json_graphql_request(
+            r#"# RustWebhookLocalRuntime
+            mutation($webhookSubscription: WebhookSubscriptionInput!) {
+              webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+                webhookSubscription { id topic uri format filter }
+                userErrors { field message }
+              }
+            }"#,
+            json!({ "webhookSubscription": webhook_subscription }),
+        ))
+    };
+
+    let first = create(
+        &mut proxy,
+        json!({
+            "uri": "https://hooks.example.com/same-uri",
+            "format": "JSON",
+            "filter": "orders_count:1"
+        }),
+    );
+    assert_eq!(
+        first.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let different_format = create(
+        &mut proxy,
+        json!({
+            "uri": "https://hooks.example.com/same-uri",
+            "format": "XML",
+            "filter": "orders_count:1"
+        }),
+    );
+    assert_eq!(
+        different_format.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        different_format.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["format"],
+        json!("XML")
+    );
+
+    let different_filter = create(
+        &mut proxy,
+        json!({
+            "uri": "https://hooks.example.com/same-uri",
+            "format": "JSON",
+            "filter": "orders_count:2"
+        }),
+    );
+    assert_eq!(
+        different_filter.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let exact_duplicate = create(
+        &mut proxy,
+        json!({
+            "uri": "https://hooks.example.com/same-uri",
+            "format": "JSON",
+            "filter": "orders_count:1"
+        }),
+    );
+    assert_eq!(
+        exact_duplicate.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address for this topic has already been taken"
+            }]
+        })
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+        json!({}),
+    ));
+    assert_eq!(
+        count.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 3 })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation PubSubWebhookSubscriptionCreateMissingTopic(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: PubSubWebhookSubscriptionInput!
+        ) {
+          pubSubWebhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({
+            "topic": "SHOP_UPDATE",
+            "webhookSubscription": {
+                "pubSubProject": "valid-project"
+            }
+        }),
+    ));
+    assert_eq!(missing_topic.status, 200);
+    assert_eq!(
+        missing_topic.body,
+        json!({
+            "errors": [{
+                "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
+                "locations": [{ "line": 6, "column": 11 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": { "pubSubProject": "valid-project" },
+                    "problems": [{
+                        "path": ["pubSubTopic"],
+                        "explanation": "Expected value to not be null"
+                    }]
+                }
+            }]
+        })
+    );
+
+    let missing_both = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation PubSubWebhookSubscriptionCreateMissingBoth(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: PubSubWebhookSubscriptionInput!
+        ) {
+          pubSubWebhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({
+            "topic": "SHOP_UPDATE",
+            "webhookSubscription": {}
+        }),
+    ));
+    assert_eq!(
+        missing_both.body["errors"][0]["extensions"]["problems"],
+        json!([
+            { "path": ["pubSubProject"], "explanation": "Expected value to not be null" },
+            { "path": ["pubSubTopic"], "explanation": "Expected value to not be null" }
+        ])
+    );
+
+    let inline_missing_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: "valid-project" }) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(inline_missing_topic.status, 200);
+    assert_eq!(
+        inline_missing_topic.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredInputObjectAttribute")
+    );
+    assert_eq!(
+        inline_missing_topic.body["errors"][0]["extensions"]["argumentName"],
+        json!("pubSubTopic")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id } userErrors { field message } } }",
+        json!({}),
+    ));
+    let id = create.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap();
+
+    let update_missing_project = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation PubSubWebhookSubscriptionUpdateMissingProject($id: ID!, $webhookSubscription: PubSubWebhookSubscriptionInput!) {
+          pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({
+            "id": id,
+            "webhookSubscription": {
+                "pubSubTopic": "topic-1"
+            }
+        }),
+    ));
+    assert_eq!(
+        update_missing_project.body["errors"][0]["extensions"]["problems"],
+        json!([{ "path": ["pubSubProject"], "explanation": "Expected value to not be null" }])
+    );
+
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(
+                "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+                json!({}),
+            ))
+            .body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1 }),
+        "only the valid control create should stage a record"
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "coercion errors should not append mutation log entries"
+    );
+}
+
+#[test]
 fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
     let assert_rejected = |uri: &str,
                            format_value: &str,
@@ -856,7 +1169,7 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_help
 
     for (topic, uri, format) in [
         ("ORDERS_CREATE", "https://hook-1.example.com", "JSON"),
-        ("ORDERS_UPDATE", "https://hook-2.example.com", "XML"),
+        ("ORDERS_PAID", "https://hook-2.example.com", "XML"),
         ("PRODUCTS_CREATE", "https://hook-3.example.com", "JSON"),
     ] {
         let create = proxy.process_request(json_graphql_request(
@@ -873,12 +1186,12 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_help
     }
 
     let topic_filter = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, topics: [ORDERS_UPDATE]) { nodes { topic uri } } }",
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, topics: [ORDERS_PAID]) { nodes { topic uri } } }",
         json!({}),
     ));
     assert_eq!(
         topic_filter.body["data"]["webhookSubscriptions"]["nodes"],
-        json!([{ "topic": "ORDERS_UPDATE", "uri": "https://hook-2.example.com" }])
+        json!([{ "topic": "ORDERS_PAID", "uri": "https://hook-2.example.com" }])
     );
 
     let query_filter = proxy.process_request(json_graphql_request(
@@ -917,7 +1230,7 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_help
     ));
     assert_eq!(
         uri_arg_filter.body["data"]["webhookSubscriptions"]["nodes"],
-        json!([{ "topic": "ORDERS_UPDATE", "uri": "https://hook-2.example.com" }])
+        json!([{ "topic": "ORDERS_PAID", "uri": "https://hook-2.example.com" }])
     );
 
     let negated_format = proxy.process_request(json_graphql_request(
@@ -926,7 +1239,7 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_help
     ));
     assert_eq!(
         negated_format.body["data"]["webhookSubscriptions"]["nodes"],
-        json!([{ "topic": "ORDERS_UPDATE", "format": "XML" }])
+        json!([{ "topic": "ORDERS_PAID", "format": "XML" }])
     );
 
     let reverse_topic = proxy.process_request(json_graphql_request(
@@ -937,7 +1250,7 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_help
         reverse_topic.body["data"]["webhookSubscriptions"]["nodes"],
         json!([
             { "topic": "PRODUCTS_CREATE" },
-            { "topic": "ORDERS_UPDATE" },
+            { "topic": "ORDERS_PAID" },
             { "topic": "ORDERS_CREATE" }
         ])
     );

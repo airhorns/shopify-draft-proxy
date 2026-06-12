@@ -7779,10 +7779,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
-    purpose: 'Webhook subscription topic/format, cloud format, name, and duplicate active registration userErrors.',
+    purpose:
+      'Webhook subscription topic/format, cloud format, name, duplicate active registration userErrors, and same-endpoint different-format acceptance.',
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
-    fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
-    cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-topic-format-name-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates temporary SHOP_UPDATE and PRODUCTS_UPDATE webhook subscriptions and deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
