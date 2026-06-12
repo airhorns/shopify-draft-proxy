@@ -966,6 +966,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-status-enum-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-status-enum-validation-conformance.ts',
+    purpose:
+      'ProductStatus enum schema-validation errors for invalid productChangeStatus status arguments and productCreate input.status values.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-status-enum-validation.json`,
+      'config/parity-specs/products/product-status-enum-validation.json',
+      'config/parity-requests/products/productChangeStatus-invalid-status-literal.graphql',
+      'config/parity-requests/products/productChangeStatus-invalid-status-variable.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-literal.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-variable.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; invalid enum inputs are rejected by Shopify schema validation before resolver execution and do not create or mutate products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:

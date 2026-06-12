@@ -1,0 +1,13 @@
+mutation ProductChangeStatusInvalidStatusLiteral {
+  productChangeStatus(productId: "gid://shopify/Product/999999999999999", status: ENABLED) {
+    product {
+      id
+      status
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
