@@ -35,6 +35,17 @@
         }
       },
       {
+        "name": "shop-locale-update-primary-publish-guard",
+        "capturePath": "$.primaryGuards.updatePrimaryPublish.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-update-user-errors.graphql",
+          "variablesCapturePath": "$.primaryGuards.updatePrimaryPublish.request.variables"
+        }
+      },
+      {
         "name": "shop-locale-disable-primary-guard",
         "capturePath": "$.primaryGuards.disablePrimary.response.data.shopLocaleDisable",
         "proxyPath": "$.data.shopLocaleDisable",
@@ -58,5 +69,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors and that shopLocaleUpdate distinguishes a missing locale with its own code."
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors. The shopLocaleUpdate primary guard covers both published:false and published:true, and shopLocaleUpdate distinguishes a missing locale with its own code."
 }

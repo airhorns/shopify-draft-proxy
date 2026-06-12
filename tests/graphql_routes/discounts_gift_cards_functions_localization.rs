@@ -724,6 +724,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
           publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
           attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
           missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
+          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
           primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
           disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
           disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
@@ -780,6 +781,17 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     );
     assert_eq!(
         lifecycle.body["data"]["primaryUnpublish"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["primaryPublish"],
         json!({
             "shopLocale": null,
             "userErrors": [{

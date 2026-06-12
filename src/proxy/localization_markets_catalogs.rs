@@ -354,7 +354,7 @@ impl DraftProxy {
         let market_web_presence_ids =
             resolved_string_list_field_unsorted(&input, "marketWebPresenceIds");
 
-        if locale == "en" && published == Some(false) {
+        if locale == "en" && published.is_some() {
             return selected_json(
                 &json!({
                     "shopLocale": null,
