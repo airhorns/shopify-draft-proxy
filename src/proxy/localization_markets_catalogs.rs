@@ -554,14 +554,35 @@ impl DraftProxy {
         }
 
         let name = resolved_string_field(&input, "name").unwrap_or_default();
-        if !name.is_empty()
-            && self
-                .store
-                .staged
-                .markets
-                .values()
-                .any(|market| market["name"].as_str() == Some(name.as_str()))
-        {
+        let mut name_errors = Vec::new();
+        if name.is_empty() {
+            name_errors.push(market_user_error(
+                vec!["input", "name"],
+                "Name can't be blank",
+                json!("BLANK"),
+            ));
+        }
+        if name.chars().count() < 2 {
+            name_errors.push(market_user_error(
+                vec!["input", "name"],
+                "Name is too short (minimum is 2 characters)",
+                json!("TOO_SHORT"),
+            ));
+        }
+        if !name_errors.is_empty() {
+            return selected_json(
+                &json!({
+                    "market": null,
+                    "userErrors": name_errors
+                }),
+                &field.selection,
+            );
+        }
+        if self.store.staged.markets.values().any(|market| {
+            market["name"]
+                .as_str()
+                .is_some_and(|existing_name| existing_name.eq_ignore_ascii_case(&name))
+        }) {
             return selected_json(
                 &json!({
                     "market": null,

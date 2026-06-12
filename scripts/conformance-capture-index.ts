@@ -3198,7 +3198,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
     purpose:
-      'Safe Markets lifecycle validation branches for blank marketCreate input and unknown marketUpdate/marketDelete IDs.',
+      'Safe Markets lifecycle validation branches for blank and too-short marketCreate input plus unknown marketUpdate/marketDelete IDs.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-lifecycle-validation.json`,
@@ -3439,7 +3439,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'market-create-handle-dedupe',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
-    purpose: 'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification.',
+    purpose:
+      'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification plus case-insensitive duplicate name validation.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-handle-dedupe.json`,
@@ -3447,7 +3448,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/markets/market-create-handle-dedupe.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable Europe and Europe! markets, records duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
+      'Creates disposable Europe and Europe! markets, records case-insensitive duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

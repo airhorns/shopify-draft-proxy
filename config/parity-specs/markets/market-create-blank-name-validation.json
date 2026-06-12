@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. Blank marketCreate input returns userErrors without mutating market state.",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. Blank and too-short marketCreate inputs return userErrors without mutating market state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -20,6 +20,15 @@
         "name": "blank-name-market-create-data",
         "capturePath": "$.cases[0].response.payload.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "too-short-name-market-create-data",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-blank-name-validation.graphql",
+          "variablesCapturePath": "$.cases[3].variables"
+        }
       }
     ]
   }
