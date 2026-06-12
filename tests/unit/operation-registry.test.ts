@@ -19,21 +19,33 @@ function listImplementedOperationRegistryEntries() {
   return listOperationRegistryEntries().filter((entry) => entry.implemented);
 }
 
+function listRuntimeTestedOperationRegistryEntries() {
+  return listOperationRegistryEntries().filter((entry) => entry.runtimeTests.length > 0);
+}
+
 describe('operation registry', () => {
   it('keeps implemented capability names unique', () => {
     const implementedNames = listImplementedOperationRegistryEntries().map((entry) => entry.name);
     expect(new Set(implementedNames).size).toBe(implementedNames.length);
   });
 
-  it('requires implemented operations to declare runtime tests without conformance metadata', () => {
-    for (const entry of listImplementedOperationRegistryEntries()) {
+  it('treats every runtime-tested operation as implemented', () => {
+    // `implemented` spans the full locally-handled surface, so it is a superset of the
+    // runtime-tested (uniform table-dispatch) operations.
+    for (const entry of listRuntimeTestedOperationRegistryEntries()) {
+      expect(entry.implemented, `${entry.name} declares runtime tests so it must be implemented`).toBe(true);
+    }
+  });
+
+  it('requires runtime-tested operations to declare runtime tests without conformance metadata', () => {
+    for (const entry of listRuntimeTestedOperationRegistryEntries()) {
       expect(entry.runtimeTests.length).toBeGreaterThan(0);
       expect('conformance' in entry).toBe(false);
     }
   });
 
-  it('keeps implemented runtime test references executable on disk', () => {
-    for (const entry of listImplementedOperationRegistryEntries()) {
+  it('keeps runtime test references executable on disk', () => {
+    for (const entry of listRuntimeTestedOperationRegistryEntries()) {
       for (const runtimeTest of entry.runtimeTests) {
         expect(() => {
           execFileSync('test', ['-f', runtimeTest], {

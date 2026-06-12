@@ -92,12 +92,13 @@ describe('conformance scenario discovery', () => {
     expect(operationRegistry.some((entry) => entry.name === operationName)).toBe(true);
   });
 
-  it('keeps every implemented operation covered by at least one discovered scenario', () => {
+  it('keeps every runtime-tested operation covered by at least one discovered scenario', () => {
     const statusDocument = buildConformanceStatusDocument(repoRoot);
     const coveredOperationNames = new Set(statusDocument.coveredOperationNames);
 
-    for (const entry of operationRegistry.filter((candidate) => candidate.implemented)) {
-      expect(entry.runtimeTests?.length ?? 0).toBeGreaterThan(0);
+    // `implemented` now spans the full locally-handled surface; conformance coverage is owed only
+    // by operations that declare runtime tests (the uniform table-dispatch set).
+    for (const entry of operationRegistry.filter((candidate) => (candidate.runtimeTests?.length ?? 0) > 0)) {
       expect(coveredOperationNames.has(entry.name), `${entry.name} should have scenario or runtime-test coverage`).toBe(
         true,
       );

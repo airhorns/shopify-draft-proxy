@@ -3333,7 +3333,11 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 }
 
 #[test]
-fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
+fn admin_graphql_capability_classification_requires_local_dispatch_root() {
+    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS, not on the registry's
+    // `implemented` flag. None of these synthetic roots is a dispatch root, so all three fall
+    // through to passthrough regardless of `implemented` — and crucially never 501. (In snapshot
+    // mode there is no upstream, so passthrough surfaces as a 400 "no dispatcher" error.)
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
             "knownProducts",
@@ -3359,20 +3363,20 @@ fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
         "POST",
         r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
     ));
-    assert_eq!(known_query.status, 501);
+    assert_eq!(known_query.status, 400);
     assert_eq!(
         known_query.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownProducts" }] })
     );
 
     let known_mutation = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
     ));
-    assert_eq!(known_mutation.status, 501);
+    assert_eq!(known_mutation.status, 400);
     assert_eq!(
         known_mutation.body,
-        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: knownProductCreate" }] })
     );
 
     let unimplemented = proxy.process_request(graphql_request(
@@ -3409,7 +3413,11 @@ fn local_dispatch_root_without_registry_classification_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_local_dispatch_fails_closed() {
+fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() {
+    // An implemented registry entry that is not a LOCAL_DISPATCH_ROOT must NOT be hard-failed by
+    // the table dispatch: an implemented operation never 501s. It resolves to Unknown/Passthrough
+    // and passes through upstream (surfaced as a 400 "no dispatcher" in snapshot mode, where no
+    // upstream exists). In production these entries are handled earlier in the special-case chain.
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
@@ -3426,10 +3434,11 @@ fn implemented_registry_entry_without_local_dispatch_fails_closed() {
         r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_eq!(response.status, 501);
+    assert_ne!(response.status, 501);
+    assert_eq!(response.status, 400);
     assert_eq!(
         response.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: unknownSavedSearches" }] })
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: unknownSavedSearches" }] })
     );
 }
 
