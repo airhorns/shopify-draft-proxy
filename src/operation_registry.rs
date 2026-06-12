@@ -164,10 +164,24 @@ pub fn operation_capability(
     root_field: Option<&str>,
 ) -> OperationCapability {
     let names = [root_field];
-    match find_entry(registry, operation_type, &names).filter(|entry| entry.implemented) {
-        Some(entry) => OperationCapability {
-            domain: entry.domain,
-            execution: entry.execution,
+    // Capability routing keys on whether a concrete local dispatch root exists for the
+    // resolved registry entry, NOT on `entry.implemented`. The `implemented` flag describes
+    // the much larger set of operations the proxy handles locally (including the document-gated
+    // special-case handlers earlier in dispatch), while only `LOCAL_DISPATCH_ROOTS` reach the
+    // uniform table dispatch below. Keeping these separate means broadening `implemented` can
+    // never route an operation into the table-dispatch `501` arms: anything without a dispatch
+    // root falls through to Unknown/Passthrough (and thus to upstream passthrough), never an error.
+    let dispatch_root = root_field
+        .filter(|name| !name.is_empty())
+        .and_then(|field| {
+            find_entry(registry, operation_type, &names).and_then(|entry| {
+                local_dispatch_root(operation_type, entry.domain, entry.execution, field)
+            })
+        });
+    match dispatch_root {
+        Some(root) => OperationCapability {
+            domain: root.domain,
+            execution: root.execution,
             operation_name: root_field
                 .filter(|name| !name.is_empty())
                 .map(str::to_string),

@@ -96,9 +96,11 @@ App/test harness
 ### `src/operation_registry.rs`
 
 - typed registry of operation capability metadata
-- classifies implemented roots by domain and execution kind
-- keeps unimplemented/unknown roots explicit so metadata alone does not imply runtime support
-- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, implemented registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
+- classifies roots by domain and execution kind
+- the `implemented` flag marks roots the proxy handles locally (instead of 501-ing) — it spans every locally-handled root field, including the document-gated special-case handlers in `dispatch.rs`, and is broader than the uniform table-dispatch set. It is a "we answer this locally" fact, not a fidelity claim
+- capability routing is decoupled from the flag: `operation_capability` resolves a non-passthrough capability only when a `LOCAL_DISPATCH_ROOT` exists, so anything else falls through to passthrough rather than a table-dispatch 501. Broadening `implemented` therefore cannot make an operation 501
+- keeps passthrough/unknown roots explicit so metadata alone does not imply runtime support
+- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
 
 ### `src/upstream.rs`
 
@@ -194,8 +196,9 @@ Keep Shopify-like versioned Admin API paths even when tests use local/snapshot m
 ## Development rules
 
 - Route GraphQL behavior by actual root fields, not operation names.
+- Never compute a response by sniffing the GraphQL document name (`query.contains("ScenarioName")`, `is_*_document`, `*_fixture_data`) and returning a hardcoded/`include_str!` payload. Runtime handlers must derive responses from the store model; canned scenario-keyed replies are cheating and are being eliminated.
 - Preserve aliases in response keys for every root that can be selected with an alias.
 - Keep unsupported passthrough explicit in logs and docs.
-- Do not register an operation as implemented until its local lifecycle and downstream read-after-write effects are modeled.
+- Marking a root `implemented` only states that the proxy answers it locally; do not call an operation **supported** until its local lifecycle and downstream read-after-write effects are modeled from the store (tracked by runtime tests and conformance coverage).
 - Prefer conformance fixtures over guessed Shopify semantics.
 - Add tests before behavior changes and run the full Rust-port verification loop before pushing.

@@ -1,0 +1,16 @@
+mutation LocalSegmentCreate($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}
