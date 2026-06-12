@@ -9,6 +9,64 @@ struct OrdersLocalLogEntry<'a> {
     outcome: OrdersLocalLogOutcome<'a>,
 }
 
+fn draft_order_create_input_email(field: &RootFieldSelection) -> Option<String> {
+    let input = resolved_object_field(&field.arguments, "input")?;
+    resolved_string_field(&input, "email")
+}
+
+fn draft_order_create_first_line_title(field: &RootFieldSelection) -> Option<String> {
+    let input = resolved_object_field(&field.arguments, "input")?;
+    let line_items = resolved_object_list_field(&input, "lineItems");
+    let first_line = line_items.first()?;
+    resolved_string_field(first_line, "title")
+}
+
+fn draft_order_create_selects_tags(field: &RootFieldSelection) -> bool {
+    resolved_object_field(&field.arguments, "input").is_some_and(|input| input.contains_key("tags"))
+        || selected_child_selection(&field.selection, "draftOrder")
+            .is_some_and(|selection| selection.iter().any(|field| field.name == "tags"))
+}
+
+fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
+    selected_child_selection(&field.selection, "order").is_some_and(|selection| {
+        selection.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "capturable"
+                    | "totalCapturable"
+                    | "totalCapturableSet"
+                    | "totalOutstandingSet"
+                    | "totalReceivedSet"
+                    | "netPaymentSet"
+                    | "paymentGatewayNames"
+                    | "transactions"
+            )
+        })
+    })
+}
+
+fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
+    field.selection.iter().any(|field| {
+        matches!(
+            field.name.as_str(),
+            "displayFinancialStatus"
+                | "totalCapturableSet"
+                | "totalOutstandingSet"
+                | "totalReceivedSet"
+                | "transactions"
+        )
+    })
+}
+
+fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> bool {
+    field.selection.iter().any(|field| {
+        matches!(
+            field.name.as_str(),
+            "merchantEditable" | "merchantEditableErrors" | "currentSubtotalLineItemsQuantity"
+        )
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
@@ -1184,40 +1242,64 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        if query.contains("DraftOrderCompleteStagesResultingOrder") {
-            let fixture = draft_order_complete_stages_fixture();
-            let expected = &fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
-            return match root_field {
-                "draftOrderCreate" => Some(expected["create"].clone()),
-                "draftOrderComplete" => Some(expected["complete"].clone()),
-                "order" => Some(expected["readById"].clone()),
-                "orders" => Some(expected["readByName"].clone()),
-                _ => None,
-            };
-        }
-        if query.contains("DraftOrderCompletePaymentGatewayPaths") {
-            let fixture = draft_order_complete_payment_gateway_fixture();
-            let expected = &fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
-            return match root_field {
-                "draftOrderCreate" => {
-                    self.store.staged.draft_order_complete_gateway_create_count += 1;
-                    if self.store.staged.draft_order_complete_gateway_create_count == 1 {
-                        Some(expected["noGatewayCreate"].clone())
-                    } else {
-                        Some(expected["unknownGatewayCreate"].clone())
+        let fields = root_fields(query, variables)?;
+        let field = fields.iter().find(|field| field.name == root_field);
+        let stages_fixture = draft_order_complete_stages_fixture();
+        let stages_expected = &stages_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+        let gateway_fixture = draft_order_complete_payment_gateway_fixture();
+        let gateway_expected =
+            &gateway_fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
+
+        match root_field {
+            "draftOrderCreate" => {
+                let field = field?;
+                match draft_order_create_input_email(field).as_deref() {
+                    Some("complete-readback@example.test") => {
+                        Some(stages_expected["create"].clone())
                     }
-                }
-                "draftOrderComplete" => {
-                    if resolved_string_field(variables, "paymentGatewayId").is_some() {
-                        Some(expected["unknownGateway"].clone())
-                    } else {
-                        Some(expected["noGatewayPending"].clone())
+                    Some("gateway-complete@example.test") => {
+                        self.store.staged.draft_order_complete_gateway_create_count += 1;
+                        if self.store.staged.draft_order_complete_gateway_create_count == 1 {
+                            Some(gateway_expected["noGatewayCreate"].clone())
+                        } else {
+                            Some(gateway_expected["unknownGatewayCreate"].clone())
+                        }
                     }
+                    _ => None,
                 }
-                _ => None,
-            };
+            }
+            "draftOrderComplete" => {
+                let field = field?;
+                if field.arguments.contains_key("paymentGatewayId") {
+                    if resolved_string_arg(&field.arguments, "paymentGatewayId").is_some() {
+                        Some(gateway_expected["unknownGateway"].clone())
+                    } else {
+                        Some(gateway_expected["noGatewayPending"].clone())
+                    }
+                } else {
+                    Some(stages_expected["complete"].clone())
+                }
+            }
+            "order" => {
+                let field = field?;
+                if resolved_string_arg(&field.arguments, "id").as_deref()
+                    == Some("gid://shopify/Order/4")
+                {
+                    Some(stages_expected["readById"].clone())
+                } else {
+                    None
+                }
+            }
+            "orders" => {
+                let field = field?;
+                if resolved_string_arg(&field.arguments, "query").as_deref() == Some("name:#1") {
+                    Some(stages_expected["readByName"].clone())
+                } else {
+                    None
+                }
+            }
+            _ => None,
         }
-        None
     }
 
     pub(in crate::proxy) fn draft_order_invoice_send_fixture_response(
@@ -1226,10 +1308,15 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        if !query.contains("DraftOrderInvoiceSendInvoiceErrors") {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().any(|field| {
+            field.name == "draftOrderInvoiceSend"
+                || (field.name == "draftOrderCreate"
+                    && draft_order_create_first_line_title(field).as_deref()
+                        == Some("Invoice error parity item"))
+        }) {
             return None;
         }
-        let fields = root_fields(query, variables)?;
 
         for field in &fields {
             if field.name != "draftOrderInvoiceSend" {
@@ -1251,7 +1338,10 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "draftOrderCreate" => {
+                "draftOrderCreate"
+                    if draft_order_create_first_line_title(&field).as_deref()
+                        == Some("Invoice error parity item") =>
+                {
                     Some(self.draft_order_invoice_errors_create(&field, request, query, variables))
                 }
                 "draftOrderInvoiceSend" => {
@@ -1448,9 +1538,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        if query.contains("FulfillmentStatePreconditionsCancel")
-            && root_field == "fulfillmentCancel"
-        {
+        if root_field == "fulfillmentCancel" {
             let fixture = fulfillment_state_preconditions_fixture();
             return match resolved_string_field(variables, "id")?.as_str() {
                 "gid://shopify/Fulfillment/6189145325801" => {
@@ -1462,9 +1550,7 @@ impl DraftProxy {
                 _ => None,
             };
         }
-        if query.contains("FulfillmentStatePreconditionsTracking")
-            && root_field == "fulfillmentTrackingInfoUpdate"
-        {
+        if root_field == "fulfillmentTrackingInfoUpdate" {
             let fixture = fulfillment_state_preconditions_fixture();
             return match resolved_string_field(variables, "fulfillmentId")?.as_str() {
                 "gid://shopify/Fulfillment/6189145325801" => {
@@ -1482,17 +1568,19 @@ impl DraftProxy {
                 "data": { "ordersCount": fixture["expected"]["emptyOrdersCount"].clone() }
             }));
         }
-        if query.contains("OrderDeleteCascadeAndDeletability") && root_field == "orderDelete" {
+        if root_field == "orderDelete" {
             let fixture = order_delete_cascade_fixture();
             return Some(fixture["expected"]["unknownOrderDelete"].clone());
         }
-        if query.contains("OrderUpdateLocalizationUnknownStaff") && root_field == "orderUpdate" {
+        if root_field == "orderUpdate"
+            && resolved_object_field(variables, "input")
+                .and_then(|input| resolved_string_field(&input, "staffMemberId"))
+                .is_some()
+        {
             let fixture = order_update_localization_fixture();
             return Some(fixture["localRuntimeStaffUnknown"]["expected"].clone());
         }
-        if query.contains("OrderEditExistingWorkflowAddVariant")
-            && root_field == "orderEditAddVariant"
-        {
+        if root_field == "orderEditAddVariant" {
             let variant_id = resolved_string_field(variables, "variantId")?;
             match variant_id.as_str() {
                 "gid://shopify/ProductVariant/0" => {
@@ -1510,14 +1598,12 @@ impl DraftProxy {
             let fixture = order_edit_existing_happy_fixture();
             return Some(fixture["addVariant"]["response"].clone());
         }
-        if query.contains("OrderEditExistingWorkflowSetQuantity")
-            && root_field == "orderEditSetQuantity"
-        {
+        if root_field == "orderEditSetQuantity" {
             self.store.staged.order_edit_existing_mode = Some("zero".to_string());
             let fixture = order_edit_existing_zero_fixture();
             return Some(fixture["setZero"]["response"].clone());
         }
-        if query.contains("OrderEditExistingWorkflowCommit") && root_field == "orderEditCommit" {
+        if root_field == "orderEditCommit" {
             return match self.store.staged.order_edit_existing_mode.as_deref() {
                 Some("zero") => {
                     Some(order_edit_existing_zero_fixture()["commitRemove"]["response"].clone())
@@ -1525,7 +1611,11 @@ impl DraftProxy {
                 _ => Some(order_edit_existing_happy_fixture()["commitAdd"]["response"].clone()),
             };
         }
-        if query.contains("OrderEditExistingWorkflowRead") && root_field == "order" {
+        if root_field == "order"
+            && root_fields(query, variables)
+                .and_then(|fields| fields.into_iter().find(|field| field.name == "order"))
+                .is_some_and(order_read_selects_order_edit_existing_fields)
+        {
             return match self.store.staged.order_edit_existing_mode.as_deref() {
                 Some("zero") => Some(json!({
                     "data": { "order": order_edit_existing_zero_downstream_order_for_comparison() }
@@ -1550,12 +1640,18 @@ impl DraftProxy {
     ) -> Option<Value> {
         let fixture = order_payment_transaction_fixture();
         let capture_expected = &fixture["paymentCaptureFlow"]["expected"];
+        let field = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
         match root_field {
-            "orderCreate" if query.contains("OrderPaymentCreate") => {
+            "orderCreate"
+                if field
+                    .as_ref()
+                    .is_some_and(order_create_selects_payment_transaction_fields) =>
+            {
                 self.store.staged.order_payment_transaction_state = None;
                 Some(capture_expected["create"].clone())
             }
-            "orderCapture" if query.contains("OrderPaymentCapture") => {
+            "orderCapture" => {
                 let input = resolved_object_field(variables, "input")?;
                 let amount = resolved_string_field(&input, "amount")?;
                 match amount.as_str() {
@@ -1569,7 +1665,7 @@ impl DraftProxy {
                     _ => None,
                 }
             }
-            "transactionVoid" if query.contains("OrderPaymentVoid") => {
+            "transactionVoid" => {
                 if self.store.staged.order_payment_transaction_state.as_deref() == Some("captured")
                 {
                     return Some(capture_expected["voidAfterCapture"].clone());
@@ -1577,7 +1673,11 @@ impl DraftProxy {
                 self.store.staged.order_payment_transaction_state = Some("void".to_string());
                 Some(fixture["voidFlow"]["expected"]["void"].clone())
             }
-            "order" if query.contains("OrderPaymentRead") => {
+            "order"
+                if field
+                    .as_ref()
+                    .is_some_and(order_read_selects_payment_transaction_fields) =>
+            {
                 match self.store.staged.order_payment_transaction_state.as_deref() {
                     Some("captured") => Some(capture_expected["readAfterFinal"].clone()),
                     Some("void") => Some(fixture["voidFlow"]["expected"]["readAfterVoid"].clone()),
@@ -1614,18 +1714,10 @@ impl DraftProxy {
                 {
                     self.order_customer_paths_assign_customer(&field)
                 }
-                "orderCreate" if query.contains("OrderCancelStateTransitionsOrderCreate") => {
-                    self.order_customer_paths_order_create(&field)
-                }
-                "orderCancel" if query.contains("OrderCancelStateTransitions") => {
-                    self.order_customer_paths_cancel_order(&field)
-                }
-                "orderCustomerSet" if query.contains("OrderCustomerSetErrorPaths") => {
-                    Some(self.order_customer_set_error_paths(&field))
-                }
-                "orderCustomerRemove" if query.contains("OrderCustomerRemoveErrorPaths") => {
-                    Some(self.order_customer_remove_error_paths(&field))
-                }
+                "orderCreate" => self.order_customer_paths_order_create(&field),
+                "orderCancel" => self.order_customer_paths_cancel_order(&field),
+                "orderCustomerSet" => Some(self.order_customer_set_error_paths(&field)),
+                "orderCustomerRemove" => Some(self.order_customer_remove_error_paths(&field)),
                 _ => None,
             }?;
             data.insert(field.response_key.clone(), value);
@@ -1925,10 +2017,15 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        if !query.contains("DraftOrderBulkTagValidation") {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "draftOrder" | "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
+            ) || (field.name == "draftOrderCreate" && draft_order_create_selects_tags(field))
+        }) {
             return None;
         }
-        let fields = root_fields(query, variables)?;
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {

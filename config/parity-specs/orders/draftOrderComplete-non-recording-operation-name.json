@@ -1,0 +1,40 @@
+{
+  "scenarioId": "draft-order-complete-non-recording-operation-name",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "operation-name-independent-dispatch", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-non-recording-operation-create.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-staged-draft-non-recording-name",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "complete-staged-draft-non-recording-name",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.complete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-non-recording-operation-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": false
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Regression parity for Orders local dispatch using client operation names that are deliberately distinct from the original DraftOrderCompleteStagesResultingOrder recording names. The response evidence is reused from the checked-in local-runtime draftOrderComplete capture; this spec changes only the replayed GraphQL document names so the proxy must route by root field and arguments."
+}
