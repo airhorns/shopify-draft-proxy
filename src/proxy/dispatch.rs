@@ -1235,6 +1235,12 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "flowGenerateSignature" | "flowTriggerReceive")
+        {
+            return self.flow_utility_mutation(root_field, request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "fileCreate"
             && (query.contains("FileReferenceCreate")
                 || query.contains("MediaFileDeleteTypedGidRoundtripCreate"))

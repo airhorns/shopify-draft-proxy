@@ -2111,13 +2111,10 @@ impl DraftProxy {
         name: &str,
         except_id: Option<&str>,
     ) -> bool {
-        let normalized = name.trim().to_lowercase();
+        let candidate = name.trim();
         self.saved_search_records_for_resource(resource_type)
             .iter()
-            .any(|record| {
-                Some(record.id.as_str()) != except_id
-                    && record.name.trim().to_lowercase() == normalized
-            })
+            .any(|record| Some(record.id.as_str()) != except_id && record.name.trim() == candidate)
     }
 
     pub(in crate::proxy) fn saved_search_mutation_fields(

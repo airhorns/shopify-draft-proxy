@@ -88,14 +88,20 @@ const validation = {
   createBadNameFormatRejected: null as CapturedRequest | null,
   createDuplicateSetup: null as CapturedRequest | null,
   createDuplicateRejected: null as CapturedRequest | null,
+  createSameUriDifferentFormatJsonSetup: null as CapturedRequest | null,
+  createSameUriDifferentFormatXmlAllowed: null as CapturedRequest | null,
   updateBadNameFormatRejected: null as CapturedRequest | null,
   createCaseInsensitiveNameDuplicateSetup: null as CapturedRequest | null,
   createCaseInsensitiveNameDuplicateRejected: null as CapturedRequest | null,
   updateCaseInsensitiveNameDuplicateRejected: null as CapturedRequest | null,
   cleanup: null as CapturedRequest | null,
+  cleanupSameUriDifferentFormatJsonSetup: null as CapturedRequest | null,
+  cleanupSameUriDifferentFormatXmlAllowed: null as CapturedRequest | null,
   cleanupCaseInsensitiveNameDuplicateSetup: null as CapturedRequest | null,
 };
 let createdId: string | null = null;
+let sameUriDifferentFormatJsonId: string | null = null;
+let sameUriDifferentFormatXmlId: string | null = null;
 let caseInsensitiveNameSetupId: string | null = null;
 
 try {
@@ -148,6 +154,32 @@ try {
       filter: '',
     },
   });
+  validation.createSameUriDifferentFormatJsonSetup = await capture(createRequestPath, {
+    topic: 'PRODUCTS_UPDATE',
+    webhookSubscription: {
+      uri: `${duplicateUri}-different-format`,
+      format: 'JSON',
+      filter: '',
+    },
+  });
+  sameUriDifferentFormatJsonId = readCreatedWebhookId(validation.createSameUriDifferentFormatJsonSetup);
+  if (sameUriDifferentFormatJsonId === null) {
+    throw new Error('same-endpoint different-format JSON setup did not return a webhookSubscription.id.');
+  }
+
+  validation.createSameUriDifferentFormatXmlAllowed = await capture(createRequestPath, {
+    topic: 'PRODUCTS_UPDATE',
+    webhookSubscription: {
+      uri: `${duplicateUri}-different-format`,
+      format: 'XML',
+      filter: '',
+    },
+  });
+  sameUriDifferentFormatXmlId = readCreatedWebhookId(validation.createSameUriDifferentFormatXmlAllowed);
+  if (sameUriDifferentFormatXmlId === null) {
+    throw new Error('same-endpoint different-format XML create did not return a webhookSubscription.id.');
+  }
+
   validation.updateBadNameFormatRejected = await capture(updateRequestPath, {
     id: createdId,
     webhookSubscription: {
@@ -188,6 +220,16 @@ try {
       id: caseInsensitiveNameSetupId,
     });
   }
+  if (sameUriDifferentFormatXmlId !== null) {
+    validation.cleanupSameUriDifferentFormatXmlAllowed = await capture(deleteRequestPath, {
+      id: sameUriDifferentFormatXmlId,
+    });
+  }
+  if (sameUriDifferentFormatJsonId !== null) {
+    validation.cleanupSameUriDifferentFormatJsonSetup = await capture(deleteRequestPath, {
+      id: sameUriDifferentFormatJsonId,
+    });
+  }
   if (createdId !== null) {
     validation.cleanup = await capture(deleteRequestPath, { id: createdId });
   }
@@ -204,6 +246,7 @@ await writeFile(
       notes: [
         'Captures webhookSubscriptionCreate topic/format, cloud format, name validation, duplicate active registration userErrors, and case-insensitive name uniqueness.',
         'The duplicate branch creates one temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.',
+        'The same-endpoint different-format branch creates temporary PRODUCTS_UPDATE JSON and XML subscriptions with the same URI and deletes both during cleanup.',
         'The case-insensitive name branch creates a second temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.',
         'The script does not trigger webhook delivery.',
       ],
