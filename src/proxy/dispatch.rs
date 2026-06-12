@@ -1174,8 +1174,7 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerUpdate"
-            && (query.contains("CustomerUpdateParityPlan")
-                || is_customer_input_validation_update_success(&variables))
+            && is_local_customer_update_document(&query, &variables)
         {
             return self.customer_update(&query, &variables, request);
         }
