@@ -72,9 +72,8 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
     token_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "delegateAccessToken" => Some(if token.is_null() {
                 Value::Null
             } else {
@@ -83,12 +82,8 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
             "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
@@ -96,19 +91,14 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
             "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
@@ -144,18 +134,13 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
     app_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "app" => Some(selected_json(&app, app_selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
@@ -163,9 +148,8 @@ pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "revoked" => Some(Value::Array(
                 revoked
                     .iter()
@@ -174,12 +158,8 @@ pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
             )),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn app_usage_record_payload_json(
@@ -188,9 +168,8 @@ pub(in crate::proxy) fn app_usage_record_payload_json(
     usage_record_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "appUsageRecord" => Some(if usage_record.is_null() {
                 Value::Null
             } else {
@@ -198,12 +177,8 @@ pub(in crate::proxy) fn app_usage_record_payload_json(
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn app_purchase_one_time_payload_json(
@@ -212,9 +187,8 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
     purchase_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "appPurchaseOneTime" => {
                 if purchase.is_null() {
                     Some(Value::Null)
@@ -229,12 +203,8 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn app_subscription_create_payload_json(
@@ -256,9 +226,8 @@ pub(in crate::proxy) fn app_subscription_payload_json(
     subscription_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "confirmationUrl" => Some(json!("https://app.example.test/local-confirmation")),
             "appSubscription" => Some(if subscription.is_null() {
                 Value::Null
@@ -267,12 +236,8 @@ pub(in crate::proxy) fn app_subscription_payload_json(
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
@@ -430,9 +395,8 @@ pub(in crate::proxy) fn location_activate_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "location" => Some(selected_json(&location, &selection.selection)),
             "locationActivateUserErrors" => Some(Value::Array(
                 user_errors
@@ -441,12 +405,8 @@ pub(in crate::proxy) fn location_activate_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
@@ -454,9 +414,8 @@ pub(in crate::proxy) fn location_deactivate_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "location" => Some(selected_json(&location, &selection.selection)),
             "locationDeactivateUserErrors" | "userErrors" => Some(Value::Array(
                 user_errors
@@ -465,12 +424,8 @@ pub(in crate::proxy) fn location_deactivate_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn location_add_payload_json(
@@ -478,9 +433,8 @@ pub(in crate::proxy) fn location_add_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "location" => Some(if location.is_null() {
                 Value::Null
             } else {
@@ -493,12 +447,8 @@ pub(in crate::proxy) fn location_add_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn fulfillment_order_move_assignment_record(
@@ -528,9 +478,8 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "movedFulfillmentOrder" => Some(nullable_selected_json(&moved, &selection.selection)),
             "originalFulfillmentOrder" => {
                 Some(nullable_selected_json(&original, &selection.selection))
@@ -545,12 +494,8 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
@@ -558,9 +503,8 @@ pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "fulfillmentOrder" => Some(nullable_selected_json(
                 &fulfillment_order,
                 &selection.selection,
@@ -572,12 +516,8 @@ pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
@@ -585,9 +525,8 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "success" => Some(Value::Bool(success)),
             "userErrors" => Some(Value::Array(
                 user_errors
@@ -596,12 +535,8 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn shipping_fulfillment_order_local_order_record(
@@ -714,9 +649,8 @@ pub(in crate::proxy) fn publishable_payload_json(
     publishable_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "publishable" => Some(selected_json(&publishable, publishable_selection)),
             "userErrors" => Some(Value::Array(
                 user_errors
@@ -725,12 +659,8 @@ pub(in crate::proxy) fn publishable_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn segment_payload_json(
@@ -739,9 +669,8 @@ pub(in crate::proxy) fn segment_payload_json(
     segment_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "segment" => Some(if segment.is_null() {
                 Value::Null
             } else {
@@ -754,12 +683,8 @@ pub(in crate::proxy) fn segment_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn customer_segment_members_query_payload_json(
@@ -768,9 +693,8 @@ pub(in crate::proxy) fn customer_segment_members_query_payload_json(
     query_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "customerSegmentMembersQuery" => Some(if query_record.is_null() {
                 Value::Null
             } else {
@@ -783,12 +707,8 @@ pub(in crate::proxy) fn customer_segment_members_query_payload_json(
                     .collect(),
             )),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn fulfillment_service_payload_json(
@@ -797,9 +717,8 @@ pub(in crate::proxy) fn fulfillment_service_payload_json(
     service_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "fulfillmentService" => Some(if service.is_null() {
                 Value::Null
             } else {
@@ -807,12 +726,8 @@ pub(in crate::proxy) fn fulfillment_service_payload_json(
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn fulfillment_service_not_found_payload(
@@ -831,18 +746,13 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn is_location_activate_limit_relocation_document(query: &str) -> bool {
@@ -1222,9 +1132,8 @@ pub(in crate::proxy) fn carrier_service_payload_json(
     carrier_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "carrierService" => Some(if carrier.is_null() {
                 Value::Null
             } else {
@@ -1232,12 +1141,8 @@ pub(in crate::proxy) fn carrier_service_payload_json(
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn carrier_service_not_found_payload(
@@ -1256,18 +1161,13 @@ pub(in crate::proxy) fn carrier_service_delete_payload(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in payload_selection {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(payload)
+    })
 }
 
 pub(in crate::proxy) fn resolved_as_string(value: &ResolvedValue) -> Option<String> {

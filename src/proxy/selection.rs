@@ -38,6 +38,22 @@ pub(in crate::proxy) fn nullable_selected_json(
     }
 }
 
+pub(in crate::proxy) fn selected_payload_json<ValueFor>(
+    selections: &[SelectedField],
+    mut value_for: ValueFor,
+) -> Value
+where
+    ValueFor: FnMut(&SelectedField) -> Option<Value>,
+{
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        if let Some(value) = value_for(selection) {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
 pub(in crate::proxy) fn nested_selected_fields(
     selections: &[SelectedField],
     path: &[&str],
@@ -114,6 +130,27 @@ mod tests {
                 "legacyId": "gid://shopify/Product/1",
                 "variants": [{ "variantTitle": "Red" }],
                 "seo": null
+            })
+        );
+    }
+
+    #[test]
+    fn selected_payload_json_preserves_aliases_and_skips_missing_values() {
+        let selections = vec![
+            field("id", "legacyId", vec![]),
+            field("title", "title", vec![]),
+            field("missing", "missingAlias", vec![]),
+        ];
+
+        assert_eq!(
+            selected_payload_json(&selections, |selection| match selection.name.as_str() {
+                "id" => Some(json!("gid://shopify/Product/1")),
+                "title" => Some(json!("Hat")),
+                _ => None,
+            }),
+            json!({
+                "legacyId": "gid://shopify/Product/1",
+                "title": "Hat"
             })
         );
     }
