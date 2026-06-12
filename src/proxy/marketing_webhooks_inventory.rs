@@ -548,6 +548,69 @@ impl DraftProxy {
                 .as_ref()
                 .and_then(|record| record["name"].as_str().map(ToString::to_string))
         });
+        let include_fields = if webhook_input.contains_key("includeFields") {
+            json!(resolved_string_list_field_unsorted(
+                &webhook_input,
+                "includeFields"
+            ))
+        } else {
+            existing
+                .as_ref()
+                .map(|record| record["includeFields"].clone())
+                .filter(Value::is_array)
+                .unwrap_or_else(|| json!([]))
+        };
+        let metafield_namespaces = if webhook_input.contains_key("metafieldNamespaces") {
+            json!(resolved_string_list_field_unsorted(
+                &webhook_input,
+                "metafieldNamespaces"
+            ))
+        } else {
+            existing
+                .as_ref()
+                .map(|record| record["metafieldNamespaces"].clone())
+                .filter(Value::is_array)
+                .unwrap_or_else(|| json!([]))
+        };
+        let filter = match webhook_input.get("filter") {
+            Some(ResolvedValue::String(value)) => json!(value),
+            Some(ResolvedValue::Null) => Value::Null,
+            Some(_) => Value::Null,
+            None => existing
+                .as_ref()
+                .map(|record| record["filter"].clone())
+                .unwrap_or(Value::Null),
+        };
+        let created_at = existing
+            .as_ref()
+            .and_then(|record| record["createdAt"].as_str())
+            .unwrap_or("2024-01-01T00:00:00.000Z");
+        let webhook_mutation_count = self
+            .log_entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .get("interpreted")
+                    .and_then(|interpreted| interpreted.get("primaryRootField"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| {
+                        matches!(
+                            name,
+                            "webhookSubscriptionCreate"
+                                | "webhookSubscriptionUpdate"
+                                | "pubSubWebhookSubscriptionCreate"
+                                | "pubSubWebhookSubscriptionUpdate"
+                                | "eventBridgeWebhookSubscriptionCreate"
+                                | "eventBridgeWebhookSubscriptionUpdate"
+                        )
+                    })
+            })
+            .count();
+        let updated_at = if existing.is_some() {
+            format!("2024-01-01T00:00:{:02}.000Z", webhook_mutation_count + 1)
+        } else {
+            created_at.to_string()
+        };
         json!({
             "id": id,
             "legacyResourceId": webhook_subscription_legacy_id(id),
@@ -556,6 +619,11 @@ impl DraftProxy {
             "uri": uri,
             "callbackUrl": uri,
             "name": name,
+            "includeFields": include_fields,
+            "metafieldNamespaces": metafield_namespaces,
+            "filter": filter,
+            "createdAt": created_at,
+            "updatedAt": updated_at,
             "endpoint": webhook_endpoint(&uri)
         })
     }
