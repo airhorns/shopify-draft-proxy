@@ -1468,6 +1468,7 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
@@ -1481,6 +1482,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             inventory_item_id,
                             location_id,
                             quantities,
+                            quantity_updated_at,
                             &selection.selection,
                         )
                     })
@@ -1508,6 +1510,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
@@ -1530,11 +1533,18 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
                     .map(|name| {
+                        let updated_at = quantity_updated_at
+                            .get(&(
+                                inventory_item_id.to_string(),
+                                location_id.to_string(),
+                                name.clone(),
+                            ))
+                            .map_or(Value::Null, |value| json!(value));
                         selected_json(
                             &json!({
                                 "name": name,
                                 "quantity": quantities.get(&name).copied().unwrap_or(0),
-                                "updatedAt": null
+                                "updatedAt": updated_at
                             }),
                             &selection.selection,
                         )
@@ -1603,13 +1613,14 @@ pub(in crate::proxy) fn inventory_properties_json() -> Value {
 pub(in crate::proxy) fn inventory_change_json(
     name: &str,
     delta: i64,
+    quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
 ) -> Value {
     json!({
         "name": name,
         "delta": delta,
-        "quantityAfterChange": null,
+        "quantityAfterChange": quantity_after_change,
         "ledgerDocumentUri": ledger,
         "location": {
             "id": location_id,
