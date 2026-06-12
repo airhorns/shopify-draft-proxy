@@ -14,6 +14,89 @@ impl DraftProxy {
         outcome.response
     }
 
+    fn is_registered_orders_stage_locally_root(
+        &self,
+        operation_type: OperationType,
+        root_field: &str,
+    ) -> bool {
+        self.registry.iter().any(|entry| {
+            entry.operation_type == operation_type
+                && entry.domain == CapabilityDomain::Orders
+                && entry.execution == CapabilityExecution::StageLocally
+                && entry.match_names.iter().any(|name| name == root_field)
+        })
+    }
+
+    fn dispatch_orders_stage_locally_fallback(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field_names: &[String],
+        root_field: &str,
+    ) -> Response {
+        if self.config.read_mode != ReadMode::Snapshot
+            && self.config.unsupported_mutation_mode == Some(UnsupportedMutationMode::Passthrough)
+        {
+            self.record_passthrough_log_entry(
+                request,
+                query,
+                variables,
+                root_field_names,
+                root_field,
+            );
+            return (self.upstream_transport)(request.clone());
+        }
+
+        self.record_mutation_log_entry(request, query, variables, root_field, Vec::new());
+        if let Some(entry) = self.log_entries.last_mut() {
+            set_log_status(entry, "failed");
+            entry["notes"] = json!(
+                "Orders mutation root is registered for local staging, but this argument/selection shape is not modeled yet."
+            );
+            entry["interpreted"]["capability"] = json!({
+                "operationName": root_field,
+                "domain": "orders",
+                "execution": "stage-locally"
+            });
+        }
+
+        let field = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        let response_key = field
+            .as_ref()
+            .map(|field| field.response_key.clone())
+            .unwrap_or_else(|| root_field.to_string());
+        let selection = field.map(|field| field.selection).unwrap_or_default();
+        let payload = json!({
+            "draftOrder": Value::Null,
+            "calculatedDraftOrder": Value::Null,
+            "order": Value::Null,
+            "calculatedOrder": Value::Null,
+            "refund": Value::Null,
+            "return": Value::Null,
+            "fulfillment": Value::Null,
+            "fulfillmentOrder": Value::Null,
+            "reverseFulfillmentOrder": Value::Null,
+            "reverseDelivery": Value::Null,
+            "job": Value::Null,
+            "bulkOperation": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": format!(
+                    "Local staging for {root_field} is not implemented for this request shape"
+                ),
+                "code": "NOT_IMPLEMENTED"
+            }]
+        });
+
+        ok_json(json!({
+            "data": {
+                response_key: selected_json(&payload, &selection)
+            }
+        }))
+    }
+
     fn record_mutation_log_draft(
         &mut self,
         request: &Request,
@@ -2141,6 +2224,17 @@ impl DraftProxy {
         .is_some();
         if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
             return ok_json(json!({ "data": data }));
+        }
+        if operation.operation_type == OperationType::Mutation
+            && self.is_registered_orders_stage_locally_root(operation.operation_type, root_field)
+        {
+            return self.dispatch_orders_stage_locally_fallback(
+                request,
+                &query,
+                &variables,
+                &operation.root_fields,
+                root_field,
+            );
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)

@@ -1772,6 +1772,140 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
 }
 
 #[test]
+fn draft_order_complete_dispatches_by_root_for_ordinary_operation_names() {
+    let staged_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    ))
+    .unwrap();
+    let staged_expected = &staged_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+            mutation MakeDraft {
+              draftOrderCreate(
+                input: {
+                  email: "complete-readback@example.test"
+                  lineItems: [{ title: "Completion service", quantity: 2, originalUnitPrice: "12.50", sku: "COMPLETE" }]
+                }
+              ) {
+                draftOrder {
+                  id
+                  name
+                  status
+                  totalPriceSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body, staged_expected["create"]);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+            mutation CompleteDraft($id: ID!, $paymentPending: Boolean) {
+              draftOrderComplete(id: $id, sourceName: "hermes-cron-orders", paymentPending: $paymentPending) {
+                draftOrder {
+                  id
+                  status
+                  completedAt
+                  order {
+                    id
+                    name
+                    sourceName
+                    displayFinancialStatus
+                    displayFulfillmentStatus
+                    currentTotalPriceSet {
+                      shopMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                    lineItems {
+                      nodes {
+                        id
+                        title
+                        quantity
+                        sku
+                      }
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+        "#,
+        json!({"id": draft_id, "paymentPending": false}),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(complete.body, staged_expected["complete"]);
+}
+
+#[test]
+fn registered_orders_stage_locally_gap_returns_shopify_shaped_200_and_logs_raw_body() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation CreateRefund($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+            }
+            userErrors {
+              field
+              message
+              code
+            }
+          }
+        }
+    "#;
+    let variables = json!({
+        "input": {
+            "orderId": "gid://shopify/Order/not-modeled"
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(query, variables));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["errors"], Value::Null);
+    assert_eq!(response.body["data"]["refundCreate"]["refund"], Value::Null);
+    assert_eq!(
+        response.body["data"]["refundCreate"]["userErrors"][0]["message"],
+        json!("Local staging for refundCreate is not implemented for this request shape")
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][0]["operationName"], Value::Null);
+    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["capability"],
+        json!({
+            "operationName": "refundCreate",
+            "domain": "orders",
+            "execution": "stage-locally"
+        })
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("CreateRefund")));
+}
+
+#[test]
 fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-send-invoice-errors.json"
