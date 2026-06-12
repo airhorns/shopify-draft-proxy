@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
@@ -137,6 +139,78 @@ describe('Rust parity runner CLI', () => {
         { cwd: repoRoot, encoding: 'utf8' },
       );
       expect(output).toContain('customer-account-page-data-erasure.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
+    'fails a no-upstream target when the response was satisfied by cassette fallback',
+    () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'draft-proxy-parity-spec-'));
+      const specPath = join(tempDir, 'no-upstream-fallback-regression.json');
+      const documentPath = join(tempDir, 'unsupported-mutation.graphql');
+      const fixturePath = join(tempDir, 'unsupported-mutation.json');
+      writeFileSync(
+        documentPath,
+        `mutation UnsupportedMutationFallbackRegression {
+  definitelyUnsupportedMutation {
+    userErrors {
+      message
+    }
+  }
+}
+`,
+      );
+      writeFileSync(
+        fixturePath,
+        `${JSON.stringify({
+          response: {
+            data: {
+              definitelyUnsupportedMutation: {
+                userErrors: [],
+              },
+            },
+          },
+        })}\n`,
+      );
+      writeFileSync(
+        specPath,
+        `${JSON.stringify(
+          {
+            scenarioId: 'no-upstream-fallback-regression',
+            liveCaptureFiles: [fixturePath],
+            proxyRequest: {
+              documentPath,
+            },
+            comparison: {
+              expectedDifferences: [],
+              targets: [
+                {
+                  name: 'unsupported-mutation-data',
+                  capturePath: '$.response.data',
+                  proxyPath: '$.data',
+                  upstreamCapturePath: null,
+                  expectNoUpstream: true,
+                },
+              ],
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+
+      try {
+        expect(() =>
+          execFileSync('corepack', ['pnpm', 'parity', '--', '--spec', specPath], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: 'pipe',
+          }),
+        ).toThrow(/expected local proxy handling without upstream calls/u);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
     },
     parityCliTimeoutMs,
   );
