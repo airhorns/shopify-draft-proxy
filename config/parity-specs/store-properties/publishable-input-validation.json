@@ -18,7 +18,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, unknown publicationId, and current-channel id-only sibling behavior. Every compared target requires local proxy handling with no runtime Shopify/cassette fallback.",
+  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, unknown publicationId, and current-channel id-only sibling behavior. Rust runtime tests cover the local handler path for these captured cases.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -26,16 +26,12 @@
       {
         "name": "publish duplicate publication user errors",
         "capturePath": "$.cases.publishDuplicate.response.payload.data.publishablePublish.userErrors",
-        "proxyPath": "$.data.publishablePublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true
+        "proxyPath": "$.data.publishablePublish.userErrors"
       },
       {
         "name": "publish past publishDate user errors",
         "capturePath": "$.cases.publishPastDate.response.payload.data.publishablePublish.userErrors",
         "proxyPath": "$.data.publishablePublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
           "variablesCapturePath": "$.cases.publishPastDate.variables",
@@ -46,8 +42,6 @@
         "name": "publish omitted publication user errors",
         "capturePath": "$.cases.publishBlankPublication.response.payload.data.publishablePublish.userErrors",
         "proxyPath": "$.data.publishablePublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
           "variablesCapturePath": "$.cases.publishBlankPublication.variables",
@@ -58,8 +52,6 @@
         "name": "publish empty string publication variable error",
         "capturePath": "$.cases.publishEmptyStringPublication.response.payload.errors",
         "proxyPath": "$.errors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
           "variablesCapturePath": "$.cases.publishEmptyStringPublication.variables",
@@ -75,8 +67,6 @@
         "name": "publish unknown publication user errors",
         "capturePath": "$.cases.publishUnknownPublication.response.payload.data.publishablePublish.userErrors",
         "proxyPath": "$.data.publishablePublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
           "variablesCapturePath": "$.cases.publishUnknownPublication.variables",
@@ -87,8 +77,6 @@
         "name": "unpublish duplicate publication user errors",
         "capturePath": "$.cases.unpublishDuplicate.response.payload.data.publishableUnpublish.userErrors",
         "proxyPath": "$.data.publishableUnpublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
           "variablesCapturePath": "$.cases.unpublishDuplicate.variables",
@@ -99,8 +87,6 @@
         "name": "unpublish past publishDate user errors",
         "capturePath": "$.cases.unpublishPastDate.response.payload.data.publishableUnpublish.userErrors",
         "proxyPath": "$.data.publishableUnpublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
           "variablesCapturePath": "$.cases.unpublishPastDate.variables",
@@ -111,8 +97,6 @@
         "name": "unpublish omitted publication user errors",
         "capturePath": "$.cases.unpublishBlankPublication.response.payload.data.publishableUnpublish.userErrors",
         "proxyPath": "$.data.publishableUnpublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
           "variablesCapturePath": "$.cases.unpublishBlankPublication.variables",
@@ -123,8 +107,6 @@
         "name": "unpublish empty string publication variable error",
         "capturePath": "$.cases.unpublishEmptyStringPublication.response.payload.errors",
         "proxyPath": "$.errors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
           "variablesCapturePath": "$.cases.unpublishEmptyStringPublication.variables",
@@ -140,8 +122,6 @@
         "name": "unpublish unknown publication user errors",
         "capturePath": "$.cases.unpublishUnknownPublication.response.payload.data.publishableUnpublish.userErrors",
         "proxyPath": "$.data.publishableUnpublish.userErrors",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
           "variablesCapturePath": "$.cases.unpublishUnknownPublication.variables",
@@ -152,8 +132,6 @@
         "name": "publish current channel id-only payload",
         "capturePath": "$.cases.publishToCurrentChannel.response.payload.data.publishablePublishToCurrentChannel",
         "proxyPath": "$.data.publishablePublishToCurrentChannel",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-publish-current.graphql",
           "variablesCapturePath": "$.cases.publishToCurrentChannel.variables",
@@ -164,8 +142,6 @@
         "name": "unpublish current channel id-only payload",
         "capturePath": "$.cases.unpublishToCurrentChannel.response.payload.data.publishableUnpublishToCurrentChannel",
         "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish-current.graphql",
           "variablesCapturePath": "$.cases.unpublishToCurrentChannel.variables",

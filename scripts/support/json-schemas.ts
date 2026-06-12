@@ -126,7 +126,6 @@ export const comparisonTargetSchema = z.strictObject({
   proxyStatePath: z.string().optional(),
   proxyLogPath: z.string().optional(),
   upstreamCapturePath: z.string().nullable().optional(),
-  expectNoUpstream: z.literal(true).optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   proxyUpload: parityProxyUploadSpecSchema.optional(),
   selectedPaths: z.array(z.string()).optional(),

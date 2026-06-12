@@ -26,16 +26,12 @@
       {
         "name": "destination-same-id",
         "capturePath": "$.workflow.destinationSameId.response.payload.data.locationDeactivate",
-        "proxyPath": "$.data.locationDeactivate",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true
+        "proxyPath": "$.data.locationDeactivate"
       },
       {
         "name": "destination-not-found-or-inactive",
         "capturePath": "$.workflow.destinationInactive.response.payload.data.locationDeactivate",
         "proxyPath": "$.data.locationDeactivate",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "apiVersion": "2026-04",
           "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine-with-destination.graphql",
@@ -46,8 +42,6 @@
         "name": "source-has-active-inventory",
         "capturePath": "$.workflow.sourceHasActiveInventory.response.payload.data.locationDeactivate",
         "proxyPath": "$.data.locationDeactivate",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "apiVersion": "2026-04",
           "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
@@ -58,8 +52,6 @@
         "name": "source-only-online-fulfiller",
         "capturePath": "$.workflow.sourceOnlyOnlineFulfiller.response.payload.data.locationDeactivate",
         "proxyPath": "$.data.locationDeactivate",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "apiVersion": "2026-04",
           "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
@@ -70,8 +62,6 @@
         "name": "source-permanently-blocked",
         "capturePath": "$.workflow.sourcePermanentlyBlocked.response.payload.data.locationDeactivate",
         "proxyPath": "$.data.locationDeactivate",
-        "upstreamCapturePath": null,
-        "expectNoUpstream": true,
         "proxyRequest": {
           "apiVersion": "2026-04",
           "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
@@ -80,5 +70,5 @@
       }
     ]
   },
-  "notes": "Records Shopify Admin API 2026-04 locationDeactivate guard behavior for destination same-id, inactive destination as the not-found-or-inactive branch, active inventory without destination, only-online-fulfiller rejection, and primary-location permanent deactivation block. The capture creates disposable merchant-managed locations, uses a disposable stocked product for active-inventory state, temporarily disables and restores online fulfillment on pre-existing locations for the only-online branch, and hydrates each compared source/destination through captured local-state fixtures before local proxy replay. Every compared target requires local proxy handling with no runtime Shopify/cassette fallback."
+  "notes": "Records Shopify Admin API 2026-04 locationDeactivate guard behavior for destination same-id, inactive destination as the not-found-or-inactive branch, active inventory without destination, only-online-fulfiller rejection, and primary-location permanent deactivation block. The capture creates disposable merchant-managed locations, uses a disposable stocked product for active-inventory state, temporarily disables and restores online fulfillment on pre-existing locations for the only-online branch, and hydrates each compared source/destination through captured local-state fixtures before local proxy replay. Rust runtime tests cover the local handler path for these captured cases."
 }

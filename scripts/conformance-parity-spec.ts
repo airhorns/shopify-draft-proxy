@@ -166,9 +166,6 @@ export function validateComparisonContract(comparison: unknown): string[] {
         if ('selectedPaths' in target && 'excludedPaths' in target) {
           errors.push(`${label} must not declare both selectedPaths and excludedPaths.`);
         }
-        if ('expectNoUpstream' in target && target['expectNoUpstream'] !== true) {
-          errors.push(`${label} expectNoUpstream, when declared, must be true.`);
-        }
         if ('expectedDifferences' in target) {
           errors.push(...validateExpectedDifferences(target['expectedDifferences'], `${label}.expectedDifferences`));
         }

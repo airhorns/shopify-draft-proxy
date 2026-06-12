@@ -37,8 +37,6 @@ type ComparisonTarget = {
   proxyPath?: string;
   proxyStatePath?: string;
   proxyLogPath?: string;
-  upstreamCapturePath?: string | null;
-  expectNoUpstream?: true;
   proxyRequest?: ProxyRequestSpec;
   proxyUpload?: ProxyUploadSpec;
   selectedPaths?: string[];
@@ -280,7 +278,6 @@ type CassetteServer = {
   origin: string;
   setCalls: (calls: RecordedUpstreamCall[]) => void;
   setFallbackResponse: (response: ProxyResponse | null) => void;
-  requestCount: () => number;
   consumed: () => number;
   expected: () => number;
   close: () => Promise<void>;
@@ -313,14 +310,12 @@ async function startCassetteServer(): Promise<CassetteServer> {
   let fallbackResponse: ProxyResponse | null = null;
   let index = 0;
   let fallbackCount = 0;
-  let totalRequests = 0;
   const consumedCalls = new Set<number>();
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
     let body = '';
     request.setEncoding('utf8');
     request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
-      totalRequests += 1;
       const matchedIndex = calls.findIndex(
         (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesBody(call, body),
       );
@@ -363,13 +358,11 @@ async function startCassetteServer(): Promise<CassetteServer> {
       fallbackResponse = null;
       index = 0;
       fallbackCount = 0;
-      totalRequests = 0;
       consumedCalls.clear();
     },
     setFallbackResponse: (response: ProxyResponse | null) => {
       fallbackResponse = response;
     },
-    requestCount: () => totalRequests,
     consumed: () => index,
     expected: () => calls.length + fallbackCount,
     close: async () =>
@@ -532,21 +525,11 @@ async function runSpec(
       cassette.setFallbackResponse(
         primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null,
       );
-      const upstreamRequestsBeforePrimary = cassette.requestCount();
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
-      if (primaryFallbackTarget?.expectNoUpstream === true) {
-        const upstreamRequests = cassette.requestCount() - upstreamRequestsBeforePrimary;
-        if (upstreamRequests > 0) {
-          failures.push(
-            `${relativeSpecPath} [${primaryFallbackTarget.name}] expected local proxy handling without upstream calls, got ${upstreamRequests}`,
-          );
-        }
-      }
     }
 
     for (const target of spec.comparison?.targets ?? []) {
       let proxySource: unknown;
-      const upstreamRequestsBeforeTarget = cassette.requestCount();
       if (target.proxyUpload) {
         await sendProxyUpload(proxy, target.name, target.proxyUpload, capture, primaryResponse, namedResponses);
         proxySource = getPath(capture, target.capturePath);
@@ -576,14 +559,6 @@ async function runSpec(
       const diffs = diffValues(captureValue, proxyValue, rules);
       if (diffs.length > 0) {
         failures.push(`${relativeSpecPath} [${target.name}] ${diffs.slice(0, debug ? 20 : 3).join('; ')}`);
-      }
-      if (target.expectNoUpstream === true) {
-        const upstreamRequests = cassette.requestCount() - upstreamRequestsBeforeTarget;
-        if (upstreamRequests > 0) {
-          failures.push(
-            `${relativeSpecPath} [${target.name}] expected local proxy handling without upstream calls, got ${upstreamRequests}`,
-          );
-        }
       }
     }
     // Captured upstream calls are cassette inputs for passthrough branches, not a
