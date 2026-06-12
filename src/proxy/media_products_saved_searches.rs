@@ -39,10 +39,23 @@ impl DraftProxy {
         let query_text = resolved_string_arg(&arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
-        if !query_text.contains("edges") && !query_text.contains("nodes") {
+        if let Some(user_errors) = bulk_operation_run_query_user_errors(&query_text) {
             let payload = json!({
                 "bulkOperation": null,
-                "userErrors": [{ "field": ["query"], "message": "Bulk queries must contain at least one connection." }]
+                "userErrors": user_errors
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+        if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
+            let payload = json!({
+                "bulkOperation": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!("A bulk query operation for this app and shop is already in progress: {operation_id}."),
+                    "code": "OPERATION_IN_PROGRESS"
+                }]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
@@ -85,8 +98,24 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
+        self.store
+            .staged
+            .bulk_operations
+            .iter()
+            .find(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some("QUERY")
+                    && !matches!(
+                        operation.get("status").and_then(Value::as_str),
+                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+                    )
+            })
+            .map(|(id, _)| id.clone())
+    }
+
     pub(in crate::proxy) fn bulk_operation_cancel(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
@@ -122,20 +151,28 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let operation = bulk_operation_record_with(
-            &id,
-            "CANCELING",
-            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
-            "0",
-            "2026-04-27T20:35:00Z",
-            "113499",
-        );
+        let (query_text, created_at) = Self::bulk_operation_cancel_nonterminal_seed(request);
+        let operation =
+            bulk_operation_record_with(&id, "CANCELING", query_text, "0", created_at, "113499");
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel_nonterminal_seed(request: &Request) -> (&'static str, &'static str) {
+        match admin_graphql_version(&request.path) {
+            Some("2025-01") => (
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+                "2026-05-05T20:33:59Z",
+            ),
+            _ => (
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+                "2026-04-27T20:35:00Z",
+            ),
+        }
     }
 
     pub(in crate::proxy) fn record_passthrough_log_entry(
@@ -2297,5 +2334,210 @@ impl DraftProxy {
         } else {
             MutationFieldOutcome::unlogged(value)
         }
+    }
+}
+
+fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {
+    if query_text.trim().is_empty() {
+        return Some(vec![bulk_operation_run_query_user_error(
+            "Invalid bulk query: syntax error, unexpected end of file",
+        )]);
+    }
+
+    let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
+        return Some(vec![bulk_operation_run_query_user_error(
+            "Invalid bulk query: syntax error, unexpected end of file",
+        )]);
+    };
+    if document.operation_type != OperationType::Query {
+        return Some(vec![bulk_operation_run_query_user_error(
+            "Invalid operation type. Only `query` operations are supported.",
+        )]);
+    }
+
+    let analysis = BulkQueryAnalysis::analyze(&document.root_fields);
+    let mut errors = Vec::new();
+    if !analysis.nodes_connection_fields.is_empty() {
+        errors.push(bulk_operation_run_query_user_error(&format!(
+            "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products {{ edges {{ node {{'. Selecting via 'nodes' is not supported. Invalid connection fields: '{}'.",
+            analysis.nodes_connection_fields.join("', '")
+        )));
+    }
+    if analysis.has_top_level_node {
+        errors.push(bulk_operation_run_query_user_error(
+            "Bulk queries cannot contain a top level `node` field.",
+        ));
+    }
+    if analysis.max_connection_depth > 2 {
+        errors.push(bulk_operation_run_query_user_error(
+            "Bulk queries cannot contain connections with a nesting depth greater than 2.",
+        ));
+    }
+    if analysis.connection_count > 5 {
+        errors.push(bulk_operation_run_query_user_error(
+            "Bulk queries cannot contain more than 5 connections.",
+        ));
+    }
+    if !analysis.nested_without_parent_id_fields.is_empty() {
+        errors.push(bulk_operation_run_query_user_error(&format!(
+            "The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': {}.",
+            analysis.nested_without_parent_id_fields.join(", ")
+        )));
+    }
+    if analysis.has_connection_within_list {
+        errors.push(bulk_operation_run_query_user_error(
+            "Queries that contain a connection field within a list field are not currently supported.",
+        ));
+    }
+    if analysis.connection_count == 0
+        && (errors.is_empty() || (analysis.has_top_level_node && errors.len() == 1))
+    {
+        errors.push(bulk_operation_run_query_user_error(
+            "Bulk queries must contain at least one connection.",
+        ));
+    }
+
+    if errors.is_empty() {
+        None
+    } else {
+        Some(errors)
+    }
+}
+
+fn bulk_operation_run_query_user_error(message: &str) -> Value {
+    json!({
+        "field": ["query"],
+        "message": message,
+        "code": "INVALID"
+    })
+}
+
+#[derive(Default)]
+struct BulkQueryAnalysis {
+    connection_count: usize,
+    max_connection_depth: usize,
+    has_top_level_node: bool,
+    has_connection_within_list: bool,
+    nodes_connection_fields: Vec<String>,
+    nested_without_parent_id_fields: Vec<String>,
+}
+
+impl BulkQueryAnalysis {
+    fn analyze(fields: &[RootFieldSelection]) -> Self {
+        let mut analysis = Self::default();
+        for field in fields {
+            if field.name == "node" {
+                analysis.has_top_level_node = true;
+            }
+            analyze_bulk_query_field(
+                &field.name,
+                &field.selection,
+                0,
+                0,
+                None,
+                false,
+                &mut analysis,
+            );
+        }
+        analysis
+    }
+}
+
+fn analyze_bulk_query_field(
+    field_name: &str,
+    selection: &[SelectedField],
+    connection_depth: usize,
+    list_depth: usize,
+    parent_connection_name: Option<&str>,
+    parent_node_has_unaliased_id: bool,
+    analysis: &mut BulkQueryAnalysis,
+) {
+    if !field_is_selected(selection, "edges") {
+        if field_is_selected(selection, "nodes") {
+            push_unique(&mut analysis.nodes_connection_fields, field_name);
+        }
+        if let Some(nested_connection_name) = first_selected_connection_name(selection) {
+            let next_list_depth = list_depth + usize::from(bulk_query_list_field(field_name));
+            analyze_bulk_query_field(
+                nested_connection_name,
+                nested_connection_selection(selection, nested_connection_name),
+                connection_depth,
+                next_list_depth,
+                parent_connection_name,
+                parent_node_has_unaliased_id,
+                analysis,
+            );
+        }
+        return;
+    }
+
+    analysis.connection_count += 1;
+    let depth = connection_depth + 1;
+    analysis.max_connection_depth = analysis.max_connection_depth.max(depth);
+    if list_depth > 0 {
+        analysis.has_connection_within_list = true;
+    }
+    if let Some(parent_connection_name) = parent_connection_name {
+        if !parent_node_has_unaliased_id {
+            push_unique(
+                &mut analysis.nested_without_parent_id_fields,
+                parent_connection_name,
+            );
+        }
+    }
+
+    let node_selection = edge_node_selection(selection);
+    let node_has_unaliased_id = node_selection.iter().any(|field| {
+        field.name == "id" && field.response_key == "id" && field.selection.is_empty()
+    });
+    let next_list_depth = list_depth + usize::from(bulk_query_list_field(field_name));
+    for child in &node_selection {
+        analyze_bulk_query_field(
+            &child.name,
+            &child.selection,
+            depth,
+            next_list_depth,
+            Some(field_name),
+            node_has_unaliased_id,
+            analysis,
+        );
+    }
+}
+
+fn first_selected_connection_name(selection: &[SelectedField]) -> Option<&str> {
+    selection
+        .iter()
+        .find(|field| field_is_selected(&field.selection, "edges"))
+        .map(|field| field.name.as_str())
+}
+
+fn nested_connection_selection<'a>(
+    selection: &'a [SelectedField],
+    connection_name: &str,
+) -> &'a [SelectedField] {
+    selection
+        .iter()
+        .find(|field| field.name == connection_name)
+        .map(|field| field.selection.as_slice())
+        .unwrap_or_default()
+}
+
+fn edge_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
+    selected_child_selection(selection, "edges")
+        .and_then(|edge_selection| selected_child_selection(&edge_selection, "node"))
+        .unwrap_or_default()
+}
+
+fn field_is_selected(selection: &[SelectedField], name: &str) -> bool {
+    selection.iter().any(|field| field.name == name)
+}
+
+fn bulk_query_list_field(name: &str) -> bool {
+    matches!(name, "fulfillments")
+}
+
+fn push_unique(values: &mut Vec<String>, value: &str) {
+    if !values.iter().any(|existing| existing == value) {
+        values.push(value.to_string());
     }
 }

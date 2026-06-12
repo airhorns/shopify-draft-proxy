@@ -1223,17 +1223,10 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationCancel"
             && resolved_string_arg(&variables, "id")
-                .map(|id| {
-                    matches!(
-                        id.as_str(),
-                        "gid://shopify/BulkOperation/0"
-                            | "gid://shopify/BulkOperation/7689772204338"
-                            | "gid://shopify/BulkOperation/7689772990770"
-                    )
-                })
+                .map(|id| shopify_gid_resource_type(&id) == Some("BulkOperation"))
                 .unwrap_or(false)
         {
-            return self.bulk_operation_cancel(&query, &variables);
+            return self.bulk_operation_cancel(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
