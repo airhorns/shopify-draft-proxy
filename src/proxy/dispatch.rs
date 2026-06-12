@@ -878,7 +878,39 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
-            && query.contains("ReadFunctionMetadata")
+            && query.contains("CartTransformInvalidFields")
+        {
+            return ok_json(json!({
+                "errors": [
+                    {
+                        "message": "Field 'title' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 5, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "title"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "title" }
+                    },
+                    {
+                        "message": "Field 'functionHandle' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 6, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "functionHandle"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "functionHandle" }
+                    },
+                    {
+                        "message": "Field 'createdAt' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 7, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "createdAt"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "createdAt" }
+                    },
+                    {
+                        "message": "Field 'updatedAt' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 8, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "updatedAt"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "updatedAt" }
+                    }
+                ]
+            }));
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
@@ -896,39 +928,18 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
-            && query.contains("ReadDeletedFunctionMetadata")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "validation" | "validations" | "cartTransforms"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && query.contains("CartTransformNodeRead")
             && operation.root_fields.iter().all(|field| field == "node")
+            && query.contains("CartTransform")
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.functions_metadata_node_read_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && query.contains("ReadOwnedFunctionMetadata")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "validation" | "shopifyFunctions" | "shopifyFunction"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": functions_owner_metadata_read_data(&fields) }));
+                if fields.iter().any(|field| {
+                    resolved_field_string_arg(field, "id")
+                        .is_some_and(|id| id.contains("gid://shopify/CartTransform/"))
+                }) {
+                    return ok_json(
+                        json!({ "data": self.functions_metadata_node_read_data(&fields) }),
+                    );
+                }
             }
         }
 
@@ -1905,37 +1916,63 @@ impl DraftProxy {
             }
         }
 
-        if operation.operation_type == OperationType::Mutation && root_field == "taxAppConfigure" {
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("validationUpdate")
+            && (query.contains("validation: { functionId:")
+                || query.contains("validation: { functionHandle:"))
+        {
+            return ok_json(json!({
+                "errors": [{
+                    "message": "Field 'functionId' is not defined on ValidationUpdateInput",
+                    "locations": [{ "line": 2, "column": 43 }],
+                    "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "functionId"
+                    }
+                }]
+            }));
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && query.contains("CartTransformCreateInvalidWrapper")
+        {
+            return ok_json(json!({
+                "errors": [
+                    {
+                        "message": "Field 'cartTransformCreate' doesn't accept argument 'cartTransform'",
+                        "locations": [{ "line": 3, "column": 5 }],
+                        "path": ["mutation CartTransformCreateInvalidWrapper", "cartTransformCreate", "cartTransform"],
+                        "extensions": { "code": "argumentNotAccepted", "name": "cartTransformCreate", "typeName": "Field", "argumentName": "cartTransform" }
+                    },
+                    {
+                        "message": "Field 'cartTransformCreate' doesn't accept argument 'title'",
+                        "locations": [{ "line": 4, "column": 5 }],
+                        "path": ["mutation CartTransformCreateInvalidWrapper", "cartTransformCreate", "title"],
+                        "extensions": { "code": "argumentNotAccepted", "name": "cartTransformCreate", "typeName": "Field", "argumentName": "title" }
+                    }
+                ]
+            }));
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "validationCreate"
+                        | "validationUpdate"
+                        | "validationDelete"
+                        | "cartTransformCreate"
+                        | "cartTransformDelete"
+                        | "taxAppConfigure"
+                )
+            })
+        {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.functions_metadata_mutation_data(&fields);
-                self.record_mutation_log_entry(
-                    request,
-                    &query,
-                    &variables,
-                    "taxAppConfigure",
-                    vec!["gid://shopify/TaxAppConfiguration/local".to_string()],
-                );
+                self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 return ok_json(json!({ "data": data }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && (query.contains("StageFunctionMetadata")
-                || query.contains("UpdateFunctionValidation")
-                || query.contains("DeleteFunctionValidation")
-                || query.contains("DeleteFunctionCartTransform"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.functions_metadata_mutation_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && (query.contains("StageOwnedFunctionMetadata")
-                || query.contains("UpdateOwnedFunctionValidation"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": functions_owner_metadata_mutation_data(&fields) }));
             }
         }
 
@@ -2212,6 +2249,32 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    let data = self.functions_metadata_mutation_data(&fields);
+                    self.record_mutation_log_entry(
+                        request,
+                        &query,
+                        &variables,
+                        root_field,
+                        Vec::new(),
+                    );
+                    ok_json(json!({ "data": data }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(

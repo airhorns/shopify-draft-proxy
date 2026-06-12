@@ -1373,88 +1373,872 @@ pub(in crate::proxy) fn discount_basic_payload(
     Value::Object(object)
 }
 
-pub(in crate::proxy) fn local_function_validation_record_from_create(
-    field: &RootFieldSelection,
-) -> Value {
-    let input = match field.arguments.get("validation") {
-        Some(ResolvedValue::Object(input)) => input,
-        _ => {
-            return Value::Null;
+pub(in crate::proxy) fn function_by_id_or_handle(
+    id: Option<&str>,
+    handle: Option<&str>,
+) -> Option<Value> {
+    function_catalog().into_iter().find(|function| {
+        id.is_some_and(|id| function["id"].as_str() == Some(id))
+            || handle.is_some_and(|handle| function["handle"].as_str() == Some(handle))
+    })
+}
+
+pub(in crate::proxy) fn function_catalog_by_api_type(api_type: &str) -> Vec<Value> {
+    function_catalog()
+        .into_iter()
+        .filter(|function| function["apiType"].as_str() == Some(api_type))
+        .collect()
+}
+
+fn function_catalog() -> Vec<Value> {
+    vec![
+        local_validation_function(),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/validation-alpha",
+            "title": "Validation Alpha",
+            "handle": "validation-alpha",
+            "apiType": "VALIDATION"
+        }),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/validation-beta",
+            "title": "Validation Beta",
+            "handle": "validation-beta",
+            "apiType": "VALIDATION"
+        }),
+        json!({
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "t:name",
+            "handle": "conformance-validation",
+            "apiType": "VALIDATION"
+        }),
+        functions_owner_validation_function(),
+        local_cart_transform_function(),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/cart-beta",
+            "title": "Cart Beta",
+            "handle": "cart-beta",
+            "apiType": "CART_TRANSFORM"
+        }),
+        json!({
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "Conformance Cart Transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "CART_TRANSFORM"
+        }),
+        json!({
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "Conformance Cart Transform",
+            "handle": "cart-transform-delete-shape",
+            "apiType": "CART_TRANSFORM"
+        }),
+        functions_owner_cart_function(),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/guardrail-validation-plan",
+            "title": "Guardrail validation plan",
+            "handle": "guardrail-validation-plan",
+            "apiType": "VALIDATION",
+            "createGuardrailCode": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
+            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
+        }),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/guardrail-validation-required-input",
+            "title": "Guardrail validation required input",
+            "handle": "guardrail-validation-required-input",
+            "apiType": "VALIDATION",
+            "createGuardrailCode": "REQUIRED_INPUT_FIELD",
+            "createGuardrailMessage": "Required input field must be present."
+        }),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plan",
+            "title": "Guardrail cart transform plan",
+            "handle": "guardrail-cart-transform-plan",
+            "apiType": "CART_TRANSFORM",
+            "createGuardrailCode": "CUSTOM_APP_FUNCTION_NOT_ELIGIBLE",
+            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate functions from a custom app."
+        }),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-pending-deletion",
+            "title": "Guardrail cart transform pending deletion",
+            "handle": "guardrail-cart-transform-pending-deletion",
+            "apiType": "CART_TRANSFORM",
+            "createGuardrailCode": "FUNCTION_PENDING_DELETION",
+            "createGuardrailMessage": "Function is pending deletion."
+        }),
+        json!({
+            "id": "gid://shopify/ShopifyFunction/guardrail-cart-transform-plus-only",
+            "title": "Guardrail cart transform Plus only",
+            "handle": "guardrail-cart-transform-plus-only",
+            "apiType": "CART_TRANSFORM",
+            "createGuardrailCode": "FUNCTION_IS_PLUS_ONLY",
+            "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate this function."
+        }),
+    ]
+}
+
+fn function_identifier_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> (Option<String>, Option<String>) {
+    (
+        resolved_string_field(input, "functionId"),
+        resolved_string_field(input, "functionHandle"),
+    )
+}
+
+fn function_payload_identifier_field(function_id: &Option<String>) -> &'static str {
+    if function_id.is_some() {
+        "functionId"
+    } else {
+        "functionHandle"
+    }
+}
+
+fn function_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code.map(Value::from).unwrap_or(Value::Null)
+    })
+}
+
+fn validation_payload_error(error: Value) -> Value {
+    json!({ "validation": Value::Null, "userErrors": [error] })
+}
+
+fn cart_transform_payload_error(error: Value) -> Value {
+    json!({ "cartTransform": Value::Null, "userErrors": [error] })
+}
+
+fn validation_identifier_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let (function_id, function_handle) = function_identifier_input(input);
+    match (function_id.is_some(), function_handle.is_some()) {
+        (false, false) => Some(validation_payload_error(function_user_error(
+            vec![json!("validation"), json!("functionHandle")],
+            "Either function_id or function_handle must be provided.",
+            Some("MISSING_FUNCTION_IDENTIFIER"),
+        ))),
+        (true, true) => Some(validation_payload_error(function_user_error(
+            vec![json!("validation")],
+            "Only one of function_id or function_handle can be provided, not both.",
+            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+        ))),
+        _ => None,
+    }
+}
+
+fn cart_transform_identifier_error(
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Option<Value> {
+    match (function_id.is_some(), function_handle.is_some()) {
+        (false, false) => Some(cart_transform_payload_error(function_user_error(
+            vec![json!("functionHandle")],
+            "Either function_id or function_handle must be provided.",
+            Some("MISSING_FUNCTION_IDENTIFIER"),
+        ))),
+        (true, true) => Some(cart_transform_payload_error(function_user_error(
+            vec![json!("functionHandle")],
+            "Only one of function_id or function_handle can be provided, not both.",
+            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+        ))),
+        _ => None,
+    }
+}
+
+fn validation_function_resolution_payload(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Result<Value, Value> {
+    if let Some(payload) = validation_identifier_error(input) {
+        return Err(payload);
+    }
+    let (function_id, function_handle) = function_identifier_input(input);
+    let field_name = function_payload_identifier_field(&function_id);
+    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+        .ok_or_else(|| {
+            validation_payload_error(function_user_error(
+                vec![json!("validation"), json!(field_name)],
+                "Extension not found.",
+                Some("NOT_FOUND"),
+            ))
+        })?;
+    if function["apiType"].as_str() != Some("VALIDATION") {
+        return Err(validation_payload_error(function_user_error(
+            vec![json!("validation"), json!(field_name)],
+            "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
+            Some("FUNCTION_DOES_NOT_IMPLEMENT"),
+        )));
+    }
+    if let Some(code) = function["createGuardrailCode"].as_str() {
+        return Err(validation_payload_error(function_user_error(
+            vec![json!("validation"), json!(field_name)],
+            function["createGuardrailMessage"]
+                .as_str()
+                .unwrap_or_default(),
+            Some(code),
+        )));
+    }
+    Ok(function)
+}
+
+fn cart_transform_function_resolution_payload(
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Result<Value, Value> {
+    if let Some(payload) = cart_transform_identifier_error(function_id, function_handle) {
+        return Err(payload);
+    }
+    let field_name = function_payload_identifier_field(function_id);
+    let function = function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+        .ok_or_else(|| {
+            cart_transform_payload_error(function_user_error(
+                vec![json!(field_name)],
+                "Extension not found.",
+                Some("FUNCTION_NOT_FOUND"),
+            ))
+        })?;
+    if function["apiType"].as_str() != Some("CART_TRANSFORM") {
+        let code = if function_id.is_some() {
+            "FUNCTION_NOT_FOUND"
+        } else {
+            "FUNCTION_DOES_NOT_IMPLEMENT"
+        };
+        return Err(cart_transform_payload_error(function_user_error(
+            vec![json!(field_name)],
+            "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+            Some(code),
+        )));
+    }
+    if let Some(code) = function["createGuardrailCode"].as_str() {
+        return Err(cart_transform_payload_error(function_user_error(
+            vec![json!(field_name)],
+            function["createGuardrailMessage"]
+                .as_str()
+                .unwrap_or_default(),
+            Some(code),
+        )));
+    }
+    Ok(function)
+}
+
+fn metafield_input_error(
+    metafield: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Option<Value> {
+    let field = vec![
+        json!("validation"),
+        json!("metafields"),
+        json!(index.to_string()),
+    ];
+    let namespace = resolved_string_field(metafield, "namespace").unwrap_or_default();
+    let key = resolved_string_field(metafield, "key");
+    let type_name = resolved_string_field(metafield, "type");
+    let value = resolved_string_field(metafield, "value");
+
+    if key.is_none() {
+        return Some(function_user_error(field, "presence", None));
+    }
+    if type_name.as_deref().unwrap_or_default().is_empty() {
+        return Some(function_user_error(
+            field,
+            "One or more required inputs are blank.",
+            Some("BLANK"),
+        ));
+    }
+    if value.is_none() {
+        return Some(function_user_error(field, "presence", None));
+    }
+    if namespace == "shopify" {
+        return Some(function_user_error(
+            field,
+            "ApiPermission metafields can only be created or updated by the app owner.",
+            Some("APP_NOT_AUTHORIZED"),
+        ));
+    }
+    match type_name.as_deref() {
+        Some("single_line_text_field") => {
+            if value.as_deref() == Some("") {
+                Some(function_user_error(
+                    field,
+                    "The value is invalid.",
+                    Some("INVALID_VALUE"),
+                ))
+            } else {
+                None
+            }
         }
-    };
-    let title =
-        resolved_string_field(input, "title").unwrap_or_else(|| "Local validation".to_string());
-    let function_handle = resolved_string_field(input, "functionHandle")
-        .unwrap_or_else(|| "validation-local".to_string());
-    let enable = resolved_bool_field(input, "enable").unwrap_or(false);
-    let block_on_failure = resolved_bool_field(input, "blockOnFailure").unwrap_or(false);
-    json!({
-        "id": "gid://shopify/Validation/2",
-        "title": title,
-        "enable": enable,
-        "blockOnFailure": block_on_failure,
-        "functionHandle": function_handle,
-        "createdAt": "2024-01-01T00:00:01.000Z",
-        "updatedAt": "2024-01-01T00:00:01.000Z",
-        "shopifyFunction": local_validation_function()
-    })
-}
-
-pub(in crate::proxy) fn local_function_validation_record_from_update(
-    field: &RootFieldSelection,
-) -> Value {
-    let input = match field.arguments.get("validation") {
-        Some(ResolvedValue::Object(input)) => input,
-        _ => {
-            return Value::Null;
+        Some("number_integer") => {
+            if value
+                .as_deref()
+                .is_some_and(|value| value.parse::<i64>().is_ok())
+            {
+                None
+            } else {
+                Some(function_user_error(
+                    field,
+                    "The value is invalid.",
+                    Some("INVALID_VALUE"),
+                ))
+            }
         }
-    };
-    let title =
-        resolved_string_field(input, "title").unwrap_or_else(|| "Updated validation".to_string());
-    let enable = resolved_bool_field(input, "enable").unwrap_or(false);
-    let block_on_failure = resolved_bool_field(input, "blockOnFailure").unwrap_or(false);
+        Some("json") => None,
+        _ => Some(function_user_error(
+            field,
+            "The type is invalid.",
+            Some("INVALID_TYPE"),
+        )),
+    }
+}
+
+fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    match input.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => metafields
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| match value {
+                ResolvedValue::Object(metafield) => metafield_input_error(metafield, index),
+                _ => Some(function_user_error(
+                    vec![
+                        json!("validation"),
+                        json!("metafields"),
+                        json!(index.to_string()),
+                    ],
+                    "The value is invalid.",
+                    Some("INVALID_VALUE"),
+                )),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn validation_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    match input.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => metafields
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::Object(metafield) => Some(json!({
+                    "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
+                    "key": resolved_string_field(metafield, "key").unwrap_or_default(),
+                    "type": resolved_string_field(metafield, "type").unwrap_or_default(),
+                    "value": resolved_string_field(metafield, "value").unwrap_or_default(),
+                    "updatedAt": "2026-05-07T08:02:25Z"
+                })),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn validation_metafield_connection(metafields: Vec<Value>) -> Value {
+    json!({ "nodes": metafields })
+}
+
+fn upsert_validation_metafields(record: &mut Value, metafields: Vec<Value>) {
+    let existing = record["metafields"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut merged = existing;
+    for metafield in metafields {
+        let namespace = metafield["namespace"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let key = metafield["key"].as_str().unwrap_or_default().to_string();
+        if let Some(existing) = merged.iter_mut().find(|existing| {
+            existing["namespace"].as_str() == Some(namespace.as_str())
+                && existing["key"].as_str() == Some(key.as_str())
+        }) {
+            *existing = metafield;
+        } else {
+            merged.push(metafield);
+        }
+    }
+    record["metafields"] = validation_metafield_connection(merged);
+}
+
+fn selected_title(input: &BTreeMap<String, ResolvedValue>, function: &Value) -> String {
+    match input.get("title") {
+        Some(ResolvedValue::String(title)) => title.clone(),
+        Some(ResolvedValue::Null) | None => {
+            function["title"].as_str().unwrap_or_default().to_string()
+        }
+        _ => String::new(),
+    }
+}
+
+fn active_validation_count(records: &BTreeMap<String, Value>, exclude_id: Option<&str>) -> usize {
+    records
+        .iter()
+        .filter(|(id, record)| {
+            Some(id.as_str()) != exclude_id && record["enable"].as_bool() == Some(true)
+        })
+        .count()
+}
+
+pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) -> Value {
+    let start_cursor = nodes
+        .first()
+        .and_then(|node| node["id"].as_str())
+        .map(|id| format!("cursor:{id}"));
+    let end_cursor = nodes
+        .last()
+        .and_then(|node| node["id"].as_str())
+        .map(|id| format!("cursor:{id}"));
     json!({
-        "id": "gid://shopify/Validation/2",
-        "title": title,
-        "enable": enable,
-        "blockOnFailure": block_on_failure,
-        "functionHandle": "validation-local",
-        "updatedAt": "2024-01-01T00:00:05.000Z",
-        "shopifyFunction": local_validation_function()
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": start_cursor.map(Value::from).unwrap_or(Value::Null),
+            "endCursor": end_cursor.map(Value::from).unwrap_or(Value::Null)
+        }
     })
 }
 
-pub(in crate::proxy) fn local_function_cart_transform_record() -> Value {
-    json!({
-        "id": "gid://shopify/CartTransform/3",
-        "blockOnFailure": true,
-        "functionId": "gid://shopify/ShopifyFunction/cart-transform-local"
-    })
+fn cart_transform_metafield_error(
+    metafield: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Option<Value> {
+    let value = resolved_string_field(metafield, "value").unwrap_or_default();
+    if value.is_empty() {
+        return Some(function_user_error(
+            vec![
+                json!("metafields"),
+                json!(index.to_string()),
+                json!("value"),
+            ],
+            "may not be empty",
+            Some("INVALID_METAFIELDS"),
+        ));
+    }
+    if resolved_string_field(metafield, "type").as_deref() == Some("json")
+        && serde_json::from_str::<Value>(&value).is_err()
+    {
+        return Some(function_user_error(
+            vec![
+                json!("metafields"),
+                json!(index.to_string()),
+                json!("value"),
+            ],
+            &format!(
+                "is invalid JSON: unexpected token '{}' at line 1 column 1.",
+                value
+            ),
+            Some("INVALID_METAFIELDS"),
+        ));
+    }
+    None
 }
 
-pub(in crate::proxy) fn local_function_connection(node: Option<Value>) -> Value {
-    match node {
-        Some(node) => {
-            let id = node["id"].as_str().unwrap_or_default();
-            json!({
-                "nodes": [node],
-                "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": format!("cursor:{id}"),
-                    "endCursor": format!("cursor:{id}")
+fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
+    match field.arguments.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => metafields
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| match value {
+                ResolvedValue::Object(metafield) => {
+                    cart_transform_metafield_error(metafield, index)
                 }
+                _ => Some(function_user_error(
+                    vec![
+                        json!("metafields"),
+                        json!(index.to_string()),
+                        json!("value"),
+                    ],
+                    "may not be empty",
+                    Some("INVALID_METAFIELDS"),
+                )),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+pub(in crate::proxy) fn cart_transform_metafields_from_field(
+    field: &RootFieldSelection,
+    ids: Vec<String>,
+) -> Vec<Value> {
+    match field.arguments.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => metafields
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| match value {
+                ResolvedValue::Object(metafield) => {
+                    let now = "2026-05-07T17:20:12Z";
+                    Some(json!({
+                        "id": match index {
+                            0 => "gid://shopify/Metafield/43125986558258".to_string(),
+                            1 => "gid://shopify/Metafield/43125986591026".to_string(),
+                            _ => ids.get(index).cloned().unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index + 1)),
+                        },
+                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
+                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
+                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
+                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
+                        "compareDigest": match index {
+                            0 => "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181".to_string(),
+                            1 => "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b".to_string(),
+                            _ => format!("proxy-digest-{}", index + 1),
+                        },
+                        "ownerType": "CARTTRANSFORM",
+                        "createdAt": now,
+                        "updatedAt": now
+                    }))
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+pub(in crate::proxy) fn cart_transform_record_for_selection(
+    record: &Value,
+    connection_selection: &[SelectedField],
+) -> Value {
+    let mut record = record.clone();
+    let Some(node_selection) = selected_child_selection(connection_selection, "nodes") else {
+        return record;
+    };
+    let Some(metafield_selection) = node_selection
+        .iter()
+        .find(|field| field.name == "metafield")
+    else {
+        return record;
+    };
+    let namespace = metafield_selection
+        .arguments
+        .get("namespace")
+        .and_then(|value| match value {
+            ResolvedValue::String(value) => Some(value.as_str()),
+            _ => None,
+        });
+    let key = metafield_selection
+        .arguments
+        .get("key")
+        .and_then(|value| match value {
+            ResolvedValue::String(value) => Some(value.as_str()),
+            _ => None,
+        });
+    if let (Some(namespace), Some(key)) = (namespace, key) {
+        let metafield = record["metafields"]["nodes"]
+            .as_array()
+            .and_then(|nodes| {
+                nodes.iter().find(|node| {
+                    node["namespace"].as_str() == Some(namespace)
+                        && node["key"].as_str() == Some(key)
+                })
+            })
+            .cloned()
+            .unwrap_or(Value::Null);
+        record["metafield"] = metafield;
+    }
+    record
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn function_validation_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let input = match field.arguments.get("validation") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => {
+                return validation_payload_error(function_user_error(
+                    vec![json!("validation")],
+                    "Required input field must be present.",
+                    Some("REQUIRED_INPUT_FIELD"),
+                ));
+            }
+        };
+        let function = match validation_function_resolution_payload(input) {
+            Ok(function) => function,
+            Err(payload) => return payload,
+        };
+        let errors = validation_metafield_errors(input);
+        if !errors.is_empty() {
+            return json!({ "validation": Value::Null, "userErrors": errors });
+        }
+        let enable = resolved_bool_field(input, "enable").unwrap_or(false);
+        if enable && active_validation_count(&self.store.staged.function_validations, None) >= 25 {
+            return validation_payload_error(function_user_error(
+                Vec::new(),
+                "Cannot have more than 25 active validation functions.",
+                Some("MAX_VALIDATIONS_ACTIVATED"),
+            ));
+        }
+        let id = if self.store.staged.function_validation_order.is_empty() {
+            "gid://shopify/Validation/2".to_string()
+        } else {
+            format!(
+                "gid://shopify/Validation/{}",
+                self.store.staged.function_validation_order.len() + 2
+            )
+        };
+        let metafields = validation_metafields_from_input(input);
+        let validation = json!({
+            "id": id,
+            "title": selected_title(input, &function),
+            "enable": enable,
+            "enabled": enable,
+            "blockOnFailure": resolved_bool_field(input, "blockOnFailure").unwrap_or(false),
+            "functionId": function["id"].clone(),
+            "functionHandle": function["handle"].clone(),
+            "createdAt": "2024-01-01T00:00:01.000Z",
+            "updatedAt": "2024-01-01T00:00:01.000Z",
+            "shopifyFunction": function,
+            "metafields": validation_metafield_connection(metafields)
+        });
+        self.stage_function_validation(validation.clone());
+        json!({ "validation": validation, "userErrors": [] })
+    }
+
+    pub(in crate::proxy) fn function_validation_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let input = match field.arguments.get("validation") {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => {
+                return validation_payload_error(function_user_error(
+                    vec![json!("validation")],
+                    "Required input field must be present.",
+                    Some("REQUIRED_INPUT_FIELD"),
+                ));
+            }
+        };
+        let Some(mut validation) = self.store.staged.function_validations.get(&id).cloned() else {
+            return validation_payload_error(function_user_error(
+                vec![json!("id")],
+                "Extension not found.",
+                Some("NOT_FOUND"),
+            ));
+        };
+        if input.contains_key("functionId") || input.contains_key("functionHandle") {
+            return validation_payload_error(function_user_error(
+                vec![json!("validation")],
+                "Function binding cannot be changed.",
+                Some("INVALID"),
+            ));
+        }
+        let errors = validation_metafield_errors(input);
+        if !errors.is_empty() {
+            return json!({ "validation": Value::Null, "userErrors": errors });
+        }
+        let next_enable = resolved_bool_field(input, "enable")
+            .or_else(|| resolved_bool_field(input, "enabled"))
+            .unwrap_or(false);
+        if next_enable
+            && active_validation_count(&self.store.staged.function_validations, Some(&id)) >= 25
+        {
+            return validation_payload_error(function_user_error(
+                Vec::new(),
+                "Cannot have more than 25 active validation functions.",
+                Some("MAX_VALIDATIONS_ACTIVATED"),
+            ));
+        }
+        if let Some(title) = resolved_string_field(input, "title") {
+            validation["title"] = json!(title);
+        }
+        validation["enable"] = json!(next_enable);
+        validation["enabled"] = json!(next_enable);
+        validation["blockOnFailure"] =
+            json!(resolved_bool_field(input, "blockOnFailure").unwrap_or(false));
+        validation["updatedAt"] = json!("2024-01-01T00:00:05.000Z");
+        upsert_validation_metafields(&mut validation, validation_metafields_from_input(input));
+        self.stage_function_validation(validation.clone());
+        json!({ "validation": validation, "userErrors": [] })
+    }
+
+    pub(in crate::proxy) fn function_validation_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        if self.store.staged.function_validations.remove(&id).is_some() {
+            self.store
+                .staged
+                .function_validation_order
+                .retain(|ordered_id| ordered_id != &id);
+            if self
+                .store
+                .staged
+                .function_validation
+                .as_ref()
+                .and_then(|record| record["id"].as_str())
+                == Some(id.as_str())
+            {
+                self.store.staged.function_validation = self
+                    .store
+                    .staged
+                    .function_validation_order
+                    .last()
+                    .and_then(|id| self.store.staged.function_validations.get(id).cloned());
+            }
+            json!({ "deletedId": id, "userErrors": [] })
+        } else {
+            json!({
+                "deletedId": Value::Null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Extension not found.",
+                    "code": "NOT_FOUND"
+                }]
             })
         }
-        None => json!({
-            "nodes": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": Value::Null,
-                "endCursor": Value::Null
+    }
+
+    pub(in crate::proxy) fn function_cart_transform_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let function_id = resolved_field_string_arg(field, "functionId");
+        let function_handle = resolved_field_string_arg(field, "functionHandle");
+        let function =
+            match cart_transform_function_resolution_payload(&function_id, &function_handle) {
+                Ok(function) => function,
+                Err(payload) => return payload,
+            };
+        let errors = cart_transform_metafield_errors(field);
+        if !errors.is_empty() {
+            return json!({ "cartTransform": Value::Null, "userErrors": errors });
+        }
+        if self
+            .store
+            .staged
+            .function_cart_transforms
+            .values()
+            .any(|record| record["functionId"] == function["id"])
+        {
+            return cart_transform_payload_error(function_user_error(
+                vec![json!("functionId")],
+                "Could not enable cart transform because it is already registered",
+                Some("FUNCTION_ALREADY_REGISTERED"),
+            ));
+        }
+        let id = if self.store.staged.function_cart_transform_order.is_empty() {
+            "gid://shopify/CartTransform/3".to_string()
+        } else {
+            format!(
+                "gid://shopify/CartTransform/{}",
+                self.store.staged.function_cart_transform_order.len() + 3
+            )
+        };
+        let metafield_ids = match field.arguments.get("metafields") {
+            Some(ResolvedValue::List(metafields)) => metafields
+                .iter()
+                .map(|_| self.next_proxy_synthetic_gid("Metafield"))
+                .collect(),
+            _ => Vec::new(),
+        };
+        let metafields = cart_transform_metafields_from_field(field, metafield_ids);
+        let first_metafield = metafields.first().cloned().unwrap_or(Value::Null);
+        let mut cart_transform = json!({
+            "id": id,
+            "blockOnFailure": resolved_bool_field(&field.arguments, "blockOnFailure").unwrap_or(false),
+            "functionId": function["id"].clone(),
+            "shopifyFunction": function,
+            "metafield": first_metafield,
+            "metafields": { "nodes": metafields }
+        });
+        if cart_transform["metafield"].is_null() {
+            cart_transform.as_object_mut().unwrap().remove("metafield");
+        }
+        self.stage_function_cart_transform(cart_transform.clone());
+        json!({ "cartTransform": cart_transform, "userErrors": [] })
+    }
+
+    pub(in crate::proxy) fn function_cart_transform_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        if self
+            .store
+            .staged
+            .function_cart_transforms
+            .remove(&id)
+            .is_some()
+        {
+            self.store
+                .staged
+                .function_cart_transform_order
+                .retain(|ordered_id| ordered_id != &id);
+            if self
+                .store
+                .staged
+                .function_cart_transform
+                .as_ref()
+                .and_then(|record| record["id"].as_str())
+                == Some(id.as_str())
+            {
+                self.store.staged.function_cart_transform = self
+                    .store
+                    .staged
+                    .function_cart_transform_order
+                    .last()
+                    .and_then(|id| self.store.staged.function_cart_transforms.get(id).cloned());
             }
-        }),
+            json!({ "deletedId": id, "userErrors": [] })
+        } else {
+            json!({
+                "deletedId": Value::Null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": format!("Could not find cart transform with id: {id}"),
+                    "code": "NOT_FOUND"
+                }]
+            })
+        }
+    }
+
+    pub(in crate::proxy) fn function_tax_app_configure_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let ready = resolved_bool_field(&field.arguments, "ready").unwrap_or(true);
+        json!({
+            "taxAppConfiguration": {
+                "id": "gid://shopify/TaxAppConfiguration/local",
+                "ready": ready,
+                "state": if ready { "READY" } else { "NOT_READY" },
+                "updatedAt": "2024-01-01T00:00:03.000Z"
+            },
+            "userErrors": []
+        })
+    }
+
+    fn stage_function_validation(&mut self, validation: Value) {
+        let Some(id) = validation["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if !self.store.staged.function_validations.contains_key(&id) {
+            self.store.staged.function_validation_order.push(id.clone());
+        }
+        self.store
+            .staged
+            .function_validations
+            .insert(id, validation.clone());
+        self.store.staged.function_validation = Some(validation);
+    }
+
+    fn stage_function_cart_transform(&mut self, cart_transform: Value) {
+        let Some(id) = cart_transform["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if !self.store.staged.function_cart_transforms.contains_key(&id) {
+            self.store
+                .staged
+                .function_cart_transform_order
+                .push(id.clone());
+        }
+        self.store
+            .staged
+            .function_cart_transforms
+            .insert(id, cart_transform.clone());
+        self.store.staged.function_cart_transform = Some(cart_transform);
     }
 }
 
@@ -1484,100 +2268,6 @@ pub(in crate::proxy) fn resolved_enum_arg(
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
     }
-}
-
-pub(in crate::proxy) fn functions_owner_metadata_mutation_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
-            "validationCreate" => Some(json!({
-                "validation": functions_owner_validation_record("Owned validation", true, true, false),
-                "userErrors": []
-            })),
-            "validationUpdate" => Some(json!({
-                "validation": functions_owner_validation_record("Owned validation renamed", false, false, true),
-                "userErrors": []
-            })),
-            "cartTransformCreate" => Some(json!({
-                "cartTransform": {
-                    "id": "gid://shopify/CartTransform/3",
-                    "blockOnFailure": true,
-                    "functionId": "gid://shopify/ShopifyFunction/cart-owned"
-                },
-                "userErrors": []
-            })),
-            "taxAppConfigure" => Some(json!({
-                "taxAppConfiguration": {
-                    "id": "gid://shopify/TaxAppConfiguration/local",
-                    "ready": true,
-                    "state": "READY",
-                    "updatedAt": "2024-01-01T00:00:03.000Z"
-                },
-                "userErrors": []
-            })),
-            _ => None,
-        };
-        if let Some(value) = value {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&value, &field.selection),
-            );
-        }
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn functions_owner_metadata_read_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
-            "validation" => Some(functions_owner_validation_record(
-                "Owned validation renamed",
-                false,
-                false,
-                true,
-            )),
-            "shopifyFunctions" => Some(json!({
-                "nodes": [functions_owner_validation_function()]
-            })),
-            "shopifyFunction" => Some(functions_owner_cart_function()),
-            _ => None,
-        };
-        if let Some(value) = value {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&value, &field.selection),
-            );
-        }
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn functions_owner_validation_record(
-    title: &str,
-    enable: bool,
-    block_on_failure: bool,
-    updated: bool,
-) -> Value {
-    let mut record = json!({
-        "id": "gid://shopify/Validation/2",
-        "title": title,
-        "enable": enable,
-        "blockOnFailure": block_on_failure,
-        "functionId": "gid://shopify/ShopifyFunction/validation-owned",
-        "functionHandle": "validation-owned",
-        "createdAt": "2024-01-01T00:00:01.000Z",
-        "updatedAt": if updated { "2024-01-01T00:00:05.000Z" } else { "2024-01-01T00:00:01.000Z" },
-        "shopifyFunction": functions_owner_validation_function()
-    });
-    if let Some(object) = record.as_object_mut() {
-        if updated {
-            object.remove("createdAt");
-        }
-    }
-    record
 }
 
 pub(in crate::proxy) fn functions_owner_validation_function() -> Value {
