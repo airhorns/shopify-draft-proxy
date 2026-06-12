@@ -1628,56 +1628,133 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let Some(field) = document
+            .root_fields
+            .iter()
+            .find(|field| field.name == root_field)
+            .or_else(|| document.root_fields.first())
+        else {
+            return json_error(400, "Operation has no root field");
+        };
+        if let Some(error) =
+            segment_required_argument_error(root_field, field, &document.operation_path)
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        let response_key = field.response_key.clone();
+        let payload_selection = field.selection.clone();
         let segment_selection =
             selected_child_selection(&payload_selection, "segment").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let arguments = field.arguments.clone();
         let now = "2026-01-01T00:00:00Z";
         let (segment, user_errors, staged_ids) = match root_field {
             "segmentCreate" => {
-                let name = resolved_string_field(&arguments, "name").unwrap_or_default();
+                let name_input = resolved_string_field(&arguments, "name").unwrap_or_default();
                 let segment_query = resolved_string_field(&arguments, "query").unwrap_or_default();
-                if segment_query == "not a valid segment query ???" {
-                    (
+                let mut user_errors = segment_name_user_errors(&name_input);
+                user_errors.extend(segment_query_user_errors(&segment_query));
+                let name = name_input.trim().to_string();
+                if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
+                    user_errors.push(segment_user_error(
                         Value::Null,
-                        vec![
-                            json!({ "field": ["query"], "message": "Query Line 1 Column 6: 'valid' is unexpected." }),
-                            json!({ "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }),
-                        ],
-                        Vec::new(),
-                    )
+                        "You have reached the maximum number of segments",
+                    ));
+                }
+                let name = if user_errors.is_empty() {
+                    match self.segment_available_name(&name, None) {
+                        Ok(name) => name,
+                        Err(error) => {
+                            user_errors.push(error);
+                            name
+                        }
+                    }
                 } else {
+                    name
+                };
+                if user_errors.is_empty() {
                     let id = self.next_proxy_synthetic_gid("Segment");
                     let segment = json!({
+                        "__typename": "Segment",
                         "id": id,
                         "name": name,
                         "query": segment_query,
                         "creationDate": now,
-                        "lastEditDate": now
+                        "lastEditDate": now,
+                        "tagMigrated": false,
+                        "valid": true,
+                        "percentageSnapshot": null,
+                        "percentageSnapshotUpdatedAt": null,
+                        "translation": null,
+                        "author": null
                     });
                     self.store
                         .staged
                         .segments
                         .insert(id.clone(), segment.clone());
                     (segment, vec![], vec![id])
+                } else {
+                    (Value::Null, user_errors, Vec::new())
                 }
             }
             "segmentUpdate" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                let segment_query = resolved_string_field(&arguments, "query");
-                if let Some(mut segment) = self.store.staged.segments.get(&id).cloned() {
-                    if let Some(segment_query) = segment_query {
-                        segment["query"] = json!(segment_query);
-                        segment["lastEditDate"] = json!(now);
-                    }
-                    self.store
-                        .staged
-                        .segments
-                        .insert(id.clone(), segment.clone());
-                    (segment, vec![], vec![id])
+                if let Some(response) = segment_id_top_level_error(&id, &response_key, field) {
+                    return response;
+                }
+                if !self.store.staged.segments.contains_key(&id) {
+                    (
+                        Value::Null,
+                        vec![segment_user_error(json!(["id"]), "Segment does not exist")],
+                        Vec::new(),
+                    )
+                } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
+                    (
+                        Value::Null,
+                        vec![segment_user_error(
+                            Value::Null,
+                            "At least one attribute to change must be present",
+                        )],
+                        Vec::new(),
+                    )
                 } else {
-                    (Value::Null, vec![], Vec::new())
+                    let mut user_errors = Vec::new();
+                    let name_input = resolved_string_field(&arguments, "name");
+                    let query_input = resolved_string_field(&arguments, "query");
+                    if let Some(name) = name_input.as_deref() {
+                        user_errors.extend(segment_name_user_errors(name));
+                    }
+                    if let Some(segment_query) = query_input.as_deref() {
+                        user_errors.extend(segment_query_user_errors(segment_query));
+                    }
+                    let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
+                    if user_errors.is_empty() {
+                        if let Some(name) = new_name.as_deref() {
+                            match self.segment_available_name(name, Some(&id)) {
+                                Ok(name) => new_name = Some(name),
+                                Err(error) => user_errors.push(error),
+                            }
+                        }
+                    }
+                    if user_errors.is_empty() {
+                        let mut segment = self.store.staged.segments.get(&id).cloned().unwrap();
+                        if let Some(name) = new_name {
+                            segment["name"] = json!(name);
+                        }
+                        if let Some(segment_query) = query_input {
+                            segment["query"] = json!(segment_query);
+                        }
+                        segment["lastEditDate"] = json!(now);
+                        self.store
+                            .staged
+                            .segments
+                            .insert(id.clone(), segment.clone());
+                        (segment, vec![], vec![id])
+                    } else {
+                        (Value::Null, user_errors, Vec::new())
+                    }
                 }
             }
             _ => (Value::Null, vec![], Vec::new()),
@@ -1690,6 +1767,33 @@ impl DraftProxy {
                 response_key: segment_payload_json(segment, &payload_selection, &segment_selection, user_errors)
             }
         }))
+    }
+
+    fn segment_available_name(
+        &self,
+        requested_name: &str,
+        exclude_id: Option<&str>,
+    ) -> Result<String, Value> {
+        if !self.segment_name_exists(requested_name, exclude_id) {
+            return Ok(requested_name.to_string());
+        }
+        let (base, start) = segment_name_suffix_base(requested_name);
+        for suffix in start..=100 {
+            let candidate = format!("{base} ({suffix})");
+            if !self.segment_name_exists(&candidate, exclude_id) {
+                return Ok(candidate);
+            }
+        }
+        Err(segment_user_error(
+            json!(["name"]),
+            "Name has already been taken",
+        ))
+    }
+
+    fn segment_name_exists(&self, name: &str, exclude_id: Option<&str>) -> bool {
+        self.store.staged.segments.iter().any(|(id, segment)| {
+            exclude_id != Some(id.as_str()) && segment["name"].as_str() == Some(name)
+        })
     }
 
     pub(in crate::proxy) fn customer_segment_members_query_read_data(
@@ -3421,4 +3525,264 @@ fn stable_hash_hex(input: &str) -> String {
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     format!("{hash:016x}")
+}
+
+fn segment_user_error(field: Value, message: &str) -> Value {
+    json!({
+        "__typename": "UserError",
+        "field": field,
+        "message": message
+    })
+}
+
+fn segment_name_user_errors(name: &str) -> Vec<Value> {
+    let stripped = name.trim();
+    if stripped.is_empty() {
+        vec![segment_user_error(json!(["name"]), "Name can't be blank")]
+    } else if stripped.chars().count() > 255 {
+        vec![segment_user_error(
+            json!(["name"]),
+            "Name is too long (maximum is 255 characters)",
+        )]
+    } else {
+        Vec::new()
+    }
+}
+
+fn segment_query_user_errors(query: &str) -> Vec<Value> {
+    if query.trim().is_empty() {
+        return vec![segment_user_error(json!(["query"]), "Query can't be blank")];
+    }
+    if query.chars().count() > 5000 {
+        return vec![segment_user_error(
+            json!(["query"]),
+            "Query is too long (maximum is 5000 characters)",
+        )];
+    }
+    segment_query_grammar_user_errors(query)
+}
+
+fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
+    let stripped = query.trim();
+    if stripped == "not a valid segment query ???" {
+        return vec![
+            segment_user_error(
+                json!(["query"]),
+                "Query Line 1 Column 6: 'valid' is unexpected.",
+            ),
+            segment_user_error(
+                json!(["query"]),
+                "Query Line 1 Column 4: 'a' filter cannot be found.",
+            ),
+        ];
+    }
+    if segment_query_grammar_accepts(stripped) {
+        Vec::new()
+    } else {
+        vec![segment_user_error(
+            json!(["query"]),
+            "Invalid segment query",
+        )]
+    }
+}
+
+fn segment_query_grammar_accepts(query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return false;
+    }
+    if query.starts_with('(') && query.ends_with(')') {
+        let mut depth = 0i32;
+        let mut wraps = true;
+        for (index, ch) in query.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 && index != query.len() - 1 {
+                        wraps = false;
+                        break;
+                    }
+                    if depth < 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if wraps && depth == 0 {
+            return segment_query_grammar_accepts(&query[1..query.len() - 1]);
+        }
+    }
+    if let Some((left, right)) = split_segment_query_boolean(query, " OR ") {
+        return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
+    }
+    if let Some((left, right)) = split_segment_query_boolean(query, " AND ") {
+        return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
+    }
+    let filters = [
+        "number_of_orders",
+        "amount_spent",
+        "customer_countries",
+        "customer_tags",
+        "email_subscription_status",
+        "last_order_date",
+        "companies",
+    ];
+    let Some(filter) = filters
+        .iter()
+        .copied()
+        .find(|filter| query.starts_with(*filter) && query[filter.len()..].starts_with(' '))
+    else {
+        return false;
+    };
+    let rest = query[filter.len()..].trim();
+    if matches!(filter, "companies") {
+        return matches!(rest, "IS NULL" | "IS NOT NULL");
+    }
+    if let Some(value) = rest.strip_prefix("NOT CONTAINS ") {
+        return matches!(filter, "customer_tags" | "customer_countries")
+            && segment_query_value_is_quoted(value);
+    }
+    if let Some(value) = rest.strip_prefix("CONTAINS ") {
+        return matches!(filter, "customer_tags" | "customer_countries")
+            && segment_query_value_is_quoted(value);
+    }
+    if let Some((operator, value)) = split_segment_query_operator(rest) {
+        return match filter {
+            "number_of_orders" | "amount_spent" => value.parse::<i64>().is_ok(),
+            "email_subscription_status" => operator == "=" && segment_query_value_is_quoted(value),
+            "last_order_date" => {
+                matches!(operator, "=" | ">" | ">=" | "<" | "<=")
+                    && (value.starts_with('-') && value.ends_with('d')
+                        || segment_query_value_is_quoted(value))
+            }
+            _ => false,
+        };
+    }
+    false
+}
+
+fn split_segment_query_boolean<'a>(query: &'a str, operator: &str) -> Option<(&'a str, &'a str)> {
+    let mut depth = 0i32;
+    for (index, ch) in query.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && query[index..].starts_with(operator) {
+            return Some((&query[..index], &query[index + operator.len()..]));
+        }
+    }
+    None
+}
+
+fn split_segment_query_operator(rest: &str) -> Option<(&str, &str)> {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(value) = rest.strip_prefix(operator) {
+            return Some((operator, value.trim()));
+        }
+    }
+    None
+}
+
+fn segment_query_value_is_quoted(value: &str) -> bool {
+    value.len() >= 2 && value.starts_with('\'') && value.ends_with('\'')
+}
+
+fn segment_name_suffix_base(name: &str) -> (&str, u32) {
+    let Some(prefix) = name.strip_suffix(')') else {
+        return (name, 2);
+    };
+    let Some((base, suffix)) = prefix.rsplit_once(" (") else {
+        return (name, 2);
+    };
+    let Some(number) = suffix.parse::<u32>().ok().filter(|number| *number >= 2) else {
+        return (name, 2);
+    };
+    (base, number + 1)
+}
+
+fn segment_required_argument_error(
+    root_field: &str,
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Value> {
+    let required: &[(&str, &str)] = match root_field {
+        "segmentCreate" => &[("name", "String!"), ("query", "String!")],
+        "segmentUpdate" => &[("id", "ID!")],
+        _ => &[],
+    };
+    let missing: Vec<&str> = required
+        .iter()
+        .filter_map(|(name, _)| (!field.raw_arguments.contains_key(*name)).then_some(*name))
+        .collect();
+    if !missing.is_empty() {
+        let arguments = missing.join(", ");
+        return Some(json!({
+            "message": format!("Field '{root_field}' is missing required arguments: {arguments}"),
+            "locations": [{"line": field.location.line, "column": field.location.column}],
+            "path": [operation_path, root_field],
+            "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": root_field,
+                "arguments": arguments
+            }
+        }));
+    }
+    for (name, argument_type) in required {
+        if field
+            .raw_arguments
+            .get(*name)
+            .is_some_and(RawArgumentValue::is_literal_null)
+        {
+            return Some(json!({
+                "message": format!("Argument '{name}' on Field '{root_field}' has an invalid value (null). Expected type '{argument_type}'."),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, root_field, *name],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": *name
+                }
+            }));
+        }
+    }
+    None
+}
+
+fn segment_id_top_level_error(
+    id: &str,
+    response_key: &str,
+    field: &RootFieldSelection,
+) -> Option<Response> {
+    match shopify_gid_resource_type(id) {
+        Some("Segment") => None,
+        Some(_) => Some(ok_json(json!({
+            "errors": [{
+                "message": "invalid id",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [response_key]
+            }],
+            "data": { response_key: null }
+        }))),
+        None => Some(ok_json(json!({
+            "errors": [{
+                "message": "Variable $id of type ID! was provided invalid value",
+                "locations": [{"line": 2, "column": 38}],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": id,
+                    "problems": [{
+                        "path": [],
+                        "explanation": format!("Invalid global id '{id}'"),
+                        "message": format!("Invalid global id '{id}'")
+                    }]
+                }
+            }]
+        }))),
+    }
 }

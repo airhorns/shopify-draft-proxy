@@ -4019,6 +4019,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-local-runtime-dispatch-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-segment-local-runtime-dispatch-validation.ts',
+    purpose:
+      'Local-runtime guard that segmentCreate dispatches and stages locally for neutral operation names without upstream passthrough.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}segment-local-runtime-dispatch-validation.json`,
+      'config/parity-specs/segments/segment-local-runtime-dispatch-validation.json',
+      'config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime create scenario only; proxy reset during parity replay clears the synthetic segment and no Shopify cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'This is executable local-runtime evidence for dispatch/staging, not Shopify fidelity evidence. Live segment resolver behavior remains covered by the Shopify segment validation fixtures.',
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-validation-limits',
     scriptPath: 'scripts/capture-segment-validation-limits-conformance.ts',
     purpose: 'segmentCreate/segmentUpdate name and query length validation plus local segment-limit replay setup.',

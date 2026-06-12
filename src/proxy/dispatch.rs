@@ -1464,7 +1464,6 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && matches!(root_field, "segmentCreate" | "segmentUpdate")
-            && is_segment_query_grammar_document(&query)
         {
             return self.segment_mutation(root_field, &query, &variables, request);
         }

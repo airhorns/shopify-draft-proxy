@@ -2220,6 +2220,167 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
 }
 
 #[test]
+fn segment_mutations_validate_inputs_without_operation_name_markers() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation LocalSegmentCreate($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { __typename field message }
+          }
+        }
+    "#;
+
+    let blank = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "", "query": "" }),
+    ));
+    assert_eq!(blank.status, 200);
+    assert_eq!(
+        blank.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [
+                { "__typename": "UserError", "field": ["name"], "message": "Name can't be blank" },
+                { "__typename": "UserError", "field": ["query"], "message": "Query can't be blank" }
+            ]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+
+    let long_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "N".repeat(256), "query": "number_of_orders >= 1" }),
+    ));
+    assert_eq!(long_name.status, 200);
+    assert_eq!(
+        long_name.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["name"],
+                "message": "Name is too long (maximum is 255 characters)"
+            }]
+        })
+    );
+
+    let padded = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": format!("{}Trimmed segment", " ".repeat(260)), "query": "number_of_orders >= 1" }),
+    ));
+    let segment_id = padded.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        padded.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Trimmed segment")
+    );
+    assert_eq!(
+        padded.body["data"]["segmentCreate"]["segment"]["query"],
+        json!("number_of_orders >= 1")
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalSegmentUpdate($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id }
+            userErrors { __typename field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Segment/999999999999", "name": "Nope" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["id"],
+                "message": "Segment does not exist"
+            }]
+        })
+    );
+
+    let noop = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalSegmentNoop($id: ID!) {
+          segmentUpdate(id: $id) {
+            segment { id }
+            userErrors { __typename field message }
+          }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        noop.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": null,
+                "message": "At least one attribute to change must be present"
+            }]
+        })
+    );
+}
+
+#[test]
+fn segment_mutations_suffix_duplicate_names() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation AnySegmentCreateName($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "Duplicate Segment", "query": "number_of_orders >= 1" }),
+    ));
+    let first_id = first.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        first.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Duplicate Segment")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "Duplicate Segment", "query": "number_of_orders >= 1" }),
+    ));
+    assert_eq!(
+        second.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Duplicate Segment (2)")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnySegmentUpdateName($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": first_id, "name": "Duplicate Segment (2)" }),
+    ));
+    assert_eq!(
+        update.body["data"]["segmentUpdate"]["segment"]["name"],
+        json!("Duplicate Segment (3)")
+    );
+}
+
+#[test]
 fn customer_segment_members_query_create_validates_stages_and_reads_node() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
