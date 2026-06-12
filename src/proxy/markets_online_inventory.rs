@@ -1644,6 +1644,7 @@ pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingEngagementRead",
         "MarketingActivityRead",
         "MarketingActivityCreateExternalValidation",
+        "MarketingActivityUpsertExternalValidation",
         "MarketingActivityUpdateCurrencyAndTacticGuards",
         "MarketingActivitySourceAndMedium",
         "MarketingActivityDeleteExternalGuards",

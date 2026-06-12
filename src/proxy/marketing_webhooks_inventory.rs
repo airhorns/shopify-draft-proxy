@@ -986,11 +986,16 @@ impl DraftProxy {
                 self.find_marketing_activity_by_url_parameter(&value, request)
                     .is_some()
             }) {
+                let message = if field.name == "marketingActivityUpsertExternal" {
+                    "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken"
+                } else {
+                    "Validation failed: Url parameter value has already been taken"
+                };
                 return marketing_activity_payload(
                     None,
                     vec![json!({
                         "field": ["input"],
-                        "message": "Validation failed: Url parameter value has already been taken",
+                        "message": message,
                         "code": null
                     })],
                 );

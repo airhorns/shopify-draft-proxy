@@ -3935,6 +3935,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-upsert-external-validation',
+    scriptPath: 'scripts/capture-marketing-activity-upsert-external-validation-conformance.mts',
+    purpose:
+      'External marketing activity upsert-create validation for budget/adSpend currency mismatch and uniqueness userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-upsert-external-validation.json`,
+      'config/parity-specs/marketing/marketing-activity-upsert-external-validation.json',
+      'config/parity-requests/marketing/marketing-activity-upsert-external-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities needed for upsert-create uniqueness probes, captures rejected validation branches, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-external-activity-url-scheme-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-external-activity-url-scheme-validation-conformance.mts',

@@ -370,7 +370,7 @@ fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplica
     );
     assert_eq!(
         response.body["data"]["duplicateUrlParameterValue"],
-        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken", "code": null}]})
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken", "code": null}]})
     );
 }
 
