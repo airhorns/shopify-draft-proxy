@@ -1527,7 +1527,7 @@ fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
         json!({}),
     ));
 
-    let base_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are not available on this plan." }]);
+    let base_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are unavailable on your plan." }]);
     assert_eq!(
         response.body["data"],
         json!({
@@ -1573,7 +1573,7 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
                 "userErrors": [{
                     "field": ["id"],
                     "code": "INVALID",
-                    "message": "Gift card notifications are disabled."
+                    "message": "Notifications for this gift card are disabled."
                 }]
             }
         })

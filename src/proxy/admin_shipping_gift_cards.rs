@@ -2684,7 +2684,7 @@ impl DraftProxy {
                         Some(card) if card.get("notify") == Some(&json!(false)) => vec![json!({
                             "field": ["id"],
                             "code": "INVALID",
-                            "message": "Gift card notifications are disabled."
+                            "message": "Notifications for this gift card are disabled."
                         })],
                         Some(_) => Vec::new(),
                         None => vec![json!({

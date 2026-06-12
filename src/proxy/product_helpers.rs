@@ -966,7 +966,7 @@ pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
     let user_errors = [json!({
         "field": ["base"],
         "code": null,
-        "message": "Gift cards are not available on this plan."
+        "message": "Gift cards are unavailable on your plan."
     })];
     selected_payload_json(selections, |selection| {
         Some(if selection.name == "userErrors" {

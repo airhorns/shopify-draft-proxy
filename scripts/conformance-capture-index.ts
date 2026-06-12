@@ -8123,6 +8123,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-unrecordable-local-runtime-errors',
+    scriptPath: 'scripts/capture-gift-card-unrecordable-local-runtime.ts',
+    purpose:
+      'Local-runtime fallback fixtures for gift-card entitlement-disabled and notify-disabled branches that cannot be constructed through the public conformance harness.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}gift-card-entitlement-disabled.json`,
+      `${LOCAL_RUNTIME_ROOT}gift-card-create-notify.json`,
+    ],
+    cleanupBehavior:
+      'No Shopify cleanup required; fixtures encode deterministic local-runtime fallback evidence for unrecordable branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-transaction-validation',
     scriptPath: 'scripts/capture-gift-card-transaction-validation-conformance.ts',
     purpose:
