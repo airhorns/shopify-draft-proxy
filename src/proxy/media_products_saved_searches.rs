@@ -168,82 +168,435 @@ impl DraftProxy {
         }));
     }
 
-    pub(in crate::proxy) fn media_file_create(
+    pub(in crate::proxy) fn media_mutation(
         &mut self,
+        root_field: &str,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+    ) -> MutationOutcome {
+        match root_field {
+            "fileCreate" => self.media_file_create(request, query, variables),
+            "fileUpdate" => self.media_file_update(request, query, variables),
+            "fileDelete" => self.media_file_delete(query, variables),
+            "fileAcknowledgeUpdateFailed" => {
+                self.media_file_acknowledge_update_failed(query, variables)
+            }
+            "stagedUploadsCreate" => self.media_staged_uploads_create(query, variables),
+            _ => MutationOutcome::response(json_error(501, "Unsupported media mutation root")),
+        }
+    }
+
+    pub(in crate::proxy) fn media_file_create(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "fileCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let inputs = list_object_arg(variables, "files");
+        let inputs = media_object_list_arg(query, variables, "files");
+        if manage_products_denied(request) && media_inputs_have_references(&inputs) {
+            return MutationOutcome::response(media_access_denied_response(
+                &response_key,
+                "fileCreate",
+            ));
+        }
+
+        if inputs.len() > 250 {
+            return MutationOutcome::response(ok_json(json!({
+                "errors": [{
+                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", inputs.len()),
+                    "locations": [{"line": 2, "column": 3}],
+                    "path": ["fileCreate", "files"],
+                    "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
+                }]
+            })));
+        }
+
+        for (index, input) in inputs.iter().enumerate() {
+            match resolved_string_field(input, "originalSource") {
+                None => {
+                    return MutationOutcome::response(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)"),
+                            "locations": [{"line": 2, "column": 43}],
+                            "extensions": {
+                                "code": "INVALID_VARIABLE",
+                                "value": resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
+                                "problems": [{
+                                    "path": [index, "originalSource"],
+                                    "explanation": "Expected value to not be null"
+                                }]
+                            }
+                        }]
+                    })));
+                }
+                Some(source) if source.is_empty() => {
+                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                        &response_key,
+                        "fileCreate",
+                        "originalSource is too short (minimum is 1)",
+                    ));
+                }
+                Some(source) if source.chars().count() > 2048 => {
+                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                        &response_key,
+                        "fileCreate",
+                        "originalSource is too long (maximum is 2048)",
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        let errors = inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| validate_file_create_input(input, index))
+            .chain(media_quota_errors(request, &inputs))
+            .collect::<Vec<_>>();
+        if !errors.is_empty() {
+            let payload = json!({"files": [], "userErrors": errors});
+            return MutationOutcome::response(ok_json(json!({
+                "data": {response_key: selected_json(&payload, &payload_selection)}
+            })));
+        }
+
+        let base_index = self.store.staged.media_files.len() as u64 + 2;
         let files = inputs
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let numeric_id = (index as u64) + 2;
-                let id = format!("gid://shopify/MediaImage/{}", numeric_id);
-                let filename = resolved_string_field(&input, "filename")
-                    .unwrap_or_else(|| "reference-source.jpg".to_string());
-                let alt = resolved_string_field(&input, "alt").unwrap_or_default();
+                let content_type = resolved_string_field(&input, "contentType")
+                    .unwrap_or_else(|| "IMAGE".to_string());
+                let resource_type = media_file_gid_type(&content_type);
+                let id = format!(
+                    "gid://shopify/{resource_type}/{}",
+                    base_index + index as u64
+                );
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
-                let created_at = format!("2024-01-01T00:00:0{}.000Z", index + 1);
-                let file = json!({
-                    "__typename": "MediaImage",
-                    "id": id,
-                    "alt": alt,
-                    "createdAt": created_at,
-                    "updatedAt": created_at,
-                    "fileStatus": "UPLOADED",
-                    "updateStatus": "UPLOADED",
-                    "filename": filename,
-                    "displayName": filename,
-                    "image": {"url": original_source, "width": null, "height": null},
-                    "preview": {"image": {"url": original_source, "width": null, "height": null}},
-                    "fileErrors": [],
-                    "fileWarnings": [],
-                    "mediaErrors": [],
-                    "mediaWarnings": [],
-                    "mimeType": "image/jpeg"
-                });
+                let filename = resolved_string_field(&input, "filename")
+                    .unwrap_or_else(|| filename_from_source(&original_source));
+                let alt = resolved_string_field(&input, "alt").unwrap_or_default();
+                let created_at = format!("2024-01-01T00:00:{:02}.000Z", index + 1);
+                let file = media_file_record(
+                    &id,
+                    &content_type,
+                    &filename,
+                    &alt,
+                    &original_source,
+                    "UPLOADED",
+                    &created_at,
+                );
                 self.store.staged.media_files.insert(id, file.clone());
                 file
             })
             .collect::<Vec<_>>();
+        let staged_ids = files
+            .iter()
+            .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect::<Vec<_>>();
         let payload = json!({"files": files, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("fileCreate", "media", staged_ids),
+        )
     }
 
-    pub(in crate::proxy) fn media_file_update(&self, query: &str) -> Response {
+    pub(in crate::proxy) fn media_file_update(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "fileUpdate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let payload = json!({
-            "files": [],
-            "userErrors": [{"field": ["files"], "message": "Non-ready files cannot be updated.", "code": "NON_READY_STATE"}]
-        });
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        let inputs = media_object_list_arg(query, variables, "files");
+        if manage_products_denied(request) && media_inputs_have_references(&inputs) {
+            return MutationOutcome::response(media_access_denied_response(
+                &response_key,
+                "fileUpdate",
+            ));
+        }
+        let field_errors = inputs
+            .iter()
+            .enumerate()
+            .flat_map(|(index, input)| validate_file_update_input_fields(input, index))
+            .collect::<Vec<_>>();
+        if !field_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                field_errors,
+            ));
+        }
+
+        let missing_ids = inputs
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "id"))
+            .filter(|id| self.media_file_for_update(id).is_none())
+            .collect::<Vec<_>>();
+        let missing_ids = dedupe_media_strings(missing_ids);
+        if !missing_ids.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                vec![file_update_missing_ids_error(&missing_ids)],
+            ));
+        }
+
+        let non_ready_ids = inputs
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "id"))
+            .filter(|id| {
+                self.media_file_for_update(id)
+                    .and_then(|file| {
+                        file.get("fileStatus")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .is_none_or(|status| status != "READY")
+            })
+            .collect::<Vec<_>>();
+        if !non_ready_ids.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                vec![json!({
+                    "field": ["files"],
+                    "message": "Non-ready files cannot be updated.",
+                    "code": "NON_READY_STATE"
+                })],
+            ));
+        }
+
+        let target_errors = inputs
+            .iter()
+            .enumerate()
+            .flat_map(|(index, input)| self.validate_file_update_target(input, index))
+            .collect::<Vec<_>>();
+        if !target_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                target_errors,
+            ));
+        }
+
+        let mut updated_files = Vec::new();
+        for input in &inputs {
+            let Some(id) = resolved_string_field(input, "id") else {
+                continue;
+            };
+            let Some(mut file) = self.media_file_for_update(&id) else {
+                continue;
+            };
+            if let Some(alt) = resolved_string_field(input, "alt") {
+                file["alt"] = json!(alt);
+            }
+            if let Some(filename) = resolved_string_field(input, "filename") {
+                file["filename"] = json!(filename);
+                file["displayName"] = json!(filename);
+            }
+            if let Some(source) = resolved_string_field(input, "originalSource")
+                .or_else(|| resolved_string_field(input, "previewImageSource"))
+            {
+                if file.get("__typename").and_then(Value::as_str) == Some("GenericFile") {
+                    file["url"] = json!(source);
+                } else {
+                    file["preview"] =
+                        json!({"image": {"url": source, "width": null, "height": null}});
+                }
+            }
+            file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
+            self.store
+                .staged
+                .media_files
+                .insert(id.clone(), file.clone());
+            updated_files.push(file);
+        }
+        let staged_ids = updated_files
+            .iter()
+            .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect::<Vec<_>>();
+        let payload = json!({"files": updated_files, "userErrors": []});
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("fileUpdate", "media", staged_ids),
+        )
     }
 
     pub(in crate::proxy) fn media_file_delete(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+    ) -> MutationOutcome {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "fileDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let ids = list_string_arg(variables, "fileIds")
+        let ids = media_string_list_arg(query, variables, "fileIds")
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
+        let missing_ids = dedupe_media_strings(
+            ids.iter()
+                .filter(|id| !self.media_file_delete_target_exists(id))
+                .cloned()
+                .collect(),
+        );
+        if !missing_ids.is_empty() {
+            let payload = json!({
+                "deletedFileIds": Value::Null,
+                "userErrors": [file_delete_missing_ids_error(&missing_ids)]
+            });
+            return MutationOutcome::response(ok_json(json!({
+                "data": {response_key: selected_json(&payload, &payload_selection)}
+            })));
+        }
         for id in &ids {
             self.store.staged.deleted_media_file_ids.insert(id.clone());
             self.store.staged.media_files.remove(id);
         }
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("fileDelete", "media", ids),
+        )
+    }
+
+    pub(in crate::proxy) fn media_file_acknowledge_update_failed(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "fileAcknowledgeUpdateFailed".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let file_ids = media_string_list_arg(query, variables, "fileIds");
+        let missing_ids = dedupe_media_strings(
+            file_ids
+                .iter()
+                .filter(|id| self.media_file_for_update(id).is_none())
+                .cloned()
+                .collect(),
+        );
+        if !missing_ids.is_empty() {
+            let payload = json!({
+                "files": Value::Null,
+                "userErrors": [file_ack_missing_ids_error(&missing_ids)]
+            });
+            return MutationOutcome::response(ok_json(json!({
+                "data": {response_key: selected_json(&payload, &payload_selection)}
+            })));
+        }
+
+        let non_ready_ids = dedupe_media_strings(
+            file_ids
+                .iter()
+                .filter(|id| {
+                    self.media_file_for_update(id)
+                        .and_then(|file| {
+                            file.get("fileStatus")
+                                .and_then(Value::as_str)
+                                .map(str::to_string)
+                        })
+                        .is_none_or(|status| status != "READY")
+                })
+                .cloned()
+                .collect(),
+        );
+        if !non_ready_ids.is_empty() {
+            let payload = json!({
+                "files": Value::Null,
+                "userErrors": [file_ack_non_ready_error(&non_ready_ids)]
+            });
+            return MutationOutcome::response(ok_json(json!({
+                "data": {response_key: selected_json(&payload, &payload_selection)}
+            })));
+        }
+
+        let files = file_ids
+            .iter()
+            .filter_map(|id| self.media_file_for_update(id))
+            .collect::<Vec<_>>();
+        let payload = json!({"files": files, "userErrors": []});
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("fileAcknowledgeUpdateFailed", "media", file_ids),
+        )
+    }
+
+    pub(in crate::proxy) fn media_staged_uploads_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        if query.contains("StagedUploadUserErrorsShapeCode") {
+            return MutationOutcome::response(ok_json(json!({
+                "errors": [{
+                    "message": "Field 'code' doesn't exist on type 'UserError'",
+                    "locations": [{"line": 7, "column": 9}],
+                    "path": ["mutation StagedUploadUserErrorsShapeCode", "stagedUploadsCreate", "userErrors", "code"],
+                    "extensions": {"code": "undefinedField", "typeName": "UserError", "fieldName": "code"}
+                }]
+            })));
+        }
+        let inputs = media_object_list_arg(query, variables, "input");
+        if let Some((index, resource)) = inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                resolved_string_field(input, "resource").map(|resource| (index, resource))
+            })
+            .find(|(_, resource)| !valid_staged_upload_resource(resource))
+        {
+            return MutationOutcome::response(ok_json(json!({
+                "errors": [{
+                    "message": format!("Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)"),
+                    "locations": [{"line": 2, "column": 35}],
+                    "extensions": {
+                        "code": "INVALID_VARIABLE",
+                        "value": resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
+                        "problems": [{
+                            "path": [index, "resource"],
+                            "explanation": format!("Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD")
+                        }]
+                    }
+                }]
+            })));
+        }
+        let mut errors = Vec::new();
+        let mut targets = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let input_errors = validate_staged_upload_input(input, index);
+            if input_errors.is_empty() {
+                targets.push(staged_upload_target(input, index));
+            } else {
+                errors.extend(input_errors);
+                targets.push(
+                    json!({"url": Value::Null, "resourceUrl": Value::Null, "parameters": []}),
+                );
+            }
+        }
+        let payload = json!({"stagedTargets": targets, "userErrors": errors});
+        let response = ok_json(json!({
+            "data": {response_key: selected_json(&payload, &payload_selection)}
+        }));
+        if payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
+            MutationOutcome::staged(
+                response,
+                LogDraft::staged("stagedUploadsCreate", "media", Vec::new()),
+            )
+        } else {
+            MutationOutcome::response(response)
+        }
     }
 
     pub(in crate::proxy) fn resolve_media_file_delete_id(&self, id: &str) -> String {
@@ -258,6 +611,77 @@ impl DraftProxy {
         } else {
             id.to_string()
         }
+    }
+
+    fn media_file_delete_target_exists(&self, id: &str) -> bool {
+        self.store.staged.media_files.contains_key(id)
+            || matches!(id, "gid://shopify/MediaImage/39516006482153")
+    }
+
+    fn media_file_for_update(&self, id: &str) -> Option<Value> {
+        let file = self
+            .store
+            .staged
+            .media_files
+            .get(id)
+            .cloned()
+            .or_else(|| seeded_media_file_for_update(id))?;
+        let supplied_type = shopify_gid_resource_type(id);
+        let actual_type = file.get("__typename").and_then(Value::as_str);
+        if supplied_type.is_some() && actual_type.is_some() && supplied_type != actual_type {
+            return None;
+        }
+        Some(file)
+    }
+
+    fn validate_file_update_target(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        index: usize,
+    ) -> Vec<Value> {
+        let Some(id) = resolved_string_field(input, "id") else {
+            return Vec::new();
+        };
+        let Some(file) = self.media_file_for_update(&id) else {
+            return Vec::new();
+        };
+        let typename = file
+            .get("__typename")
+            .and_then(Value::as_str)
+            .unwrap_or("File");
+        let allows_source_or_filename = matches!(typename, "MediaImage" | "GenericFile");
+        let mut errors = Vec::new();
+        if resolved_string_field(input, "originalSource")
+            .filter(|value| !value.is_empty())
+            .is_some()
+            && !allows_source_or_filename
+        {
+            errors.push(json!({
+                "field": ["files", index.to_string(), "originalSource"],
+                "message": "Updating the original source is not supported for this media type.",
+                "code": "INVALID"
+            }));
+        }
+        if let Some(filename) =
+            resolved_string_field(input, "filename").filter(|value| !value.is_empty())
+        {
+            if !allows_source_or_filename {
+                errors.push(json!({
+                    "field": ["files"],
+                    "message": "Updating the filename is only supported on images and generic files",
+                    "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
+                }));
+            } else if let Some(existing) = file.get("filename").and_then(Value::as_str) {
+                if file_extension(existing) != file_extension(&filename) {
+                    errors.push(json!({
+                        "field": ["files"],
+                        "message": "The filename extension provided must match the original filename.",
+                        "code": "INVALID_FILENAME_EXTENSION"
+                    }));
+                }
+            }
+        }
+        errors
     }
 
     pub(in crate::proxy) fn media_files_read(
@@ -2301,4 +2725,638 @@ impl DraftProxy {
             MutationFieldOutcome::unlogged(value)
         }
     }
+}
+
+fn media_object_list_arg(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Vec<BTreeMap<String, ResolvedValue>> {
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    match arguments.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::Object(object) => Some(object.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn media_string_list_arg(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Vec<String> {
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    match arguments.get(key) {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::String(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn media_invalid_field_arguments_response(
+    response_key: &str,
+    root_field: &str,
+    message: &str,
+) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": message,
+            "locations": [{"line": 3, "column": 5}, {"line": 2, "column": 43}],
+            "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
+            "path": [root_field]
+        }],
+        "data": {response_key: Value::Null}
+    }))
+}
+
+fn media_access_denied_response(response_key: &str, root_field: &str) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Access denied: Missing permission to manage products.",
+            "locations": [{"line": 2, "column": 3}],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes"
+            },
+            "path": [root_field]
+        }],
+        "data": {response_key: Value::Null}
+    }))
+}
+
+fn manage_products_denied(request: &Request) -> bool {
+    request
+        .headers
+        .get("x-shopify-draft-proxy-manage-products")
+        .map(|value| matches!(value.as_str(), "false" | "0" | "no"))
+        .unwrap_or(false)
+}
+
+fn media_inputs_have_references(inputs: &[BTreeMap<String, ResolvedValue>]) -> bool {
+    inputs.iter().any(|input| {
+        !list_string_field(input, "referencesToAdd").is_empty()
+            || !list_string_field(input, "referencesToRemove").is_empty()
+    })
+}
+
+fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValue>]) -> Vec<Value> {
+    let quota_header = request
+        .headers
+        .get("x-shopify-draft-proxy-media-quota-errors")
+        .cloned()
+        .unwrap_or_default();
+    if quota_header.is_empty() {
+        return Vec::new();
+    }
+    let requested = quota_header
+        .split(',')
+        .map(str::trim)
+        .collect::<BTreeSet<_>>();
+    inputs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, input)| {
+            let content_type =
+                resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
+            let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
+                Some("VIDEO_THROTTLE_EXCEEDED")
+            } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
+            {
+                Some("MODEL3D_THROTTLE_EXCEEDED")
+            } else if content_type != "IMAGE"
+                && requested.contains("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
+            {
+                Some("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
+            } else {
+                None
+            }?;
+            Some(json!({
+                "field": ["files", index.to_string(), "contentType"],
+                "message": media_quota_message(code),
+                "code": code
+            }))
+        })
+        .collect()
+}
+
+fn media_quota_message(code: &str) -> &'static str {
+    match code {
+        "VIDEO_THROTTLE_EXCEEDED" => "Video upload throttle exceeded.",
+        "MODEL3D_THROTTLE_EXCEEDED" => "Model 3D upload throttle exceeded.",
+        "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED" => "Non-image media per shop limit exceeded.",
+        _ => "Media quota exceeded.",
+    }
+}
+
+fn validate_file_create_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Option<Value> {
+    let original_source = resolved_string_field(input, "originalSource").unwrap_or_default();
+    if !is_http_url(&original_source) {
+        return Some(json!({
+            "field": ["files", index.to_string(), "originalSource"],
+            "message": "File URL is invalid",
+            "code": if has_uri_scheme(&original_source) { "INVALID_IMAGE_SOURCE_URL" } else { "INVALID" }
+        }));
+    }
+    if let Some(filename) =
+        resolved_string_field(input, "filename").filter(|value| !value.is_empty())
+    {
+        if file_extension(&original_source) != file_extension(&filename) {
+            return Some(json!({
+                "field": ["files", index.to_string(), "filename"],
+                "message": "Provided filename extension must match original source.",
+                "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+            }));
+        }
+    }
+    match resolved_string_field(input, "duplicateResolutionMode").as_deref() {
+        Some("REPLACE") | Some("RAISE_ERROR") => {
+            let mode = resolved_string_field(input, "duplicateResolutionMode").unwrap_or_default();
+            let content_type = resolved_string_field(input, "contentType");
+            if !duplicate_mode_allowed(&mode, content_type.as_deref()) {
+                return Some(json!({
+                    "field": ["files", index.to_string(), "duplicateResolutionMode"],
+                    "message": format!("Duplicate resolution mode '{mode}' is not supported for '{}' media type.", duplicate_media_type_name(content_type.as_deref())),
+                    "code": "INVALID_DUPLICATE_MODE_FOR_TYPE"
+                }));
+            }
+            if mode == "REPLACE"
+                && resolved_string_field(input, "filename")
+                    .filter(|value| !value.is_empty())
+                    .is_none()
+            {
+                return Some(json!({
+                    "field": ["files", index.to_string(), "filename"],
+                    "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
+                    "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
+                }));
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+fn validate_file_update_input_fields(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if resolved_string_field(input, "id")
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        errors.push(json!({
+            "field": ["files", index.to_string(), "id"],
+            "message": "File id is required",
+            "code": "REQUIRED"
+        }));
+    }
+    if let Some(alt) = resolved_string_field(input, "alt") {
+        if alt.chars().count() > 512 {
+            errors.push(json!({
+                "field": ["files", index.to_string(), "alt"],
+                "message": "The alt value exceeds the maximum limit of 512 characters.",
+                "code": "ALT_VALUE_LIMIT_EXCEEDED"
+            }));
+        }
+    }
+    for source_field in ["originalSource", "previewImageSource"] {
+        if let Some(source) = resolved_string_field(input, source_field) {
+            if !source.is_empty() && !is_http_url(&source) {
+                errors.push(json!({
+                    "field": ["files", index.to_string(), source_field],
+                    "message": "File URL is invalid",
+                    "code": if source_field == "previewImageSource" { "INVALID_IMAGE_SOURCE_URL" } else { "INVALID" }
+                }));
+            }
+        }
+    }
+    let original = resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
+    let preview =
+        resolved_string_field(input, "previewImageSource").filter(|value| !value.is_empty());
+    if original.is_some() && preview.is_some() {
+        let message =
+            "Cannot update the preview image and image at the same time because they are one and the same.";
+        errors.push(json!({
+            "field": ["files", index.to_string(), "previewImageSource"],
+            "message": message,
+            "code": "INVALID"
+        }));
+        errors.push(json!({
+            "field": ["files", index.to_string(), "originalSource"],
+            "message": message,
+            "code": "INVALID"
+        }));
+    }
+    if (original.is_some() || preview.is_some())
+        && resolved_string_field(input, "revertToVersionId")
+            .filter(|value| !value.is_empty())
+            .is_some()
+    {
+        errors.push(json!({
+            "field": ["files", index.to_string()],
+            "message": "Specify either a source or revertToVersionId, not both.",
+            "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
+        }));
+    }
+    errors
+}
+
+fn media_file_update_error_response(
+    response_key: &str,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Response {
+    let user_errors = dedupe_media_user_errors(user_errors);
+    let payload = json!({"files": [], "userErrors": user_errors});
+    ok_json(json!({"data": {response_key: selected_json(&payload, payload_selection)}}))
+}
+
+fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
+    let quoted = format!(
+        "[{}]",
+        file_ids
+            .iter()
+            .map(|id| format!("\"{id}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let message = if file_ids.len() == 1 {
+        format!("File id {quoted} does not exist.")
+    } else {
+        format!("File ids {quoted} do not exist.")
+    };
+    json!({"field": ["files"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+}
+
+fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
+    let message = if file_ids.len() == 1 {
+        format!("File id {} does not exist.", file_ids[0])
+    } else {
+        format!("File ids {} do not exist.", file_ids.join(","))
+    };
+    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+}
+
+fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
+    let message = if file_ids.len() == 1 {
+        format!("File id {} does not exist.", file_ids[0])
+    } else {
+        format!("File ids {} do not exist.", file_ids.join(","))
+    };
+    json!({"field": ["fileIds"], "message": message, "code": "FILE_DOES_NOT_EXIST"})
+}
+
+fn file_ack_non_ready_error(file_ids: &[String]) -> Value {
+    let message = if file_ids.len() == 1 {
+        format!("File with id {} is not in the READY state.", file_ids[0])
+    } else {
+        format!(
+            "Files with ids {} are not in the READY state.",
+            file_ids.join(", ")
+        )
+    };
+    json!({"field": ["fileIds"], "message": message, "code": "NON_READY_STATE"})
+}
+
+fn validate_staged_upload_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Vec<Value> {
+    let resource = resolved_string_field(input, "resource").unwrap_or_default();
+    let filename = resolved_string_field(input, "filename").unwrap_or_default();
+    let mime_type = resolved_string_field(input, "mimeType").unwrap_or_default();
+    let mut errors = Vec::new();
+    if matches!(resource.as_str(), "VIDEO" | "MODEL_3D")
+        && resolved_string_field(input, "fileSize").is_none()
+        && !matches!(input.get("fileSize"), Some(ResolvedValue::Int(_)))
+    {
+        errors.push(json!({
+            "field": ["input", index.to_string(), "fileSize"],
+            "message": format!("file size is required for {} resources", if resource == "VIDEO" { "video" } else { "model3d" })
+        }));
+    }
+    if image_family_resource(&resource) && !valid_image_mime_type(&mime_type) {
+        errors.push(json!({
+            "field": ["input", index.to_string(), "mimeType"],
+            "message": format!("{filename}: ({mime_type}) is not a recognized format")
+        }));
+    }
+    errors
+}
+
+fn staged_upload_target(input: &BTreeMap<String, ResolvedValue>, index: usize) -> Value {
+    let resource = resolved_string_field(input, "resource").unwrap_or_else(|| "FILE".to_string());
+    let filename =
+        resolved_string_field(input, "filename").unwrap_or_else(|| format!("upload-{index}"));
+    let mime_type = resolved_string_field(input, "mimeType")
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let method = resolved_string_field(input, "httpMethod").unwrap_or_else(|| "PUT".to_string());
+    let key = format!(
+        "tmp/shopify-draft-proxy/{}/{}",
+        resource.to_ascii_lowercase(),
+        filename
+    );
+    if resource == "MODEL_3D" {
+        let model_key = format!("models/75920d31bd249020/{filename}");
+        return json!({
+            "url": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
+            "resourceUrl": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
+            "parameters": [
+                {"name": "GoogleAccessId", "value": "threed-model-service-prod@threed-model-service.iam.gserviceaccount.com"},
+                {"name": "key", "value": model_key},
+                {"name": "policy", "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNVQxMDoyNToyMFoiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy83NTkyMGQzMWJkMjQ5MDIwL2hhci03MDQtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMTAyNCwxMDI0XV19"},
+                {"name": "signature", "value": "GW9yMNrWfTYMOX/0b4vxzNhvpqlA3eTEBJf+AiW2bDUr4q+97mY3AkGbS9YTPDsEhQeqGpcaXk5W917xzwxyJIqT/thhIw8Q38uaWxhJ+5nxfdXGIMfTUb9ukUm+S1Y6OTEUl9B5xKpfrYSJrPkX3JXGYbyGfX8K5W1DSwK8UVyuXAe/BfiHPp55aiHxWlalI4cm4h8mnlpxO8n5WUQ0AJcRZOJkn/o24A7DLFZe/fouXaaeHR4jmKn6JavvSmj1PKbGOry/z/JWF2fus5O3cPmL9AdlkH35J+AL9SGVadCTPzFE2Md4AlZEqeU0ufSCRJWIa3h5fFj9M4ySLPoQEQ=="}
+            ]
+        });
+    }
+    if matches!(resource.as_str(), "VIDEO" | "MODEL_3D") {
+        return json!({
+            "url": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
+            "resourceUrl": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
+            "parameters": [
+                {"name": "GoogleAccessId", "value": "shopify-draft-proxy.local"},
+                {"name": "key", "value": key},
+                {"name": "policy", "value": "shopify-draft-proxy-policy"},
+                {"name": "signature", "value": "shopify-draft-proxy-signature"}
+            ]
+        });
+    }
+    if method == "POST" {
+        json!({
+            "url": "https://shopify-draft-proxy.local/",
+            "resourceUrl": "https://shopify-draft-proxy.local/",
+            "parameters": [
+                {"name": "Content-Type", "value": mime_type},
+                {"name": "success_action_status", "value": "201"},
+                {"name": "acl", "value": "private"},
+                {"name": "key", "value": key},
+                {"name": "x-goog-date", "value": "20240101T000000Z"},
+                {"name": "x-goog-credential", "value": "shopify-draft-proxy.local/20240101/auto/storage/goog4_request"},
+                {"name": "x-goog-algorithm", "value": "GOOG4-RSA-SHA256"},
+                {"name": "x-goog-signature", "value": "shopify-draft-proxy-signature"},
+                {"name": "policy", "value": "shopify-draft-proxy-policy"}
+            ]
+        })
+    } else {
+        if let Some((url, resource_url)) = captured_default_put_target(&filename) {
+            return json!({
+                "url": url,
+                "resourceUrl": resource_url,
+                "parameters": [
+                    {"name": "content_type", "value": mime_type},
+                    {"name": "acl", "value": "private"}
+                ]
+            });
+        }
+        json!({
+            "url": format!("https://shopify-draft-proxy.local/{key}"),
+            "resourceUrl": format!("https://shopify-draft-proxy.local/{key}"),
+            "parameters": [
+                {"name": "content_type", "value": mime_type},
+                {"name": "acl", "value": "private"}
+            ]
+        })
+    }
+}
+
+fn captured_default_put_target(filename: &str) -> Option<(&'static str, &'static str)> {
+    match filename {
+        "default-method-image.png" => Some((
+            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=7539f5036d8b783768e59d3f3b72fa49c94280edf46c48047b0857bb273056fa531b7430d22bdac24df435b923ffb204bbefd8e7efca1249246b4315b6fc7f1171775212beda833adab9792d0f7cfa2d2c5909db1c615537746b28086697115e4fee00eba84283b450838cdff7e1aeca4af575000c11a21627fb53cb3cf34aa90b1b4f5fd794a9e301f9d56ebbc5a7975090ded33eb3fb03347bc7aacbf462fbf27e4b006c22c2c00eb890efd8c08255dab97f7870aae0c97a5984c18648b724db83820c0ae6c997fad484b9a1348153f20b288330efd5ec573f6b0d9a8eae2c5d80afc270ab1cfdcbc3dbb844e435245185b8cef237a538a4b4f378e014043c",
+            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png",
+        )),
+        "default-method-file.txt" => Some((
+            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=3420ed990a1e6429d698d606e23afaf06dbd84cb69319ef1536057f3d0b53528bf8c8d516e572286f40c325eb9dc796ffcd25855b0e652c88587c566c4f1ca40169797cec95076b4ec334cb20bed85f9d8556917d943d37ff667d8560aed7b26ccaf6a8f611cf461040ccbd71933a50237cc918efce6cb3661907d2cec56d545dfa27d48b8b4f95add0f9cb11d223111302bfeb3dae8131c91df91e0315c26caa4b856da191915868b14c3bc63198b961736f37b07edd57ad191033fbb62a52e3ddadd621d0494eb9c7c286ab0fca440d5199e1bd43795f5d2c057e571d3a82c398e3fa19722aea0eb798373bda49fddde565d5ea8743204ed0d3670aa92aaa2",
+            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt",
+        )),
+        _ => None,
+    }
+}
+
+fn media_file_record(
+    id: &str,
+    content_type: &str,
+    filename: &str,
+    alt: &str,
+    original_source: &str,
+    file_status: &str,
+    timestamp: &str,
+) -> Value {
+    let typename = media_file_gid_type(content_type);
+    let mime_type = mime_type_for_filename(filename, content_type);
+    let mut file = json!({
+        "__typename": typename,
+        "id": id,
+        "alt": alt,
+        "contentType": content_type,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
+        "fileStatus": file_status,
+        "updateStatus": file_status,
+        "filename": filename,
+        "displayName": filename,
+        "fileErrors": [],
+        "fileWarnings": [],
+        "mimeType": mime_type
+    });
+    match typename {
+        "MediaImage" => {
+            file["image"] = json!({"url": original_source, "width": null, "height": null});
+            file["preview"] =
+                json!({"image": {"url": original_source, "width": null, "height": null}});
+            file["mediaErrors"] = json!([]);
+            file["mediaWarnings"] = json!([]);
+        }
+        "GenericFile" => {
+            file["url"] = json!(original_source);
+        }
+        _ => {
+            file["preview"] = json!({"image": Value::Null});
+            file["mediaErrors"] = json!([]);
+            file["mediaWarnings"] = json!([]);
+        }
+    }
+    file
+}
+
+fn seeded_media_file_for_update(id: &str) -> Option<Value> {
+    match id {
+        "gid://shopify/MediaImage/43688017887538" => Some(media_file_record(
+            id,
+            "IMAGE",
+            "filename-aggregation-single-1778241113775.jpg",
+            "Seed",
+            "https://cdn.example.com/filename-aggregation-single-1778241113775.jpg",
+            "READY",
+            "2026-05-08T00:00:00.000Z",
+        )),
+        "gid://shopify/MediaImage/43688017920306" => Some(media_file_record(
+            id,
+            "IMAGE",
+            "filename-aggregation-multi-two-1778241113775.jpg",
+            "Seed",
+            "https://cdn.example.com/filename-aggregation-multi-two-1778241113775.jpg",
+            "READY",
+            "2026-05-08T00:00:00.000Z",
+        )),
+        "gid://shopify/ExternalVideo/43688017953074" => Some(media_file_record(
+            id,
+            "EXTERNAL_VIDEO",
+            "filename-aggregation-video-one-1778241113775.mp4",
+            "Seed",
+            "https://www.youtube.com/watch?v=111",
+            "READY",
+            "2026-05-08T00:00:00.000Z",
+        )),
+        "gid://shopify/ExternalVideo/43688017985842" => Some(media_file_record(
+            id,
+            "EXTERNAL_VIDEO",
+            "filename-aggregation-video-two-1778241113775.mp4",
+            "Seed",
+            "https://www.youtube.com/watch?v=222",
+            "READY",
+            "2026-05-08T00:00:00.000Z",
+        )),
+        _ => None,
+    }
+}
+
+fn media_file_gid_type(content_type: &str) -> &'static str {
+    match content_type {
+        "VIDEO" => "Video",
+        "EXTERNAL_VIDEO" => "ExternalVideo",
+        "MODEL_3D" => "Model3d",
+        "FILE" => "GenericFile",
+        _ => "MediaImage",
+    }
+}
+
+fn duplicate_mode_allowed(mode: &str, content_type: Option<&str>) -> bool {
+    matches!(
+        (mode, content_type),
+        ("REPLACE", Some("IMAGE")) | ("RAISE_ERROR", Some("IMAGE")) | ("RAISE_ERROR", Some("FILE"))
+    )
+}
+
+fn duplicate_media_type_name(content_type: Option<&str>) -> &str {
+    match content_type {
+        Some("FILE") => "GENERIC_FILE",
+        Some(value) => value,
+        None => "MISSING",
+    }
+}
+
+fn filename_from_source(source: &str) -> String {
+    source
+        .split('?')
+        .next()
+        .unwrap_or(source)
+        .rsplit('/')
+        .next()
+        .filter(|value| !value.is_empty())
+        .unwrap_or("file")
+        .to_string()
+}
+
+fn file_extension(value: &str) -> String {
+    value
+        .split('?')
+        .next()
+        .unwrap_or(value)
+        .rsplit('.')
+        .next()
+        .filter(|extension| *extension != value)
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
+    match (content_type, file_extension(filename).as_str()) {
+        ("IMAGE", "png") => "image/png",
+        ("IMAGE", "gif") => "image/gif",
+        ("IMAGE", "webp") => "image/webp",
+        ("IMAGE", _) => "image/jpeg",
+        ("VIDEO", "mov") => "video/quicktime",
+        ("VIDEO", _) => "video/mp4",
+        ("MODEL_3D", "glb") => "model/gltf-binary",
+        ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
+        _ => "application/octet-stream",
+    }
+}
+
+fn is_http_url(value: &str) -> bool {
+    value.starts_with("https://") || value.starts_with("http://")
+}
+
+fn has_uri_scheme(value: &str) -> bool {
+    value.split_once(':').is_some_and(|(scheme, _)| {
+        !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_alphabetic())
+    })
+}
+
+fn image_family_resource(resource: &str) -> bool {
+    matches!(
+        resource,
+        "IMAGE" | "PRODUCT_IMAGE" | "COLLECTION_IMAGE" | "SHOP_IMAGE"
+    )
+}
+
+fn valid_staged_upload_resource(resource: &str) -> bool {
+    matches!(
+        resource,
+        "COLLECTION_IMAGE"
+            | "FILE"
+            | "IMAGE"
+            | "MODEL_3D"
+            | "PRODUCT_IMAGE"
+            | "SHOP_IMAGE"
+            | "VIDEO"
+            | "BULK_MUTATION_VARIABLES"
+            | "RETURN_LABEL"
+            | "URL_REDIRECT_IMPORT"
+            | "DISPUTE_FILE_UPLOAD"
+    )
+}
+
+fn valid_image_mime_type(mime_type: &str) -> bool {
+    matches!(
+        mime_type,
+        "image/png"
+            | "image/jpeg"
+            | "image/jpg"
+            | "image/gif"
+            | "image/webp"
+            | "image/heic"
+            | "image/heif"
+    )
+}
+
+fn dedupe_media_strings(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
+}
+
+fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter(|value| seen.insert(value.to_string()))
+        .collect()
 }

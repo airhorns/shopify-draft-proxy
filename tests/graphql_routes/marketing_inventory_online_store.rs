@@ -1683,3 +1683,363 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
         json!({"deletedFileIds": ["gid://shopify/MediaImage/3"], "userErrors": []})
     );
 }
+
+#[test]
+fn media_file_create_validates_inputs_without_operation_name_guards() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileCreateValidation($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let data_url = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "data:image/png;base64,iVBORw0KGgo="}]}),
+    ));
+    assert_eq!(
+        data_url.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "originalSource"],
+            "message": "File URL is invalid",
+            "code": "INVALID_IMAGE_SOURCE_URL"
+        }]})
+    );
+
+    let extension_mismatch = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "filename": "source.jpg"}]}),
+    ));
+    assert_eq!(
+        extension_mismatch.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Provided filename extension must match original source.",
+            "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+        }]})
+    );
+
+    let duplicate_mode = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "contentType": "IMAGE", "duplicateResolutionMode": "REPLACE"}]}),
+    ));
+    assert_eq!(
+        duplicate_mode.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
+            "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
+        }]})
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "filename": "source.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        success.body["data"]["fileCreate"],
+        json!({"files": [{"id": "gid://shopify/MediaImage/2", "fileStatus": "UPLOADED"}], "userErrors": []})
+    );
+}
+
+#[test]
+fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileCreateInputValidation($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let empty_source = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": ""}]}),
+    ));
+    assert_eq!(empty_source.body["data"]["fileCreate"], Value::Null);
+    assert_eq!(
+        empty_source.body["errors"][0]["message"],
+        json!("originalSource is too short (minimum is 1)")
+    );
+    assert_eq!(
+        empty_source.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+
+    let too_many_files = (0..251)
+        .map(|index| json!({"originalSource": format!("https://cdn.example.com/file-{index}.png")}))
+        .collect::<Vec<_>>();
+    let batch_size = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": too_many_files}),
+    ));
+    assert!(batch_size.body.get("data").is_none());
+    assert_eq!(
+        batch_size.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+    assert_eq!(
+        batch_size.body["errors"][0]["path"],
+        json!(["fileCreate", "files"])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body, json!({"entries": []}));
+}
+
+#[test]
+fn media_file_update_validates_field_precedence_and_aggregates_missing_ids() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id fileStatus alt }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let source_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/404", "originalSource": "https://cdn.example.com/source.png", "previewImageSource": "https://cdn.example.com/preview.png"}]}),
+    ));
+    assert_eq!(
+        source_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [
+            {
+                "field": ["files", "0", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            },
+            {
+                "field": ["files", "0", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            }
+        ]})
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [
+            {"id": "gid://shopify/MediaImage/404", "alt": "Missing one"},
+            {"id": "gid://shopify/MediaImage/405", "alt": "Missing two"}
+        ]}),
+    ));
+    assert_eq!(
+        missing.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File ids [\"gid://shopify/MediaImage/404\", \"gid://shopify/MediaImage/405\"] do not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+}
+
+#[test]
+fn media_staged_uploads_create_validates_file_size_mime_and_omits_user_error_code() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaStagedUploadsCreateValidation($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { url resourceUrl parameters { name value } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let missing_video_size = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"input": [{"resource": "VIDEO", "filename": "clip.mp4", "mimeType": "video/mp4"}]}),
+    ));
+    assert_eq!(
+        missing_video_size.body["data"]["stagedUploadsCreate"],
+        json!({"stagedTargets": [{"url": null, "resourceUrl": null, "parameters": []}], "userErrors": [{
+            "field": ["input", "0", "fileSize"],
+            "message": "file size is required for video resources"
+        }]})
+    );
+
+    let bad_image_mime = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"input": [{"resource": "IMAGE", "filename": "image.exe", "mimeType": "application/x-msdownload"}]}),
+    ));
+    assert_eq!(
+        bad_image_mime.body["data"]["stagedUploadsCreate"],
+        json!({"stagedTargets": [{"url": null, "resourceUrl": null, "parameters": []}], "userErrors": [{
+            "field": ["input", "0", "mimeType"],
+            "message": "image.exe: (application/x-msdownload) is not a recognized format"
+        }]})
+    );
+}
+
+#[test]
+fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateForAck($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id fileStatus } userErrors { code } }
+        }
+        "#,
+        json!({"files": [{"originalSource": "https://cdn.example.com/non-ready.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["id"],
+        json!("gid://shopify/MediaImage/2")
+    );
+
+    let acknowledge_non_ready = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileAcknowledgeValidation($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+    ));
+    assert_eq!(
+        acknowledge_non_ready.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({"files": null, "userErrors": [{
+            "field": ["fileIds"],
+            "message": "File with id gid://shopify/MediaImage/2 is not in the READY state.",
+            "code": "NON_READY_STATE"
+        }]})
+    );
+
+    let acknowledge_missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileAcknowledgeValidation($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/999", "gid://shopify/MediaImage/2"]}),
+    ));
+    assert_eq!(
+        acknowledge_missing.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({"files": null, "userErrors": [{
+            "field": ["fileIds"],
+            "message": "File id gid://shopify/MediaImage/999 does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+}
+
+#[test]
+fn media_file_create_and_update_reference_authorization_is_top_level_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation MediaReferenceAuthCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id } userErrors { field message code } }
+        }
+    "#;
+    let mut create_request = json_graphql_request(
+        create_query,
+        json!({"files": [{
+            "originalSource": "https://cdn.example.com/reference.png",
+            "referencesToAdd": ["gid://shopify/Product/1"]
+        }]}),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-manage-products".to_string(),
+        "false".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(create.body["data"]["fileCreate"], Value::Null);
+    assert_eq!(
+        create.body["errors"][0],
+        json!({
+            "message": "Access denied: Missing permission to manage products.",
+            "locations": [{"line": 2, "column": 3}],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes"
+            },
+            "path": ["fileCreate"]
+        })
+    );
+
+    let update_query = r#"
+        mutation MediaReferenceAuthUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) { files { id } userErrors { field message code } }
+        }
+    "#;
+    let mut update_request = json_graphql_request(
+        update_query,
+        json!({"files": [{
+            "id": "gid://shopify/MediaImage/43693628424498",
+            "referencesToAdd": ["gid://shopify/Product/1"]
+        }]}),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-manage-products".to_string(),
+        "no".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(update.body["data"]["fileUpdate"], Value::Null);
+    assert_eq!(
+        update.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+    assert_eq!(update.body["errors"][0]["path"], json!(["fileUpdate"]));
+}
+
+#[test]
+fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
+    let mut proxy = snapshot_proxy();
+    let mut request = json_graphql_request(
+        r#"
+        mutation MediaQuota($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"originalSource": "https://cdn.example.com/video.mp4", "contentType": "VIDEO"},
+            {"originalSource": "https://cdn.example.com/model.glb", "contentType": "MODEL_3D"},
+            {"originalSource": "https://cdn.example.com/file.txt", "contentType": "FILE"}
+        ]}),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-media-quota-errors".to_string(),
+        "VIDEO_THROTTLE_EXCEEDED,MODEL3D_THROTTLE_EXCEEDED,NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
+            .to_string(),
+    );
+    let response = proxy.process_request(request);
+    assert_eq!(
+        response.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [
+            {
+                "field": ["files", "0", "contentType"],
+                "message": "Video upload throttle exceeded.",
+                "code": "VIDEO_THROTTLE_EXCEEDED"
+            },
+            {
+                "field": ["files", "1", "contentType"],
+                "message": "Model 3D upload throttle exceeded.",
+                "code": "MODEL3D_THROTTLE_EXCEEDED"
+            },
+            {
+                "field": ["files", "2", "contentType"],
+                "message": "Non-image media per shop limit exceeded.",
+                "code": "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
+            }
+        ]})
+    );
+}
