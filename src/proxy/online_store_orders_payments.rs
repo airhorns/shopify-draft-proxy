@@ -290,6 +290,21 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if self.metaobject_by_id(&id).is_none() {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Record not found",
+                        "code": "RECORD_NOT_FOUND",
+                        "elementKey": null,
+                        "elementIndex": null
+                    }]
+                }),
+                &field.selection,
+            );
+        }
         self.store.staged.metaobjects.remove(&id);
         self.store.staged.deleted_metaobject_ids.insert(id.clone());
         staged_ids.push(id.clone());
