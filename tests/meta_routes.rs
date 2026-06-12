@@ -53,6 +53,8 @@ fn graphql_request(body: &str) -> Request {
 fn base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -670,6 +672,8 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
 fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -706,6 +710,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "products": {
                     "gid://shopify/Product/base": {
                         "id": "gid://shopify/Product/base",
+                        "createdAt": "2024-01-01T00:00:00.000Z",
+                        "updatedAt": "2024-01-01T00:00:00.000Z",
                         "title": "Base product",
                         "handle": "base-product",
                         "status": "ACTIVE",
@@ -725,6 +731,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "products": {
                     "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
                         "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "createdAt": "2024-01-01T00:00:01.000Z",
+                        "updatedAt": "2024-01-01T00:00:01.000Z",
                         "title": "Created product",
                         "handle": "created-product",
                         "status": "ACTIVE",
@@ -763,6 +771,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
 fn meta_dump_and_restore_round_trip_staged_rust_state() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1037,6 +1047,8 @@ fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
 fn meta_reset_clears_log_and_staged_product_overlay() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1085,6 +1097,8 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
     let mut proxy = snapshot_proxy()
         .with_base_products(vec![ProductRecord {
             id: "gid://shopify/Product/base".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "Base product".to_string(),
             handle: "base-product".to_string(),
             status: "ACTIVE".to_string(),
