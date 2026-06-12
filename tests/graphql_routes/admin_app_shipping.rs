@@ -306,6 +306,199 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
 }
 
 #[test]
+fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
+    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/Customer/9102966915305";
+    let create_baseline = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineConsentBaseline($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "Hermes",
+                "lastName": "Baseline",
+                "tags": ["stable"]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_baseline.body["data"]["customerUpdate"]["customer"]["displayName"],
+        json!("Hermes Baseline")
+    );
+
+    let email_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineConsentRejection($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName tags }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "ShouldNot",
+                "lastName": "Apply",
+                "tags": ["mutated"],
+                "emailMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let email_errors = json!([{
+        "field": ["emailMarketingConsent"],
+        "message": "To update emailMarketingConsent, please use the customerEmailMarketingConsentUpdate Mutation instead"
+    }]);
+    assert_eq!(
+        email_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        email_rejection.body["data"]["customerUpdate"]["userErrors"],
+        email_errors
+    );
+    assert_eq!(
+        email_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        email_errors
+    );
+
+    let inline_literal_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          customerUpdate(input: {
+            id: "gid://shopify/Customer/999999999999999",
+            emailMarketingConsent: { marketingState: SUBSCRIBED }
+          }) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        inline_literal_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        inline_literal_rejection.body["data"]["customerUpdate"]["userErrors"],
+        email_errors
+    );
+
+    let sms_rejection_unknown_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineConsentUnknownCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/999999999999999",
+                "smsMarketingConsent": {
+                    "marketingState": "UNSUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let sms_errors = json!([{
+        "field": ["smsMarketingConsent"],
+        "message": "To update smsMarketingConsent, please use the customerSmsMarketingConsentUpdate Mutation instead"
+    }]);
+    assert_eq!(
+        sms_rejection_unknown_customer.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        sms_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
+        sms_errors
+    );
+    assert_eq!(
+        sms_rejection_unknown_customer.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        sms_errors
+    );
+
+    let both_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineConsentBoth($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "emailMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                },
+                "smsMarketingConsent": {
+                    "marketingState": "UNSUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let both_errors = json!([
+        {
+            "field": ["smsMarketingConsent"],
+            "message": "To update smsMarketingConsent, please use the customerSmsMarketingConsentUpdate Mutation instead"
+        },
+        {
+            "field": ["emailMarketingConsent"],
+            "message": "To update emailMarketingConsent, please use the customerEmailMarketingConsentUpdate Mutation instead"
+        }
+    ]);
+    assert_eq!(
+        both_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        both_rejection.body["data"]["customerUpdate"]["userErrors"],
+        both_errors
+    );
+    assert_eq!(
+        both_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        both_errors
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerUpdateInlineConsentDownstream($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id firstName lastName displayName tags }
+          customerByIdentifier(identifier: $identifier) { id firstName lastName displayName tags }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "id": id } }),
+    ));
+    let expected_customer = json!({
+        "id": id,
+        "firstName": "Hermes",
+        "lastName": "Baseline",
+        "displayName": "Hermes Baseline",
+        "tags": ["stable"]
+    });
+    assert_eq!(downstream.body["data"]["customer"], expected_customer);
+    assert_eq!(
+        downstream.body["data"]["customerByIdentifier"],
+        expected_customer
+    );
+}
+
+#[test]
 fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let mut proxy = snapshot_proxy();
 

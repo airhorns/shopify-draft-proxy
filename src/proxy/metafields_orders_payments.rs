@@ -1189,6 +1189,35 @@ pub(in crate::proxy) fn is_customer_input_validation_update_success(
     )
 }
 
+pub(in crate::proxy) fn is_local_customer_update_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if query.contains("CustomerUpdateParityPlan")
+        || is_customer_input_validation_update_success(variables)
+    {
+        return true;
+    }
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    let Some(input) = resolved_object_field(&arguments, "input") else {
+        return false;
+    };
+    input.contains_key("emailMarketingConsent")
+        || input.contains_key("smsMarketingConsent")
+        || [
+            "firstName",
+            "lastName",
+            "note",
+            "tags",
+            "taxExempt",
+            "taxExemptions",
+            "metafields",
+            "phone",
+        ]
+        .iter()
+        .any(|field| input.contains_key(*field))
+}
+
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
     let mut normalized = tags
         .into_iter()

@@ -1025,7 +1025,21 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "customerUpdate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input")
+            .or_else(|| resolved_object_field(variables, "input"))
+            .unwrap_or_default();
+        let inline_consent_errors = customer_update_inline_consent_errors(&input);
+        if !inline_consent_errors.is_empty() {
+            let payload = json!({
+                "customer": null,
+                "userErrors": inline_consent_errors,
+                "customerUpdateUserErrors": inline_consent_errors
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         if id == "gid://shopify/Customer/999999999999999" || id.is_empty() {
             let payload = json!({
@@ -1241,4 +1255,28 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+}
+
+fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if input.contains_key("smsMarketingConsent") {
+        errors.push(customer_update_inline_consent_error(
+            "smsMarketingConsent",
+            "customerSmsMarketingConsentUpdate",
+        ));
+    }
+    if input.contains_key("emailMarketingConsent") {
+        errors.push(customer_update_inline_consent_error(
+            "emailMarketingConsent",
+            "customerEmailMarketingConsentUpdate",
+        ));
+    }
+    errors
+}
+
+fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
+    json!({
+        "field": [field],
+        "message": format!("To update {field}, please use the {mutation} Mutation instead")
+    })
 }
