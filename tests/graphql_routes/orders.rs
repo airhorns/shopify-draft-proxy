@@ -1323,8 +1323,12 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
-        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
-        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Payment terms do not exist",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
     );
 
     let paid_update = proxy.process_request(json_graphql_request(

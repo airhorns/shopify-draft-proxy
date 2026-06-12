@@ -2135,7 +2135,7 @@ pub(in crate::proxy) fn payment_terms_local_runtime_update_data(
     let error = match payment_terms_id.as_str() {
         "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
             Value::Null,
-            "Payment terms do not exist.",
+            "Payment terms do not exist",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
         "gid://shopify/PaymentTerms/paid-update" => Some(payment_terms_user_error(
