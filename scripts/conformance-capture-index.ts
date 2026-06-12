@@ -6543,7 +6543,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-metafields-and-handle-update.json`,
       'config/parity-specs/payments/payment-customization-metafields-and-handle-update.json',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-update.graphql',
       'config/parity-requests/payments/payment-customization-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-metafields-create-local-runtime.graphql',
       'config/parity-requests/payments/payment-customization-metafields-read.graphql',
       'config/parity-requests/payments/payment-customization-metafields-update.graphql',
     ],
