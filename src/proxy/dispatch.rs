@@ -1229,6 +1229,7 @@ impl DraftProxy {
                         "gid://shopify/BulkOperation/0"
                             | "gid://shopify/BulkOperation/7689772204338"
                             | "gid://shopify/BulkOperation/7689772990770"
+                            | "gid://shopify/BulkOperation/7749099028786"
                     )
                 })
                 .unwrap_or(false)
