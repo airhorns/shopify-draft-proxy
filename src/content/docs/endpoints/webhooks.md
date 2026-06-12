@@ -50,7 +50,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 Validation and no-side-effect behavior:
 
 - Missing or null required arguments return Shopify-like GraphQL validation errors and do not append mutation-log entries.
-- Create/update reject blank addresses, non-HTTPS HTTP callback URLs, malformed Pub/Sub/project/topic values, malformed EventBridge ARNs, wrong EventBridge API client IDs when known, public Kafka URIs, Shopify/internal callback hosts, invalid topic/format combinations, invalid names, duplicate webhook names, and duplicate active `(topic, uri, format, filter)` registrations without staging.
+- Create/update reject blank addresses, non-HTTPS HTTP callback URLs, malformed Pub/Sub/project/topic values, malformed EventBridge ARNs, wrong EventBridge API client IDs when known, public Kafka URIs, Shopify/internal callback hosts, invalid topic/format combinations, invalid names, duplicate webhook names, and duplicate active `(topic, uri, format, filter, apiPermissionId)` registrations without staging.
 - Unknown update/delete IDs return captured userErrors and leave local state unchanged.
 - Whitespace-only `uri` is treated as blank; leading/trailing whitespace around a valid HTTPS URI is trimmed before storage.
 - Callback address byte-size validation uses Shopify's MySQL text-column maximum of 65,535 bytes.

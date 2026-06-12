@@ -2220,6 +2220,167 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
 }
 
 #[test]
+fn segment_mutations_validate_inputs_without_operation_name_markers() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation LocalSegmentCreate($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { __typename field message }
+          }
+        }
+    "#;
+
+    let blank = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "", "query": "" }),
+    ));
+    assert_eq!(blank.status, 200);
+    assert_eq!(
+        blank.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [
+                { "__typename": "UserError", "field": ["name"], "message": "Name can't be blank" },
+                { "__typename": "UserError", "field": ["query"], "message": "Query can't be blank" }
+            ]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+
+    let long_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "N".repeat(256), "query": "number_of_orders >= 1" }),
+    ));
+    assert_eq!(long_name.status, 200);
+    assert_eq!(
+        long_name.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["name"],
+                "message": "Name is too long (maximum is 255 characters)"
+            }]
+        })
+    );
+
+    let padded = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": format!("{}Trimmed segment", " ".repeat(260)), "query": "number_of_orders >= 1" }),
+    ));
+    let segment_id = padded.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        padded.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Trimmed segment")
+    );
+    assert_eq!(
+        padded.body["data"]["segmentCreate"]["segment"]["query"],
+        json!("number_of_orders >= 1")
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalSegmentUpdate($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id }
+            userErrors { __typename field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Segment/999999999999", "name": "Nope" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["id"],
+                "message": "Segment does not exist"
+            }]
+        })
+    );
+
+    let noop = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalSegmentNoop($id: ID!) {
+          segmentUpdate(id: $id) {
+            segment { id }
+            userErrors { __typename field message }
+          }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        noop.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": null,
+                "message": "At least one attribute to change must be present"
+            }]
+        })
+    );
+}
+
+#[test]
+fn segment_mutations_suffix_duplicate_names() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation AnySegmentCreateName($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "Duplicate Segment", "query": "number_of_orders >= 1" }),
+    ));
+    let first_id = first.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        first.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Duplicate Segment")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "Duplicate Segment", "query": "number_of_orders >= 1" }),
+    ));
+    assert_eq!(
+        second.body["data"]["segmentCreate"]["segment"]["name"],
+        json!("Duplicate Segment (2)")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnySegmentUpdateName($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": first_id, "name": "Duplicate Segment (2)" }),
+    ));
+    assert_eq!(
+        update.body["data"]["segmentUpdate"]["segment"]["name"],
+        json!("Duplicate Segment (3)")
+    );
+}
+
+#[test]
 fn customer_segment_members_query_create_validates_stages_and_reads_node() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
@@ -2378,14 +2539,15 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing_name() {
     let mut proxy = snapshot_proxy();
 
-    for (resource_type, name) in [
-        ("PRODUCT", "All products"),
-        ("PRODUCT", "ALL PRODUCTS"),
-        ("ORDER", "All"),
-        ("DRAFT_ORDER", "All Drafts"),
-        ("FILE", "All Files"),
-        ("COLLECTION", "All collections"),
-        ("DISCOUNT_REDEEM_CODE", "All codes"),
+    for (resource_type, name, query) in [
+        ("PRODUCT", "All products", "vendor:Acme"),
+        ("PRODUCT", "ALL PRODUCTS", "vendor:Acme"),
+        ("ORDER", "All", "status:open"),
+        ("DRAFT_ORDER", "All Drafts", "status:open"),
+        ("FILE", "All Files", "status:READY"),
+        ("COLLECTION", "All collections", "title:Sale"),
+        ("PRICE_RULE", "All price rules", "title:summer"),
+        ("DISCOUNT_REDEEM_CODE", "All codes", "code:SUMMER"),
     ] {
         let create = proxy.process_request(json_graphql_request(
             r#"
@@ -2396,7 +2558,7 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
               }
             }
             "#,
-            json!({ "input": { "resourceType": resource_type, "name": name, "query": "vendor:Acme" } }),
+            json!({ "input": { "resourceType": resource_type, "name": name, "query": query } }),
         ));
         assert_eq!(
             create.body["data"]["savedSearchCreate"],
@@ -2511,6 +2673,48 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
     assert_eq!(
         create_a.body["data"]["savedSearchCreate"]["userErrors"],
         json!([])
+    );
+
+    let case_primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCaseSensitivePrimary($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Case Sensitive", "query": "title:primary" } }),
+    ));
+    let case_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchCaseSensitiveVariant($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "case sensitive", "query": "title:variant" } }),
+    ));
+    assert_eq!(
+        case_primary.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["name"],
+        json!("case sensitive")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["query"],
+        json!("title:variant")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["resourceType"],
+        json!("PRODUCT")
+    );
+    assert_eq!(
+        case_variant.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        case_variant.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/SavedSearch/"))
     );
 }
 
@@ -2631,6 +2835,125 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
             "first": { "deletedSavedSearchId": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic", "userErrors": [] },
             "second": { "deletedSavedSearchId": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic", "userErrors": [] },
             "missing": { "deletedSavedSearchId": null, "userErrors": [{ "field": ["input", "id"], "message": "Saved Search does not exist" }] }
+        })
+    );
+}
+
+#[test]
+fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_core() {
+    let mut proxy = snapshot_proxy();
+
+    let product_allowlist = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchProductAllowlist($handle: SavedSearchCreateInput!, $created: SavedSearchCreateInput!, $productType: SavedSearchCreateInput!) {
+          handle: savedSearchCreate(input: $handle) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          created: savedSearchCreate(input: $created) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          productType: savedSearchCreate(input: $productType) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "handle": { "resourceType": "PRODUCT", "name": "Handle Filter", "query": "handle:alpha" },
+            "created": { "resourceType": "PRODUCT", "name": "Created Filter", "query": "created_at:>=2025-01-01" },
+            "productType": { "resourceType": "PRODUCT", "name": "Product Type Filter", "query": "product_type:Widget" }
+        }),
+    ));
+    assert_eq!(
+        product_allowlist.body["data"]["handle"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_allowlist.body["data"]["created"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        product_allowlist.body["data"]["productType"]["userErrors"],
+        json!([])
+    );
+
+    let resource_allowlist = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchResourceAllowlist($collection: SavedSearchCreateInput!, $draftOrder: SavedSearchCreateInput!, $file: SavedSearchCreateInput!, $discountCode: SavedSearchCreateInput!) {
+          collection: savedSearchCreate(input: $collection) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          draftOrder: savedSearchCreate(input: $draftOrder) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          file: savedSearchCreate(input: $file) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+          discountCode: savedSearchCreate(input: $discountCode) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "collection": { "resourceType": "COLLECTION", "name": "Collection Handle", "query": "handle:summer" },
+            "draftOrder": { "resourceType": "DRAFT_ORDER", "name": "Draft Order Tag", "query": "tag:vip" },
+            "file": { "resourceType": "FILE", "name": "File Media Type", "query": "media_type:IMAGE" },
+            "discountCode": { "resourceType": "DISCOUNT_REDEEM_CODE", "name": "Discount Code", "query": "code:SUMMER" }
+        }),
+    ));
+    assert_eq!(
+        resource_allowlist.body["data"]["collection"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["draftOrder"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["file"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        resource_allowlist.body["data"]["discountCode"]["userErrors"],
+        json!([])
+    );
+
+    let unknown_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUnknownFilterCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Unknown Create", "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3 -aaa_filter:4" } }),
+    ));
+    assert_eq!(
+        unknown_create.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
+            ]
+        })
+    );
+
+    let update_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUpdateSeed($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Update Unknown Seed", "query": "vendor:Acme" } }),
+    ));
+    let update_id = update_seed.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap();
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchUnknownFilterUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3" } }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Update Unknown Seed",
+                "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3",
+            "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
+            ]
         })
     );
 }
@@ -3171,7 +3494,11 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 }
 
 #[test]
-fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
+fn admin_graphql_capability_classification_requires_local_dispatch_root() {
+    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS, not on the registry's
+    // `implemented` flag. None of these synthetic roots is a dispatch root, so all three fall
+    // through to passthrough regardless of `implemented` — and crucially never 501. (In snapshot
+    // mode there is no upstream, so passthrough surfaces as a 400 "no dispatcher" error.)
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
             "knownProducts",
@@ -3197,20 +3524,20 @@ fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
         "POST",
         r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
     ));
-    assert_eq!(known_query.status, 501);
+    assert_eq!(known_query.status, 400);
     assert_eq!(
         known_query.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownProducts" }] })
     );
 
     let known_mutation = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
     ));
-    assert_eq!(known_mutation.status, 501);
+    assert_eq!(known_mutation.status, 400);
     assert_eq!(
         known_mutation.body,
-        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: knownProductCreate" }] })
     );
 
     let unimplemented = proxy.process_request(graphql_request(
@@ -3247,7 +3574,11 @@ fn local_dispatch_root_without_registry_classification_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_local_dispatch_fails_closed() {
+fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() {
+    // An implemented registry entry that is not a LOCAL_DISPATCH_ROOT must NOT be hard-failed by
+    // the table dispatch: an implemented operation never 501s. It resolves to Unknown/Passthrough
+    // and passes through upstream (surfaced as a 400 "no dispatcher" in snapshot mode, where no
+    // upstream exists). In production these entries are handled earlier in the special-case chain.
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
@@ -3264,10 +3595,11 @@ fn implemented_registry_entry_without_local_dispatch_fails_closed() {
         r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_eq!(response.status, 501);
+    assert_ne!(response.status, 501);
+    assert_eq!(response.status, 400);
     assert_eq!(
         response.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: unknownSavedSearches" }] })
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: unknownSavedSearches" }] })
     );
 }
 

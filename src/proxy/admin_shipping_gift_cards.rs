@@ -1628,56 +1628,133 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let Some(field) = document
+            .root_fields
+            .iter()
+            .find(|field| field.name == root_field)
+            .or_else(|| document.root_fields.first())
+        else {
+            return json_error(400, "Operation has no root field");
+        };
+        if let Some(error) =
+            segment_required_argument_error(root_field, field, &document.operation_path)
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        let response_key = field.response_key.clone();
+        let payload_selection = field.selection.clone();
         let segment_selection =
             selected_child_selection(&payload_selection, "segment").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let arguments = field.arguments.clone();
         let now = "2026-01-01T00:00:00Z";
         let (segment, user_errors, staged_ids) = match root_field {
             "segmentCreate" => {
-                let name = resolved_string_field(&arguments, "name").unwrap_or_default();
+                let name_input = resolved_string_field(&arguments, "name").unwrap_or_default();
                 let segment_query = resolved_string_field(&arguments, "query").unwrap_or_default();
-                if segment_query == "not a valid segment query ???" {
-                    (
+                let mut user_errors = segment_name_user_errors(&name_input);
+                user_errors.extend(segment_query_user_errors(&segment_query));
+                let name = name_input.trim().to_string();
+                if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
+                    user_errors.push(segment_user_error(
                         Value::Null,
-                        vec![
-                            json!({ "field": ["query"], "message": "Query Line 1 Column 6: 'valid' is unexpected." }),
-                            json!({ "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }),
-                        ],
-                        Vec::new(),
-                    )
+                        "You have reached the maximum number of segments",
+                    ));
+                }
+                let name = if user_errors.is_empty() {
+                    match self.segment_available_name(&name, None) {
+                        Ok(name) => name,
+                        Err(error) => {
+                            user_errors.push(error);
+                            name
+                        }
+                    }
                 } else {
+                    name
+                };
+                if user_errors.is_empty() {
                     let id = self.next_proxy_synthetic_gid("Segment");
                     let segment = json!({
+                        "__typename": "Segment",
                         "id": id,
                         "name": name,
                         "query": segment_query,
                         "creationDate": now,
-                        "lastEditDate": now
+                        "lastEditDate": now,
+                        "tagMigrated": false,
+                        "valid": true,
+                        "percentageSnapshot": null,
+                        "percentageSnapshotUpdatedAt": null,
+                        "translation": null,
+                        "author": null
                     });
                     self.store
                         .staged
                         .segments
                         .insert(id.clone(), segment.clone());
                     (segment, vec![], vec![id])
+                } else {
+                    (Value::Null, user_errors, Vec::new())
                 }
             }
             "segmentUpdate" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                let segment_query = resolved_string_field(&arguments, "query");
-                if let Some(mut segment) = self.store.staged.segments.get(&id).cloned() {
-                    if let Some(segment_query) = segment_query {
-                        segment["query"] = json!(segment_query);
-                        segment["lastEditDate"] = json!(now);
-                    }
-                    self.store
-                        .staged
-                        .segments
-                        .insert(id.clone(), segment.clone());
-                    (segment, vec![], vec![id])
+                if let Some(response) = segment_id_top_level_error(&id, &response_key, field) {
+                    return response;
+                }
+                if !self.store.staged.segments.contains_key(&id) {
+                    (
+                        Value::Null,
+                        vec![segment_user_error(json!(["id"]), "Segment does not exist")],
+                        Vec::new(),
+                    )
+                } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
+                    (
+                        Value::Null,
+                        vec![segment_user_error(
+                            Value::Null,
+                            "At least one attribute to change must be present",
+                        )],
+                        Vec::new(),
+                    )
                 } else {
-                    (Value::Null, vec![], Vec::new())
+                    let mut user_errors = Vec::new();
+                    let name_input = resolved_string_field(&arguments, "name");
+                    let query_input = resolved_string_field(&arguments, "query");
+                    if let Some(name) = name_input.as_deref() {
+                        user_errors.extend(segment_name_user_errors(name));
+                    }
+                    if let Some(segment_query) = query_input.as_deref() {
+                        user_errors.extend(segment_query_user_errors(segment_query));
+                    }
+                    let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
+                    if user_errors.is_empty() {
+                        if let Some(name) = new_name.as_deref() {
+                            match self.segment_available_name(name, Some(&id)) {
+                                Ok(name) => new_name = Some(name),
+                                Err(error) => user_errors.push(error),
+                            }
+                        }
+                    }
+                    if user_errors.is_empty() {
+                        let mut segment = self.store.staged.segments.get(&id).cloned().unwrap();
+                        if let Some(name) = new_name {
+                            segment["name"] = json!(name);
+                        }
+                        if let Some(segment_query) = query_input {
+                            segment["query"] = json!(segment_query);
+                        }
+                        segment["lastEditDate"] = json!(now);
+                        self.store
+                            .staged
+                            .segments
+                            .insert(id.clone(), segment.clone());
+                        (segment, vec![], vec![id])
+                    } else {
+                        (Value::Null, user_errors, Vec::new())
+                    }
                 }
             }
             _ => (Value::Null, vec![], Vec::new()),
@@ -1690,6 +1767,33 @@ impl DraftProxy {
                 response_key: segment_payload_json(segment, &payload_selection, &segment_selection, user_errors)
             }
         }))
+    }
+
+    fn segment_available_name(
+        &self,
+        requested_name: &str,
+        exclude_id: Option<&str>,
+    ) -> Result<String, Value> {
+        if !self.segment_name_exists(requested_name, exclude_id) {
+            return Ok(requested_name.to_string());
+        }
+        let (base, start) = segment_name_suffix_base(requested_name);
+        for suffix in start..=100 {
+            let candidate = format!("{base} ({suffix})");
+            if !self.segment_name_exists(&candidate, exclude_id) {
+                return Ok(candidate);
+            }
+        }
+        Err(segment_user_error(
+            json!(["name"]),
+            "Name has already been taken",
+        ))
+    }
+
+    fn segment_name_exists(&self, name: &str, exclude_id: Option<&str>) -> bool {
+        self.store.staged.segments.iter().any(|(id, segment)| {
+            exclude_id != Some(id.as_str()) && segment["name"].as_str() == Some(name)
+        })
     }
 
     pub(in crate::proxy) fn customer_segment_members_query_read_data(
@@ -2580,7 +2684,7 @@ impl DraftProxy {
                         Some(card) if card.get("notify") == Some(&json!(false)) => vec![json!({
                             "field": ["id"],
                             "code": "INVALID",
-                            "message": "Gift card notifications are disabled."
+                            "message": "Notifications for this gift card are disabled."
                         })],
                         Some(_) => Vec::new(),
                         None => vec![json!({
@@ -2988,5 +3092,697 @@ impl DraftProxy {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         synthetic_shopify_gid(resource_type, id)
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn flow_utility_mutation(
+        &mut self,
+        root_field: &str,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        let mut log_root: Option<String> = None;
+        for field in fields.iter().filter(|field| {
+            matches!(
+                field.name.as_str(),
+                "flowGenerateSignature" | "flowTriggerReceive"
+            )
+        }) {
+            match field.name.as_str() {
+                "flowGenerateSignature" => {
+                    match self.flow_generate_signature_field(field, query, variables) {
+                        FlowFieldResult::Payload { value, staged } => {
+                            data.insert(field.response_key.clone(), value);
+                            if staged {
+                                log_root.get_or_insert_with(|| field.name.clone());
+                            }
+                        }
+                        FlowFieldResult::TopLevelError(error) => {
+                            return ok_json(error);
+                        }
+                    }
+                }
+                "flowTriggerReceive" => {
+                    let (value, staged) = self.flow_trigger_receive_field(field);
+                    data.insert(field.response_key.clone(), value);
+                    if staged {
+                        log_root.get_or_insert_with(|| field.name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(log_root) = log_root {
+            self.record_mutation_log_entry(request, query, variables, &log_root, Vec::new());
+        }
+        if data.is_empty() {
+            json_error(
+                501,
+                &format!(
+                    "No Rust stage-locally dispatcher implemented for root field: {root_field}"
+                ),
+            )
+        } else {
+            ok_json(json!({ "data": data }))
+        }
+    }
+
+    fn flow_generate_signature_field(
+        &mut self,
+        field: &RootFieldSelection,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> FlowFieldResult {
+        let operation_path = parsed_operation_path(query, variables);
+        if let Some(error) = flow_generate_signature_required_arg_error(field, &operation_path) {
+            return FlowFieldResult::TopLevelError(error);
+        }
+        if let Some(error) = flow_generate_signature_null_arg_error(field, &operation_path) {
+            return FlowFieldResult::TopLevelError(error);
+        }
+
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !id.starts_with("gid://shopify/FlowActionDefinition/") {
+            return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
+        }
+
+        let payload = resolved_string_arg(&field.arguments, "payload").unwrap_or_default();
+        let Ok(payload_json) = serde_json::from_str::<Value>(&payload) else {
+            let value = selected_json(
+                &json!({
+                    "signature": Value::Null,
+                    "payload": Value::Null,
+                    "userErrors": [{
+                        "field": ["payload"],
+                        "message": "Payload must be valid JSON"
+                    }]
+                }),
+                &field.selection,
+            );
+            return FlowFieldResult::Payload {
+                value,
+                staged: false,
+            };
+        };
+
+        let canonical_payload = canonical_json_string(&payload_json);
+        let signature = local_flow_signature(&id, &canonical_payload);
+        self.store.staged.flow_signatures.push(json!({
+            "id": id,
+            "payloadHash": stable_hash_hex(&canonical_payload),
+            "signatureHash": stable_hash_hex(&signature),
+            "payloadByteSize": canonical_payload.len()
+        }));
+
+        FlowFieldResult::Payload {
+            value: selected_json(
+                &json!({
+                    "signature": signature,
+                    "payload": canonical_payload,
+                    "userErrors": []
+                }),
+                &field.selection,
+            ),
+            staged: true,
+        }
+    }
+
+    fn flow_trigger_receive_field(&mut self, field: &RootFieldSelection) -> (Value, bool) {
+        let has_body = argument_string(&field.arguments, "body")
+            .map(|body| !body.is_empty())
+            .unwrap_or(false);
+        let has_handle = argument_string(&field.arguments, "handle")
+            .map(|handle| !handle.is_empty())
+            .unwrap_or(false);
+        let has_payload = field
+            .arguments
+            .get("payload")
+            .is_some_and(|value| !matches!(value, ResolvedValue::Null));
+
+        if has_body && (field.arguments.contains_key("handle") || has_payload) {
+            return (
+                flow_trigger_payload(
+                    field,
+                    "body",
+                    "Cannot use `handle` and `payload` arguments with `body` argument",
+                ),
+                false,
+            );
+        }
+        if has_body {
+            let body = argument_string(&field.arguments, "body").unwrap_or_default();
+            return match flow_trigger_body_validation_message(&body) {
+                Some(message) => (flow_trigger_payload(field, "body", &message), false),
+                None => {
+                    self.store.staged.flow_trigger_receipts.push(json!({
+                        "source": "body",
+                        "bodyHash": stable_hash_hex(&body),
+                        "bodyByteSize": body.len()
+                    }));
+                    (flow_trigger_success_payload(field), true)
+                }
+            };
+        }
+        if !has_handle || !has_payload {
+            return (
+                flow_trigger_payload(
+                    field,
+                    "handle",
+                    "`handle` and `payload` arguments are required",
+                ),
+                false,
+            );
+        }
+
+        let handle = argument_string(&field.arguments, "handle").unwrap_or_default();
+        let Some(payload) = field.arguments.get("payload") else {
+            return (
+                flow_trigger_payload(
+                    field,
+                    "handle",
+                    "`handle` and `payload` arguments are required",
+                ),
+                false,
+            );
+        };
+        let payload_json = resolved_value_json(payload);
+        let canonical_payload = canonical_json_string(&payload_json);
+        if canonical_payload.len() > 50_000 {
+            return (
+                flow_trigger_payload(
+                    field,
+                    "body",
+                    "Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n",
+                ),
+                false,
+            );
+        }
+        if !is_local_flow_handle(&handle) {
+            return (
+                flow_trigger_payload(
+                    field,
+                    "body",
+                    &format!("Errors validating schema:\n  Invalid handle '{handle}'.\n"),
+                ),
+                false,
+            );
+        }
+
+        self.store.staged.flow_trigger_receipts.push(json!({
+            "source": "handle",
+            "handle": handle,
+            "payloadHash": stable_hash_hex(&canonical_payload),
+            "payloadByteSize": canonical_payload.len()
+        }));
+        (flow_trigger_success_payload(field), true)
+    }
+}
+
+enum FlowFieldResult {
+    Payload { value: Value, staged: bool },
+    TopLevelError(Value),
+}
+
+fn parsed_operation_path(query: &str, variables: &BTreeMap<String, ResolvedValue>) -> String {
+    crate::graphql::parsed_document(query, variables)
+        .map(|document| document.operation_path)
+        .unwrap_or_else(|| "mutation".to_string())
+}
+
+fn flow_generate_signature_required_arg_error(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Value> {
+    let mut missing = Vec::new();
+    if !field.raw_arguments.contains_key("id") {
+        missing.push("id");
+    }
+    if !field.raw_arguments.contains_key("payload") {
+        missing.push("payload");
+    }
+    if missing.is_empty() {
+        return None;
+    }
+    let arguments = missing.join(", ");
+    Some(json!({
+        "errors": [{
+            "message": format!("Field 'flowGenerateSignature' is missing required arguments: {arguments}"),
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "path": [operation_path, "flowGenerateSignature"],
+            "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "flowGenerateSignature",
+                "arguments": arguments
+            }
+        }]
+    }))
+}
+
+fn flow_generate_signature_null_arg_error(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Value> {
+    for (name, expected_type) in [("id", "ID!"), ("payload", "String!")] {
+        let Some(raw) = field.raw_arguments.get(name) else {
+            continue;
+        };
+        if !raw.is_literal_null() && !raw.is_unbound_variable() {
+            continue;
+        }
+        return Some(json!({
+            "errors": [{
+                "message": format!("Argument '{name}' on Field 'flowGenerateSignature' has an invalid value (null). Expected type '{expected_type}'."),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [operation_path, "flowGenerateSignature", name],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": name
+                }
+            }]
+        }));
+    }
+    None
+}
+
+fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value {
+    json!({
+        "errors": [{
+            "message": format!("Invalid id: {id}"),
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": { field.response_key.clone(): Value::Null }
+    })
+}
+
+fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &str) -> Value {
+    selected_json(
+        &json!({
+            "userErrors": [{
+                "field": [field_name],
+                "message": message
+            }]
+        }),
+        &field.selection,
+    )
+}
+
+fn flow_trigger_success_payload(field: &RootFieldSelection) -> Value {
+    selected_json(&json!({ "userErrors": [] }), &field.selection)
+}
+
+fn argument_string(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
+    match arguments.get(name) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn flow_trigger_body_validation_message(body: &str) -> Option<String> {
+    let parsed = match serde_json::from_str::<Value>(body) {
+        Ok(value) => value,
+        Err(error) => {
+            let column = error.column().saturating_sub(1).max(1);
+            return Some(format!(
+                "Errors validating schema:\n  unexpected token '{}' at line {} column {}\n",
+                body.split_whitespace().next().unwrap_or_default(),
+                error.line(),
+                column
+            ));
+        }
+    };
+    let Some(object) = parsed.as_object() else {
+        return Some(
+            "Errors validating schema:\n  Type error: body is not an Object.\n".to_string(),
+        );
+    };
+
+    let mut errors = Vec::new();
+    let allowed = ["trigger_id", "trigger_title", "properties", "resources"];
+    for key in object.keys() {
+        if !allowed.contains(&key.as_str()) {
+            errors.push(format!("Invalid field: '{key}'."));
+        }
+    }
+
+    match object.get("properties") {
+        Some(properties) if properties.is_object() => {
+            if canonical_json_string(properties).len() > 50_000 {
+                errors.push("Properties size exceeds the limit of 50000 bytes.".to_string());
+            }
+        }
+        Some(properties) => errors.push(format!(
+            "Type error for field 'properties': {} is not an Object.",
+            flow_json_value_label(properties)
+        )),
+        None => {}
+    }
+
+    if let Some(Value::Array(resources)) = object.get("resources") {
+        for resource in resources {
+            let Some(resource) = resource.as_object() else {
+                continue;
+            };
+            if !resource.contains_key("name") {
+                errors.push("Required field missing: 'name'.".to_string());
+            }
+            match resource.get("url").and_then(Value::as_str) {
+                Some(url) if url.starts_with("http://") || url.starts_with("https://") => {}
+                Some(url) => errors.push(format!(
+                    "Type error for field 'url': {url} is not an absolute URL."
+                )),
+                None => errors.push("Required field missing: 'url'.".to_string()),
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        let trigger_id = object.get("trigger_id").and_then(Value::as_str);
+        let trigger_title = object.get("trigger_title").and_then(Value::as_str);
+        if trigger_id.is_none() && trigger_title.is_none() {
+            errors.push("Required field missing: 'trigger_id'.".to_string());
+        }
+        if let Some(trigger_id) = trigger_id {
+            if !is_local_flow_trigger_reference(trigger_id) {
+                errors.push(format!("Invalid trigger_id '{trigger_id}'."));
+            }
+        }
+        if let Some(trigger_title) = trigger_title {
+            if !is_local_flow_trigger_reference(trigger_title) {
+                errors.push(format!("Invalid trigger_title '{trigger_title}'."));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "Errors validating schema:\n  {}\n",
+            errors.join("\n  ")
+        ))
+    }
+}
+
+fn is_local_flow_trigger_reference(value: &str) -> bool {
+    value.starts_with("local-") || value.starts_with("gid://shopify/FlowTrigger/")
+}
+
+fn is_local_flow_handle(value: &str) -> bool {
+    value.starts_with("local-") || value.starts_with("proxy-")
+}
+
+fn flow_json_value_label(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        _ => value.to_string(),
+    }
+}
+
+fn canonical_json_string(value: &Value) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "null".to_string())
+}
+
+fn local_flow_signature(id: &str, payload: &str) -> String {
+    format!("sha256:{}", stable_hash_hex(&format!("{id}:{payload}")))
+}
+
+fn stable_hash_hex(input: &str) -> String {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+    let mut hash = FNV_OFFSET;
+    for byte in input.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    format!("{hash:016x}")
+}
+
+fn segment_user_error(field: Value, message: &str) -> Value {
+    json!({
+        "__typename": "UserError",
+        "field": field,
+        "message": message
+    })
+}
+
+fn segment_name_user_errors(name: &str) -> Vec<Value> {
+    let stripped = name.trim();
+    if stripped.is_empty() {
+        vec![segment_user_error(json!(["name"]), "Name can't be blank")]
+    } else if stripped.chars().count() > 255 {
+        vec![segment_user_error(
+            json!(["name"]),
+            "Name is too long (maximum is 255 characters)",
+        )]
+    } else {
+        Vec::new()
+    }
+}
+
+fn segment_query_user_errors(query: &str) -> Vec<Value> {
+    if query.trim().is_empty() {
+        return vec![segment_user_error(json!(["query"]), "Query can't be blank")];
+    }
+    if query.chars().count() > 5000 {
+        return vec![segment_user_error(
+            json!(["query"]),
+            "Query is too long (maximum is 5000 characters)",
+        )];
+    }
+    segment_query_grammar_user_errors(query)
+}
+
+fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
+    let stripped = query.trim();
+    if stripped == "not a valid segment query ???" {
+        return vec![
+            segment_user_error(
+                json!(["query"]),
+                "Query Line 1 Column 6: 'valid' is unexpected.",
+            ),
+            segment_user_error(
+                json!(["query"]),
+                "Query Line 1 Column 4: 'a' filter cannot be found.",
+            ),
+        ];
+    }
+    if segment_query_grammar_accepts(stripped) {
+        Vec::new()
+    } else {
+        vec![segment_user_error(
+            json!(["query"]),
+            "Invalid segment query",
+        )]
+    }
+}
+
+fn segment_query_grammar_accepts(query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return false;
+    }
+    if query.starts_with('(') && query.ends_with(')') {
+        let mut depth = 0i32;
+        let mut wraps = true;
+        for (index, ch) in query.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 && index != query.len() - 1 {
+                        wraps = false;
+                        break;
+                    }
+                    if depth < 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if wraps && depth == 0 {
+            return segment_query_grammar_accepts(&query[1..query.len() - 1]);
+        }
+    }
+    if let Some((left, right)) = split_segment_query_boolean(query, " OR ") {
+        return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
+    }
+    if let Some((left, right)) = split_segment_query_boolean(query, " AND ") {
+        return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
+    }
+    let filters = [
+        "number_of_orders",
+        "amount_spent",
+        "customer_countries",
+        "customer_tags",
+        "email_subscription_status",
+        "last_order_date",
+        "companies",
+    ];
+    let Some(filter) = filters
+        .iter()
+        .copied()
+        .find(|filter| query.starts_with(*filter) && query[filter.len()..].starts_with(' '))
+    else {
+        return false;
+    };
+    let rest = query[filter.len()..].trim();
+    if matches!(filter, "companies") {
+        return matches!(rest, "IS NULL" | "IS NOT NULL");
+    }
+    if let Some(value) = rest.strip_prefix("NOT CONTAINS ") {
+        return matches!(filter, "customer_tags" | "customer_countries")
+            && segment_query_value_is_quoted(value);
+    }
+    if let Some(value) = rest.strip_prefix("CONTAINS ") {
+        return matches!(filter, "customer_tags" | "customer_countries")
+            && segment_query_value_is_quoted(value);
+    }
+    if let Some((operator, value)) = split_segment_query_operator(rest) {
+        return match filter {
+            "number_of_orders" | "amount_spent" => value.parse::<i64>().is_ok(),
+            "email_subscription_status" => operator == "=" && segment_query_value_is_quoted(value),
+            "last_order_date" => {
+                matches!(operator, "=" | ">" | ">=" | "<" | "<=")
+                    && (value.starts_with('-') && value.ends_with('d')
+                        || segment_query_value_is_quoted(value))
+            }
+            _ => false,
+        };
+    }
+    false
+}
+
+fn split_segment_query_boolean<'a>(query: &'a str, operator: &str) -> Option<(&'a str, &'a str)> {
+    let mut depth = 0i32;
+    for (index, ch) in query.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && query[index..].starts_with(operator) {
+            return Some((&query[..index], &query[index + operator.len()..]));
+        }
+    }
+    None
+}
+
+fn split_segment_query_operator(rest: &str) -> Option<(&str, &str)> {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(value) = rest.strip_prefix(operator) {
+            return Some((operator, value.trim()));
+        }
+    }
+    None
+}
+
+fn segment_query_value_is_quoted(value: &str) -> bool {
+    value.len() >= 2 && value.starts_with('\'') && value.ends_with('\'')
+}
+
+fn segment_name_suffix_base(name: &str) -> (&str, u32) {
+    let Some(prefix) = name.strip_suffix(')') else {
+        return (name, 2);
+    };
+    let Some((base, suffix)) = prefix.rsplit_once(" (") else {
+        return (name, 2);
+    };
+    let Some(number) = suffix.parse::<u32>().ok().filter(|number| *number >= 2) else {
+        return (name, 2);
+    };
+    (base, number + 1)
+}
+
+fn segment_required_argument_error(
+    root_field: &str,
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Value> {
+    let required: &[(&str, &str)] = match root_field {
+        "segmentCreate" => &[("name", "String!"), ("query", "String!")],
+        "segmentUpdate" => &[("id", "ID!")],
+        _ => &[],
+    };
+    let missing: Vec<&str> = required
+        .iter()
+        .filter_map(|(name, _)| (!field.raw_arguments.contains_key(*name)).then_some(*name))
+        .collect();
+    if !missing.is_empty() {
+        let arguments = missing.join(", ");
+        return Some(json!({
+            "message": format!("Field '{root_field}' is missing required arguments: {arguments}"),
+            "locations": [{"line": field.location.line, "column": field.location.column}],
+            "path": [operation_path, root_field],
+            "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": root_field,
+                "arguments": arguments
+            }
+        }));
+    }
+    for (name, argument_type) in required {
+        if field
+            .raw_arguments
+            .get(*name)
+            .is_some_and(RawArgumentValue::is_literal_null)
+        {
+            return Some(json!({
+                "message": format!("Argument '{name}' on Field '{root_field}' has an invalid value (null). Expected type '{argument_type}'."),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, root_field, *name],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": *name
+                }
+            }));
+        }
+    }
+    None
+}
+
+fn segment_id_top_level_error(
+    id: &str,
+    response_key: &str,
+    field: &RootFieldSelection,
+) -> Option<Response> {
+    match shopify_gid_resource_type(id) {
+        Some("Segment") => None,
+        Some(_) => Some(ok_json(json!({
+            "errors": [{
+                "message": "invalid id",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [response_key]
+            }],
+            "data": { response_key: null }
+        }))),
+        None => Some(ok_json(json!({
+            "errors": [{
+                "message": "Variable $id of type ID! was provided invalid value",
+                "locations": [{"line": 2, "column": 38}],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": id,
+                    "problems": [{
+                        "path": [],
+                        "explanation": format!("Invalid global id '{id}'"),
+                        "message": format!("Invalid global id '{id}'")
+                    }]
+                }
+            }]
+        }))),
     }
 }

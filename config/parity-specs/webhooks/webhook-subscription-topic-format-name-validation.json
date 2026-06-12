@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures Shopify 2026-04 webhookSubscriptionCreate topic/format, cloud format, name, duplicate active registration validation, and case-insensitive name uniqueness. Live evidence showed PRODUCTS_UPDATE accepts XML on the conformance shop, so the JSON-only topic branch uses RETURNS_APPROVE, which returned the captured allowed-format userError. Exact duplicate active registration returned the model address uniqueness userError rather than the stale unique-topic message from older ticket text.",
+  "notes": "Captures Shopify 2026-04 webhookSubscriptionCreate topic/format, cloud format, name, duplicate active registration validation, same-endpoint different-format acceptance, and case-insensitive name uniqueness. Live evidence showed PRODUCTS_UPDATE accepts XML on the conformance shop, so the JSON-only topic branch uses RETURNS_APPROVE, which returned the captured allowed-format userError. Exact duplicate active registration returned the model address uniqueness userError rather than the stale unique-topic message from older ticket text.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -95,6 +95,62 @@
           "variablesCapturePath": "$.validation.createDuplicateRejected.variables",
           "apiVersion": "2026-04"
         }
+      },
+      {
+        "name": "create-same-endpoint-different-format-json-setup-succeeds",
+        "capturePath": "$.validation.createSameUriDifferentFormatJsonSetup.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createSameUriDifferentFormatJsonSetup.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "create-same-endpoint-different-format-xml-allowed",
+        "capturePath": "$.validation.createSameUriDifferentFormatXmlAllowed.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createSameUriDifferentFormatXmlAllowed.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
       },
       {
         "name": "update-bad-name-format-rejected",
