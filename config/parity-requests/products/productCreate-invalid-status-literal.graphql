@@ -1,0 +1,12 @@
+mutation ProductCreateInvalidStatusLiteral {
+  productCreate(product: { title: "Invalid status probe", status: PUBLISHED }) {
+    product {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
