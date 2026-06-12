@@ -214,6 +214,8 @@ struct StagedState {
     redeem_code_bulk_live_added: bool,
     redeem_code_bulk_live_deleted_seed: bool,
     backup_region: Value,
+    flow_signatures: Vec<Value>,
+    flow_trigger_receipts: Vec<Value>,
 }
 
 #[derive(Clone)]
@@ -406,6 +408,8 @@ impl Default for StagedState {
             redeem_code_bulk_live_added: false,
             redeem_code_bulk_live_deleted_seed: false,
             backup_region: backup_region_country("CA"),
+            flow_signatures: Vec::new(),
+            flow_trigger_receipts: Vec::new(),
         }
     }
 }

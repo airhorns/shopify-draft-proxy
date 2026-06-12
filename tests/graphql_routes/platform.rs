@@ -299,6 +299,283 @@ fn shopify_payments_account_access_probe_returns_captured_null_account_data() {
 }
 
 #[test]
+fn flow_generate_signature_validates_arguments_and_stages_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowGenerateSignatureMissingPayloadRequiredArg {
+          flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0") {
+            signature
+            payload
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_payload.body,
+        json!({
+            "errors": [{
+                "message": "Field 'flowGenerateSignature' is missing required arguments: payload",
+                "locations": [{ "line": 3, "column": 11 }],
+                "path": ["mutation FlowGenerateSignatureMissingPayloadRequiredArg", "flowGenerateSignature"],
+                "extensions": {
+                    "code": "missingRequiredArguments",
+                    "className": "Field",
+                    "name": "flowGenerateSignature",
+                    "arguments": "payload"
+                }
+            }]
+        })
+    );
+
+    let invalid_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowGenerateSignatureUnknown {
+          flowGenerateSignature(id: "gid://shopify/FlowTrigger/0", payload: "{}") {
+            signature
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_id.body["data"]["flowGenerateSignature"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid_id.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/FlowTrigger/0")
+    );
+    assert_eq!(
+        invalid_id.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+
+    let invalid_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowGenerateSignatureInvalidPayload {
+          flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0", payload: "not json") {
+            signature
+            payload
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_payload.body["data"]["flowGenerateSignature"],
+        json!({
+            "signature": null,
+            "payload": null,
+            "userErrors": [{
+                "field": ["payload"],
+                "message": "Payload must be valid JSON"
+            }]
+        })
+    );
+
+    let generated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowGenerateSignatureValid {
+          local: flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0", payload: "{\"b\":2,\"a\":1}") {
+            signature
+            payload
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let payload = &generated.body["data"]["local"];
+    assert_eq!(payload["payload"], json!("{\"a\":1,\"b\":2}"));
+    assert!(payload["signature"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
+    assert_eq!(payload["userErrors"], json!([]));
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log.body["entries"][0]["interpreted"]["primaryRootField"],
+        json!("flowGenerateSignature")
+    );
+    assert_eq!(log.body["entries"][0]["status"], json!("staged"));
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw| raw.contains("FlowGenerateSignatureValid")));
+}
+
+#[test]
+fn flow_trigger_receive_validation_branches_match_captures() {
+    let mut proxy = snapshot_proxy();
+
+    let body_and_handle = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowTriggerReceiveBodyAndHandleConflict {
+          flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"properties\":{}}", handle: "test") {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        body_and_handle.body["data"]["flowTriggerReceive"]["userErrors"],
+        json!([{
+            "field": ["body"],
+            "message": "Cannot use `handle` and `payload` arguments with `body` argument"
+        }])
+    );
+
+    for query in [
+        r#"
+        mutation FlowTriggerReceiveEmptyHandleEmptyBody {
+          flowTriggerReceive {
+            userErrors { field message }
+          }
+        }
+        "#,
+        r#"
+        mutation FlowTriggerReceivePayloadOnlyNoHandle {
+          flowTriggerReceive(payload: { test: "value" }) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        r#"
+        mutation FlowTriggerReceiveEmptyHandleString {
+          flowTriggerReceive(handle: "") {
+            userErrors { field message }
+          }
+        }
+        "#,
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(
+            response.body["data"]["flowTriggerReceive"]["userErrors"],
+            json!([{
+                "field": ["handle"],
+                "message": "`handle` and `payload` arguments are required"
+            }])
+        );
+    }
+
+    let unknown_handle = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowTriggerReceiveInvalid {
+          flowTriggerReceive(handle: "har-374-missing", payload: { test: "value" }) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown_handle.body["data"]["flowTriggerReceive"]["userErrors"],
+        json!([{
+            "field": ["body"],
+            "message": "Errors validating schema:\n  Invalid handle 'har-374-missing'.\n"
+        }])
+    );
+
+    let body_not_json = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowTriggerReceiveBodyNotJson {
+          flowTriggerReceive(body: "not json") {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        body_not_json.body["data"]["flowTriggerReceive"]["userErrors"],
+        json!([{
+            "field": ["body"],
+            "message": "Errors validating schema:\n  unexpected token 'not' at line 1 column 1\n"
+        }])
+    );
+
+    let body_schema = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowTriggerReceiveBodySchemaGaps {
+          missingTriggerReference: flowTriggerReceive(body: "{\"properties\":{}}") {
+            userErrors { field message }
+          }
+          nonAbsoluteResourceUrl: flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"properties\":{},\"resources\":[{\"url\":\"not-a-url\",\"name\":\"x\"}]}") {
+            userErrors { field message }
+          }
+          multipleSchemaErrors: flowTriggerReceive(body: "{\"properties\":{},\"resources\":[{\"url\":\"not-a-url\"}],\"unknown_root\":1}") {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        body_schema.body["data"]["missingTriggerReference"]["userErrors"][0]["message"],
+        json!("Errors validating schema:\n  Required field missing: 'trigger_id'.\n")
+    );
+    assert_eq!(
+        body_schema.body["data"]["nonAbsoluteResourceUrl"]["userErrors"][0]["message"],
+        json!("Errors validating schema:\n  Type error for field 'url': not-a-url is not an absolute URL.\n")
+    );
+    assert_eq!(
+        body_schema.body["data"]["multipleSchemaErrors"]["userErrors"][0]["message"],
+        json!("Errors validating schema:\n  Invalid field: 'unknown_root'.\n  Required field missing: 'name'.\n  Type error for field 'url': not-a-url is not an absolute URL.\n")
+    );
+}
+
+#[test]
+fn flow_trigger_receive_accepts_local_handle_and_preserves_commit_log() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FlowTriggerReceiveLocalHandle($payload: JSON) {
+          flowTriggerReceive(handle: "local-flow-trigger", payload: $payload) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "payload": { "nested": { "value": 1 }, "text": "hello" } }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["flowTriggerReceive"],
+        json!({ "userErrors": [] })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log.body["entries"][0]["interpreted"]["primaryRootField"],
+        json!("flowTriggerReceive")
+    );
+    assert_eq!(
+        log.body["entries"][0]["variables"]["payload"],
+        json!({ "nested": { "value": 1 }, "text": "hello" })
+    );
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw| raw.contains("FlowTriggerReceiveLocalHandle")));
+}
+
+#[test]
 fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
     let mut proxy = snapshot_proxy();
     let query = r#"
