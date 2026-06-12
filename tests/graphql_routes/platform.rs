@@ -337,7 +337,7 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
             "locationActivateUserErrors": [{
                 "field": ["locationId"],
                 "code": "HAS_ONGOING_RELOCATION",
-                "message": "Location has an ongoing relocation."
+                "message": "This location currently cannot be activated as inventory, pending orders or transfers are being relocated from this location. Please try again later."
             }]
         })
     );
