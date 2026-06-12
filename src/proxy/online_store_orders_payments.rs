@@ -2340,8 +2340,15 @@ impl DraftProxy {
                 );
             }
         }
-        if let Some(error) = payment_customization_metafield_validation_error(&input) {
-            return payment_customization_payload(None, &field.selection, vec![error], None, None);
+        let metafield_errors = payment_customization_metafield_validation_errors(&input);
+        if !metafield_errors.is_empty() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                metafield_errors,
+                None,
+                None,
+            );
         }
 
         let id = format!(
@@ -2420,8 +2427,15 @@ impl DraftProxy {
                 );
             }
         }
-        if let Some(error) = payment_customization_metafield_validation_error(&input) {
-            return payment_customization_payload(None, &field.selection, vec![error], None, None);
+        let metafield_errors = payment_customization_metafield_validation_errors(&input);
+        if !metafield_errors.is_empty() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                metafield_errors,
+                None,
+                None,
+            );
         }
 
         let mut updated = existing;

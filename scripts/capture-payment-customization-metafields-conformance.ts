@@ -84,10 +84,40 @@ const createDocument = `#graphql
   }
 `;
 
+const invalidMetafieldsCreateDocument = `#graphql
+  mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
+    paymentCustomizationCreate(paymentCustomization: $input) {
+      paymentCustomization {
+        id
+      }
+      userErrors {
+        field
+        code
+        message
+      }
+    }
+  }
+`;
+
 const updateDocument = `#graphql
   mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {
     paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
       ${paymentCustomizationSelection}
+    }
+  }
+`;
+
+const invalidMetafieldsUpdateDocument = `#graphql
+  mutation RustPaymentCustomizationLocalRuntime($id: ID!, $input: PaymentCustomizationInput!) {
+    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+      paymentCustomization {
+        id
+      }
+      userErrors {
+        field
+        code
+        message
+      }
     }
   }
 `;
@@ -146,7 +176,7 @@ if (!functionNode || typeof functionNode['id'] !== 'string' || typeof functionNo
 const runId = Date.now();
 const createVariables = {
   input: {
-    title: `HAR-666 payment customization ${runId}`,
+    title: `Draft proxy payment customization ${runId}`,
     enabled: true,
     functionId: functionNode['id'],
     metafields: [
@@ -162,7 +192,7 @@ const createVariables = {
 const updateMetafieldsVariables = {
   id: '',
   input: {
-    title: `HAR-666 payment customization updated ${runId}`,
+    title: `Draft proxy payment customization updated ${runId}`,
     metafields: [
       {
         namespace: '$app:har666',
@@ -177,6 +207,27 @@ const updateHandleVariables = {
   id: '',
   input: {
     functionHandle: functionNode['handle'],
+  },
+};
+const invalidCreateMissingSubfieldsVariables = {
+  input: {
+    title: `Draft proxy missing metafields ${runId}`,
+    enabled: true,
+    functionId: functionNode['id'],
+    metafields: [{ namespace: 'every other field missing' }, { key: 'every other field missing' }],
+  },
+};
+const invalidUpdateMetafieldsVariables = {
+  id: '',
+  input: {
+    metafields: [
+      {
+        namespace: 'ab',
+        key: 'present',
+        type: '',
+        value: 'present',
+      },
+    ],
   },
 };
 
@@ -198,6 +249,22 @@ try {
   updateMetafieldsVariables.id = paymentCustomizationId;
   const updateMetafields = await runGraphqlRequest(updateDocument, updateMetafieldsVariables);
   assertNoTopLevelErrors(updateMetafields, 'paymentCustomizationUpdate metafields');
+
+  const invalidCreateMissingSubfields = await runGraphqlRequest(
+    invalidMetafieldsCreateDocument,
+    invalidCreateMissingSubfieldsVariables,
+  );
+  assertNoTopLevelErrors(
+    invalidCreateMissingSubfields,
+    'paymentCustomizationCreate invalid metafields missing subfields',
+  );
+
+  invalidUpdateMetafieldsVariables.id = paymentCustomizationId;
+  const invalidUpdateMetafields = await runGraphqlRequest(
+    invalidMetafieldsUpdateDocument,
+    invalidUpdateMetafieldsVariables,
+  );
+  assertNoTopLevelErrors(invalidUpdateMetafields, 'paymentCustomizationUpdate invalid metafields');
 
   updateHandleVariables.id = paymentCustomizationId;
   const updateHandle = await runGraphqlRequest(updateDocument, updateHandleVariables);
@@ -228,6 +295,16 @@ try {
         query: updateDocument,
         variables: updateMetafieldsVariables,
         response: updateMetafields.payload,
+      },
+      paymentCustomizationCreateInvalidMetafieldsMissingSubfields: {
+        query: invalidMetafieldsCreateDocument,
+        variables: invalidCreateMissingSubfieldsVariables,
+        response: invalidCreateMissingSubfields.payload,
+      },
+      paymentCustomizationUpdateInvalidMetafields: {
+        query: invalidMetafieldsUpdateDocument,
+        variables: invalidUpdateMetafieldsVariables,
+        response: invalidUpdateMetafields.payload,
       },
       paymentCustomizationUpdateHandle: {
         query: updateDocument,
