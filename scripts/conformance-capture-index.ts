@@ -164,6 +164,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-update-unknown-id-resource-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',
+    purpose:
+      'B2B companyUpdate, companyLocationUpdate, and companyLocationTaxSettingsUpdate RESOURCE_NOT_FOUND payloads for never-created IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-update-unknown-id-resource-not-found.json`,
+      'config/parity-specs/b2b/b2b-update-unknown-id-resource-not-found.json',
+      'config/parity-requests/b2b/b2b-update-unknown-id-company-update.graphql',
+      'config/parity-requests/b2b/b2b-update-unknown-id-location-update.graphql',
+      'config/parity-requests/b2b/b2b-update-unknown-id-tax-settings.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Company and CompanyLocation GIDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-location-assignments-tax',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',

@@ -1,0 +1,106 @@
+{
+  "scenarioId": "b2b-update-unknown-id-resource-not-found",
+  "capturedAt": "2026-06-12T16:55:34.673Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "companyUpdate": {
+    "request": {
+      "query": "mutation RustB2BCompanyUnknownResource($companyId: ID!) {\n  companyUpdate(companyId: $companyId, input: { name: \"Missing company\" }) {\n    company {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyLocationUpdate": {
+    "request": {
+      "query": "mutation RustB2BLocationBuyerExperienceConfigurationUnknownResource($companyLocationId: ID!) {\n  companyLocationUpdate(\n    companyLocationId: $companyLocationId\n    input: {\n      buyerExperienceConfiguration: {\n        paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\"\n        checkoutToDraft: true\n        editableShippingAddress: true\n      }\n    }\n  ) {\n    companyLocation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input"],
+              "message": "The company location doesn't exist",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyLocationTaxSettingsUpdate": {
+    "request": {
+      "query": "mutation RustB2BTaxSettingsUnknownResource($companyLocationId: ID!) {\n  companyLocationTaxSettingsUpdate(companyLocationId: $companyLocationId, taxExempt: true) {\n    companyLocation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/999999999998"
+      }
+    },
+    "response": {
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["companyLocationId"],
+              "message": "The company location doesn't exist",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

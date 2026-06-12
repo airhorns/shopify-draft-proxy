@@ -1627,59 +1627,117 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
     output
 }
 
-pub(in crate::proxy) fn b2b_tax_settings_update_payload(field: &RootFieldSelection) -> Value {
-    let location_id =
-        resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_else(|| {
-            "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-        });
-    let has_tax_exempt = field.arguments.contains_key("taxExempt");
-    let tax_exempt_is_null = matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
-    let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
-    let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
-    if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
-        return json!({
-            "companyLocation": null,
-            "userErrors": [{
-                "field": ["companyLocationId"],
-                "message": "No tax settings input was provided",
-                "code": "NO_INPUT"
-            }]
-        });
-    }
-    if tax_exempt_is_null {
-        return json!({
-            "companyLocation": null,
-            "userErrors": [{
-                "field": ["taxExempt"],
-                "message": "Tax exempt must be true or false",
-                "code": "INVALID_INPUT"
-            }]
-        });
-    }
+impl DraftProxy {
+    pub(in crate::proxy) fn b2b_tax_settings_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
+            .unwrap_or_else(|| {
+                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
+            });
+        let has_tax_exempt = field.arguments.contains_key("taxExempt");
+        let tax_exempt_is_null =
+            matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
+        let assign = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToAssign");
+        let remove = resolved_string_list_field_unsorted(&field.arguments, "exemptionsToRemove");
+        if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
+            return (
+                json!({
+                    "companyLocation": null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "The company location doesn't exist",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
+            return (
+                json!({
+                    "companyLocation": null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "No tax settings input was provided",
+                        "code": "NO_INPUT"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if tax_exempt_is_null {
+            return (
+                json!({
+                    "companyLocation": null,
+                    "userErrors": [{
+                        "field": ["taxExempt"],
+                        "message": "Tax exempt must be true or false",
+                        "code": "INVALID_INPUT"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
 
-    let mut exemptions = if remove.is_empty() {
-        assign
-    } else {
-        vec![
-            "CA_BC_RESELLER_EXEMPTION".to_string(),
-            "US_CA_RESELLER_EXEMPTION".to_string(),
-        ]
-    };
-    exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
-    exemptions.sort();
-    let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
+        let mut exemptions = if remove.is_empty() {
+            assign
+        } else {
+            vec![
+                "CA_BC_RESELLER_EXEMPTION".to_string(),
+                "US_CA_RESELLER_EXEMPTION".to_string(),
+            ]
+        };
+        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
+        exemptions.sort();
+        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        location["taxSettings"] = json!({
+            "taxExempt": tax_exempt,
+            "taxExemptions": exemptions
+        });
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location.clone());
+        (
+            json!({
+                "companyLocation": location,
+                "userErrors": []
+            }),
+            "staged",
+            vec![location_id],
+        )
+    }
+}
+
+pub(in crate::proxy) fn b2b_company_location_exists(
+    locations: &BTreeMap<String, Value>,
+    location_id: &str,
+) -> bool {
+    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
+}
+
+pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
     json!({
-        "companyLocation": {
-            "id": location_id,
-            "name": "HQ",
-            "billingAddress": { "address1": "Billing HQ" },
-            "taxSettings": {
-                "taxExempt": tax_exempt,
-                "taxExemptions": exemptions
-            }
-        },
-        "userErrors": []
+        "id": location_id,
+        "name": "HQ",
+        "billingAddress": { "address1": "Billing HQ" }
     })
+}
+
+pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
 pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {

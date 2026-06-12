@@ -1,0 +1,12 @@
+mutation RustB2BTaxSettingsUnknownResource($companyLocationId: ID!) {
+  companyLocationTaxSettingsUpdate(companyLocationId: $companyLocationId, taxExempt: true) {
+    companyLocation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
