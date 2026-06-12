@@ -1,0 +1,28 @@
+{
+  "scenarioId": "metaobject-delete-not-found",
+  "operationNames": ["metaobjectDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "mutation-field-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-delete-not-found.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-entry-lifecycle-delete.graphql",
+    "variablesCapturePath": "$.cases.deleteFabricatedId.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 parity for metaobjectDelete fabricated-id RECORD_NOT_FOUND payload with deletedId null. Runtime tests cover malformed and already tombstoned ids plus no mutation-log entry for no-op deletes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delete-fabricated-id",
+        "capturePath": "$.cases.deleteFabricatedId.response.data.metaobjectDelete",
+        "proxyPath": "$.data.metaobjectDelete",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

@@ -29,6 +29,21 @@
         ]
       },
       {
+        "name": "missing-title-required-field-validation",
+        "capturePath": "$.response.payload.data.missingTitle",
+        "proxyPath": "$.data.missingTitle"
+      },
+      {
+        "name": "blank-title-required-field-validation",
+        "capturePath": "$.response.payload.data.blankTitle",
+        "proxyPath": "$.data.blankTitle"
+      },
+      {
+        "name": "missing-enabled-required-field-validation",
+        "capturePath": "$.response.payload.data.missingEnabled",
+        "proxyPath": "$.data.missingEnabled"
+      },
+      {
         "name": "multiple-function-identifiers-validation",
         "capturePath": "$.response.payload.data.bothIdentifiers",
         "proxyPath": "$.data.bothIdentifiers",
@@ -53,5 +68,5 @@
       }
     ]
   },
-  "notes": "Executable parity coverage for paymentCustomizationCreate public Shopify Admin 2026-04 behavior captured against harry-test-heelo.myshopify.com. Public Shopify accepted missing metafields and a sixth enabled customization in this test shop, while still returning Function identifier arbitration errors for both identifiers and missing identifiers."
+  "notes": "Executable parity coverage for paymentCustomizationCreate public Shopify Admin 2026-04 behavior captured against harry-test-heelo.myshopify.com. Public Shopify accepted missing metafields and a sixth enabled customization in this test shop, while still returning required-field validation for missing/blank title and missing enabled plus Function identifier arbitration errors for both identifiers and missing identifiers."
 }

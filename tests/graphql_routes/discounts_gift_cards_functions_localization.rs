@@ -551,6 +551,197 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
 }
 
 #[test]
+fn functions_validation_create_errors_return_null_and_do_not_stage_records() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FunctionsValidationCreateErrorShape(
+          $unknownFunctionId: String!
+          $cartFunctionId: String!
+          $cartFunctionHandle: String!
+        ) {
+          unknownFunction: validationCreate(validation: { functionId: $unknownFunctionId, title: "Unknown" }) {
+            validation { id }
+            userErrors { code field message }
+          }
+          apiMismatch: validationCreate(validation: { functionId: $cartFunctionId, title: "Wrong API" }) {
+            validation { id }
+            userErrors { code field message }
+          }
+          missingIdentifier: validationCreate(validation: {}) {
+            validation { id }
+            userErrors { code field message }
+          }
+          multipleIdentifiers: validationCreate(validation: { functionId: $cartFunctionId, functionHandle: $cartFunctionHandle }) {
+            validation { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({
+            "unknownFunctionId": "01900000-0000-7000-8000-000000000000",
+            "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "cartFunctionHandle": "conformance-cart-transform"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "unknownFunction": {
+                "validation": null,
+                "userErrors": [{ "code": "NOT_FOUND", "field": ["validation", "functionId"], "message": "Extension not found." }]
+            },
+            "apiMismatch": {
+                "validation": null,
+                "userErrors": [{ "code": "FUNCTION_DOES_NOT_IMPLEMENT", "field": ["validation", "functionId"], "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}]." }]
+            },
+            "missingIdentifier": {
+                "validation": null,
+                "userErrors": [{ "code": "MISSING_FUNCTION_IDENTIFIER", "field": ["validation", "functionHandle"], "message": "Either function_id or function_handle must be provided." }]
+            },
+            "multipleIdentifiers": {
+                "validation": null,
+                "userErrors": [{ "code": "MULTIPLE_FUNCTION_IDENTIFIERS", "field": ["validation"], "message": "Only one of function_id or function_handle can be provided, not both." }]
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FunctionsValidationCreateErrorRead { validations(first: 5) { nodes { id } } }"#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["validations"]["nodes"], json!([]));
+}
+
+#[test]
+fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve_state() {
+    let mut proxy = snapshot_proxy();
+
+    let mut stage = String::from("mutation ValidationCapAndDefaultsStage {");
+    stage.push_str(
+        r#" subject: validationCreate(validation: { functionHandle: "validation-alpha", title: "Subject", enable: false, blockOnFailure: true }) { validation { id enable blockOnFailure title } userErrors { field message code } }"#,
+    );
+    for index in 1..=25 {
+        stage.push_str(&format!(
+            r#" active{index}: validationCreate(validation: {{ functionHandle: "validation-alpha", title: "Active {index}", enable: true }}) {{ validation {{ id enable blockOnFailure }} userErrors {{ field message code }} }}"#
+        ));
+    }
+    stage.push_str(
+        r#" maxActive: validationCreate(validation: { functionHandle: "validation-alpha", title: "Max", enable: true }) { validation { id } userErrors { field message code } } }"#,
+    );
+
+    let stage_response = proxy.process_request(json_graphql_request(&stage, json!({})));
+    assert_eq!(
+        stage_response.body["data"]["maxActive"],
+        json!({
+            "validation": null,
+            "userErrors": [{ "field": [], "message": "Cannot have more than 25 active validation functions.", "code": "MAX_VALIDATIONS_ACTIVATED" }]
+        })
+    );
+    let subject_id = stage_response.body["data"]["subject"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_default = proxy.process_request(json_graphql_request(
+        r#"mutation ValidationUpdateDefaults($id: ID!) { validationUpdate(id: $id, validation: { title: "Renamed" }) { validation { id title enable enabled blockOnFailure } userErrors { field message code } } }"#,
+        json!({ "id": subject_id }),
+    ));
+    assert_eq!(
+        update_default.body["data"]["validationUpdate"]["validation"],
+        json!({
+            "id": "gid://shopify/Validation/2",
+            "title": "Renamed",
+            "enable": false,
+            "enabled": false,
+            "blockOnFailure": false
+        })
+    );
+
+    let rejected_metafield = proxy.process_request(json_graphql_request(
+        r#"mutation ValidationMetafieldsInvalidUpdate($id: ID!) { validationUpdate(id: $id, validation: { metafields: [{ namespace: "custom", type: "single_line_text_field", value: "loose" }] }) { validation { id } userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(
+        rejected_metafield.body["data"]["validationUpdate"],
+        json!({
+            "validation": null,
+            "userErrors": [{ "field": ["validation", "metafields", "0"], "message": "presence", "code": null }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ValidationAfterRejectedMetafield($id: ID!) { validation(id: $id) { title enable blockOnFailure metafields(first: 5) { nodes { namespace key value } } } }"#,
+        json!({ "id": "gid://shopify/Validation/2" }),
+    ));
+    assert_eq!(
+        read.body["data"]["validation"],
+        json!({
+            "title": "Renamed",
+            "enable": false,
+            "blockOnFailure": false,
+            "metafields": { "nodes": [] }
+        })
+    );
+}
+
+#[test]
+fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafields() {
+    let mut proxy = snapshot_proxy();
+
+    let api_mismatch = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformApiMismatch { cartTransformCreate(functionHandle: "conformance-validation") { cartTransform { id } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        api_mismatch.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionHandle"], "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].", "code": "FUNCTION_DOES_NOT_IMPLEMENT" }]
+        })
+    );
+
+    let invalid_metafield = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformInvalidMetafield { cartTransformCreate(functionId: "019dd44b-127f-724b-a49c-70fc98ff4d72", metafields: [{ namespace: "bundles", key: "config", type: "json", value: "not-json" }]) { cartTransform { id } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_metafield.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["metafields", "0", "value"], "message": "is invalid JSON: unexpected token 'not-json' at line 1 column 1.", "code": "INVALID_METAFIELDS" }]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformCreateSetup { cartTransformCreate(functionId: "019dd44b-127f-724b-a49c-70fc98ff4d72", blockOnFailure: false) { cartTransform { id functionId blockOnFailure } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["cartTransformCreate"]["cartTransform"],
+        json!({
+            "id": "gid://shopify/CartTransform/3",
+            "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "blockOnFailure": false
+        })
+    );
+
+    let conflict = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformCreateConflict { cartTransformCreate(functionId: "019dd44b-127f-724b-a49c-70fc98ff4d72", blockOnFailure: false) { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        conflict.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["functionId"], "message": "Could not enable cart transform because it is already registered", "code": "FUNCTION_ALREADY_REGISTERED" }]
+        })
+    );
+}
+
+#[test]
 fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_translations() {
     let mut proxy = snapshot_proxy();
 
@@ -724,6 +915,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
           publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
           attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
           missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
+          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
           primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
           disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
           disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
@@ -780,6 +972,17 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     );
     assert_eq!(
         lifecycle.body["data"]["primaryUnpublish"],
+        json!({
+            "shopLocale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint.",
+                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+            }]
+        })
+    );
+    assert_eq!(
+        lifecycle.body["data"]["primaryPublish"],
         json!({
             "shopLocale": null,
             "userErrors": [{

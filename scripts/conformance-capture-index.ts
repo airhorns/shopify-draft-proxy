@@ -164,6 +164,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-update-unknown-id-resource-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',
+    purpose:
+      'B2B companyUpdate, companyLocationUpdate, and companyLocationTaxSettingsUpdate RESOURCE_NOT_FOUND payloads for never-created IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-update-unknown-id-resource-not-found.json`,
+      'config/parity-specs/b2b/b2b-update-unknown-id-resource-not-found.json',
+      'config/parity-requests/b2b/b2b-update-unknown-id-company-update.graphql',
+      'config/parity-requests/b2b/b2b-update-unknown-id-location-update.graphql',
+      'config/parity-requests/b2b/b2b-update-unknown-id-tax-settings.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Company and CompanyLocation GIDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-location-assignments-tax',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
@@ -2348,6 +2367,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-delete-not-found-conformance.mts',
+    purpose:
+      'Metaobject delete fabricated-id not-found payload, including deletedId null and RECORD_NOT_FOUND userError shape.',
+    requiredAuthScopes: ['write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-delete-not-found.json`,
+      'config/parity-specs/metaobjects/metaobject-delete-not-found.json',
+    ],
+    cleanupBehavior: 'No setup; sends metaobjectDelete with a fabricated id and does not mutate live resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-schema-change',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-schema-change-conformance.ts',
@@ -3198,7 +3232,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
     purpose:
-      'Safe Markets lifecycle validation branches for blank marketCreate input and unknown marketUpdate/marketDelete IDs.',
+      'Safe Markets lifecycle validation branches for blank and too-short marketCreate input plus unknown marketUpdate/marketDelete IDs.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-lifecycle-validation.json`,
@@ -3439,7 +3473,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'market-create-handle-dedupe',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
-    purpose: 'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification.',
+    purpose:
+      'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification plus case-insensitive duplicate name validation.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-handle-dedupe.json`,
@@ -3447,7 +3482,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/markets/market-create-handle-dedupe.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable Europe and Europe! markets, records duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
+      'Creates disposable Europe and Europe! markets, records case-insensitive duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5319,6 +5354,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-update-inline-null-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-update-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-update-parity.json',
+      'config/parity-specs/orders/draftOrderComplete-non-recording-operation-name.json',
+      'config/parity-requests/orders/draftOrderComplete-non-recording-operation-create.graphql',
+      'config/parity-requests/orders/draftOrderComplete-non-recording-operation-complete.graphql',
     ],
     cleanupBehavior: 'Creates disposable draft orders and deletes/completes/cancels them per branch.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -6184,7 +6222,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'functions' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
     purpose:
-      'Re-records cartTransformCreate validation and downstream cartTransforms read fixtures consumed by the standard parity runner.',
+      'Re-records cartTransformCreate validation plus local-runtime Function validation/update guardrail fixtures consumed by the standard parity runner.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_cart_transforms',
@@ -6193,6 +6231,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json',
       'config/parity-specs/functions/functions-cart-transform-create-validation.json',
+      'config/parity-specs/functions/functions-create-guardrails.json',
+      'config/parity-specs/functions/functions-validation-create-validation.json',
+      'config/parity-specs/functions/functions-validation-max-cap.json',
+      'config/parity-specs/functions/functions-validation-update-shape.json',
       'config/parity-requests/functions/functions-cart-transform-create-validation-api-mismatch.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-both.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-validation-conflict.graphql',
@@ -6603,6 +6645,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-create-validation-gaps.json`,
       'config/parity-specs/payments/payment-customization-create-validation-gaps.json',
+      'config/parity-specs/payments/payment-customization-create-required-fields.json',
       'config/parity-requests/payments/payment-customization-create-validation-gaps.graphql',
     ],
     cleanupBehavior:
@@ -7633,6 +7676,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-format-name-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-whitespace.json',
+      'config/parity-specs/webhooks/webhook-subscription-payload-fields.json',
     ],
     cleanupBehavior: 'Deletes created API webhook subscriptions during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

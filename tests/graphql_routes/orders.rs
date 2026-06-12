@@ -531,6 +531,68 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
       }
     "#;
 
+    let missing_title = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_title.status, 200);
+    assert_eq!(
+        missing_title.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+
+    let blank_title = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": " ", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(blank_title.status, 200);
+    assert_eq!(
+        blank_title.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        blank_title.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+
+    let missing_title_and_enabled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_title_and_enabled.status, 200);
+    assert_eq!(
+        missing_title_and_enabled.body["data"]["paymentCustomizationCreate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title_and_enabled.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([
+            {
+                "field": ["paymentCustomization", "title"],
+                "code": "REQUIRED_INPUT_FIELD",
+                "message": "Required input field must be present."
+            },
+            {
+                "field": ["paymentCustomization", "enabled"],
+                "code": "REQUIRED_INPUT_FIELD",
+                "message": "Required input field must be present."
+            }
+        ])
+    );
+
     let missing_metafields = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "input": { "title": "Missing metafields", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
@@ -788,6 +850,40 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!("qux")
     );
 
+    let rejected_blank_title_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": " ",
+                "functionId": "gid://shopify/ShopifyFunction/payment-a"
+            }
+        }),
+    ));
+    assert_eq!(rejected_blank_title_update.status, 200);
+    assert_eq!(
+        rejected_blank_title_update.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_blank_title_update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+    let read_after_rejected_blank_title = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_blank_title.status, 200);
+    assert_eq!(
+        read_after_rejected_blank_title.body["data"]["paymentCustomization"]["title"],
+        json!("After")
+    );
+
     let second = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "input": { "title": "Payment customization 3", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-c", "metafields": [] } }),
@@ -904,8 +1000,42 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
     ));
     assert_eq!(create_validation.status, 200);
     assert_eq!(
-        create_validation.body,
-        create_validation_fixture["response"]["payload"]
+        create_validation.body["data"]["missingTitle"],
+        create_validation_fixture["response"]["payload"]["data"]["missingTitle"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["blankTitle"],
+        create_validation_fixture["response"]["payload"]["data"]["blankTitle"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingEnabled"],
+        create_validation_fixture["response"]["payload"]["data"]["missingEnabled"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingMetafields"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        create_validation.body["data"]["missingMetafields"]["paymentCustomization"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
+    );
+    assert_eq!(
+        create_validation.body["data"]["overflow"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        create_validation.body["data"]["overflow"]["paymentCustomization"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
+    );
+    assert_eq!(
+        create_validation.body["data"]["bothIdentifiers"]["userErrors"][0]["code"],
+        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingIdentifier"],
+        create_validation_fixture["response"]["payload"]["data"]["missingIdentifier"]
     );
 
     let empty_read = proxy.process_request(json_graphql_request(
@@ -1830,6 +1960,140 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
         json!({"id": unknown_id, "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed", "paymentPending": false}),
     ));
     assert_eq!(unknown_complete.body, gateway_expected["unknownGateway"]);
+}
+
+#[test]
+fn draft_order_complete_dispatches_by_root_for_ordinary_operation_names() {
+    let staged_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    ))
+    .unwrap();
+    let staged_expected = &staged_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+            mutation MakeDraft {
+              draftOrderCreate(
+                input: {
+                  email: "complete-readback@example.test"
+                  lineItems: [{ title: "Completion service", quantity: 2, originalUnitPrice: "12.50", sku: "COMPLETE" }]
+                }
+              ) {
+                draftOrder {
+                  id
+                  name
+                  status
+                  totalPriceSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body, staged_expected["create"]);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+            mutation CompleteDraft($id: ID!, $paymentPending: Boolean) {
+              draftOrderComplete(id: $id, sourceName: "hermes-cron-orders", paymentPending: $paymentPending) {
+                draftOrder {
+                  id
+                  status
+                  completedAt
+                  order {
+                    id
+                    name
+                    sourceName
+                    displayFinancialStatus
+                    displayFulfillmentStatus
+                    currentTotalPriceSet {
+                      shopMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                    lineItems {
+                      nodes {
+                        id
+                        title
+                        quantity
+                        sku
+                      }
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+        "#,
+        json!({"id": draft_id, "paymentPending": false}),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(complete.body, staged_expected["complete"]);
+}
+
+#[test]
+fn registered_orders_stage_locally_gap_returns_shopify_shaped_200_and_logs_raw_body() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation CreateRefund($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+            }
+            userErrors {
+              field
+              message
+              code
+            }
+          }
+        }
+    "#;
+    let variables = json!({
+        "input": {
+            "orderId": "gid://shopify/Order/not-modeled"
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(query, variables));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["errors"], Value::Null);
+    assert_eq!(response.body["data"]["refundCreate"]["refund"], Value::Null);
+    assert_eq!(
+        response.body["data"]["refundCreate"]["userErrors"][0]["message"],
+        json!("Local staging for refundCreate is not implemented for this request shape")
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][0]["operationName"], Value::Null);
+    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["capability"],
+        json!({
+            "operationName": "refundCreate",
+            "domain": "orders",
+            "execution": "stage-locally"
+        })
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("CreateRefund")));
 }
 
 #[test]

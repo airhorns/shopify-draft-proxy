@@ -1,0 +1,48 @@
+{
+  "scenarioId": "b2b-update-unknown-id-resource-not-found",
+  "operationNames": ["companyUpdate", "companyLocationUpdate", "companyLocationTaxSettingsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-update-unknown-id-resource-not-found.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-update-unknown-id-company-update.graphql",
+    "variablesCapturePath": "$.companyUpdate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for B2B update roots rejecting never-created company and company-location IDs with RESOURCE_NOT_FOUND. The live request uses fixed unknown GIDs and does not create or mutate Shopify resources.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-update-unknown-id",
+        "capturePath": "$.companyUpdate.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate"
+      },
+      {
+        "name": "company-location-update-unknown-id",
+        "capturePath": "$.companyLocationUpdate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-update-unknown-id-location-update.graphql",
+          "variablesCapturePath": "$.companyLocationUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-location-tax-settings-update-unknown-id",
+        "capturePath": "$.companyLocationTaxSettingsUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-update-unknown-id-tax-settings.graphql",
+          "variablesCapturePath": "$.companyLocationTaxSettingsUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

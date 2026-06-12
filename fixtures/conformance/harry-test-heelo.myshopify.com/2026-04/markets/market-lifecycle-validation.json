@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T15:21:08.509Z",
+  "capturedAt": "2026-06-12T16:42:24.236Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
@@ -37,7 +37,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1982,
                 "restoreRate": 100
               }
             }
@@ -75,7 +75,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
@@ -110,7 +110,44 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreateTooShortName",
+      "query": "#graphql\nmutation MarketCreateBlankName($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "input": {
+          "name": "A"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "name"],
+                  "message": "Name is too short (minimum is 2 characters)",
+                  "code": "TOO_SHORT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }

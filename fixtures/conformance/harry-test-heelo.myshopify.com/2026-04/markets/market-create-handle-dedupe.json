@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-05-05T18:20:56.865Z",
+  "capturedAt": "2026-06-12T16:42:25.264Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "scope": "HAR-622 marketCreate generated handle dedupe",
+  "scope": "marketCreate generated handle dedupe and case-insensitive name uniqueness",
   "cases": [
     {
       "name": "marketCreate Europe generated handle",
@@ -18,7 +18,7 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/97967800626",
+                "id": "gid://shopify/Market/98500772146",
                 "name": "Europe",
                 "handle": "europe",
                 "status": "DRAFT",
@@ -42,11 +42,11 @@
       }
     },
     {
-      "name": "marketCreate duplicate Europe name rejected",
+      "name": "marketCreate case-insensitive duplicate Europe name rejected",
       "query": "#graphql\nmutation MarketCreateHandleDedupe($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Europe"
+          "name": "europe"
         }
       },
       "response": {
@@ -70,7 +70,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -92,7 +92,7 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/97967833394",
+                "id": "gid://shopify/Market/98500804914",
                 "name": "Europe!",
                 "handle": "europe-1",
                 "status": "DRAFT",
@@ -107,7 +107,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -118,13 +118,13 @@
   ],
   "cleanup": [
     {
-      "id": "gid://shopify/Market/97967833394",
+      "id": "gid://shopify/Market/98500804914",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/97967833394",
+              "deletedId": "gid://shopify/Market/98500804914",
               "userErrors": []
             }
           },
@@ -143,13 +143,13 @@
       }
     },
     {
-      "id": "gid://shopify/Market/97967800626",
+      "id": "gid://shopify/Market/98500772146",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/97967800626",
+              "deletedId": "gid://shopify/Market/98500772146",
               "userErrors": []
             }
           },
