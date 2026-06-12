@@ -1174,8 +1174,7 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerUpdate"
-            && (query.contains("CustomerUpdateParityPlan")
-                || is_customer_input_validation_update_success(&variables))
+            && is_local_customer_update_document(&query, &variables)
         {
             return self.customer_update(&query, &variables, request);
         }
@@ -1240,6 +1239,12 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
         {
             return self.backup_region_update(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "flowGenerateSignature" | "flowTriggerReceive")
+        {
+            return self.flow_utility_mutation(root_field, request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation

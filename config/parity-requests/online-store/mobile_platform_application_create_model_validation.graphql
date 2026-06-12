@@ -1,0 +1,101 @@
+mutation MobilePlatformApplicationCreateModelValidation(
+  $longApplicationId: String!
+  $longAppClipApplicationId: String!
+) {
+  longAndroid: mobilePlatformApplicationCreate(
+    input: { android: { applicationId: $longApplicationId, appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  missingAndroidFingerprints: mobilePlatformApplicationCreate(
+    input: { android: { applicationId: "com.example.missing.fingerprints", appLinksEnabled: true } }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  emptyAndroidFingerprints: mobilePlatformApplicationCreate(
+    input: {
+      android: { applicationId: "com.example.empty.fingerprints", appLinksEnabled: true, sha256CertFingerprints: [] }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  longApple: mobilePlatformApplicationCreate(
+    input: {
+      apple: {
+        appId: $longApplicationId
+        universalLinksEnabled: false
+        sharedWebCredentialsEnabled: false
+        appClipsEnabled: false
+      }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  missingAppClip: mobilePlatformApplicationCreate(
+    input: {
+      apple: {
+        appId: "com.example.clip"
+        universalLinksEnabled: false
+        sharedWebCredentialsEnabled: false
+        appClipsEnabled: true
+      }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  longAppClip: mobilePlatformApplicationCreate(
+    input: {
+      apple: {
+        appId: "com.example.clip.long"
+        universalLinksEnabled: false
+        sharedWebCredentialsEnabled: false
+        appClipsEnabled: true
+        appClipApplicationId: $longAppClipApplicationId
+      }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

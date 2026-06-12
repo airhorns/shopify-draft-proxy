@@ -126,6 +126,13 @@ impl DraftProxy {
                 "customerOrders": self.store.staged.customer_orders.clone()
             }
         });
+        if !self.store.staged.flow_signatures.is_empty() {
+            snapshot["stagedState"]["flowSignatures"] = json!(self.store.staged.flow_signatures);
+        }
+        if !self.store.staged.flow_trigger_receipts.is_empty() {
+            snapshot["stagedState"]["flowTriggerReceipts"] =
+                json!(self.store.staged.flow_trigger_receipts);
+        }
         if !self.store.staged.draft_orders.is_empty() {
             snapshot["stagedState"]["draftOrders"] = Value::Object(
                 self.store
@@ -279,6 +286,14 @@ impl DraftProxy {
                     })
                     .collect()
             })
+            .unwrap_or_default();
+        self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        self.store.staged.flow_trigger_receipts = state["stagedState"]["flowTriggerReceipts"]
+            .as_array()
+            .cloned()
             .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()

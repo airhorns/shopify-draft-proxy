@@ -1189,6 +1189,35 @@ pub(in crate::proxy) fn is_customer_input_validation_update_success(
     )
 }
 
+pub(in crate::proxy) fn is_local_customer_update_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if query.contains("CustomerUpdateParityPlan")
+        || is_customer_input_validation_update_success(variables)
+    {
+        return true;
+    }
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    let Some(input) = resolved_object_field(&arguments, "input") else {
+        return false;
+    };
+    input.contains_key("emailMarketingConsent")
+        || input.contains_key("smsMarketingConsent")
+        || [
+            "firstName",
+            "lastName",
+            "note",
+            "tags",
+            "taxExempt",
+            "taxExemptions",
+            "metafields",
+            "phone",
+        ]
+        .iter()
+        .any(|field| input.contains_key(*field))
+}
+
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
     let mut normalized = tags
         .into_iter()
@@ -1833,30 +1862,69 @@ pub(in crate::proxy) fn payment_customization_required_input_field_error(field: 
     )
 }
 
-pub(in crate::proxy) fn payment_customization_metafield_validation_error(
+pub(in crate::proxy) fn payment_customization_metafield_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
+) -> Vec<Value> {
     if !input.contains_key("metafields") {
-        return None;
+        return Vec::new();
     }
+    let mut errors = Vec::new();
     for (index, metafield) in resolved_object_list_field(input, "metafields")
         .iter()
         .enumerate()
     {
-        for field in ["namespace", "key", "type", "value"] {
+        let mut required_errors = 0;
+        for field in ["key", "value"] {
             if resolved_string_field(metafield, field)
-                .map(|value| value.is_empty())
+                .map(|value| value.trim().is_empty())
                 .unwrap_or(true)
             {
-                return Some(json!({
-                    "field": ["paymentCustomization", "metafields", index.to_string(), field],
-                    "code": "INVALID_METAFIELDS",
-                    "message": "Invalid metafields."
-                }));
+                required_errors += 1;
+                errors.push(payment_customization_invalid_metafield_error(
+                    index,
+                    field,
+                    "may not be empty",
+                ));
+            }
+        }
+        if required_errors > 0 {
+            continue;
+        }
+
+        if resolved_string_field(metafield, "type")
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+        {
+            errors.push(payment_customization_invalid_metafield_error(
+                index,
+                "type",
+                "can't be blank",
+            ));
+        }
+        if let Some(namespace) = resolved_string_field(metafield, "namespace") {
+            let namespace = namespace.trim();
+            if !namespace.is_empty() && namespace.chars().count() < 3 {
+                errors.push(payment_customization_invalid_metafield_error(
+                    index,
+                    "namespace",
+                    "is too short (minimum is 3 characters)",
+                ));
             }
         }
     }
-    None
+    errors
+}
+
+pub(in crate::proxy) fn payment_customization_invalid_metafield_error(
+    index: usize,
+    field: &str,
+    message: &str,
+) -> Value {
+    json!({
+        "field": ["paymentCustomization", "metafields", index.to_string(), field],
+        "code": "INVALID_METAFIELDS",
+        "message": message
+    })
 }
 
 pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value {
