@@ -11,7 +11,7 @@
     "functions-create-guardrails"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions/functions-create-guardrails.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/functions/functions-create-guardrails.graphql",
     "variables": {},

@@ -114,62 +114,12 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "validationCreate" => {
-                    let validation = local_function_validation_record_from_create(field);
-                    self.store.staged.function_validation = Some(validation.clone());
-                    json!({ "validation": validation, "userErrors": [] })
-                }
-                "validationUpdate" => {
-                    let validation = local_function_validation_record_from_update(field);
-                    self.store.staged.function_validation = Some(validation.clone());
-                    json!({ "validation": validation, "userErrors": [] })
-                }
-                "validationDelete" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-                    if id == "gid://shopify/Validation/2" {
-                        self.store.staged.function_validation = None;
-                        json!({ "deletedId": "gid://shopify/Validation/2", "userErrors": [] })
-                    } else {
-                        json!({
-                            "deletedId": Value::Null,
-                            "userErrors": [{
-                                "field": ["id"],
-                                "message": "Extension not found.",
-                                "code": "NOT_FOUND"
-                            }]
-                        })
-                    }
-                }
-                "cartTransformCreate" => {
-                    let cart_transform = local_function_cart_transform_record();
-                    self.store.staged.function_cart_transform = Some(cart_transform.clone());
-                    json!({ "cartTransform": cart_transform, "userErrors": [] })
-                }
-                "cartTransformDelete" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-                    if id == "gid://shopify/CartTransform/3" {
-                        self.store.staged.function_cart_transform = None;
-                        json!({ "deletedId": "gid://shopify/CartTransform/3", "userErrors": [] })
-                    } else {
-                        json!({
-                            "deletedId": Value::Null,
-                            "userErrors": [{
-                                "field": ["id"],
-                                "message": format!("Could not find cart transform with id: {id}"),
-                                "code": "NOT_FOUND"
-                            }]
-                        })
-                    }
-                }
-                "taxAppConfigure" => json!({
-                    "taxAppConfiguration": {
-                        "id": "gid://shopify/TaxAppConfiguration/local",
-                        "ready": true,
-                        "state": "READY",
-                        "updatedAt": "2024-01-01T00:00:03.000Z"
-                    },
-                    "userErrors": []
-                }),
+                "validationCreate" => self.function_validation_create_payload(field),
+                "validationUpdate" => self.function_validation_update_payload(field),
+                "validationDelete" => self.function_validation_delete_payload(field),
+                "cartTransformCreate" => self.function_cart_transform_create_payload(field),
+                "cartTransformDelete" => self.function_cart_transform_delete_payload(field),
+                "taxAppConfigure" => self.function_tax_app_configure_payload(field),
                 _ => Value::Null,
             };
             if !value.is_null() {
@@ -189,27 +139,49 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "validation" => self
-                    .store
-                    .staged
-                    .function_validation
-                    .clone()
+                "validation" => resolved_field_string_arg(field, "id")
+                    .and_then(|id| self.store.staged.function_validations.get(&id).cloned())
+                    .or_else(|| self.store.staged.function_validation.clone())
                     .unwrap_or(Value::Null),
-                "validations" => {
-                    local_function_connection(self.store.staged.function_validation.clone())
-                }
-                "cartTransforms" => {
-                    local_function_connection(self.store.staged.function_cart_transform.clone())
-                }
+                "validations" => local_function_connection_from_nodes(
+                    self.store
+                        .staged
+                        .function_validation_order
+                        .iter()
+                        .filter_map(|id| self.store.staged.function_validations.get(id).cloned())
+                        .collect(),
+                ),
+                "cartTransforms" => local_function_connection_from_nodes(
+                    self.store
+                        .staged
+                        .function_cart_transform_order
+                        .iter()
+                        .filter_map(|id| {
+                            self.store
+                                .staged
+                                .function_cart_transforms
+                                .get(id)
+                                .map(|record| {
+                                    cart_transform_record_for_selection(record, &field.selection)
+                                })
+                        })
+                        .collect(),
+                ),
                 "shopifyFunctions" => {
                     let api_type = resolved_enum_arg(field, "apiType").unwrap_or_default();
-                    if api_type == "CART_TRANSFORM" {
-                        json!({ "nodes": [local_cart_transform_function()] })
+                    let api_type = if api_type == "CART_TRANSFORM" {
+                        "CART_TRANSFORM"
                     } else {
-                        json!({ "nodes": [local_validation_function()] })
-                    }
+                        "VALIDATION"
+                    };
+                    json!({ "nodes": self.function_catalog_read_nodes(api_type) })
                 }
-                "shopifyFunction" => local_cart_transform_function(),
+                "shopifyFunction" => match resolved_field_string_arg(field, "id") {
+                    Some(id) => {
+                        function_by_id_or_handle(Some(id.as_str()), None).unwrap_or(Value::Null)
+                    }
+                    None => local_cart_transform_function(),
+                },
                 _ => Value::Null,
             };
             if value.is_null() {
@@ -222,6 +194,39 @@ impl DraftProxy {
             }
         }
         Value::Object(data)
+    }
+
+    fn function_catalog_read_nodes(&self, api_type: &str) -> Vec<Value> {
+        let mut seen = BTreeSet::new();
+        let mut nodes = Vec::new();
+        for function in self
+            .store
+            .staged
+            .function_validation_order
+            .iter()
+            .filter_map(|id| self.store.staged.function_validations.get(id))
+            .chain(
+                self.store
+                    .staged
+                    .function_cart_transform_order
+                    .iter()
+                    .filter_map(|id| self.store.staged.function_cart_transforms.get(id)),
+            )
+            .filter_map(|record| record.get("shopifyFunction"))
+        {
+            if function["apiType"].as_str() == Some(api_type) {
+                if let Some(id) = function["id"].as_str() {
+                    if seen.insert(id.to_string()) {
+                        nodes.push(function.clone());
+                    }
+                }
+            }
+        }
+        if nodes.is_empty() {
+            function_catalog_by_api_type(api_type)
+        } else {
+            nodes
+        }
     }
 
     pub(in crate::proxy) fn localization_query_data(

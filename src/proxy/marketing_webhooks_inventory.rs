@@ -1460,10 +1460,9 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = if field.name == "node" {
-                self.store
-                    .staged
-                    .function_cart_transform
-                    .clone()
+                resolved_field_string_arg(field, "id")
+                    .and_then(|id| self.store.staged.function_cart_transforms.get(&id).cloned())
+                    .or_else(|| self.store.staged.function_cart_transform.clone())
                     .unwrap_or(Value::Null)
             } else {
                 Value::Null
