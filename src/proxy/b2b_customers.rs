@@ -39,7 +39,8 @@ impl DraftProxy {
         }
 
         let is_tax_document = query.contains("RustB2BTaxSettingsRequiredNullable")
-            || query.contains("RustB2BTaxSettingsAssignRemove");
+            || query.contains("RustB2BTaxSettingsAssignRemove")
+            || query.contains("RustB2BTaxSettingsUnknownResource");
         if !is_tax_document {
             return None;
         }
@@ -50,25 +51,13 @@ impl DraftProxy {
             if field.name != "companyLocationTaxSettingsUpdate" {
                 return None;
             }
-            let payload = b2b_tax_settings_update_payload(&field);
-            let status = if payload["companyLocation"].is_null() {
-                "failed"
-            } else {
-                "staged"
-            };
+            let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(&field);
             self.record_mutation_log_entry(
                 request,
                 query,
                 variables,
                 "companyLocationTaxSettingsUpdate",
-                vec![
-                    resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_else(
-                        || {
-                            "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
-                                .to_string()
-                        },
-                    ),
-                ],
+                staged_ids,
             );
             if status == "failed" {
                 if let Some(entry) = self.log_entries.last_mut() {
@@ -161,6 +150,21 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let buyer_experience =
             resolved_object_field(&input, "buyerExperienceConfiguration").unwrap_or_default();
+        if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["input"],
+                        "The company location doesn't exist",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         let errors = b2b_location_buyer_experience_errors(query, &buyer_experience);
         if !errors.is_empty() {
             return (
@@ -311,6 +315,21 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
         let errors = b2b_company_update_validation_errors(
             &input,
             &self.store.staged.b2b_companies,
@@ -320,13 +339,6 @@ impl DraftProxy {
             return (b2b_company_payload(None, errors), "failed", Vec::new());
         }
 
-        let mut company = self
-            .store
-            .staged
-            .b2b_companies
-            .get(&company_id)
-            .cloned()
-            .unwrap_or_else(|| json!({ "id": company_id }));
         if let Some(name) = resolved_string_field(&input, "name") {
             company["name"] = json!(b2b_strip_html_tags(&name));
         }

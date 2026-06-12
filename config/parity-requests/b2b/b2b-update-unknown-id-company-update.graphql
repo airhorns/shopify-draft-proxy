@@ -1,0 +1,12 @@
+mutation RustB2BCompanyUnknownResource($companyId: ID!) {
+  companyUpdate(companyId: $companyId, input: { name: "Missing company" }) {
+    company {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
