@@ -4648,6 +4648,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-activate-limit-relocation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-limit-relocation-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for locationActivate LOCATION_LIMIT, HAS_ONGOING_RELOCATION, and successful control branches; relocation message text is sourced from Shopify Core i18n because public Admin GraphQL cannot deterministically create an incomplete mass-relocation job.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}location-activate-limit-and-relocation.json`,
+      'config/parity-specs/store-properties/location-activate-limit-and-relocation.json',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime; the public disposable shop is not at its location limit and exposes no deterministic incomplete mass-relocation setup through Admin GraphQL, so no Shopify cleanup is required.',
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-add-metafields',
     scriptPath: 'scripts/capture-location-add-metafields-conformance.mts',
     purpose:
