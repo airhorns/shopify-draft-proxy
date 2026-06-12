@@ -1,10 +1,11 @@
 {
-  "capturedAt": "2026-05-07T09:06:45.212Z",
+  "capturedAt": "2026-06-12T19:45:22.978Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
     "Captures webhookSubscriptionCreate topic/format, cloud format, name validation, duplicate active registration userErrors, and case-insensitive name uniqueness.",
     "The duplicate branch creates one temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.",
+    "The same-endpoint different-format branch creates temporary PRODUCTS_UPDATE JSON and XML subscriptions with the same URI and deletes both during cleanup.",
     "The case-insensitive name branch creates a second temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.",
     "The script does not trigger webhook delivery."
   ],
@@ -19,7 +20,7 @@
       "variables": {
         "topic": "RETURNS_APPROVE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366-returns-xml",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-returns-xml",
           "format": "XML"
         }
       },
@@ -93,7 +94,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366-empty-name",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-empty-name",
           "name": ""
         }
       },
@@ -134,7 +135,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366-bad-name",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-bad-name",
           "name": "has spaces"
         }
       },
@@ -171,7 +172,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609",
           "format": "JSON",
           "filter": ""
         }
@@ -182,15 +183,15 @@
           "data": {
             "webhookSubscriptionCreate": {
               "webhookSubscription": {
-                "id": "gid://shopify/WebhookSubscription/1929273573682",
+                "id": "gid://shopify/WebhookSubscription/1954588819762",
                 "topic": "SHOP_UPDATE",
                 "format": "JSON",
                 "filter": "",
-                "createdAt": "2026-05-07T09:06:43Z",
-                "updatedAt": "2026-05-07T09:06:43Z",
+                "createdAt": "2026-06-12T19:45:18Z",
+                "updatedAt": "2026-06-12T19:45:18Z",
                 "endpoint": {
                   "__typename": "WebhookHttpEndpoint",
-                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1778144802366"
+                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1781293516609"
                 }
               },
               "userErrors": []
@@ -215,7 +216,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609",
           "format": "JSON",
           "filter": ""
         }
@@ -248,12 +249,100 @@
         }
       }
     },
+    "createSameUriDifferentFormatJsonSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "PRODUCTS_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-different-format",
+          "format": "JSON",
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1954588852530",
+                "topic": "PRODUCTS_UPDATE",
+                "format": "JSON",
+                "filter": "",
+                "createdAt": "2026-06-12T19:45:19Z",
+                "updatedAt": "2026-06-12T19:45:19Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1781293516609-different-format"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createSameUriDifferentFormatXmlAllowed": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "PRODUCTS_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-different-format",
+          "format": "XML",
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1954588885298",
+                "topic": "PRODUCTS_UPDATE",
+                "format": "XML",
+                "filter": "",
+                "createdAt": "2026-06-12T19:45:20Z",
+                "updatedAt": "2026-06-12T19:45:20Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1781293516609-different-format"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "updateBadNameFormatRejected": {
       "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-update.graphql",
       "variables": {
-        "id": "gid://shopify/WebhookSubscription/1929273573682",
+        "id": "gid://shopify/WebhookSubscription/1954588819762",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609",
           "name": "has spaces"
         }
       },
@@ -290,7 +379,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366-name-setup",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-name-setup",
           "format": "JSON",
           "name": "OrderHook"
         }
@@ -301,15 +390,15 @@
           "data": {
             "webhookSubscriptionCreate": {
               "webhookSubscription": {
-                "id": "gid://shopify/WebhookSubscription/1929273606450",
+                "id": "gid://shopify/WebhookSubscription/1954588918066",
                 "topic": "SHOP_UPDATE",
                 "format": "JSON",
                 "filter": null,
-                "createdAt": "2026-05-07T09:06:44Z",
-                "updatedAt": "2026-05-07T09:06:44Z",
+                "createdAt": "2026-06-12T19:45:21Z",
+                "updatedAt": "2026-06-12T19:45:21Z",
                 "endpoint": {
                   "__typename": "WebhookHttpEndpoint",
-                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1778144802366-name-setup"
+                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1781293516609-name-setup"
                 }
               },
               "userErrors": []
@@ -334,7 +423,7 @@
       "variables": {
         "topic": "SHOP_UPDATE",
         "webhookSubscription": {
-          "uri": "https://example.com/hermes-webhook-topic-format-name-1778144802366-name-duplicate",
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1781293516609-name-duplicate",
           "format": "JSON",
           "name": "orderhook"
         }
@@ -370,7 +459,7 @@
     "updateCaseInsensitiveNameDuplicateRejected": {
       "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-update.graphql",
       "variables": {
-        "id": "gid://shopify/WebhookSubscription/1929273573682",
+        "id": "gid://shopify/WebhookSubscription/1954588819762",
         "webhookSubscription": {
           "name": "ORDERHOOK"
         }
@@ -406,14 +495,70 @@
     "cleanup": {
       "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
       "variables": {
-        "id": "gid://shopify/WebhookSubscription/1929273573682"
+        "id": "gid://shopify/WebhookSubscription/1954588819762"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webhookSubscriptionDelete": {
-              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929273573682",
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1954588819762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupSameUriDifferentFormatJsonSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1954588852530"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1954588852530",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupSameUriDifferentFormatXmlAllowed": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1954588885298"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1954588885298",
               "userErrors": []
             }
           },
@@ -434,14 +579,14 @@
     "cleanupCaseInsensitiveNameDuplicateSetup": {
       "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
       "variables": {
-        "id": "gid://shopify/WebhookSubscription/1929273606450"
+        "id": "gid://shopify/WebhookSubscription/1954588918066"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webhookSubscriptionDelete": {
-              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929273606450",
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1954588918066",
               "userErrors": []
             }
           },
