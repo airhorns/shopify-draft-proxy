@@ -120,6 +120,44 @@ fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> b
     })
 }
 
+fn metaobject_create_duplicate_field_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut errors = Vec::new();
+    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
+        for (index, field) in fields.iter().enumerate() {
+            let ResolvedValue::Object(field) = field else {
+                continue;
+            };
+            let Some(key) = resolved_string_field(field, "key") else {
+                continue;
+            };
+            if seen.insert(key.clone()) {
+                continue;
+            }
+
+            let field_index = index.to_string();
+            let is_required_title = key == "title";
+            errors.push(json!({
+                "field": ["metaobject", "fields", field_index.clone()],
+                "message": format!("Field \"{key}\" duplicates other inputs"),
+                "code": "DUPLICATE_FIELD_INPUT",
+                "elementKey": key.clone(),
+                "elementIndex": null
+            }));
+            if is_required_title {
+                errors.push(json!({
+                    "field": ["metaobject", "fields", field_index],
+                    "message": "Title can't be blank",
+                    "code": "OBJECT_FIELD_REQUIRED",
+                    "elementKey": key,
+                    "elementIndex": null
+                }));
+            }
+        }
+    }
+    errors
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
@@ -291,6 +329,14 @@ impl DraftProxy {
                 )
             }
         };
+        let user_errors = metaobject_create_duplicate_field_errors(input);
+        if !user_errors.is_empty() {
+            return selected_json(
+                &json!({"metaobject": null, "userErrors": user_errors}),
+                &field.selection,
+            );
+        }
+
         let meta_type = resolved_string_field(input, "type")
             .unwrap_or_else(|| "codex_har_240_1777156845370".to_string());
         let handle = resolved_string_field(input, "handle")

@@ -1769,6 +1769,65 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 }
 
 #[test]
+fn metaobject_create_rejects_duplicate_field_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id displayName fields { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_update_errors_1778040780683",
+                "fields": [
+                    {"key": "title", "value": "First 1778040780683"},
+                    {"key": "title", "value": ""},
+                    {"key": "body", "value": "Body 1778040780683"}
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Field \"title\" duplicates other inputs",
+                    "code": "DUPLICATE_FIELD_INPUT",
+                    "elementKey": "title",
+                    "elementIndex": null
+                },
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Title can't be blank",
+                    "code": "OBJECT_FIELD_REQUIRED",
+                    "elementKey": "title",
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+
+    let after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectsReadParity($type: String!) {
+          metaobjects(type: $type, first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"type": "codex_update_errors_1778040780683"}),
+    ));
+    assert_eq!(
+        after_rejected_create.body["data"]["metaobjects"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
 fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
     let mut proxy = snapshot_proxy();
 
