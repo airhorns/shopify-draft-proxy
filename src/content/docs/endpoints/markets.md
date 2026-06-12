@@ -67,8 +67,11 @@ Market lifecycle slices cover `marketCreate`, `marketUpdate`, and downstream
 status/enabled, region, price-inclusion, currency-settings, catalog, and web
 presence relations; rejects captured status/enabled mismatches, incompatible
 price inclusions, invalid or unsupported country regions, duplicate region
-codes, duplicate names, and generated-handle collisions; and retains original
-raw mutations for commit replay on successful staging.
+codes, invalid names, duplicate names, and generated-handle collisions; and
+retains original raw mutations for commit replay on successful staging.
+Captured `marketCreate` name validation rejects blank names with `BLANK` then
+`TOO_SHORT`, rejects one-character names with `TOO_SHORT`, and treats name
+uniqueness as case-insensitive before handle generation.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for market-backed

@@ -860,6 +860,33 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
     }
 
     let mut partial_proxy = snapshot_proxy();
+    let blank_name = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": ""}}),
+    ));
+    assert_eq!(
+        blank_name.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [
+                {"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name can't be blank", "code": "BLANK"},
+                {"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name is too short (minimum is 2 characters)", "code": "TOO_SHORT"}
+            ]
+        })
+    );
+    let one_char_name = partial_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "A"}}),
+    ));
+    assert_eq!(
+        one_char_name.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [
+                {"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name is too short (minimum is 2 characters)", "code": "TOO_SHORT"}
+            ]
+        })
+    );
     let enabled_only = partial_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Enabled Only", "enabled": true, "regions": [{"countryCode": "US"}]}}),
@@ -1029,11 +1056,18 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
     ));
     let duplicate_name = duplicate_name_proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"name": "Europe"}}),
+        json!({"input": {"name": "europe"}}),
     ));
     assert_eq!(
         duplicate_name.body["data"]["marketCreate"]["userErrors"][0],
         json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
+    );
+    assert_eq!(
+        duplicate_name_proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
     );
     let mut duplicate_handle_proxy = snapshot_proxy();
     let _ = duplicate_handle_proxy.process_request(json_graphql_request(
