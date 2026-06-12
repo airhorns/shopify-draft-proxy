@@ -1,0 +1,30 @@
+{
+  "scenarioId": "payment-terms-update-missing-local-runtime",
+  "operationNames": ["paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql",
+    "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingUpdate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-update-user-error",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.update",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.paymentTermsUpdate.paymentTerms",
+          "$.data.paymentTermsUpdate.userErrors[0].message",
+          "$.data.paymentTermsUpdate.userErrors[0].code"
+        ]
+      }
+    ]
+  },
+  "notes": "Dedicated local-runtime parity for the paymentTermsUpdate unknown-id branch. The expected payload comes from the checked-in real Shopify capture in payment-terms-create-on-order, while the proxy request keeps the RustPaymentTermsLocalRuntime operation name so the local handler runs."
+}

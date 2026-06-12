@@ -6458,7 +6458,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
-    fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
+      'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
+      'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
+    ],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
