@@ -4346,6 +4346,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-mobile-platform-application-model-validation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-mobile-platform-application-model-validation-local-runtime.ts',
+    purpose:
+      'mobilePlatformApplicationCreate model validation for application ID length, Android sha256CertFingerprints presence, and Apple appClipApplicationId presence/length.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
+      'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-body-script-verbatim-2025-01',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',

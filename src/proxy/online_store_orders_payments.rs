@@ -9,6 +9,59 @@ struct OrdersLocalLogEntry<'a> {
     outcome: OrdersLocalLogOutcome<'a>,
 }
 
+const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
+const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+
+fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
+    mobile_app_error(
+        "TOO_LONG",
+        field,
+        "Application ID is too long (maximum is 100 characters)",
+    )
+}
+
+fn validate_mobile_app_clip_application_id(
+    apple: &BTreeMap<String, ResolvedValue>,
+    update_input: bool,
+) -> Option<Value> {
+    let app_clips_enabled = resolved_bool_field(apple, "appClipsEnabled").unwrap_or(false);
+    let app_clip_application_id = resolved_string_field(apple, "appClipApplicationId");
+    if app_clips_enabled
+        && app_clip_application_id
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        return Some(mobile_app_error(
+            "BLANK",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application can't be blank",
+        ));
+    }
+    if app_clips_enabled
+        && app_clip_application_id
+            .as_deref()
+            .is_some_and(|value| value.len() > MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH)
+    {
+        return Some(mobile_app_error(
+            "TOO_LONG",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application is too long (maximum is 255 characters)",
+        ));
+    }
+    if update_input
+        && app_clip_application_id
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+    {
+        return Some(mobile_app_error(
+            "BLANK",
+            ["input", "apple", "appClipApplicationId"],
+            "App clip application can't be blank",
+        ));
+    }
+    None
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
@@ -430,6 +483,28 @@ impl DraftProxy {
                     )],
                 );
             }
+            if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_application_id_too_long_error([
+                        "input",
+                        "android",
+                        "applicationId",
+                    ])],
+                );
+            }
+            if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "BLANK",
+                        ["input", "android", "sha256CertFingerprints"],
+                        "Sha256 cert fingerprints can't be blank",
+                    )],
+                );
+            }
             let id = self.next_online_store_id("MobilePlatformApplication");
             let record = json!({
                 "__typename": "AndroidApplication", "id": id, "applicationId": application_id,
@@ -459,6 +534,18 @@ impl DraftProxy {
                     },
                 )],
             );
+        }
+        if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_application_id_too_long_error([
+                    "input", "apple", "appId",
+                ])],
+            );
+        }
+        if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
+            return mobile_app_payload(&field.selection, None, vec![error]);
         }
         let id = self.next_online_store_id("MobilePlatformApplication");
         let record = json!({
@@ -530,44 +617,75 @@ impl DraftProxy {
         }
         let mut record = existing;
         if let Some(android) = android {
-            let application_id =
-                resolved_string_field(android, "applicationId").unwrap_or_default();
-            if application_id.trim().is_empty() {
-                return mobile_app_payload(
-                    &field.selection,
-                    None,
-                    vec![mobile_app_error(
-                        "BLANK",
-                        ["mobilePlatformApplication", "android", "applicationId"],
-                        "Application ID can't be blank",
-                    )],
-                );
+            if let Some(application_id) = resolved_string_field(android, "applicationId") {
+                if application_id.trim().is_empty() {
+                    return mobile_app_payload(
+                        &field.selection,
+                        None,
+                        vec![mobile_app_error(
+                            "BLANK",
+                            ["mobilePlatformApplication", "android", "applicationId"],
+                            "Application ID can't be blank",
+                        )],
+                    );
+                }
+                if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
+                    return mobile_app_payload(
+                        &field.selection,
+                        None,
+                        vec![mobile_application_id_too_long_error([
+                            "input",
+                            "android",
+                            "applicationId",
+                        ])],
+                    );
+                }
+                record["applicationId"] = json!(application_id);
             }
-            record["applicationId"] = json!(application_id);
             if let Some(v) = resolved_bool_field(android, "appLinksEnabled") {
                 record["appLinksEnabled"] = json!(v);
             }
-            if android.contains_key("sha256CertFingerprints") {
-                record["sha256CertFingerprints"] = json!(resolved_string_list_field(
-                    android,
-                    "sha256CertFingerprints"
-                ));
-            }
-        }
-        if let Some(apple) = apple {
-            let app_id = resolved_string_field(apple, "appId").unwrap_or_default();
-            if app_id.trim().is_empty() {
+            let fingerprints = resolved_string_list_field(android, "sha256CertFingerprints");
+            if fingerprints.is_empty() {
                 return mobile_app_payload(
                     &field.selection,
                     None,
                     vec![mobile_app_error(
                         "BLANK",
-                        ["mobilePlatformApplication", "apple", "appId"],
-                        "App ID can't be blank",
+                        ["input", "android", "sha256CertFingerprints"],
+                        "Sha256 cert fingerprints can't be blank",
                     )],
                 );
             }
-            record["appId"] = json!(app_id);
+            record["sha256CertFingerprints"] = json!(fingerprints);
+        }
+        if let Some(apple) = apple {
+            if let Some(app_id) = resolved_string_field(apple, "appId") {
+                if app_id.trim().is_empty() {
+                    return mobile_app_payload(
+                        &field.selection,
+                        None,
+                        vec![mobile_app_error(
+                            "BLANK",
+                            ["mobilePlatformApplication", "apple", "appId"],
+                            "App ID can't be blank",
+                        )],
+                    );
+                }
+                if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
+                    return mobile_app_payload(
+                        &field.selection,
+                        None,
+                        vec![mobile_application_id_too_long_error([
+                            "input", "apple", "appId",
+                        ])],
+                    );
+                }
+                record["appId"] = json!(app_id);
+            }
+            if let Some(error) = validate_mobile_app_clip_application_id(apple, true) {
+                return mobile_app_payload(&field.selection, None, vec![error]);
+            }
             if let Some(v) = resolved_bool_field(apple, "universalLinksEnabled") {
                 record["universalLinksEnabled"] = json!(v);
             }
