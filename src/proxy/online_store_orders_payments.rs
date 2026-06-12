@@ -2280,6 +2280,25 @@ impl DraftProxy {
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
         let function_id = resolved_string_field(&input, "functionId");
         let function_handle = resolved_string_field(&input, "functionHandle");
+        let mut required_errors = Vec::new();
+        if resolved_string_field(&input, "title")
+            .map(|title| title.trim().is_empty())
+            .unwrap_or(true)
+        {
+            required_errors.push(payment_customization_required_input_field_error("title"));
+        }
+        if !input.contains_key("enabled") {
+            required_errors.push(payment_customization_required_input_field_error("enabled"));
+        }
+        if !required_errors.is_empty() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                required_errors,
+                None,
+                None,
+            );
+        }
         if function_id.is_some() && function_handle.is_some() {
             return payment_customization_payload(
                 None,
@@ -2355,6 +2374,15 @@ impl DraftProxy {
             );
         };
 
+        if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_required_input_field_error("title")],
+                None,
+                None,
+            );
+        }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
             if !payment_customization_function_handle_exists(&handle) {
                 return payment_customization_payload(

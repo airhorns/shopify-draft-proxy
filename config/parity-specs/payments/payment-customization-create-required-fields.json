@@ -1,0 +1,37 @@
+{
+  "scenarioId": "payment-customization-create-required-fields",
+  "operationNames": ["paymentCustomizationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "required-input-fields", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-customization-create-validation-gaps.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-title-required-field-validation",
+        "capturePath": "$.response.payload.data.missingTitle",
+        "proxyPath": "$.data.missingTitle"
+      },
+      {
+        "name": "blank-title-required-field-validation",
+        "capturePath": "$.response.payload.data.blankTitle",
+        "proxyPath": "$.data.blankTitle"
+      },
+      {
+        "name": "missing-enabled-required-field-validation",
+        "capturePath": "$.response.payload.data.missingEnabled",
+        "proxyPath": "$.data.missingEnabled"
+      }
+    ]
+  },
+  "notes": "Focused executable parity for paymentCustomizationCreate required title/enabled validation. This spec reuses the real Shopify Admin 2026-04 validation-gaps capture and the RustPaymentCustomizationLocalRuntimeCreateValidationGaps request so the local payment customization handler is exercised."
+}
