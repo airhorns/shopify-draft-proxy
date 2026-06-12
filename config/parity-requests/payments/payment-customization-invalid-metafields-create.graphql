@@ -1,0 +1,13 @@
+#graphql
+mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
+  paymentCustomizationCreate(paymentCustomization: $input) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

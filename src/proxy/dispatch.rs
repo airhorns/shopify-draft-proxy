@@ -1174,8 +1174,7 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerUpdate"
-            && (query.contains("CustomerUpdateParityPlan")
-                || is_customer_input_validation_update_success(&variables))
+            && is_local_customer_update_document(&query, &variables)
         {
             return self.customer_update(&query, &variables, request);
         }
@@ -2294,7 +2293,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productCreate" =>
             {
-                let outcome = self.product_create(&query, &variables);
+                let outcome = self.product_create(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2312,7 +2311,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
-                let outcome = self.product_change_status(&query, &variables);
+                let outcome = self.product_change_status(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

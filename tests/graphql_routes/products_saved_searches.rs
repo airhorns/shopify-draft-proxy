@@ -3009,6 +3009,168 @@ fn product_create_resolves_input_from_request_variables() {
 }
 
 #[test]
+fn product_create_rejects_invalid_status_literals_and_variables_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidCreateStatusLiteral { productCreate(product: { title: \"Invalid status\", status: PUBLISHED }) { product { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'status' on InputObject 'ProductCreateInput' has an invalid value (PUBLISHED). Expected type 'ProductStatus'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidCreateStatusLiteral",
+            "productCreate",
+            "product",
+            "status"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "status"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidCreateStatusVariable($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Invalid status", "status": "ENABLED" } }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!(
+            "Variable $product of type ProductCreateInput! was provided invalid value for status (Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT)"
+        )
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": {
+                "title": "Invalid status",
+                "status": "ENABLED"
+            },
+            "problems": [{
+                "path": ["status"],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { title status } } }"}"#,
+    ));
+    assert_eq!(read_back.body["data"]["products"]["nodes"], json!([]));
+}
+
+#[test]
+fn product_change_status_rejects_invalid_status_without_staging() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let mut literal_request = graphql_request(
+        "POST",
+        r#"{"query":"mutation InvalidStatusLiteral { productChangeStatus(productId: \"gid://shopify/Product/1\", status: PUBLISHED) { product { id status } userErrors { field message } } }"}"#,
+    );
+    literal_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let literal = proxy.process_request(literal_request);
+    assert_eq!(literal.status, 200);
+    assert_eq!(
+        literal.body["errors"][0]["message"],
+        json!(
+            "Argument 'status' on Field 'productChangeStatus' has an invalid value (PUBLISHED). Expected type 'ProductStatus!'."
+        )
+    );
+    assert_eq!(
+        literal.body["errors"][0]["path"],
+        json!([
+            "mutation InvalidStatusLiteral",
+            "productChangeStatus",
+            "status"
+        ])
+    );
+    assert_eq!(
+        literal.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "status"
+        })
+    );
+
+    let mut variable_request = json_graphql_request(
+        r#"
+        mutation InvalidStatusVariable($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "productId": "gid://shopify/Product/1", "status": "ENABLED" }),
+    );
+    variable_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let variable = proxy.process_request(variable_request);
+    assert_eq!(variable.status, 200);
+    assert_eq!(
+        variable.body["errors"][0]["message"],
+        json!("Variable $status of type ProductStatus! was provided invalid value")
+    );
+    assert_eq!(
+        variable.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": "ENABLED",
+            "problems": [{
+                "path": [],
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { id status } }"}"#,
+    ));
+    assert_eq!(read_back.body["data"]["product"]["status"], json!("ACTIVE"));
+}
+
+#[test]
 fn admin_graphql_uses_proxy_owned_registry_for_capability_classification() {
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
