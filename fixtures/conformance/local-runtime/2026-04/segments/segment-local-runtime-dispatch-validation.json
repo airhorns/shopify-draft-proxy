@@ -1,0 +1,59 @@
+{
+  "fixtureKind": "local-runtime-segment-dispatch-validation",
+  "scenarioId": "segment-local-runtime-dispatch-validation",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-12T20:05:00.000Z",
+  "notes": [
+    "Executable local-runtime parity guard for segmentCreate dispatch using a neutral operation name. It is intentionally not Shopify fidelity evidence; live segment validation behavior is covered by the checked-in Shopify fixtures under fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/.",
+    "No upstream calls are expected. A runtime that gates segmentCreate on operation-name markers or proxies supported segment mutations upstream will fail the read-after-write and mutation-log targets."
+  ],
+  "create": {
+    "variables": {
+      "name": "Local parity segment",
+      "query": "number_of_orders >= 1"
+    },
+    "response": {
+      "data": {
+        "segmentCreate": {
+          "segment": {
+            "id": "gid://shopify/Segment/1?shopify-draft-proxy=synthetic",
+            "name": "Local parity segment",
+            "query": "number_of_orders >= 1",
+            "creationDate": "2026-01-01T00:00:00Z",
+            "lastEditDate": "2026-01-01T00:00:00Z"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "log": {
+      "entries": [
+        {
+          "operationName": null,
+          "status": "staged",
+          "stagedResourceIds": ["gid://shopify/Segment/1?shopify-draft-proxy=synthetic"],
+          "interpreted": {
+            "operationType": "mutation",
+            "rootFields": ["segmentCreate"],
+            "primaryRootField": "segmentCreate"
+          }
+        }
+      ]
+    }
+  },
+  "read": {
+    "response": {
+      "data": {
+        "segment": {
+          "id": "gid://shopify/Segment/1?shopify-draft-proxy=synthetic",
+          "name": "Local parity segment",
+          "query": "number_of_orders >= 1",
+          "creationDate": "2026-01-01T00:00:00Z",
+          "lastEditDate": "2026-01-01T00:00:00Z"
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
