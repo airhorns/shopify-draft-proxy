@@ -728,6 +728,14 @@ pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool
     }
 }
 
+pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
+    ))
+    .expect("localization market-scoped fixture must parse");
+    fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
+}
+
 pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Value {
     let name = localization_available_locale_name(locale).unwrap_or_else(|| locale.to_string());
     json!({

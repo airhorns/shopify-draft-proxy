@@ -43,13 +43,16 @@ with the original raw GraphQL request.
 
 The staged shop-locale slice rejects primary-locale mutation attempts,
 unsupported locale codes, duplicate enables, missing locales for published
-updates, and disables for non-enabled locales with captured Shopify-like
-`userErrors`. Market-web-presence IDs are filtered to known local or captured
-WebPresence IDs, and accepted rows project selected
+updates, enables beyond Shopify's captured 20-language shop limit, and disables
+for non-enabled locales with captured Shopify-like `userErrors`.
+Market-web-presence IDs are filtered to known local or captured WebPresence IDs,
+and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields.
 For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
 a non-null `published` value, whether `true` or `false`; primary-locale updates
 that only supply `marketWebPresenceIds` remain accepted by this slice.
+Captured `shopLocales` reads can hydrate base enabled locale rows before later
+translation mutations replay against the same scenario.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 ported product, collection, product-metafield, and market-scoped translation
@@ -58,7 +61,8 @@ locale requirements, translatable keys, digest mismatches, non-blank values,
 the 100-key mutation limit, market scope, and selected handle-normalization
 branches. Successful translations are staged in local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
-removed rows.
+removed rows. `translationsRemove` removes every requested
+translation-key/locale/market combination that exists in staged state.
 
 Collection translation lifecycle support is fixture-backed. Product and
 product-metafield translation behavior has runtime coverage for guardrails that
