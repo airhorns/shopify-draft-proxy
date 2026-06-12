@@ -877,7 +877,7 @@ impl DraftProxy {
             .customers
             .get(id)
             .map(|customer| {
-                let enriched = self.customer_with_order_connection(id, customer);
+                let enriched = self.customer_with_order_connection(id, customer, &field.selection);
                 selected_json(&enriched, &field.selection)
             })
             .unwrap_or(Value::Null)
@@ -887,6 +887,7 @@ impl DraftProxy {
         &self,
         id: &str,
         customer: &Value,
+        selection: &[SelectedField],
     ) -> Value {
         let mut enriched = customer.clone();
         let orders = self
@@ -896,20 +897,16 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .unwrap_or_default();
-        let page_info = if let (Some(first), Some(last)) = (orders.first(), orders.last()) {
-            json!({
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": first.get("id").cloned().unwrap_or(Value::Null),
-                "endCursor": last.get("id").cloned().unwrap_or(Value::Null)
-            })
-        } else {
-            json!({ "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null })
-        };
+        let order_arguments = selection
+            .iter()
+            .find(|selection| selection.name == "orders")
+            .map(|selection| selection.arguments.clone())
+            .unwrap_or_default();
         if let Some(object) = enriched.as_object_mut() {
+            let (orders, page_info) = connection_window(&orders, &order_arguments, value_id_cursor);
             object.insert(
                 "orders".to_string(),
-                json!({ "nodes": orders, "edges": [], "pageInfo": page_info }),
+                connection_json_with_cursor(orders, |_, order| value_id_cursor(order), page_info),
             );
         }
         enriched

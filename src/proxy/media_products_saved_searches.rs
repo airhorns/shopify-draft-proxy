@@ -321,12 +321,15 @@ impl DraftProxy {
                     .unwrap_or_default()
                     .to_string()
             });
-            let full = json!({
-                "nodes": files,
-                "edges": [],
-                "pageInfo": media_page_info(self.store.staged.media_files.keys().next().map(String::as_str))
-            });
-            data.insert(field.response_key, selected_json(&full, &field.selection));
+            data.insert(
+                field.response_key,
+                selected_connection_json_with_args(
+                    files,
+                    &field.arguments,
+                    &field.selection,
+                    media_file_cursor,
+                ),
+            );
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -1270,10 +1273,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let limit = match arguments.get("first") {
-            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
-            _ => None,
-        };
         let mut products = self.store.products();
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
             if query.contains("status:") {
@@ -1289,16 +1288,16 @@ impl DraftProxy {
                 });
             }
         }
-        if let Some(limit) = limit {
-            products.truncate(limit);
-        }
+        let (products, page_info) = connection_window(&products, arguments, |product| {
+            product_cursor(product).to_string()
+        });
 
-        selected_typed_connection(
+        selected_typed_connection_with_page_info(
             &products,
             root_selection,
             product_json,
             |product| product_cursor(product).to_string(),
-            |page_info_selection| products_page_info_json(&products, page_info_selection),
+            page_info,
         )
     }
 

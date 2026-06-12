@@ -1048,6 +1048,22 @@ where
     Value::Object(connection)
 }
 
+pub(in crate::proxy) fn selected_typed_connection_with_page_info<T, NodeJson, Cursor>(
+    records: &[T],
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+    cursor: Cursor,
+    page_info: Value,
+) -> Value
+where
+    NodeJson: Fn(&T, &[SelectedField]) -> Value,
+    Cursor: Fn(&T) -> String,
+{
+    selected_typed_connection(records, root_selection, node_json, cursor, |selections| {
+        selected_json(&page_info, selections)
+    })
+}
+
 pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
     if id != "gid://shopify/Product/10173064872242" {
         return None;
@@ -1359,21 +1375,6 @@ pub(in crate::proxy) fn product_state_json(product: &ProductRecord) -> Value {
 
 pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
     &product.id
-}
-
-pub(in crate::proxy) fn products_page_info_json(
-    products: &[ProductRecord],
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &connection_page_info(
-            false,
-            false,
-            products.first().map(product_cursor).map(str::to_string),
-            products.last().map(product_cursor).map(str::to_string),
-        ),
-        selections,
-    )
 }
 
 pub(in crate::proxy) fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {

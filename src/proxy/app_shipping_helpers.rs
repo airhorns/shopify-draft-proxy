@@ -1083,47 +1083,43 @@ pub(in crate::proxy) fn carrier_service_record(
     })
 }
 
-pub(in crate::proxy) fn carrier_service_connection_json(
+pub(in crate::proxy) fn carrier_service_connection_json_with_page_info(
     services: &[Value],
     selections: &[SelectedField],
+    page_info: Value,
 ) -> Value {
     let node_selection = nested_selected_fields(selections, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
     let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                services
-                    .iter()
-                    .map(|service| selected_json(service, &node_selection))
-                    .collect(),
-            )),
-            "pageInfo" => Some(carrier_service_page_info_json(
-                services,
-                &page_info_selection,
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(
+            services
+                .iter()
+                .map(|service| selected_json(service, &node_selection))
+                .collect(),
+        )),
+        "edges" => Some(Value::Array(
+            services
+                .iter()
+                .map(|service| {
+                    json!({
+                        "cursor": carrier_service_cursor(service),
+                        "node": selected_json(service, &edge_node_selection)
+                    })
+                })
+                .collect(),
+        )),
+        "pageInfo" => Some(selected_json(&page_info, &page_info_selection)),
+        _ => None,
+    })
 }
 
-pub(in crate::proxy) fn carrier_service_page_info_json(
-    services: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    let cursor = services
-        .first()
-        .and_then(|service| service.get("id"))
+pub(in crate::proxy) fn carrier_service_cursor(service: &Value) -> String {
+    service
+        .get("id")
         .and_then(Value::as_str)
-        .map(|id| format!("cursor:{id}"));
-    selected_json(
-        &connection_page_info(false, false, cursor.clone(), cursor),
-        selections,
-    )
+        .map(|id| format!("cursor:{id}"))
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn carrier_service_payload_json(
