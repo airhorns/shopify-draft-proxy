@@ -10,7 +10,7 @@
     "functions-validation-update"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions/functions-validation-update-shape.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/functions/functions-validation-update-shape-stage.graphql",
     "variables": {}

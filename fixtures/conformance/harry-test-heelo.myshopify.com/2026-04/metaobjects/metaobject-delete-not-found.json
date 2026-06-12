@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-06-12T16:56:04.673Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "metaobject-delete-not-found",
+  "notes": "Captured live Admin GraphQL evidence that metaobjectDelete with a fabricated Metaobject id returns deletedId null and RECORD_NOT_FOUND userError.",
+  "cases": {
+    "deleteFabricatedId": {
+      "name": "delete-fabricated-id",
+      "request": {
+        "query": "mutation MetaobjectEntryLifecycleDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/does-not-exist"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

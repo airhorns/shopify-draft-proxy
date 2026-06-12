@@ -1825,6 +1825,14 @@ pub(in crate::proxy) fn payment_customization_user_error(
     })
 }
 
+pub(in crate::proxy) fn payment_customization_required_input_field_error(field: &str) -> Value {
+    payment_customization_user_error(
+        vec!["paymentCustomization", field],
+        "REQUIRED_INPUT_FIELD",
+        "Required input field must be present.",
+    )
+}
+
 pub(in crate::proxy) fn payment_customization_metafield_validation_error(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {

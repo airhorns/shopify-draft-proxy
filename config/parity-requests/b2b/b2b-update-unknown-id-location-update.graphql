@@ -1,0 +1,21 @@
+mutation RustB2BLocationBuyerExperienceConfigurationUnknownResource($companyLocationId: ID!) {
+  companyLocationUpdate(
+    companyLocationId: $companyLocationId
+    input: {
+      buyerExperienceConfiguration: {
+        paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4"
+        checkoutToDraft: true
+        editableShippingAddress: true
+      }
+    }
+  ) {
+    companyLocation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

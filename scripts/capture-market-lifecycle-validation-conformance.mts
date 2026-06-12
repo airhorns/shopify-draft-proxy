@@ -95,6 +95,11 @@ const cases = [
   await captureCase('marketDeleteUnknownId', marketDeleteUnknownIdQuery, {
     id: 'gid://shopify/Market/9999999',
   }),
+  await captureCase('marketCreateTooShortName', marketCreateBlankNameQuery, {
+    input: {
+      name: 'A',
+    },
+  }),
 ];
 
 await mkdir(outputDir, { recursive: true });

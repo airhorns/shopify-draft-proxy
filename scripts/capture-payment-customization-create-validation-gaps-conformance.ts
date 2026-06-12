@@ -90,8 +90,11 @@ const activePaymentCustomizationsDocument = `#graphql
 `;
 
 const validationDocument = `#graphql
-  mutation PaymentCustomizationCreateValidationGaps(
+  mutation RustPaymentCustomizationLocalRuntimeCreateValidationGaps(
     $missingMetafields: PaymentCustomizationInput!
+    $missingTitle: PaymentCustomizationInput!
+    $blankTitle: PaymentCustomizationInput!
+    $missingEnabled: PaymentCustomizationInput!
     $bothIdentifiers: PaymentCustomizationInput!
     $missingIdentifier: PaymentCustomizationInput!
     $seed1: PaymentCustomizationInput!
@@ -103,6 +106,18 @@ const validationDocument = `#graphql
   ) {
     missingMetafields: paymentCustomizationCreate(paymentCustomization: $missingMetafields) {
       paymentCustomization { id }
+      userErrors { field code message }
+    }
+    missingTitle: paymentCustomizationCreate(paymentCustomization: $missingTitle) {
+      paymentCustomization { id title enabled functionId }
+      userErrors { field code message }
+    }
+    blankTitle: paymentCustomizationCreate(paymentCustomization: $blankTitle) {
+      paymentCustomization { id title enabled functionId }
+      userErrors { field code message }
+    }
+    missingEnabled: paymentCustomizationCreate(paymentCustomization: $missingEnabled) {
+      paymentCustomization { id title enabled functionId }
       userErrors { field code message }
     }
     bothIdentifiers: paymentCustomizationCreate(paymentCustomization: $bothIdentifiers) {
@@ -188,6 +203,22 @@ const variables = {
     title: `${titlePrefix} missing metafields`,
     enabled: true,
     functionId,
+  },
+  missingTitle: {
+    enabled: true,
+    functionId,
+    metafields: [],
+  },
+  blankTitle: {
+    title: ' ',
+    enabled: true,
+    functionId,
+    metafields: [],
+  },
+  missingEnabled: {
+    title: `${titlePrefix} missing enabled`,
+    functionId,
+    metafields: [],
   },
   bothIdentifiers: {
     title: `${titlePrefix} both identifiers`,

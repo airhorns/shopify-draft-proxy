@@ -156,14 +156,14 @@ try {
     response: first,
   });
 
-  const duplicateNameVariables = { input: { name: 'Europe' } };
+  const duplicateNameVariables = { input: { name: 'europe' } };
   const duplicateName = await runGraphqlRequest<MarketCreateData>(
     marketCreateHandleDedupeMutation,
     duplicateNameVariables,
   );
   assertExpectedUserError(duplicateName, 'TAKEN', ['input', 'name'], 'duplicate-name marketCreate');
   cases.push({
-    name: 'marketCreate duplicate Europe name rejected',
+    name: 'marketCreate case-insensitive duplicate Europe name rejected',
     query: marketCreateHandleDedupeMutation,
     variables: duplicateNameVariables,
     response: duplicateName,
@@ -190,7 +190,7 @@ const capture = {
   capturedAt: new Date().toISOString(),
   storeDomain,
   apiVersion,
-  scope: 'HAR-622 marketCreate generated handle dedupe',
+  scope: 'marketCreate generated handle dedupe and case-insensitive name uniqueness',
   cases,
   cleanup,
   upstreamCalls: [],

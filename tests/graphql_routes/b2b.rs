@@ -647,6 +647,145 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_
 }
 
 #[test]
+fn b2b_unknown_update_ids_return_resource_not_found_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_company_id = "gid://shopify/Company/999";
+    let unknown_location_id = "gid://shopify/CompanyLocation/999";
+    let unknown_tax_location_id = "gid://shopify/CompanyLocation/998";
+
+    let company_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyUnknownResource($companyId: ID!) {
+          companyUpdate(companyId: $companyId, input: { name: "X" }) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": unknown_company_id }),
+    ));
+    assert_eq!(company_update.status, 200);
+    assert_eq!(
+        company_update.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["companyId"],
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let location_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BLocationBuyerExperienceConfigurationUnknownResource($companyLocationId: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $companyLocationId,
+            input: {
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4",
+                checkoutToDraft: true,
+                editableShippingAddress: true
+              }
+            }
+          ) {
+            companyLocation { id buyerExperienceConfiguration { checkoutToDraft } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyLocationId": unknown_location_id }),
+    ));
+    assert_eq!(location_update.status, 200);
+    assert_eq!(
+        location_update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let tax_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsUnknownResource($companyLocationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $companyLocationId, taxExempt: true) {
+            companyLocation { id name taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyLocationId": unknown_tax_location_id }),
+    ));
+    assert_eq!(tax_update.status, 200);
+    assert_eq!(
+        tax_update.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let company_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyUnknownResourceRead($companyId: ID!) {
+          company(id: $companyId) { id name }
+        }
+        "#,
+        json!({ "companyId": unknown_company_id }),
+    ));
+    assert_eq!(company_read.body["data"]["company"], Value::Null);
+
+    let location_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BLocationBuyerExperienceConfigurationUnknownResourceRead($companyLocationId: ID!) {
+          companyLocation(id: $companyLocationId) { id name buyerExperienceConfiguration { checkoutToDraft } }
+        }
+        "#,
+        json!({ "companyLocationId": unknown_location_id }),
+    ));
+    assert_eq!(location_read.body["data"]["companyLocation"], Value::Null);
+
+    let tax_location_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BLocationBuyerExperienceConfigurationUnknownResourceRead($companyLocationId: ID!) {
+          companyLocation(id: $companyLocationId) { id name taxSettings { taxExempt } }
+        }
+        "#,
+        json!({ "companyLocationId": unknown_tax_location_id }),
+    ));
+    assert_eq!(
+        tax_location_read.body["data"]["companyLocation"],
+        Value::Null
+    );
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    for root in [
+        "companyUpdate",
+        "companyLocationUpdate",
+        "companyLocationTaxSettingsUpdate",
+    ] {
+        let entry = entries
+            .iter()
+            .find(|entry| entry["interpreted"]["primaryRootField"] == json!(root))
+            .unwrap_or_else(|| panic!("missing {root} log entry"));
+        assert_eq!(entry["status"], json!("failed"));
+        assert_eq!(entry["stagedResourceIds"], json!([]));
+    }
+}
+
+#[test]
 fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
 

@@ -927,26 +927,19 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
     transaction: Option<Value>,
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            name if name == transaction_field => Some(match transaction.as_ref() {
-                Some(transaction) => selected_json(transaction, &selection.selection),
-                None => Value::Null,
-            }),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(payload)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        name if name == transaction_field => Some(match transaction.as_ref() {
+            Some(transaction) => selected_json(transaction, &selection.selection),
+            None => Value::Null,
+        }),
+        "userErrors" => Some(Value::Array(
+            user_errors
+                .iter()
+                .map(|error| selected_json(error, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
@@ -957,9 +950,8 @@ pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
         "code": null,
         "message": "Gift cards are not available on this plan."
     })];
-    let mut payload = serde_json::Map::new();
-    for selection in selections {
-        let value = if selection.name == "userErrors" {
+    selected_payload_json(selections, |selection| {
+        Some(if selection.name == "userErrors" {
             Value::Array(
                 user_errors
                     .iter()
@@ -968,10 +960,8 @@ pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
             )
         } else {
             Value::Null
-        };
-        payload.insert(selection.response_key.clone(), value);
-    }
-    Value::Object(payload)
+        })
+    })
 }
 
 pub(in crate::proxy) fn gift_card_payload_json_nullable(
@@ -979,27 +969,20 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
     selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut payload = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "giftCard" => Some(match gift_card {
-                Some(card) => selected_json(card, &selection.selection),
-                None => Value::Null,
-            }),
-            "giftCardCode" => Some(Value::Null),
-            "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            payload.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(payload)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "giftCard" => Some(match gift_card {
+            Some(card) => selected_json(card, &selection.selection),
+            None => Value::Null,
+        }),
+        "giftCardCode" => Some(Value::Null),
+        "userErrors" => Some(Value::Array(
+            user_errors
+                .iter()
+                .map(|error| selected_json(error, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
@@ -1144,47 +1127,33 @@ pub(in crate::proxy) fn product_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "__typename" => Some(json!("Product")),
-            "id" => Some(json!(product.id)),
-            "title" => Some(json!(product.title)),
-            "handle" => Some(json!(product.handle)),
-            "status" => Some(json!(product.status)),
-            "updatedAt" => product_updated_at(&product.id).map(|value| json!(value)),
-            "descriptionHtml" => Some(json!(product.description_html)),
-            "vendor" => Some(json!(product.vendor)),
-            "productType" => Some(json!(product.product_type)),
-            "tags" => Some(json!(product.tags)),
-            "totalInventory" => Some(json!(0)),
-            "templateSuffix" => Some(json!(product.template_suffix)),
-            "seo" => Some(product_seo_json(product, &selection.selection)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("Product")),
+        "id" => Some(json!(product.id)),
+        "title" => Some(json!(product.title)),
+        "handle" => Some(json!(product.handle)),
+        "status" => Some(json!(product.status)),
+        "updatedAt" => product_updated_at(&product.id).map(|value| json!(value)),
+        "descriptionHtml" => Some(json!(product.description_html)),
+        "vendor" => Some(json!(product.vendor)),
+        "productType" => Some(json!(product.product_type)),
+        "tags" => Some(json!(product.tags)),
+        "totalInventory" => Some(json!(0)),
+        "templateSuffix" => Some(json!(product.template_suffix)),
+        "seo" => Some(product_seo_json(product, &selection.selection)),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn product_seo_json(
     product: &ProductRecord,
     selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "title" => Some(json!(product.seo_title)),
-            "description" => Some(json!(product.seo_description)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "title" => Some(json!(product.seo_title)),
+        "description" => Some(json!(product.seo_description)),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn product_tag_query_value(query: &str) -> Option<&str> {
@@ -1390,18 +1359,11 @@ pub(in crate::proxy) fn products_page_info_json(
 }
 
 pub(in crate::proxy) fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "count" => Some(json!(count)),
-            "precision" => Some(json!("EXACT")),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "count" => Some(json!(count)),
+        "precision" => Some(json!("EXACT")),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn saved_search_connection_json(
@@ -1447,29 +1409,22 @@ pub(in crate::proxy) fn saved_search_json_with_query(
 ) -> Value {
     let filters = saved_search_filters(query_display);
     let legacy_id = saved_search_legacy_resource_id(&record.id);
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "__typename" => Some(json!("SavedSearch")),
-            "id" => Some(json!(record.id)),
-            "legacyResourceId" => Some(json!(legacy_id)),
-            "name" => Some(json!(record.name)),
-            "query" => Some(json!(query_display)),
-            "resourceType" => Some(json!(record.resource_type)),
-            "searchTerms" => Some(json!(saved_search_search_terms(query_display))),
-            "filters" => Some(Value::Array(
-                filters
-                    .iter()
-                    .map(|(key, value)| saved_search_filter_json(key, value, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("SavedSearch")),
+        "id" => Some(json!(record.id)),
+        "legacyResourceId" => Some(json!(legacy_id)),
+        "name" => Some(json!(record.name)),
+        "query" => Some(json!(query_display)),
+        "resourceType" => Some(json!(record.resource_type)),
+        "searchTerms" => Some(json!(saved_search_search_terms(query_display))),
+        "filters" => Some(Value::Array(
+            filters
+                .iter()
+                .map(|(key, value)| saved_search_filter_json(key, value, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn saved_search_state_map_json(
@@ -1525,19 +1480,12 @@ pub(in crate::proxy) fn saved_search_filter_json(
     value: &str,
     selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "__typename" => Some(json!("SearchFilter")),
-            "key" => Some(json!(key)),
-            "value" => Some(json!(value)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("SearchFilter")),
+        "key" => Some(json!(key)),
+        "value" => Some(json!(value)),
+        _ => None,
+    })
 }
 
 pub(in crate::proxy) fn saved_search_page_info_json(
@@ -1563,21 +1511,16 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
     saved_search_selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selections {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
             "savedSearch" => Some(match record {
                 Some(record) => saved_search_json(record, saved_search_selections),
                 None => Value::Null,
             }),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn saved_search_required_input_error(
@@ -1706,9 +1649,8 @@ pub(in crate::proxy) fn saved_search_delete_payload_json(
     payload_selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selections {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
             "deletedSavedSearchId" => Some(match deleted_id {
                 Some(id) => json!(id),
                 None => Value::Null,
@@ -1716,12 +1658,8 @@ pub(in crate::proxy) fn saved_search_delete_payload_json(
             "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(user_errors.clone())),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn saved_search_input_from_field(
@@ -1880,18 +1818,13 @@ pub(in crate::proxy) fn product_mutation_payload_json(
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selections {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
             "product" => Some(product_json(product, product_selections)),
             "userErrors" => Some(json!([])),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn product_create_user_errors_response(
@@ -1918,18 +1851,13 @@ pub(in crate::proxy) fn product_delete_payload_json(
     deleted_product_id: &str,
     payload_selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in payload_selections {
-        let value = match selection.name.as_str() {
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
             "deletedProductId" => Some(json!(deleted_product_id)),
             "userErrors" => Some(json!([])),
             _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
         }
-    }
-    Value::Object(fields)
+    })
 }
 
 pub(in crate::proxy) fn product_delete_async_operation_payload(operation_id: &str) -> Value {

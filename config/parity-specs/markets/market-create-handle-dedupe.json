@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-622 live Admin GraphQL 2026-04 capture creates a disposable Europe market, proves exact duplicate names are rejected with TAKEN before handle generation, then creates a distinct Europe! market that slug-collides and receives Shopify's generated handle europe-1. Cleanup deletes the created markets in reverse order. The local proxy replays these marketCreate requests as staged local mutations without runtime Shopify writes.",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable Europe market, proves case-insensitive duplicate names are rejected with TAKEN before handle generation, then creates a distinct Europe! market that slug-collides and receives Shopify's generated handle europe-1. Cleanup deletes the created markets in reverse order. The local proxy replays these marketCreate requests as staged local mutations without runtime Shopify writes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
