@@ -47,6 +47,9 @@ updates, and disables for non-enabled locales with captured Shopify-like
 `userErrors`. Market-web-presence IDs are filtered to known local or captured
 WebPresence IDs, and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields.
+For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
+a non-null `published` value, whether `true` or `false`; primary-locale updates
+that only supply `marketWebPresenceIds` remain accepted by this slice.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 ported product, collection, product-metafield, and market-scoped translation
