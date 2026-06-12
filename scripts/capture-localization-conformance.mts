@@ -297,6 +297,10 @@ const primaryUnpublishVariables = {
   locale: 'en',
   shopLocale: { published: false },
 };
+const primaryPublishVariables = {
+  locale: 'en',
+  shopLocale: { published: true },
+};
 const missingLocaleUpdateVariables = {
   locale: 'zz',
   shopLocale: { published: false },
@@ -310,6 +314,10 @@ const primaryGuards = {
   updatePrimaryUnpublish: {
     request: { variables: primaryUnpublishVariables },
     response: await runGraphql(updateUserErrorsMutation, primaryUnpublishVariables),
+  },
+  updatePrimaryPublish: {
+    request: { variables: primaryPublishVariables },
+    response: await runGraphql(updateUserErrorsMutation, primaryPublishVariables),
   },
   disablePrimary: {
     request: { variables: primaryGuardVariables },

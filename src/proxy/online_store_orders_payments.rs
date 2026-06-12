@@ -290,6 +290,21 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if self.metaobject_by_id(&id).is_none() {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Record not found",
+                        "code": "RECORD_NOT_FOUND",
+                        "elementKey": null,
+                        "elementIndex": null
+                    }]
+                }),
+                &field.selection,
+            );
+        }
         self.store.staged.metaobjects.remove(&id);
         self.store.staged.deleted_metaobject_ids.insert(id.clone());
         staged_ids.push(id.clone());
@@ -2265,6 +2280,25 @@ impl DraftProxy {
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
         let function_id = resolved_string_field(&input, "functionId");
         let function_handle = resolved_string_field(&input, "functionHandle");
+        let mut required_errors = Vec::new();
+        if resolved_string_field(&input, "title")
+            .map(|title| title.trim().is_empty())
+            .unwrap_or(true)
+        {
+            required_errors.push(payment_customization_required_input_field_error("title"));
+        }
+        if !input.contains_key("enabled") {
+            required_errors.push(payment_customization_required_input_field_error("enabled"));
+        }
+        if !required_errors.is_empty() {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                required_errors,
+                None,
+                None,
+            );
+        }
         if function_id.is_some() && function_handle.is_some() {
             return payment_customization_payload(
                 None,
@@ -2340,6 +2374,15 @@ impl DraftProxy {
             );
         };
 
+        if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
+            return payment_customization_payload(
+                None,
+                &field.selection,
+                vec![payment_customization_required_input_field_error("title")],
+                None,
+                None,
+            );
+        }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
             if !payment_customization_function_handle_exists(&handle) {
                 return payment_customization_payload(

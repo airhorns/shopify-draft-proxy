@@ -1,0 +1,132 @@
+{
+  "capturedAt": "2026-06-12T17:23:49.998Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "validation": {
+    "productChangeStatusInvalidLiteral": {
+      "query": "mutation ProductChangeStatusInvalidStatusLiteral {\n  productChangeStatus(productId: \"gid://shopify/Product/999999999999999\", status: ENABLED) {\n    product {\n      id\n      status\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'status' on Field 'productChangeStatus' has an invalid value (ENABLED). Expected type 'ProductStatus!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation ProductChangeStatusInvalidStatusLiteral", "productChangeStatus", "status"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "status"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "productChangeStatusInvalidVariable": {
+      "query": "mutation ProductChangeStatusInvalidStatusVariable($productId: ID!, $status: ProductStatus!) {\n  productChangeStatus(productId: $productId, status: $status) {\n    product {\n      id\n      status\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "status": "ENABLED"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $status of type ProductStatus! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 68
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "ENABLED",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "productCreateInvalidLiteral": {
+      "query": "mutation ProductCreateInvalidStatusLiteral {\n  productCreate(product: { title: \"Invalid status probe\", status: PUBLISHED }) {\n    product {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'status' on InputObject 'ProductCreateInput' has an invalid value (PUBLISHED). Expected type 'ProductStatus'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 26
+                }
+              ],
+              "path": ["mutation ProductCreateInvalidStatusLiteral", "productCreate", "product", "status"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "status"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "productCreateInvalidVariable": {
+      "query": "mutation ProductCreateInvalidStatusVariable($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Invalid status probe",
+          "status": "ENABLED"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value for status (Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 45
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "Invalid status probe",
+                  "status": "ENABLED"
+                },
+                "problems": [
+                  {
+                    "path": ["status"],
+                    "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured against real Shopify Admin GraphQL. Invalid ProductStatus values fail schema validation before productChangeStatus/productCreate resolver execution, so no products are created or status changes staged upstream."
+  ],
+  "upstreamCalls": []
+}

@@ -985,6 +985,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-status-enum-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-status-enum-validation-conformance.ts',
+    purpose:
+      'ProductStatus enum schema-validation errors for invalid productChangeStatus status arguments and productCreate input.status values.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-status-enum-validation.json`,
+      'config/parity-specs/products/product-status-enum-validation.json',
+      'config/parity-requests/products/productChangeStatus-invalid-status-literal.graphql',
+      'config/parity-requests/products/productChangeStatus-invalid-status-variable.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-literal.graphql',
+      'config/parity-requests/products/productCreate-invalid-status-variable.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; invalid enum inputs are rejected by Shopify schema validation before resolver execution and do not create or mutate products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:
@@ -2363,6 +2383,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects/metaobjects-read.json'],
     cleanupBehavior: 'Deletes seeded metaobject entries/definitions after read capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-delete-not-found-conformance.mts',
+    purpose:
+      'Metaobject delete fabricated-id not-found payload, including deletedId null and RECORD_NOT_FOUND userError shape.',
+    requiredAuthScopes: ['write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-delete-not-found.json`,
+      'config/parity-specs/metaobjects/metaobject-delete-not-found.json',
+    ],
+    cleanupBehavior: 'No setup; sends metaobjectDelete with a fabricated id and does not mutate live resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4668,6 +4703,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-activate-limit-relocation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-limit-relocation-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for locationActivate LOCATION_LIMIT, HAS_ONGOING_RELOCATION, and successful control branches; relocation message text is sourced from Shopify Core i18n because public Admin GraphQL cannot deterministically create an incomplete mass-relocation job.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}location-activate-limit-and-relocation.json`,
+      'config/parity-specs/store-properties/location-activate-limit-and-relocation.json',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime; the public disposable shop is not at its location limit and exposes no deterministic incomplete mass-relocation setup through Admin GraphQL, so no Shopify cleanup is required.',
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-add-metafields',
     scriptPath: 'scripts/capture-location-add-metafields-conformance.mts',
     purpose:
@@ -6485,7 +6536,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
-    fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
+      'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
+      'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
+    ],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -6627,6 +6682,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-create-validation-gaps.json`,
       'config/parity-specs/payments/payment-customization-create-validation-gaps.json',
+      'config/parity-specs/payments/payment-customization-create-required-fields.json',
       'config/parity-requests/payments/payment-customization-create-validation-gaps.graphql',
     ],
     cleanupBehavior:
@@ -7657,6 +7713,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-format-name-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-whitespace.json',
+      'config/parity-specs/webhooks/webhook-subscription-payload-fields.json',
     ],
     cleanupBehavior: 'Deletes created API webhook subscriptions during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -8263,6 +8320,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-inline-consent-parity.json`,
+      'config/parity-specs/customers/customerUpdate-inline-consent-rejection.json',
       'config/parity-specs/customers/customerInputInlineConsent-parity.json',
       'config/parity-requests/customers/customerInputInlineConsent-create.graphql',
       'config/parity-requests/customers/customerInputInlineConsent-read.graphql',

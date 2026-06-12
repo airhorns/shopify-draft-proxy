@@ -1,0 +1,110 @@
+{
+  "scenarioId": "customer-update-inline-consent-rejection",
+  "operationNames": ["customerCreate", "customerUpdate", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Focused customerUpdate conformance scenario for CustomerInput inline marketing consent rejection. The backing live capture creates a disposable customer, records Shopify rejecting inline emailMarketingConsent and smsMarketingConsent updates with customer: null and payload userErrors directing callers to the dedicated consent mutations, then verifies downstream reads remain unchanged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-inline-consent-baseline",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber",
+          "$.customerCreate.customer.emailMarketingConsent",
+          "$.customerCreate.customer.smsMarketingConsent"
+        ]
+      },
+      {
+        "name": "update-inline-email-consent-rejection",
+        "capturePath": "$.validation.updateEmailConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "emailMarketingConsent": {
+                "marketingState": "UNSUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": "2026-04-25T02:00:00Z"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "update-inline-sms-consent-rejection",
+        "capturePath": "$.validation.updateSmsConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "marketingState": "UNSUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": "2026-04-25T02:05:00Z"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "rejected-inline-consent-downstream-read",
+        "capturePath": "$.validation.downstreamAfterRejectedUpdates.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": {
+              "fromCapturePath": "$.validation.downstreamAfterRejectedUpdates.variables.query"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber",
+          "$.customer.emailMarketingConsent",
+          "$.customer.smsMarketingConsent",
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.defaultEmailAddress",
+          "$.customerByIdentifier.defaultPhoneNumber",
+          "$.customerByIdentifier.emailMarketingConsent",
+          "$.customerByIdentifier.smsMarketingConsent"
+        ]
+      }
+    ]
+  }
+}

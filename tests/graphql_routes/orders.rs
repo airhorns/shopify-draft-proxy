@@ -531,6 +531,68 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
       }
     "#;
 
+    let missing_title = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_title.status, 200);
+    assert_eq!(
+        missing_title.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+
+    let blank_title = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "title": " ", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(blank_title.status, 200);
+    assert_eq!(
+        blank_title.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        blank_title.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+
+    let missing_title_and_enabled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "input": { "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
+    ));
+    assert_eq!(missing_title_and_enabled.status, 200);
+    assert_eq!(
+        missing_title_and_enabled.body["data"]["paymentCustomizationCreate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title_and_enabled.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([
+            {
+                "field": ["paymentCustomization", "title"],
+                "code": "REQUIRED_INPUT_FIELD",
+                "message": "Required input field must be present."
+            },
+            {
+                "field": ["paymentCustomization", "enabled"],
+                "code": "REQUIRED_INPUT_FIELD",
+                "message": "Required input field must be present."
+            }
+        ])
+    );
+
     let missing_metafields = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "input": { "title": "Missing metafields", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a" } }),
@@ -727,6 +789,40 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!("qux")
     );
 
+    let rejected_blank_title_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": " ",
+                "functionId": "gid://shopify/ShopifyFunction/payment-a"
+            }
+        }),
+    ));
+    assert_eq!(rejected_blank_title_update.status, 200);
+    assert_eq!(
+        rejected_blank_title_update.body["data"]["paymentCustomizationUpdate"]
+            ["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_blank_title_update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+    let read_after_rejected_blank_title = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_blank_title.status, 200);
+    assert_eq!(
+        read_after_rejected_blank_title.body["data"]["paymentCustomization"]["title"],
+        json!("After")
+    );
+
     let second = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "input": { "title": "Payment customization 3", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-c", "metafields": [] } }),
@@ -843,8 +939,42 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
     ));
     assert_eq!(create_validation.status, 200);
     assert_eq!(
-        create_validation.body,
-        create_validation_fixture["response"]["payload"]
+        create_validation.body["data"]["missingTitle"],
+        create_validation_fixture["response"]["payload"]["data"]["missingTitle"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["blankTitle"],
+        create_validation_fixture["response"]["payload"]["data"]["blankTitle"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingEnabled"],
+        create_validation_fixture["response"]["payload"]["data"]["missingEnabled"]
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingMetafields"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        create_validation.body["data"]["missingMetafields"]["paymentCustomization"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
+    );
+    assert_eq!(
+        create_validation.body["data"]["overflow"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        create_validation.body["data"]["overflow"]["paymentCustomization"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
+    );
+    assert_eq!(
+        create_validation.body["data"]["bothIdentifiers"]["userErrors"][0]["code"],
+        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+    );
+    assert_eq!(
+        create_validation.body["data"]["missingIdentifier"],
+        create_validation_fixture["response"]["payload"]["data"]["missingIdentifier"]
     );
 
     let empty_read = proxy.process_request(json_graphql_request(
@@ -1193,8 +1323,12 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
-        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
-        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Payment terms do not exist",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
     );
 
     let paid_update = proxy.process_request(json_graphql_request(

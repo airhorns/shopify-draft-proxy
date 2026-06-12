@@ -9,7 +9,8 @@ use serde_json::{json, Value};
 use crate::graphql::{
     nested_root_field_path_selection, nested_root_field_selection, parse_operation,
     parsed_document, root_field_arguments, root_field_response_key, root_field_selection,
-    root_fields, OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection, SelectedField,
+    root_fields, variable_definition_info, OperationType, RawArgumentValue, ResolvedValue,
+    RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, local_dispatch_root, operation_capability, CapabilityDomain,

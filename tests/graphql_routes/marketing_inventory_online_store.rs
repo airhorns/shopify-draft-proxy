@@ -1480,6 +1480,72 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 }
 
 #[test]
+fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
+    let mut proxy = snapshot_proxy();
+
+    let delete_query = r#"
+        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#;
+    let record_not_found = json!({
+        "deletedId": null,
+        "userErrors": [{
+            "field": ["id"],
+            "message": "Record not found",
+            "code": "RECORD_NOT_FOUND",
+            "elementKey": null,
+            "elementIndex": null
+        }]
+    });
+
+    let unknown = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"id": "gid://shopify/Metaobject/does-not-exist"}),
+    ));
+    assert_eq!(unknown.body["data"]["metaobjectDelete"], record_not_found);
+
+    let malformed = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"id": "not-a-shopify-gid"}),
+    ));
+    assert_eq!(malformed.body["data"]["metaobjectDelete"], record_not_found);
+
+    assert_eq!(
+        proxy
+            .process_request(Request {
+                method: "GET".to_string(),
+                path: "/__meta/log".to_string(),
+                ..Default::default()
+            })
+            .body,
+        json!({"entries": []})
+    );
+
+    let seed_id = "gid://shopify/Metaobject/185593102642";
+    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": seed_id, "userErrors": []})
+    );
+
+    let repeated =
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+    assert_eq!(repeated.body["data"]["metaobjectDelete"], record_not_found);
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log.body["entries"][0]["stagedResourceIds"],
+        json!([seed_id])
+    );
+}
+
+#[test]
 fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_delete() {
     let mut proxy = snapshot_proxy();
 
