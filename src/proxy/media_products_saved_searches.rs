@@ -1327,20 +1327,7 @@ impl DraftProxy {
                 .owner_metafields
                 .get(&id)
                 .cloned()
-                .unwrap_or_else(|| {
-                    self.store
-                        .staged
-                        .owner_metafields
-                        .values()
-                        .flatten()
-                        .filter(|metafield| {
-                            namespace.is_empty()
-                                || metafield.get("namespace").and_then(Value::as_str)
-                                    == Some(namespace.as_str())
-                        })
-                        .cloned()
-                        .collect()
-                });
+                .unwrap_or_default();
             let all = {
                 let mut all = owner_metafields
                     .into_iter()
@@ -1388,11 +1375,23 @@ impl DraftProxy {
                 .and_then(|metafield| metafield.get("id"))
                 .and_then(Value::as_str)
                 .map(|id| format!("cursor:{}", id));
+            let edges = all
+                .iter()
+                .map(|metafield| {
+                    let cursor = metafield
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(|id| format!("cursor:{}", id))
+                        .unwrap_or_default();
+                    json!({"cursor": cursor, "node": metafield})
+                })
+                .collect::<Vec<_>>();
             let owner = json!({
                 "id": id,
                 "metafield": single,
                 "metafields": {
                     "nodes": all,
+                    "edges": edges,
                     "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": page_cursor, "endCursor": page_cursor}
                 }
             });
