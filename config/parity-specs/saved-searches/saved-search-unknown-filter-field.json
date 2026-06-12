@@ -13,7 +13,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate reject unknown PRODUCT filter fields with field [\"input\", \"query\"], while a known PRODUCT vendor filter remains valid.",
+  "notes": "Live evidence that savedSearchCreate rejects sorted/deduped unknown PRODUCT filter fields with field [\"input\", \"query\"], savedSearchUpdate rejects an unknown PRODUCT filter with field [\"input\", \"query\"], and a known PRODUCT handle filter remains valid.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -25,7 +25,7 @@
         "upstreamCapturePath": null
       },
       {
-        "name": "product-vendor-positive-control",
+        "name": "product-handle-positive-control",
         "capturePath": "$.savedSearchUnknownFilterField.payload.data.productPositive",
         "proxyPath": "$.data.productPositive",
         "upstreamCapturePath": null,

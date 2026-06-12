@@ -94,6 +94,240 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
 }
 
 #[test]
+fn bulk_operation_run_query_validates_admin_query_branches() {
+    let cases = [
+        (
+            "nodesInsteadOfEdges",
+            "#graphql\n{\n  products {\n    nodes {\n      id\n      title\n    }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "topLevelNode",
+            "#graphql\n{\n  node(id: \"gid://shopify/Product/0\") {\n    id\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Bulk queries cannot contain a top level `node` field.",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["query"],
+                    "message": "Bulk queries must contain at least one connection.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "depthThreeNesting",
+            "#graphql\n{\n  collections {\n    edges { node { id products { edges { node { id variants { edges { node { id metafields { edges { node { id } } } } } } } } } } }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Bulk queries cannot contain connections with a nesting depth greater than 2.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "sixConnections",
+            "#graphql\n{\n  products {\n    edges { node { id variants { edges { node { id } } } metafields { edges { node { id } } } collections { edges { node { id } } } media { edges { node { id } } } sellingPlanGroups { edges { node { id } } } } }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Bulk queries cannot contain more than 5 connections.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "nestedWithoutParentId",
+            "#graphql\n{\n  products {\n    edges { node { title variants { edges { node { id } } } } }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "invalidOperationType",
+            "#graphql\nmutation {\n  productCreate(input: { title: \"Bulk validator invalid operation type\" }) {\n    product { id }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Invalid operation type. Only `query` operations are supported.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "connectionWithinList",
+            "#graphql\n{\n  orders {\n    edges { node { id fulfillments { events { edges { node { id } } } } } }\n  }\n}",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Queries that contain a connection field within a list field are not currently supported.",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+        (
+            "emptyQuery",
+            "",
+            json!([
+                {
+                    "field": ["query"],
+                    "message": "Invalid bulk query: syntax error, unexpected end of file",
+                    "code": "INVALID"
+                }
+            ]),
+        ),
+    ];
+
+    for (name, bulk_query, expected_user_errors) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation BulkOperationRunQueryValidatorParity($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": bulk_query }),
+        ));
+
+        assert_eq!(response.status, 200, "{name}");
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+            Value::Null,
+            "{name}"
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"], expected_user_errors,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
+    let mut proxy = snapshot_proxy();
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationCancelParity($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([
+            {
+                "field": null,
+                "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/7689772990770.",
+                "code": "OPERATION_IN_PROGRESS"
+            }
+        ])
+    );
+}
+
+#[test]
+fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
+    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/9999999999999";
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation BulkOperationCancelParity($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type createdAt query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+
+    let cancel = proxy.process_request(cancel_request);
+
+    assert_eq!(cancel.status, 200);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["createdAt"],
+        json!("2026-05-05T20:33:59Z")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["query"],
+        json!("#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}")
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([
+            {
+                "field": null,
+                "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/9999999999999.",
+                "code": "OPERATION_IN_PROGRESS"
+            }
+        ])
+    );
+}
+
+#[test]
 fn bulk_operation_empty_connection_preserves_selection_aliases() {
     let mut proxy = snapshot_proxy();
 

@@ -1223,22 +1223,21 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationCancel"
             && resolved_string_arg(&variables, "id")
-                .map(|id| {
-                    matches!(
-                        id.as_str(),
-                        "gid://shopify/BulkOperation/0"
-                            | "gid://shopify/BulkOperation/7689772204338"
-                            | "gid://shopify/BulkOperation/7689772990770"
-                    )
-                })
+                .map(|id| shopify_gid_resource_type(&id) == Some("BulkOperation"))
                 .unwrap_or(false)
         {
-            return self.bulk_operation_cancel(&query, &variables);
+            return self.bulk_operation_cancel(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "backupRegionUpdate"
         {
             return self.backup_region_update(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(root_field, "flowGenerateSignature" | "flowTriggerReceive")
+        {
+            return self.flow_utility_mutation(root_field, request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1458,7 +1457,6 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && matches!(root_field, "segmentCreate" | "segmentUpdate")
-            && is_segment_query_grammar_document(&query)
         {
             return self.segment_mutation(root_field, &query, &variables, request);
         }

@@ -2133,6 +2133,8 @@ pub(in crate::proxy) fn is_local_bulk_operation_read_document(query: &str) -> bo
 pub(in crate::proxy) fn is_local_bulk_operation_run_query_document(query: &str) -> bool {
     query.contains("BulkOperationRunQueryGroupObjectsTrue")
         || query.contains("BulkOperationRunQueryParity")
+        || query.contains("BulkOperationRunQueryValidatorParity")
+        || query.contains("BulkOperationRunQueryUserErrorCodes")
 }
 
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {

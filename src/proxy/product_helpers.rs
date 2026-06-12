@@ -966,7 +966,7 @@ pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
     let user_errors = [json!({
         "field": ["base"],
         "code": null,
-        "message": "Gift cards are not available on this plan."
+        "message": "Gift cards are unavailable on your plan."
     })];
     selected_payload_json(selections, |selection| {
         Some(if selection.name == "userErrors" {
@@ -1701,13 +1701,23 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
         }));
     }
     let filters = saved_search_filters(query);
-    for (key, _) in &filters {
-        if !saved_search_known_filter(resource_type, key) {
-            errors.push(json!({
-                "field": ["input", "query"],
-                "message": format!("Query is invalid, '{}' is not a valid filter", key.trim_end_matches("_not"))
-            }));
-        }
+    let mut invalid_filters: Vec<String> = filters
+        .iter()
+        .filter_map(|(key, _)| {
+            if saved_search_known_filter(resource_type, key) {
+                None
+            } else {
+                Some(saved_search_base_filter_key(key).to_string())
+            }
+        })
+        .collect();
+    invalid_filters.sort();
+    invalid_filters.dedup();
+    for key in invalid_filters {
+        errors.push(json!({
+            "field": ["input", "query"],
+            "message": format!("Query is invalid, '{}' is not a valid filter", key)
+        }));
     }
     if resource_type == "PRODUCT" {
         let has_collection = filters.iter().any(|(key, _)| key == "collection_id");
@@ -1729,38 +1739,92 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
 }
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
-    let base_key = key
-        .trim_end_matches("_not")
-        .trim_end_matches("_min")
-        .trim_end_matches("_max");
+    let base_key = saved_search_base_filter_key(key);
     match resource_type {
         "PRODUCT" => {
             matches!(
                 base_key,
-                "title"
-                    | "tag"
-                    | "vendor"
+                "collection_id"
+                    | "created_at"
+                    | "error_feedback"
+                    | "handle"
+                    | "id"
+                    | "inventory_total"
+                    | "product_type"
+                    | "published_at"
+                    | "published_status"
                     | "sku"
                     | "status"
-                    | "collection_id"
-                    | "published_status"
-                    | "error_feedback"
-                    | "inventory_total"
+                    | "tag"
+                    | "title"
+                    | "updated_at"
+                    | "vendor"
             ) || base_key.starts_with("metafields.")
         }
+        "COLLECTION" => matches!(
+            base_key,
+            "collection_type"
+                | "handle"
+                | "id"
+                | "product_id"
+                | "product_publication_status"
+                | "publishable_status"
+                | "published_at"
+                | "published_status"
+                | "title"
+                | "updated_at"
+        ),
         "ORDER" => matches!(
             base_key,
-            "status"
+            "channel_id"
+                | "created_at"
+                | "customer_id"
+                | "email"
                 | "financial_status"
                 | "fulfillment_status"
-                | "vendor"
+                | "id"
+                | "location_id"
+                | "name"
+                | "processed_at"
+                | "sales_channel"
+                | "status"
                 | "tag"
-                | "reference_location_id"
+                | "test"
+                | "updated_at"
         ),
-        "DRAFT_ORDER" => matches!(base_key, "status" | "invoice_sent" | "source" | "vendor"),
-        "FILE" | "COLLECTION" | "DISCOUNT_REDEEM_CODE" => true,
+        "DRAFT_ORDER" => matches!(
+            base_key,
+            "created_at"
+                | "customer_id"
+                | "email"
+                | "id"
+                | "name"
+                | "status"
+                | "tag"
+                | "updated_at"
+        ),
+        "FILE" => matches!(
+            base_key,
+            "created_at"
+                | "filename"
+                | "id"
+                | "media_type"
+                | "original_source"
+                | "status"
+                | "updated_at"
+        ),
+        "DISCOUNT_REDEEM_CODE" => matches!(
+            base_key,
+            "code" | "created_at" | "discount_id" | "id" | "status" | "updated_at"
+        ),
         _ => true,
     }
+}
+
+fn saved_search_base_filter_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
 }
 
 pub(in crate::proxy) fn normalize_saved_search_query(query: &str) -> String {
@@ -1823,6 +1887,7 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
         "DRAFT_ORDER" => &["all drafts"][..],
         "FILE" => &["all files"][..],
         "COLLECTION" => &["all collections"][..],
+        "PRICE_RULE" => &["all price rules"][..],
         "DISCOUNT_REDEEM_CODE" => &["all codes"][..],
         _ => &[],
     };
@@ -1844,7 +1909,6 @@ pub(in crate::proxy) fn product_mutation_payload_json(
         }
     })
 }
-
 pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
     errors: Vec<Value>,

@@ -66,9 +66,11 @@ the generic parity replay cannot isolate cleanly.
 
 ### Boundaries
 
-- Localization roots are not marked implemented in the operation registry.
-  Unsupported documents outside the ported request families should not be
-  treated as broad local support.
+- Localization roots are handled locally for the ported request families and are
+  marked `implemented` in the operation registry (i.e. they answer locally rather
+  than 501), but that flag is not a broad-support claim: documents outside the
+  ported request families fall through to passthrough and must not be treated as
+  supported local behavior.
 - `TranslatableResource` support is limited to product, collection, and
   product-metafield evidence. Other resource families return null/empty results
   or remain unsupported until local lifecycle behavior is modeled.
