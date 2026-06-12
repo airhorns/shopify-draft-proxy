@@ -1,0 +1,82 @@
+{
+  "fixtureKind": "local-runtime-mobile-platform-application-create-model-validation",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-12T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for mobilePlatformApplicationCreate Core model-level validation.",
+  "expected": {
+    "primary": {
+      "data": {
+        "emptyAndroidFingerprints": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["input", "android", "sha256CertFingerprints"],
+              "message": "Sha256 cert fingerprints can't be blank"
+            }
+          ]
+        },
+        "longAndroid": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "TOO_LONG",
+              "field": ["input", "android", "applicationId"],
+              "message": "Application ID is too long (maximum is 100 characters)"
+            }
+          ]
+        },
+        "longAppClip": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "TOO_LONG",
+              "field": ["input", "apple", "appClipApplicationId"],
+              "message": "App clip application is too long (maximum is 255 characters)"
+            }
+          ]
+        },
+        "longApple": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "TOO_LONG",
+              "field": ["input", "apple", "appId"],
+              "message": "Application ID is too long (maximum is 100 characters)"
+            }
+          ]
+        },
+        "missingAndroidFingerprints": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["input", "android", "sha256CertFingerprints"],
+              "message": "Sha256 cert fingerprints can't be blank"
+            }
+          ]
+        },
+        "missingAppClip": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["input", "apple", "appClipApplicationId"],
+              "message": "App clip application can't be blank"
+            }
+          ]
+        }
+      }
+    },
+    "emptyMutationLog": []
+  },
+  "evidence": {
+    "source": "Core mobile platform application model validations plus local-runtime recorder",
+    "notes": [
+      "The active live conformance credential lacks mobile-platform write/read scopes for public Admin GraphQL capture; this fixture records the Core model-level validation branches as executable local-runtime parity evidence.",
+      "The supported proxy mutation must reject these invalid inputs locally without staging mobile platform application records or writing upstream."
+    ]
+  },
+  "upstreamCalls": []
+}
