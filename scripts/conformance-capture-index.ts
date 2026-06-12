@@ -2348,6 +2348,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-delete-not-found-conformance.mts',
+    purpose:
+      'Metaobject delete fabricated-id not-found payload, including deletedId null and RECORD_NOT_FOUND userError shape.',
+    requiredAuthScopes: ['write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-delete-not-found.json`,
+      'config/parity-specs/metaobjects/metaobject-delete-not-found.json',
+    ],
+    cleanupBehavior: 'No setup; sends metaobjectDelete with a fabricated id and does not mutate live resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-schema-change',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-schema-change-conformance.ts',
