@@ -5,14 +5,6 @@ pub(in crate::proxy) fn is_quantity_pricing_by_variant_update_document(query: &s
         && query.contains("quantityPricingByVariantUpdate")
 }
 
-pub(in crate::proxy) fn is_metafield_definition_pinning_document(query: &str) -> bool {
-    query.contains("MetafieldDefinitionPinByIdentifier")
-        || query.contains("MetafieldDefinitionPinById")
-        || query.contains("MetafieldDefinitionUnpinByIdentifier")
-        || query.contains("MetafieldDefinitionUnpinById")
-        || query.contains("MetafieldDefinitionPinLimitAndConstraintGuard")
-}
-
 pub(in crate::proxy) fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
     query.contains("MetafieldDefinitionPinningRead")
         || query.contains("MetafieldDefinitionPinLimitListing")
@@ -82,7 +74,7 @@ pub(in crate::proxy) fn metafield_definition_value(
         "type": {"name": "single_line_text_field", "category": "TEXT"},
         "description": Value::Null,
         "validations": [],
-        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"},
+        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
         "capabilities": {
             "adminFilterable": {"enabled": false, "eligible": true, "status": "NOT_FILTERABLE"},
             "smartCollectionCondition": {"enabled": false, "eligible": true},

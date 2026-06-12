@@ -100,6 +100,430 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
 }
 
 #[test]
+fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionCreateValidation($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": "ab",
+                "key": "x",
+                "ownerType": "PRODUCT",
+                "name": "X",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [
+                {
+                    "__typename": "MetafieldDefinitionCreateUserError",
+                    "field": ["definition", "namespace"],
+                    "message": "Namespace is too short (minimum is 3 characters)",
+                    "code": "TOO_SHORT"
+                },
+                {
+                    "__typename": "MetafieldDefinitionCreateUserError",
+                    "field": ["definition", "key"],
+                    "message": "Key is too short (minimum is 2 characters)",
+                    "code": "TOO_SHORT"
+                }
+            ]
+        })
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionCreateRealInput($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              namespace
+              key
+              name
+              ownerType
+              type { name category }
+              access { admin storefront customerAccount }
+              validations { name value }
+              constraints { key values(first: 5) { nodes { value } } }
+              pinnedPosition
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": "customer_loyalty",
+                "key": "tier",
+                "ownerType": "CUSTOMER",
+                "name": "Loyalty tier",
+                "type": "json",
+                "access": { "admin": "MERCHANT_READ_WRITE" },
+                "validations": [{ "name": "schema", "value": "{\"type\":\"string\"}" }]
+            }
+        }),
+    ));
+    let created_definition =
+        &created.body["data"]["metafieldDefinitionCreate"]["createdDefinition"];
+    assert_eq!(created.status, 200);
+    assert!(created_definition["id"]
+        .as_str()
+        .unwrap()
+        .contains("gid://shopify/MetafieldDefinition/"));
+    assert_eq!(
+        created_definition,
+        &json!({
+            "id": created_definition["id"].clone(),
+            "namespace": "customer_loyalty",
+            "key": "tier",
+            "name": "Loyalty tier",
+            "ownerType": "CUSTOMER",
+            "type": { "name": "json", "category": "JSON" },
+            "access": { "admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE" },
+            "validations": [{ "name": "schema", "value": "{\"type\":\"string\"}" }],
+            "constraints": { "key": null, "values": { "nodes": [] } },
+            "pinnedPosition": null
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionReadAfterCreate($namespace: String!) {
+          definition: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: $namespace, key: "tier" }) {
+            namespace
+            key
+            ownerType
+            type { name }
+            validations { name value }
+          }
+        }
+        "#,
+        json!({ "namespace": "customer_loyalty" }),
+    ));
+    assert_eq!(
+        read.body["data"]["definition"],
+        json!({
+            "namespace": "customer_loyalty",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "type": { "name": "json" },
+            "validations": [{ "name": "schema", "value": "{\"type\":\"string\"}" }]
+        })
+    );
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateLocal($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition {
+              namespace
+              key
+              ownerType
+              name
+              description
+              validations { name value }
+              constraints { key values(first: 5) { nodes { value } } }
+            }
+            userErrors { __typename field message code }
+            validationJob { __typename id done query { __typename } }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": "customer_loyalty",
+                "key": "tier",
+                "ownerType": "CUSTOMER",
+                "name": "Updated tier",
+                "description": "Readable tier",
+                "validations": [{ "name": "max", "value": "32" }],
+                "constraintsUpdates": {
+                    "key": "category",
+                    "values": [{ "create": "gid://shopify/TaxonomyCategory/ap-2" }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        updated.body["data"]["metafieldDefinitionUpdate"]["updatedDefinition"],
+        json!({
+            "namespace": "customer_loyalty",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "name": "Updated tier",
+            "description": "Readable tier",
+            "validations": [{ "name": "max", "value": "32" }],
+                "constraints": {
+                    "key": "category",
+                    "values": {
+                    "nodes": [{ "value": "ap-2" }]
+                    }
+                }
+        })
+    );
+    assert_eq!(
+        updated.body["data"]["metafieldDefinitionUpdate"]["validationJob"]["__typename"],
+        json!("Job")
+    );
+    assert_eq!(
+        updated.body["data"]["metafieldDefinitionUpdate"]["validationJob"]["done"],
+        json!(false)
+    );
+
+    let empty_constraints = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateEmptyConstraintValues($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": "customer_loyalty",
+                "key": "tier",
+                "ownerType": "CUSTOMER",
+                "constraintsUpdates": { "key": "category", "values": [] }
+            }
+        }),
+    ));
+    assert_eq!(
+        empty_constraints.body["data"]["metafieldDefinitionUpdate"],
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition"],
+                "message": "Cannot change the constraint key without providing values.",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+}
+
+#[test]
+fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_values() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "delete_reference_guard";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceDefinition($namespace: String!) {
+          metafieldDefinitionCreate(
+            definition: {
+              name: "Delete target"
+              namespace: $namespace
+              key: "target"
+              ownerType: PRODUCT
+              type: "product_reference"
+            }
+          ) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionLifecycleMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": "gid://shopify/Product/10173064872242",
+                "namespace": namespace,
+                "key": "target",
+                "type": "product_reference",
+                "value": "gid://shopify/Product/10178790424882"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let guarded_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceDefinitionGuard($namespace: String!) {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: $namespace, key: "target" }
+            deleteAllAssociatedMetafields: false
+          ) {
+            deletedDefinitionId
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        guarded_delete.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinitionId": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionDeleteUserError",
+                "field": null,
+                "message": "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+                "code": "REFERENCE_TYPE_DELETION_ERROR"
+            }]
+        })
+    );
+
+    let delete_all = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceDefinitionAll($namespace: String!) {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: $namespace, key: "target" }
+            deleteAllAssociatedMetafields: true
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(
+        delete_all.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": "target"
+        })
+    );
+    assert_eq!(
+        delete_all.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionLifecycleReadProductMetafield($id: ID!, $namespace: String!, $key: String!) {
+          product(id: $id) {
+            metafield(namespace: $namespace, key: $key) { namespace key value }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10173064872242",
+            "namespace": namespace,
+            "key": "target"
+        }),
+    ));
+    assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
+}
+
+#[test]
+fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_selector = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableValidation($ownerType: MetafieldOwnerType!) {
+          standardMetafieldDefinitionEnable(ownerType: $ownerType) {
+            createdDefinition { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "ownerType": "PRODUCT" }),
+    ));
+    assert_eq!(
+        missing_selector.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "__typename": "StandardMetafieldDefinitionEnableUserError",
+                "field": null,
+                "message": "A namespace and key or standard metafield definition template id must be provided.",
+                "code": "TEMPLATE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableValidation($ownerType: MetafieldOwnerType!, $namespace: String, $key: String) {
+          standardMetafieldDefinitionEnable(ownerType: $ownerType, namespace: $namespace, key: $key) {
+            createdDefinition { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "codex_missing_standard",
+            "key": "codex_missing_key"
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"][0]["code"],
+        json!("TEMPLATE_NOT_FOUND")
+    );
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableSuccess($ownerType: MetafieldOwnerType!, $id: ID!) {
+          standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id) {
+            createdDefinition {
+              namespace
+              key
+              ownerType
+              name
+              description
+              type { name category }
+              validations { name value }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "ownerType": "PRODUCT",
+            "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+        }),
+    ));
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": {
+                "namespace": "descriptors",
+                "key": "subtitle",
+                "ownerType": "PRODUCT",
+                "name": "Product subtitle",
+                "description": "Used as a shorthand for a product name",
+                "type": { "name": "single_line_text_field", "category": "TEXT" },
+                "validations": [{ "name": "max", "value": "70" }]
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
 
