@@ -927,7 +927,7 @@ impl DraftProxy {
                 None,
                 vec![json!({
                     "field": ["input"],
-                    "message": "Currency codes in the input do not match.",
+                    "message": "Currency code is not matching between budget and ad spend",
                     "code": null
                 })],
             );
@@ -951,21 +951,50 @@ impl DraftProxy {
             );
         }
         let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
-        if create_if_missing
-            && existing_id.is_none()
-            && !remote.is_empty()
-            && self
-                .find_marketing_activity_by_remote(&remote, request)
-                .is_some()
-        {
-            return marketing_activity_payload(
-                None,
-                vec![json!({
-                    "field": ["input"],
-                "message": "Validation failed: Remote ID has already been taken",
-                "code": null
-                })],
-            );
+        if create_if_missing && existing_id.is_none() {
+            if !remote.is_empty()
+                && self
+                    .find_marketing_activity_by_remote(&remote, request)
+                    .is_some()
+            {
+                return marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": ["input"],
+                        "message": "Validation failed: Remote ID has already been taken",
+                        "code": null
+                    })],
+                );
+            }
+            if resolved_object_field(&input, "utm")
+                .and_then(|utm| resolved_string_field(&utm, "campaign"))
+                .is_some_and(|campaign| {
+                    self.find_marketing_activity_by_utm(&campaign, request)
+                        .is_some()
+                })
+            {
+                return marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": ["input"],
+                        "message": "Validation failed: Utm campaign has already been taken",
+                        "code": null
+                    })],
+                );
+            }
+            if resolved_string_field(&input, "urlParameterValue").is_some_and(|value| {
+                self.find_marketing_activity_by_url_parameter(&value, request)
+                    .is_some()
+            }) {
+                return marketing_activity_payload(
+                    None,
+                    vec![json!({
+                        "field": ["input"],
+                        "message": "Validation failed: Url parameter value has already been taken",
+                        "code": null
+                    })],
+                );
+            }
         }
         let id = existing_id.unwrap_or_else(|| {
             format!("gid://shopify/MarketingActivity/{}", self.next_synthetic_id)
@@ -1085,17 +1114,6 @@ impl DraftProxy {
                 );
             }
         }
-        let activity_id =
-            resolved_string_arg(&field.arguments, "marketingActivityId").or_else(|| {
-                resolved_string_arg(&field.arguments, "remoteId")
-                    .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
-            });
-        let Some(activity_id) = activity_id else {
-            return selected_json(
-                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
-                &field.selection,
-            );
-        };
         let engagement_input =
             resolved_object_field(&field.arguments, "marketingEngagement").unwrap_or_default();
         if has_engagement_currency_mismatch(&engagement_input) {
@@ -1108,6 +1126,49 @@ impl DraftProxy {
                         "code": "CURRENCY_CODE_MISMATCH_INPUT"
                     })],
                 ),
+                &field.selection,
+            );
+        }
+        if has_channel {
+            let engagement = marketing_engagement_from_input(&engagement_input, None);
+            return selected_json(
+                &marketing_engagement_payload(Some(engagement), Vec::new()),
+                &field.selection,
+            );
+        }
+        let activity_id = if has_activity_id {
+            resolved_string_arg(&field.arguments, "marketingActivityId")
+        } else {
+            resolved_string_arg(&field.arguments, "remoteId")
+                .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
+        };
+        let Some(activity_id) = activity_id else {
+            return selected_json(
+                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
+                &field.selection,
+            );
+        };
+        let Some(activity) = self
+            .store
+            .staged
+            .marketing_activities
+            .get(&activity_id)
+            .filter(|_| {
+                !self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(&activity_id)
+            })
+        else {
+            return selected_json(
+                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
+                &field.selection,
+            );
+        };
+        if activity["marketingEvent"].is_null() {
+            return selected_json(
+                &marketing_engagement_payload(None, vec![marketing_event_missing_error()]),
                 &field.selection,
             );
         }
@@ -1124,14 +1185,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let engagement = marketing_engagement_from_input(
-            &engagement_input,
-            self.store.staged.marketing_activities.get(&activity_id),
-        );
-        if let Some(_activity) = self.store.staged.marketing_activities.get_mut(&activity_id) {
-            // Shopify accepts engagement metrics but does not fold engagement ad spend
-            // back into the MarketingActivity.adSpend field in these captures.
-        }
+        let engagement = marketing_engagement_from_input(&engagement_input, Some(activity));
+        // Shopify accepts engagement metrics but does not fold engagement ad spend
+        // back into the MarketingActivity.adSpend field in these captures.
         selected_json(
             &marketing_engagement_payload(Some(engagement), Vec::new()),
             &field.selection,
@@ -1219,6 +1275,37 @@ impl DraftProxy {
                     return None;
                 }
                 if record["utmParameters"]["campaign"].as_str() != Some(campaign) {
+                    return None;
+                }
+                let record_app = record["apiClientId"].as_str();
+                if app.map(String::as_str) == record_app {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub(in crate::proxy) fn find_marketing_activity_by_url_parameter(
+        &self,
+        url_parameter_value: &str,
+        request: &Request,
+    ) -> Option<String> {
+        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        self.store
+            .staged
+            .marketing_activities
+            .iter()
+            .find_map(|(id, record)| {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
+                    return None;
+                }
+                if record["urlParameterValue"].as_str() != Some(url_parameter_value) {
                     return None;
                 }
                 let record_app = record["apiClientId"].as_str();
