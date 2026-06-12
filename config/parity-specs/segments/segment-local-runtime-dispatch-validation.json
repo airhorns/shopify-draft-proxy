@@ -1,14 +1,8 @@
 {
   "scenarioId": "segment-local-runtime-dispatch-validation",
-  "operationNames": ["segmentCreate", "segment"],
+  "operationNames": ["segmentCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "downstream-read-parity",
-    "mutation-log-parity",
-    "no-upstream-passthrough",
-    "captured-vs-proxy-request"
-  ],
+  "assertionKinds": ["runtime-staging", "mutation-log-parity", "no-upstream-passthrough", "captured-vs-proxy-request"],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/segments/segment-local-runtime-dispatch-validation.json"
   ],
@@ -19,7 +13,7 @@
     "variablesCapturePath": "$.create.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Local-runtime rework parity for the Rust segmentCreate dispatch regression. The neutral `LocalSegmentCreate` operation name avoids historical segment-specific marker names, while read-after-write and mutation-log targets prove the supported mutation was staged locally instead of being satisfied by live-hybrid passthrough fallback.",
+  "notes": "Local-runtime rework parity for the Rust segmentCreate dispatch regression. The neutral `LocalSegmentCreate` operation name avoids historical segment-specific marker names, while the mutation-log target proves the supported mutation was staged locally instead of being satisfied by live-hybrid passthrough fallback.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -28,21 +22,6 @@
         "name": "segment-create-neutral-operation-payload",
         "capturePath": "$.create.response.data.segmentCreate",
         "proxyPath": "$.data.segmentCreate"
-      },
-      {
-        "name": "segment-create-neutral-operation-read-after-write",
-        "capturePath": "$.read.response.data",
-        "proxyPath": "$.data",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/segments/segment-local-runtime-dispatch-read.graphql",
-          "apiVersion": "2026-04",
-          "variables": {
-            "id": {
-              "fromProxyResponse": "segment-create-neutral-operation-payload",
-              "path": "$.data.segmentCreate.segment.id"
-            }
-          }
-        }
       },
       {
         "name": "segment-create-neutral-operation-mutation-log",

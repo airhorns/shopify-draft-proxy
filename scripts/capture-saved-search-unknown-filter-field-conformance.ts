@@ -52,23 +52,27 @@ function assertUnknownFilterUserError(payload: ConformanceGraphqlPayload): void 
     throw new Error(`Expected unknown filter create to return savedSearch null: ${JSON.stringify(mutationPayload)}`);
   }
   const userErrors = mutationPayload['userErrors'];
-  if (!Array.isArray(userErrors) || userErrors.length !== 1) {
-    throw new Error(`Expected one unknown filter userError: ${JSON.stringify(mutationPayload)}`);
+  if (!Array.isArray(userErrors) || userErrors.length !== 2) {
+    throw new Error(`Expected two sorted unknown filter userErrors: ${JSON.stringify(mutationPayload)}`);
   }
-  const first = readObject(userErrors[0]);
-  if (
-    JSON.stringify(first?.['field']) !== JSON.stringify(['input', 'query']) ||
-    first?.['message'] !== "Query is invalid, 'made_up_filter' is not a valid filter"
-  ) {
-    throw new Error(`Unexpected unknown filter userError: ${JSON.stringify(first)}`);
+
+  const expected = [
+    "Query is invalid, 'aaa_filter' is not a valid filter",
+    "Query is invalid, 'zzz_filter' is not a valid filter",
+  ];
+  for (const [index, message] of expected.entries()) {
+    const error = readObject(userErrors[index]);
+    if (JSON.stringify(error?.['field']) !== JSON.stringify(['input', 'query']) || error?.['message'] !== message) {
+      throw new Error(`Unexpected unknown filter userError at index ${index}: ${JSON.stringify(error)}`);
+    }
   }
 }
 
 function assertPositiveCreate(payload: ConformanceGraphqlPayload): string {
   const mutationPayload = readMutationPayload(payload, 'productPositive');
   const savedSearch = readObject(mutationPayload['savedSearch']);
-  if (savedSearch?.['query'] !== 'vendor:Acme' || savedSearch['resourceType'] !== 'PRODUCT') {
-    throw new Error(`Expected vendor positive create: ${JSON.stringify(mutationPayload)}`);
+  if (savedSearch?.['query'] !== 'handle:saved-search-parity' || savedSearch['resourceType'] !== 'PRODUCT') {
+    throw new Error(`Expected handle positive create: ${JSON.stringify(mutationPayload)}`);
   }
   const userErrors = mutationPayload['userErrors'];
   if (!Array.isArray(userErrors) || userErrors.length !== 0) {
@@ -133,12 +137,12 @@ const createVariables = {
   unknownProduct: {
     resourceType: 'PRODUCT',
     name: `Unknown Filter ${token}`.slice(0, 40),
-    query: 'made_up_filter:foo',
+    query: 'zzz_filter:foo aaa_filter:bar aaa_filter:baz',
   },
   productPositive: {
     resourceType: 'PRODUCT',
-    name: `Known Vendor ${token}`.slice(0, 40),
-    query: 'vendor:Acme',
+    name: `Known Handle ${token}`.slice(0, 40),
+    query: 'handle:saved-search-parity',
   },
 };
 
@@ -171,9 +175,9 @@ try {
     apiVersion,
     token,
     notes: [
-      'SavedSearch PRODUCT create rejects made_up_filter as an invalid filter with field ["input", "query"].',
+      'SavedSearch PRODUCT create rejects unknown filters with field ["input", "query"], sorted alphabetically and deduped by base filter name.',
       'SavedSearch PRODUCT update rejects made_up_filter as an invalid filter with field ["input", "query"].',
-      'SavedSearch PRODUCT create accepts vendor as a valid filter and returns an empty userErrors list.',
+      'SavedSearch PRODUCT create accepts handle as a valid filter and returns an empty userErrors list.',
       'The positive-control saved search is deleted during cleanup.',
     ],
     savedSearchUnknownFilterField: {

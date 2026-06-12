@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
 
 impl DraftProxy {
     pub(in crate::proxy) fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -224,7 +225,23 @@ impl DraftProxy {
     ) -> Response {
         let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let document = parsed_document(query, variables);
+        let root_selection = document
+            .as_ref()
+            .and_then(|document| document.root_fields.first());
+        if let Some(error) = root_selection
+            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        if let Some(error) = root_selection
+            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        let arguments = root_selection
+            .map(|field| field.arguments.clone())
+            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
         let record = self.webhook_subscription_record(&id, &arguments, None);
         let errors = self.webhook_subscription_validation_errors(root_field, &id, &record);
@@ -253,7 +270,23 @@ impl DraftProxy {
     ) -> Response {
         let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let document = parsed_document(query, variables);
+        let root_selection = document
+            .as_ref()
+            .and_then(|document| document.root_fields.first());
+        if let Some(error) = root_selection
+            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        if let Some(error) = root_selection
+            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
+        {
+            return ok_json(json!({ "errors": [error] }));
+        }
+        let arguments = root_selection
+            .map(|field| field.arguments.clone())
+            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
             let payload = self.webhook_subscription_payload(
@@ -456,6 +489,11 @@ impl DraftProxy {
                 existing_id != id
                     && existing["topic"].as_str() == Some(topic)
                     && existing["callbackUrl"].as_str() == Some(uri)
+                    && existing["format"].as_str() == Some(format)
+                    && webhook_subscription_optional_string_key(existing, "filter")
+                        == webhook_subscription_optional_string_key(record, "filter")
+                    && webhook_subscription_optional_string_key(existing, "apiPermissionId")
+                        == webhook_subscription_optional_string_key(record, "apiPermissionId")
             })
         {
             errors.push(json!({
@@ -543,6 +581,12 @@ impl DraftProxy {
                     .and_then(|record| record["format"].as_str().map(ToString::to_string))
             })
             .unwrap_or_else(|| "JSON".to_string());
+        let api_permission_id =
+            resolved_string_field(&webhook_input, "apiPermissionId").or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|record| record["apiPermissionId"].as_str().map(ToString::to_string))
+            });
         let name = resolved_string_field(&webhook_input, "name").or_else(|| {
             existing
                 .as_ref()
@@ -619,6 +663,7 @@ impl DraftProxy {
             "uri": uri,
             "callbackUrl": uri,
             "name": name,
+            "apiPermissionId": api_permission_id,
             "includeFields": include_fields,
             "metafieldNamespaces": metafield_namespaces,
             "filter": filter,
@@ -1547,3 +1592,153 @@ impl DraftProxy {
         Value::Object(data)
     }
 }
+
+fn webhook_subscription_topic_coercion_error(
+    field: &RootFieldSelection,
+    document: Option<&ParsedDocument>,
+) -> Option<Value> {
+    let raw_topic = field.raw_arguments.get("topic")?;
+    let topic = match raw_topic {
+        RawArgumentValue::Enum(topic) => topic.as_str(),
+        RawArgumentValue::Variable {
+            value: Some(ResolvedValue::String(topic)),
+            ..
+        } => topic.as_str(),
+        _ => return None,
+    };
+    if is_known_webhook_subscription_topic(topic) {
+        return None;
+    }
+    Some(match raw_topic {
+        RawArgumentValue::Enum(_) => json!({
+            "message": format!("Argument 'topic' on Field '{}' has an invalid value ({}). Expected type 'WebhookSubscriptionTopic!'.", field.name, topic),
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "path": [
+                document
+                    .map(|document| document.operation_path.clone())
+                    .unwrap_or_else(|| "mutation".to_string()),
+                field.name.clone(),
+                "topic"
+            ],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "topic"
+            }
+        }),
+        RawArgumentValue::Variable { name, .. } => json!({
+            "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
+            "locations": [{
+                "line": document.map_or(field.location.line, |document| document.location.line),
+                "column": document.map_or(field.location.column, |document| document.location.column)
+            }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": topic,
+                "problems": [{
+                    "path": [],
+                    "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
+                }]
+            }
+        }),
+        _ => unreachable!(),
+    })
+}
+
+fn dedicated_pubsub_required_field_error(
+    root_field: &str,
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    if !root_field.starts_with("pubSubWebhookSubscription") {
+        return None;
+    }
+    match field.raw_arguments.get("webhookSubscription")? {
+        RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(value)),
+        } => dedicated_pubsub_variable_required_field_error(name, value, field),
+        RawArgumentValue::Object(value) => {
+            dedicated_pubsub_inline_required_field_error(value, field)
+        }
+        _ => None,
+    }
+}
+
+fn dedicated_pubsub_variable_required_field_error(
+    variable_name: &str,
+    value: &BTreeMap<String, ResolvedValue>,
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    let missing = missing_pubsub_resolved_fields(value);
+    if missing.is_empty() {
+        return None;
+    }
+    let message_detail = missing
+        .iter()
+        .map(|key| format!("{key} (Expected value to not be null)"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(json!({
+        "message": format!("Variable ${} of type PubSubWebhookSubscriptionInput! was provided invalid value for {}", variable_name, message_detail),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(&ResolvedValue::Object(value.clone())),
+            "problems": missing
+                .iter()
+                .map(|key| json!({
+                    "path": [key],
+                    "explanation": "Expected value to not be null"
+                }))
+                .collect::<Vec<_>>()
+        }
+    }))
+}
+
+fn dedicated_pubsub_inline_required_field_error(
+    value: &BTreeMap<String, RawArgumentValue>,
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    let missing = ["pubSubProject", "pubSubTopic"]
+        .into_iter()
+        .filter(|key| {
+            !value.contains_key(*key)
+                || value
+                    .get(*key)
+                    .is_some_and(RawArgumentValue::is_literal_null)
+        })
+        .collect::<Vec<_>>();
+    let first_missing = missing.first()?;
+    Some(json!({
+        "message": format!("Argument '{}' on InputObject 'PubSubWebhookSubscriptionInput' is required. Expected type String!", first_missing),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": ["mutation", field.name.clone(), "webhookSubscription", first_missing],
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": first_missing,
+            "argumentType": "String!",
+            "inputObjectType": "PubSubWebhookSubscriptionInput"
+        }
+    }))
+}
+
+fn missing_pubsub_resolved_fields(value: &BTreeMap<String, ResolvedValue>) -> Vec<&'static str> {
+    ["pubSubProject", "pubSubTopic"]
+        .into_iter()
+        .filter(|key| {
+            !value.contains_key(*key) || matches!(value.get(*key), Some(ResolvedValue::Null))
+        })
+        .collect()
+}
+
+fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option<String> {
+    record[key].as_str().map(ToString::to_string)
+}
+
+fn is_known_webhook_subscription_topic(topic: &str) -> bool {
+    WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES
+        .split(", ")
+        .any(|known| known == topic)
+}
+
+const WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES: &str = "TAX_SUMMARIES_CREATE, APP_UNINSTALLED, APP_SCOPES_UPDATE, CARTS_CREATE, CARTS_UPDATE, CHANNELS_DELETE, CHECKOUTS_CREATE, CHECKOUTS_DELETE, CHECKOUTS_UPDATE, CUSTOMER_PAYMENT_METHODS_CREATE, CUSTOMER_PAYMENT_METHODS_UPDATE, CUSTOMER_PAYMENT_METHODS_REVOKE, COLLECTION_LISTINGS_ADD, COLLECTION_LISTINGS_REMOVE, COLLECTION_LISTINGS_UPDATE, COLLECTION_PUBLICATIONS_CREATE, COLLECTION_PUBLICATIONS_DELETE, COLLECTION_PUBLICATIONS_UPDATE, COLLECTIONS_CREATE, COLLECTIONS_DELETE, COLLECTIONS_UPDATE, CUSTOMER_GROUPS_CREATE, CUSTOMER_GROUPS_DELETE, CUSTOMER_GROUPS_UPDATE, CUSTOMERS_CREATE, CUSTOMERS_DELETE, CUSTOMERS_DISABLE, CUSTOMERS_ENABLE, CUSTOMERS_UPDATE, CUSTOMERS_PURCHASING_SUMMARY, CUSTOMERS_MARKETING_CONSENT_UPDATE, CUSTOMER_TAGS_ADDED, CUSTOMER_TAGS_REMOVED, CUSTOMERS_EMAIL_MARKETING_CONSENT_UPDATE, DISPUTES_CREATE, DISPUTES_UPDATE, DRAFT_ORDERS_CREATE, DRAFT_ORDERS_DELETE, DRAFT_ORDERS_UPDATE, FULFILLMENT_EVENTS_CREATE, FULFILLMENT_EVENTS_DELETE, FULFILLMENTS_CREATE, FULFILLMENTS_UPDATE, ATTRIBUTED_SESSIONS_FIRST, ATTRIBUTED_SESSIONS_LAST, ORDER_TRANSACTIONS_CREATE, ORDERS_CANCELLED, ORDERS_CREATE, ORDERS_DELETE, ORDERS_EDITED, ORDERS_FULFILLED, ORDERS_PAID, ORDERS_PARTIALLY_FULFILLED, ORDERS_UPDATED, ORDERS_LINK_REQUESTED, FULFILLMENT_ORDERS_MOVED, FULFILLMENT_ORDERS_HOLD_RELEASED, FULFILLMENT_ORDERS_SCHEDULED_FULFILLMENT_ORDER_READY, FULFILLMENT_HOLDS_RELEASED, FULFILLMENT_ORDERS_ORDER_ROUTING_COMPLETE, FULFILLMENT_ORDERS_CANCELLED, FULFILLMENT_ORDERS_FULFILLMENT_SERVICE_FAILED_TO_COMPLETE, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_REJECTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_ACCEPTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_REJECTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_ACCEPTED, FULFILLMENT_HOLDS_ADDED, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_LOCAL_DELIVERY, FULFILLMENT_ORDERS_PLACED_ON_HOLD, FULFILLMENT_ORDERS_MERGED, FULFILLMENT_ORDERS_SPLIT, FULFILLMENT_ORDERS_PROGRESS_REPORTED, FULFILLMENT_ORDERS_MANUALLY_REPORTED_PROGRESS_STOPPED, PRODUCT_LISTINGS_ADD, PRODUCT_LISTINGS_REMOVE, PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_ADD, SCHEDULED_PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_REMOVE, PRODUCT_PUBLICATIONS_CREATE, PRODUCT_PUBLICATIONS_DELETE, PRODUCT_PUBLICATIONS_UPDATE, PRODUCTS_CREATE, PRODUCTS_DELETE, PRODUCTS_UPDATE, REFUNDS_CREATE, SEGMENTS_CREATE, SEGMENTS_DELETE, SEGMENTS_UPDATE, SHIPPING_ADDRESSES_CREATE, SHIPPING_ADDRESSES_UPDATE, SHOP_UPDATE, TAX_PARTNERS_UPDATE, TAX_SERVICES_CREATE, TAX_SERVICES_UPDATE, THEMES_CREATE, THEMES_DELETE, THEMES_PUBLISH, THEMES_UPDATE, VARIANTS_IN_STOCK, VARIANTS_OUT_OF_STOCK, INVENTORY_LEVELS_CONNECT, INVENTORY_LEVELS_UPDATE, INVENTORY_LEVELS_DISCONNECT, INVENTORY_ITEMS_CREATE, INVENTORY_ITEMS_UPDATE, INVENTORY_ITEMS_DELETE, LOCATIONS_ACTIVATE, LOCATIONS_DEACTIVATE, LOCATIONS_CREATE, LOCATIONS_UPDATE, LOCATIONS_DELETE, TENDER_TRANSACTIONS_CREATE, APP_PURCHASES_ONE_TIME_UPDATE, APP_SUBSCRIPTIONS_APPROACHING_CAPPED_AMOUNT, APP_SUBSCRIPTIONS_UPDATE, LOCALES_CREATE, LOCALES_UPDATE, LOCALES_DESTROY, DOMAINS_CREATE, DOMAINS_UPDATE, DOMAINS_DESTROY, SUBSCRIPTION_CONTRACTS_CREATE, SUBSCRIPTION_CONTRACTS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_CREATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_DELETE, PROFILES_CREATE, PROFILES_UPDATE, PROFILES_DELETE, SUBSCRIPTION_BILLING_ATTEMPTS_SUCCESS, SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE, SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED, RETURNS_CANCEL, RETURNS_CLOSE, RETURNS_REOPEN, RETURNS_REQUEST, RETURNS_APPROVE, RETURNS_UPDATE, RETURNS_PROCESS, RETURNS_DECLINE, REVERSE_DELIVERIES_ATTACH_DELIVERABLE, REVERSE_FULFILLMENT_ORDERS_DISPOSE, PAYMENT_TERMS_CREATE, PAYMENT_TERMS_DELETE, PAYMENT_TERMS_UPDATE, PAYMENT_SCHEDULES_DUE, SELLING_PLAN_GROUPS_CREATE, SELLING_PLAN_GROUPS_UPDATE, SELLING_PLAN_GROUPS_DELETE, BULK_OPERATIONS_FINISH, PRODUCT_FEEDS_CREATE, PRODUCT_FEEDS_UPDATE, PRODUCT_FEEDS_INCREMENTAL_SYNC, PRODUCT_FEEDS_FULL_SYNC, PRODUCT_FEEDS_FULL_SYNC_FINISH, MARKETS_CREATE, MARKETS_UPDATE, MARKETS_DELETE, ORDERS_RISK_ASSESSMENT_CHANGED, ORDERS_SHOPIFY_PROTECT_ELIGIBILITY_CHANGED, FINANCE_KYC_INFORMATION_UPDATE, FULFILLMENT_ORDERS_RESCHEDULED, PUBLICATIONS_DELETE, AUDIT_EVENTS_ADMIN_API_ACTIVITY, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_PICKUP, COMPANIES_CREATE, COMPANIES_UPDATE, COMPANIES_DELETE, COMPANY_LOCATIONS_CREATE, COMPANY_LOCATIONS_UPDATE, COMPANY_LOCATIONS_DELETE, COMPANY_CONTACTS_CREATE, COMPANY_CONTACTS_UPDATE, COMPANY_CONTACTS_DELETE, CUSTOMERS_MERGE, INVENTORY_TRANSFERS_ADD_ITEMS, INVENTORY_TRANSFERS_UPDATE_ITEM_QUANTITIES, INVENTORY_TRANSFERS_REMOVE_ITEMS, INVENTORY_TRANSFERS_READY_TO_SHIP, INVENTORY_TRANSFERS_CANCEL, INVENTORY_TRANSFERS_COMPLETE, INVENTORY_SHIPMENTS_DELETE, INVENTORY_SHIPMENTS_CREATE, INVENTORY_SHIPMENTS_MARK_IN_TRANSIT, INVENTORY_SHIPMENTS_UPDATE_TRACKING, INVENTORY_SHIPMENTS_ADD_ITEMS, INVENTORY_SHIPMENTS_UPDATE_ITEM_QUANTITIES, INVENTORY_SHIPMENTS_REMOVE_ITEMS, INVENTORY_SHIPMENTS_RECEIVE_ITEMS, CUSTOMER_ACCOUNT_SETTINGS_UPDATE, CUSTOMER_JOINED_SEGMENT, CUSTOMER_LEFT_SEGMENT, COMPANY_CONTACT_ROLES_ASSIGN, COMPANY_CONTACT_ROLES_REVOKE, SUBSCRIPTION_CONTRACTS_ACTIVATE, SUBSCRIPTION_CONTRACTS_PAUSE, SUBSCRIPTION_CONTRACTS_CANCEL, SUBSCRIPTION_CONTRACTS_FAIL, SUBSCRIPTION_CONTRACTS_EXPIRE, SUBSCRIPTION_BILLING_CYCLES_SKIP, SUBSCRIPTION_BILLING_CYCLES_UNSKIP, METAOBJECTS_CREATE, METAOBJECTS_UPDATE, METAOBJECTS_DELETE, FINANCE_APP_STAFF_MEMBER_GRANT, FINANCE_APP_STAFF_MEMBER_REVOKE, FINANCE_APP_STAFF_MEMBER_DELETE, FINANCE_APP_STAFF_MEMBER_UPDATE, DISCOUNTS_CREATE, DISCOUNTS_UPDATE, DISCOUNTS_DELETE, DISCOUNTS_REDEEMCODE_ADDED, DISCOUNTS_REDEEMCODE_REMOVED, METAFIELD_DEFINITIONS_CREATE, METAFIELD_DEFINITIONS_UPDATE, METAFIELD_DEFINITIONS_DELETE, DELIVERY_PROMISE_SETTINGS_UPDATE, MARKETS_BACKUP_REGION_UPDATE, CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE";

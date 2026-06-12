@@ -647,8 +647,59 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!({
             "field": ["paymentCustomization", "metafields", "0", "type"],
             "code": "INVALID_METAFIELDS",
-            "message": "Invalid metafields."
+            "message": "can't be blank"
         })
+    );
+
+    let invalid_metafields = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Invalid metafields",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [
+                    { "namespace": "every other field missing" },
+                    { "key": "every other field missing" },
+                    { "namespace": "ab", "key": "present", "type": "", "value": "present" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(invalid_metafields.status, 200);
+    assert_eq!(
+        invalid_metafields.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_metafields.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([
+            {
+                "field": ["paymentCustomization", "metafields", "0", "key"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+            },
+            {
+                "field": ["paymentCustomization", "metafields", "0", "value"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+            },
+            {
+                "field": ["paymentCustomization", "metafields", "1", "value"],
+                "code": "INVALID_METAFIELDS",
+                "message": "may not be empty"
+            },
+            {
+                "field": ["paymentCustomization", "metafields", "2", "type"],
+                "code": "INVALID_METAFIELDS",
+                "message": "can't be blank"
+            },
+            {
+                "field": ["paymentCustomization", "metafields", "2", "namespace"],
+                "code": "INVALID_METAFIELDS",
+                "message": "is too short (minimum is 3 characters)"
+            }
+        ])
     );
 
     let before = proxy.process_request(json_graphql_request(
@@ -740,7 +791,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
 
     let rejected_metafield_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({ "id": customization_id, "input": { "metafields": [{ "key": "bar", "type": "single_line_text_field", "value": "qux" }] } }),
+        json!({ "id": customization_id, "input": { "metafields": [{ "namespace": "ab", "key": "bar", "type": "single_line_text_field", "value": "qux" }] } }),
     ));
     assert_eq!(rejected_metafield_update.status, 200);
     assert_eq!(
@@ -753,8 +804,18 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!({
             "field": ["paymentCustomization", "metafields", "0", "namespace"],
             "code": "INVALID_METAFIELDS",
-            "message": "Invalid metafields."
+            "message": "is too short (minimum is 3 characters)"
         })
+    );
+    let read_after_rejected_metafield_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": customization_id }),
+    ));
+    assert_eq!(read_after_rejected_metafield_update.status, 200);
+    assert_eq!(
+        read_after_rejected_metafield_update.body["data"]["paymentCustomization"]["metafield"]
+            ["value"],
+        json!("baz")
     );
 
     let accepted_equivalent_handle = proxy.process_request(json_graphql_request(

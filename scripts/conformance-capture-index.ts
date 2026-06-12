@@ -4019,6 +4019,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-local-runtime-dispatch-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-segment-local-runtime-dispatch-validation.ts',
+    purpose:
+      'Local-runtime guard that segmentCreate dispatches and stages locally for neutral operation names without upstream passthrough.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}segment-local-runtime-dispatch-validation.json`,
+      'config/parity-specs/segments/segment-local-runtime-dispatch-validation.json',
+      'config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime create scenario only; proxy reset during parity replay clears the synthetic segment and no Shopify cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'This is executable local-runtime evidence for dispatch/staging, not Shopify fidelity evidence. Live segment resolver behavior remains covered by the Shopify segment validation fixtures.',
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-validation-limits',
     scriptPath: 'scripts/capture-segment-validation-limits-conformance.ts',
     purpose: 'segmentCreate/segmentUpdate name and query length validation plus local segment-limit replay setup.',
@@ -4398,6 +4417,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The current conformance app is blocked from themeUpdate resolver writes by Shopify write_themes exemption requirements, so blank-name, valid-rename, and locked-theme resolver branches are covered by executable local-runtime parity.',
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-mobile-platform-application-model-validation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-mobile-platform-application-model-validation-local-runtime.ts',
+    purpose:
+      'mobilePlatformApplicationCreate model validation for application ID length, Android sha256CertFingerprints presence, and Apple appClipApplicationId presence/length.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
+      'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
+      'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime validation-only capture. Rejected mutations must return userErrors without staging records, so no Shopify or local cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'The current live conformance credential lacks mobile-platform read/write scopes; endpoint docs already record this scope blocker, so these Core-derived resolver branches are executable local-runtime evidence.',
   },
   {
     domain: 'online-store',
@@ -6625,7 +6663,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-customization-metafields-and-handle-update.json`,
       'config/parity-specs/payments/payment-customization-metafields-and-handle-update.json',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-invalid-metafields-update.graphql',
       'config/parity-requests/payments/payment-customization-metafields-create.graphql',
+      'config/parity-requests/payments/payment-customization-metafields-create-local-runtime.graphql',
       'config/parity-requests/payments/payment-customization-metafields-read.graphql',
       'config/parity-requests/payments/payment-customization-metafields-update.graphql',
     ],
@@ -7819,10 +7860,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
-    purpose: 'Webhook subscription topic/format, cloud format, name, and duplicate active registration userErrors.',
+    purpose:
+      'Webhook subscription topic/format, cloud format, name, duplicate active registration userErrors, and same-endpoint different-format acceptance.',
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
-    fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
-    cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-topic-format-name-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates temporary SHOP_UPDATE and PRODUCTS_UPDATE webhook subscriptions and deletes them during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

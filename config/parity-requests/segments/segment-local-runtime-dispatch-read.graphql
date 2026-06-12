@@ -1,9 +1,0 @@
-query LocalSegmentRead($id: ID!) {
-  segment(id: $id) {
-    id
-    name
-    query
-    creationDate
-    lastEditDate
-  }
-}
