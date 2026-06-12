@@ -34,6 +34,11 @@
           "$.translations[0].locale",
           "$.translations[0].outdated",
           "$.translations[0].market.id",
+          "$.translations[1].key",
+          "$.translations[1].value",
+          "$.translations[1].locale",
+          "$.translations[1].outdated",
+          "$.translations[1].market.id",
           "$.userErrors"
         ],
         "proxyRequest": {
@@ -103,6 +108,11 @@
           "$.translations[0].locale",
           "$.translations[0].outdated",
           "$.translations[0].market.id",
+          "$.translations[1].key",
+          "$.translations[1].value",
+          "$.translations[1].locale",
+          "$.translations[1].outdated",
+          "$.translations[1].market.id",
           "$.userErrors"
         ],
         "proxyRequest": {
@@ -123,5 +133,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product, enables the Spanish shop locale when needed, uses an existing market, proves translationsRegister rejects a fabricated market GID with MARKET_DOES_NOT_EXIST, proves translationsRemove with a fabricated market GID silently no-ops, proves PackingSlipTemplate body rejects market-custom content with RESOURCE_NOT_MARKET_CUSTOMIZABLE, registers a market-scoped product-title translation, reads it back through translatableResource(...).translations(locale:, marketId:), removes it with translationsRemove(marketIds:), and verifies the market-scoped downstream read is empty after cleanup."
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product, enables the Spanish shop locale when needed, uses an existing market, proves translationsRegister rejects a fabricated market GID with MARKET_DOES_NOT_EXIST, proves translationsRemove with a fabricated market GID silently no-ops, proves PackingSlipTemplate body rejects market-custom content with RESOURCE_NOT_MARKET_CUSTOMIZABLE, registers market-scoped product title and product_type translations, reads them back through translatableResource(...).translations(locale:, marketId:), removes both requested key x locale x market combinations in one translationsRemove(marketIds:) call, and verifies the market-scoped downstream read is empty after cleanup."
 }

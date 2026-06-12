@@ -335,19 +335,19 @@ function firstMarket(payload: JsonRecord): JsonRecord {
   throw new Error('Market setup failed: no market returned from markets(first:).');
 }
 
-function productTitleDigest(payload: JsonRecord): string {
+function productContentDigest(payload: JsonRecord, key: string): string {
   const resource = dataObject(payload)['translatableResource'];
   if (!isRecord(resource) || !Array.isArray(resource['translatableContent'])) {
     throw new Error(`Expected translatableResource content in read response: ${JSON.stringify(payload)}`);
   }
 
   for (const item of resource['translatableContent']) {
-    if (isRecord(item) && item['key'] === 'title' && typeof item['digest'] === 'string') {
+    if (isRecord(item) && item['key'] === key && typeof item['digest'] === 'string') {
       return item['digest'];
     }
   }
 
-  throw new Error('Could not find product title digest in market-scoped localization read.');
+  throw new Error(`Could not find product ${key} digest in market-scoped localization read.`);
 }
 
 function resourceNodeFromConnection(payload: JsonRecord, fieldName: string): JsonRecord {
@@ -395,7 +395,7 @@ async function bestEffortCleanup(options: {
     try {
       cleanup['translationsRemove'] = await runGraphql(removeMutation, {
         resourceId: options.resourceId,
-        keys: ['title'],
+        keys: ['title', 'product_type'],
         locales: ['es'],
         marketIds: [options.marketId],
       });
@@ -480,8 +480,10 @@ try {
     marketsFirst: 10,
   };
   const readBeforeRegister = await runGraphql(marketScopedReadQuery, readVariables);
-  const digest = productTitleDigest(readBeforeRegister);
+  const digest = productContentDigest(readBeforeRegister, 'title');
+  const productTypeDigest = productContentDigest(readBeforeRegister, 'product_type');
   const translationValue = `Titulo de mercado ${captureToken}`;
+  const productTypeTranslationValue = `Tipo de mercado ${captureToken}`;
   const unknownMarketRegisterVariables = {
     resourceId,
     translations: [
@@ -522,11 +524,18 @@ try {
         marketId,
         translatableContentDigest: digest,
       },
+      {
+        locale: 'es',
+        key: 'product_type',
+        value: productTypeTranslationValue,
+        marketId,
+        translatableContentDigest: productTypeDigest,
+      },
     ],
   };
   const removeVariables = {
     resourceId,
-    keys: ['title'],
+    keys: ['title', 'product_type'],
     locales: ['es'],
     marketIds: [marketId],
   };
@@ -576,7 +585,9 @@ try {
       locale: 'es',
       marketId,
       titleDigest: digest,
+      productTypeDigest,
       translationValue,
+      productTypeTranslationValue,
       readRequest: { variables: readVariables },
       fabricatedMarketId,
       unknownMarketRegisterRequest: { variables: unknownMarketRegisterVariables },
