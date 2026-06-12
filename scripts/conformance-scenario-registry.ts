@@ -289,16 +289,22 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
   const strictComparisonScenarios = capturedScenarios.filter((scenario) => {
     return !captureOnlyScenarios.includes(scenario) && !runtimeFixtureScenarios.includes(scenario);
   });
-  const implementedEntries = loadOperationRegistry(repoRoot).filter((entry) => entry.implemented);
-  const scenariosByOperation = groupScenariosByOperation(scenarios, implementedEntries);
-  const coveredEntries = implementedEntries.filter((entry) => {
+  // Conformance status tracks the operations exercised by the uniform table dispatch — the ones
+  // that carry runtime tests. The registry's `implemented` flag now spans the much larger
+  // locally-handled surface (including document-gated special-case handlers), so it is not the
+  // right basis for conformance coverage accounting; key on declared runtime tests instead.
+  const conformanceTrackedEntries = loadOperationRegistry(repoRoot).filter(
+    (entry) => (entry.runtimeTests?.length ?? 0) > 0,
+  );
+  const scenariosByOperation = groupScenariosByOperation(scenarios, conformanceTrackedEntries);
+  const coveredEntries = conformanceTrackedEntries.filter((entry) => {
     return (scenariosByOperation.get(entry.name) ?? []).some((scenario) => scenario.status === 'captured');
   });
-  const gapEntries = implementedEntries.filter((entry) => !coveredEntries.includes(entry));
+  const gapEntries = conformanceTrackedEntries.filter((entry) => !coveredEntries.includes(entry));
 
   return {
     generatedAt: new Date().toISOString(),
-    implementedOperations: implementedEntries.map((entry) => {
+    implementedOperations: conformanceTrackedEntries.map((entry) => {
       const operationScenarios = scenariosByOperation.get(entry.name) ?? [];
       const isCovered = coveredEntries.includes(entry);
 

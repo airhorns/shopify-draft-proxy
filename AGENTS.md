@@ -24,13 +24,15 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 2. **Domain fidelity over hacks**
    - Prefer modeling Shopify domain behavior over brittle response patching.
    - If uncertain, add a conformance test against a real dev store.
+   - **Never return canned responses keyed to a conformance document.** Runtime handlers must compute every response from the proxy store model (`self.store.staged`). It is cheating to inspect the incoming GraphQL document — e.g. `query.contains("SomeScenarioName")`, an `is_*_document(...)` predicate, or a `*_fixture_data(...)` helper — and reply with a hardcoded literal or `include_str!`/baked JSON payload that satisfies one specific conformance scenario without modeling the operation. A handler that ignores store state and returns a fixed payload passes a single check while implementing nothing. Such request-sniffing-plus-canned-reply code is temporary scaffolding to be deleted, not an acceptable implementation; do not add more of it, and convert existing instances to real store-backed handling.
 
 3. **Do not send supported mutations to Shopify at runtime**
    - Supported mutations must stage locally.
    - Unsupported mutations may proxy through, but must be visible in logs/observability.
    - `POST /__meta/commit` is expected to replay the original staged mutations to Shopify, and live conformance work may deliberately mutate disposable test shops to record faithful fixtures.
    - Do not register operations as permanent passthrough capabilities. A registered operation is a commitment to model it locally before it is considered supported.
-   - Do not mark branch-only, validation-only, or otherwise partial mutation handling as implemented operation support. A mutation root reaches supported status only when the local model can emulate the operation's supported lifecycle behavior and downstream read-after-write effects without runtime Shopify writes.
+   - The operation registry's `implemented` flag means only that the proxy handles the operation locally instead of 501-ing — it spans every locally-handled root field, including document-gated special-case handlers, and is decoupled from capability routing (the uniform table dispatch keys on `LOCAL_DISPATCH_ROOTS`, not on the flag). `implemented` is **not** a fidelity claim: a canned handler (see rule 2) is `implemented` but unsupported, and exists only until it is converted to real store-backed handling.
+   - "Supported" is the higher bar and is tracked separately by declared `runtimeTests` plus captured conformance coverage. A mutation root reaches supported status only when the local model can emulate the operation's lifecycle behavior and downstream read-after-write effects from the store, without runtime Shopify writes and without branch-only, validation-only, or canned responses.
 
 4. **Keep original raw mutations for commit**
    - Commit should replay original mutations in original order.
