@@ -2958,6 +2958,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-quantity-updated-at-and-after-change-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-quantity-updated-at-and-after-change-local-runtime.ts',
+    purpose:
+      'Executable local-runtime parity for staged inventory quantity updatedAt and quantityAfterChange read-after-write behavior.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}inventory-quantity-updated-at-and-after-change-local-runtime.json`,
+      'config/parity-specs/products/inventory-quantity-updated-at-and-after-change-local-runtime.json',
+      'config/parity-requests/products/inventory-quantity-updated-at-and-after-change-local-runtime.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime set and move scenario only; proxy reset during parity replay clears staged inventory and no Shopify cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'This complements older live inventory captures that recorded null quantityAfterChange by guarding the supported draft-proxy staging contract without runtime Shopify writes.',
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-set-quantities-name-validation-2025',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-set-quantities-name-validation.ts',
