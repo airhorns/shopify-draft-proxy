@@ -925,6 +925,114 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
 }
 
 #[test]
+fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackMixedBatch {
+          productFeedback: bulkProductResourceFeedbackCreate(feedbackInput: [
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: ACCEPTED,
+              feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: ["ready"]
+            },
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: ACCEPTED,
+              feedbackGeneratedAt: "2100-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: ["future"]
+            },
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: REQUIRES_ACTION,
+              feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: []
+            }
+          ]) {
+            feedback {
+              productId
+              state
+              messages
+              feedbackGeneratedAt
+              productUpdatedAt
+            }
+            userErrors { field message code }
+          }
+          shopFuture: shopResourceFeedbackCreate(input: {
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2100-01-01T00:00:00Z",
+            messages: ["future"]
+          }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+          shopSecondMessageTooLong: shopResourceFeedbackCreate(input: {
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["ok", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+          }) {
+            feedback { state messages { message } feedbackGeneratedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200, "response body: {}", response.body);
+    assert_eq!(
+        response.body["data"]["productFeedback"],
+        json!({
+            "feedback": [{
+                "productId": "gid://shopify/Product/optioned",
+                "state": "ACCEPTED",
+                "messages": ["ready"],
+                "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                "productUpdatedAt": "2024-01-01T00:00:00Z"
+            }],
+            "userErrors": [
+                {
+                    "field": ["feedback", "1", "feedbackGeneratedAt"],
+                    "message": "Feedback generated at must not be in the future",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["feedback", "2", "messages"],
+                    "message": "Messages can't be blank",
+                    "code": "BLANK"
+                }
+            ]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopFuture"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopSecondMessageTooLong"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "1"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+}
+
+#[test]
 fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
     let default_state = proxy.process_request(json_graphql_request(

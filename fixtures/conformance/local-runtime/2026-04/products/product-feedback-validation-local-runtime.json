@@ -5,25 +5,12 @@
     "response": {
       "errors": [
         {
-          "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
-          "locations": [
-            {
-              "line": 5,
-              "column": 7
-            }
-          ],
-          "path": [
-            "mutation ProductFeedbackInvalidState",
-            "bulkProductResourceFeedbackCreate",
-            "feedbackInput",
-            0,
-            "state"
-          ],
           "extensions": {
+            "argumentName": "state",
             "code": "argumentLiteralsIncompatible",
-            "typeName": "InputObject",
-            "argumentName": "state"
-          }
+            "typeName": "InputObject"
+          },
+          "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'."
         }
       ]
     }
@@ -46,9 +33,9 @@
           "feedback": [],
           "userErrors": [
             {
+              "code": "BLANK",
               "field": ["feedback", "0", "messages"],
-              "message": "Messages can't be blank",
-              "code": "BLANK"
+              "message": "Messages can't be blank"
             }
           ]
         }
@@ -63,7 +50,7 @@
           "state": "ACCEPTED",
           "feedbackGeneratedAt": "2099-01-01T00:00:00Z",
           "productUpdatedAt": "2024-01-01T00:00:00Z",
-          "messages": []
+          "messages": ["future"]
         }
       ]
     },
@@ -73,9 +60,63 @@
           "feedback": [],
           "userErrors": [
             {
+              "code": "INVALID",
               "field": ["feedback", "0", "feedbackGeneratedAt"],
-              "message": "Feedback generated at must not be in the future",
-              "code": "INVALID"
+              "message": "Feedback generated at must not be in the future"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "productMixedBatchPerEntryValidation": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": ["ready"]
+        },
+        {
+          "productId": "gid://shopify/Product/7002",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2100-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": ["future"]
+        },
+        {
+          "productId": "gid://shopify/Product/7003",
+          "state": "REQUIRES_ACTION",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [
+            {
+              "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+              "messages": ["ready"],
+              "productId": "gid://shopify/Product/7001",
+              "productUpdatedAt": "2024-01-01T00:00:00Z",
+              "state": "ACCEPTED"
+            }
+          ],
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["feedback", "1", "feedbackGeneratedAt"],
+              "message": "Feedback generated at must not be in the future"
+            },
+            {
+              "code": "BLANK",
+              "field": ["feedback", "2", "messages"],
+              "message": "Messages can't be blank"
             }
           ]
         }
@@ -102,9 +143,9 @@
           "feedback": [],
           "userErrors": [
             {
+              "code": "TOO_LONG",
               "field": ["feedback", "0", "messages", "0"],
-              "message": "Message is too long (maximum is 100 characters)",
-              "code": "TOO_LONG"
+              "message": "Message is too long (maximum is 100 characters)"
             }
           ]
         }
@@ -479,9 +520,9 @@
           "feedback": [],
           "userErrors": [
             {
+              "code": "TOO_LONG",
               "field": ["feedback"],
-              "message": "Feedback cannot contain more than 50 entries",
-              "code": "TOO_LONG"
+              "message": "Feedback cannot contain more than 50 entries"
             }
           ]
         }
@@ -492,19 +533,12 @@
     "response": {
       "errors": [
         {
-          "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
-          "locations": [
-            {
-              "line": 2,
-              "column": 30
-            }
-          ],
-          "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
           "extensions": {
+            "argumentName": "state",
             "code": "argumentLiteralsIncompatible",
-            "typeName": "InputObject",
-            "argumentName": "state"
-          }
+            "typeName": "InputObject"
+          },
+          "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'."
         }
       ]
     }
@@ -523,9 +557,9 @@
           "feedback": null,
           "userErrors": [
             {
+              "code": "BLANK",
               "field": ["feedback", "messages"],
-              "message": "Messages can't be blank",
-              "code": "BLANK"
+              "message": "Messages can't be blank"
             }
           ]
         }
