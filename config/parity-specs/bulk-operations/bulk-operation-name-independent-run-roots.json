@@ -1,0 +1,35 @@
+{
+  "scenarioId": "bulk-operation-name-independent-run-roots",
+  "operationNames": ["bulkOperationRunQuery", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "dispatch-name-independence"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-name-independent-run-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-name-independent-run-query.graphql",
+    "variablesCapturePath": "$.cases.query.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "ordinary-name-run-query-validation",
+        "capturePath": "$.cases.query.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery"
+      },
+      {
+        "name": "ordinary-name-run-mutation-validation",
+        "capturePath": "$.cases.mutation.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-name-independent-run-mutation.graphql",
+          "variablesCapturePath": "$.cases.mutation.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured against Shopify Admin GraphQL 2026-04 with ordinary client operation names that are not recorder scenario names. Both branches are validation-only so the evidence proves root-field dispatch name-independence without creating bulk jobs or mutating shop data."
+}

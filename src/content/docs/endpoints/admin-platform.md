@@ -60,7 +60,7 @@ Mutation behavior:
 
 - Generic Node dispatch remains unsupported for families without an owning local lifecycle/read model, including product taxonomy, product variant components, quantity price breaks, delivery profile item IDs, order delivery methods, B2B staff/catalog nested records, and non-empty finance/POS/dispute records.
 - `staffMember` and `staffMembers` are access-blocked only; authorized staff catalog behavior requires separate staff identity evidence and a staff state model.
-- `backupRegion` country support is limited to shop-domain/country pairs backed by checked-in market-region evidence.
+- `backupRegion` country support is limited to country pairs backed by checked-in market-region evidence. Current `backupRegionUpdate` success coverage includes CA, US, and the harry-test-heelo captured region set AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX; unbacked country codes still return `REGION_NOT_FOUND`.
 - `taxonomy.categories(...)` is not exhaustive global taxonomy coverage; missing captured rows produce Shopify-like empty connections.
 - Flow helper mutations record local metadata only. They do not deliver Flow triggers or prove external Flow automation execution.
 - No root listed here is registry-only. Validation-only branches include GraphQL input coercion for required arguments and captured local guardrails that fail before staging.

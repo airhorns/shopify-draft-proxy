@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-resource-limit-reached.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
