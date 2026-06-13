@@ -218,8 +218,7 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let numeric_id = (index as u64) + 2;
-                let id = format!("gid://shopify/MediaImage/{}", numeric_id);
+                let id = self.next_proxy_synthetic_gid("MediaImage");
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| "reference-source.jpg".to_string());
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
