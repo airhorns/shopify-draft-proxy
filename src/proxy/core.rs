@@ -123,7 +123,8 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.store.staged.customer_orders.clone()
+                "customerOrders": self.store.staged.customer_orders.clone(),
+                "taggableResources": self.store.staged.taggable_resources.clone()
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -284,6 +285,15 @@ impl DraftProxy {
                     .map(|(id, orders)| {
                         (id.clone(), orders.as_array().cloned().unwrap_or_default())
                     })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
+            .as_object()
+            .map(|resources| {
+                resources
+                    .iter()
+                    .map(|(id, resource)| (id.clone(), resource.clone()))
                     .collect()
             })
             .unwrap_or_default();

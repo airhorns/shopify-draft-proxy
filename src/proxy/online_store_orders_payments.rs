@@ -2200,9 +2200,14 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_arg(&field.arguments, "id")
+            .or_else(|| resolved_string_arg(&field.arguments, "draftOrderId"))
+        else {
             return Value::Null;
         };
+        if let Some(record) = self.store.staged.taggable_resources.get(&id) {
+            return selected_json(record, &field.selection);
+        }
         let value = self
             .store
             .staged
