@@ -26,40 +26,39 @@ impl DraftProxy {
                 "data": { response_key: null }
             }));
         }
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        if query.contains("BackupRegionUpdateMissingCountryCode") {
-            return ok_json(backup_region_country_code_coercion_error(
-                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
-                "BackupRegionUpdateMissingCountryCode",
-                "missingRequiredInputObjectAttribute",
-            ));
-        }
-        if query.contains("BackupRegionUpdateNullCountryCode") {
-            return ok_json(backup_region_country_code_coercion_error(
-                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (null). Expected type 'CountryCode!'.",
-                "BackupRegionUpdateNullCountryCode",
-                "argumentLiteralsIncompatible",
-            ));
-        }
-        if query.contains("BackupRegionUpdateNumericCountryCode") {
-            return ok_json(backup_region_country_code_coercion_error(
-                "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (42). Expected type 'CountryCode!'.",
-                "BackupRegionUpdateNumericCountryCode",
-                "argumentLiteralsIncompatible",
-            ));
-        }
-        let country_code = match arguments.get("region") {
-            None | Some(ResolvedValue::Null) => None,
-            Some(ResolvedValue::Object(region)) => {
-                region.get("countryCode").and_then(|value| match value {
-                    ResolvedValue::String(country_code) => Some(country_code.as_str()),
-                    _ => None,
-                })
+        let document = parsed_document(query, variables);
+        let operation_path = document
+            .as_ref()
+            .map(|document| document.operation_path.as_str())
+            .unwrap_or("mutation");
+        let root_field = document.as_ref().and_then(|document| {
+            document
+                .root_fields
+                .iter()
+                .find(|field| field.name == "backupRegionUpdate")
+        });
+        let country_code = match backup_region_update_country_code(root_field) {
+            BackupRegionCountryCodeInput::ReadCurrent => None,
+            BackupRegionCountryCodeInput::CountryCode(country_code) => Some(country_code),
+            BackupRegionCountryCodeInput::Missing => {
+                return ok_json(backup_region_country_code_coercion_error(
+                    "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
+                    operation_path,
+                    "missingRequiredInputObjectAttribute",
+                ));
             }
-            _ => None,
+            BackupRegionCountryCodeInput::Invalid(value) => {
+                return ok_json(backup_region_country_code_coercion_error(
+                    &format!(
+                        "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value ({value}). Expected type 'CountryCode!'."
+                    ),
+                    operation_path,
+                    "argumentLiteralsIncompatible",
+                ));
+            }
         };
 
-        match country_code.and_then(backup_region_country) {
+        match country_code.as_deref().and_then(backup_region_country) {
             None if country_code.is_none() => ok_json(json!({
                 "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
             })),
@@ -3743,6 +3742,152 @@ impl DraftProxy {
         let id = self.next_synthetic_id;
         self.next_synthetic_id += 1;
         synthetic_shopify_gid(resource_type, id)
+    }
+}
+
+enum BackupRegionCountryCodeInput {
+    ReadCurrent,
+    CountryCode(String),
+    Missing,
+    Invalid(String),
+}
+
+fn backup_region_update_country_code(
+    root_field: Option<&RootFieldSelection>,
+) -> BackupRegionCountryCodeInput {
+    let Some(field) = root_field else {
+        return BackupRegionCountryCodeInput::ReadCurrent;
+    };
+    match field.raw_arguments.get("region") {
+        None | Some(RawArgumentValue::Null) => BackupRegionCountryCodeInput::ReadCurrent,
+        Some(RawArgumentValue::Variable { value, .. }) => {
+            backup_region_update_variable_region_country_code(value.as_ref())
+        }
+        Some(RawArgumentValue::Object(region)) => backup_region_update_object_country_code(region),
+        Some(value) => BackupRegionCountryCodeInput::Invalid(raw_argument_display(value)),
+    }
+}
+
+fn backup_region_update_variable_region_country_code(
+    value: Option<&ResolvedValue>,
+) -> BackupRegionCountryCodeInput {
+    match value {
+        None | Some(ResolvedValue::Null) => BackupRegionCountryCodeInput::ReadCurrent,
+        Some(ResolvedValue::Object(region)) => {
+            backup_region_update_resolved_object_country_code(region)
+        }
+        Some(value) => BackupRegionCountryCodeInput::Invalid(resolved_value_display(value)),
+    }
+}
+
+fn backup_region_update_object_country_code(
+    region: &BTreeMap<String, RawArgumentValue>,
+) -> BackupRegionCountryCodeInput {
+    match region.get("countryCode") {
+        None => BackupRegionCountryCodeInput::Missing,
+        Some(RawArgumentValue::Enum(country_code)) => {
+            BackupRegionCountryCodeInput::CountryCode(country_code.clone())
+        }
+        Some(RawArgumentValue::Variable { value, .. }) => {
+            backup_region_update_variable_country_code(value.as_ref())
+        }
+        Some(value) => BackupRegionCountryCodeInput::Invalid(raw_argument_display(value)),
+    }
+}
+
+fn backup_region_update_variable_country_code(
+    value: Option<&ResolvedValue>,
+) -> BackupRegionCountryCodeInput {
+    match value {
+        Some(ResolvedValue::String(country_code)) => {
+            BackupRegionCountryCodeInput::CountryCode(country_code.clone())
+        }
+        Some(value) => BackupRegionCountryCodeInput::Invalid(resolved_value_display(value)),
+        None => BackupRegionCountryCodeInput::Invalid("null".to_string()),
+    }
+}
+
+fn backup_region_update_resolved_object_country_code(
+    region: &BTreeMap<String, ResolvedValue>,
+) -> BackupRegionCountryCodeInput {
+    match region.get("countryCode") {
+        None => BackupRegionCountryCodeInput::Missing,
+        Some(ResolvedValue::String(country_code)) => {
+            BackupRegionCountryCodeInput::CountryCode(country_code.clone())
+        }
+        Some(value) => BackupRegionCountryCodeInput::Invalid(resolved_value_display(value)),
+    }
+}
+
+fn raw_argument_display(value: &RawArgumentValue) -> String {
+    match value {
+        RawArgumentValue::String(value) => json!(value).to_string(),
+        RawArgumentValue::Int(value) => value.to_string(),
+        RawArgumentValue::Float(value) => value.to_string(),
+        RawArgumentValue::Bool(value) => value.to_string(),
+        RawArgumentValue::Null => "null".to_string(),
+        RawArgumentValue::Enum(value) => value.clone(),
+        RawArgumentValue::List(values) => {
+            let values = values.iter().map(raw_argument_json).collect::<Vec<_>>();
+            Value::Array(values).to_string()
+        }
+        RawArgumentValue::Object(fields) => {
+            let fields = fields
+                .iter()
+                .map(|(key, value)| (key.clone(), raw_argument_json(value)))
+                .collect();
+            Value::Object(fields).to_string()
+        }
+        RawArgumentValue::Variable { value, .. } => value
+            .as_ref()
+            .map(resolved_value_display)
+            .unwrap_or_else(|| "null".to_string()),
+    }
+}
+
+fn raw_argument_json(value: &RawArgumentValue) -> Value {
+    match value {
+        RawArgumentValue::String(value) | RawArgumentValue::Enum(value) => json!(value),
+        RawArgumentValue::Int(value) => json!(value),
+        RawArgumentValue::Float(value) => json!(value),
+        RawArgumentValue::Bool(value) => json!(value),
+        RawArgumentValue::Null => Value::Null,
+        RawArgumentValue::List(values) => {
+            Value::Array(values.iter().map(raw_argument_json).collect())
+        }
+        RawArgumentValue::Object(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(key, value)| (key.clone(), raw_argument_json(value)))
+                .collect(),
+        ),
+        RawArgumentValue::Variable { value, .. } => value
+            .as_ref()
+            .map(resolved_value_json)
+            .unwrap_or(Value::Null),
+    }
+}
+
+fn resolved_value_display(value: &ResolvedValue) -> String {
+    resolved_value_json(value).to_string()
+}
+
+fn resolved_value_json(value: &ResolvedValue) -> Value {
+    match value {
+        ResolvedValue::String(value) => json!(value),
+        ResolvedValue::Int(value) => json!(value),
+        ResolvedValue::Float(value) => json!(value),
+        ResolvedValue::Bool(value) => json!(value),
+        ResolvedValue::Null => Value::Null,
+        ResolvedValue::List(values) => {
+            Value::Array(values.iter().map(resolved_value_json).collect())
+        }
+        ResolvedValue::Object(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(key, value)| (key.clone(), resolved_value_json(value)))
+                .collect(),
+        ),
     }
 }
 

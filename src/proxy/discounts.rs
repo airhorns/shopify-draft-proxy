@@ -430,7 +430,7 @@ pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Option<Valu
 
 pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     message: &str,
-    operation_name: &str,
+    operation_path: &str,
     code: &str,
 ) -> Value {
     let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
@@ -450,7 +450,7 @@ pub(in crate::proxy) fn backup_region_country_code_coercion_error(
         "errors": [{
             "message": message,
             "locations": [{ "line": 2, "column": 30 }],
-            "path": [format!("mutation {operation_name}"), "backupRegionUpdate", "region", "countryCode"],
+            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
             "extensions": extensions
         }]
     })
