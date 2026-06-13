@@ -1729,7 +1729,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         create.body["data"]["fileCreate"],
         json!({
-            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
+            "files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
             "userErrors": []
         })
     );
@@ -1740,7 +1740,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
           fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } }
         }
         "#,
-        json!({"files": [{"id": "gid://shopify/MediaImage/2", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
+        json!({"files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
     ));
     assert_eq!(
         attach.body["data"]["fileUpdate"],
@@ -1770,7 +1770,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "endCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"}})
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -1801,6 +1801,69 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
 }
 
 #[test]
+fn media_file_create_allocates_unique_ids_across_separate_calls() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"files": [{"alt": "First batch", "contentType": "IMAGE", "filename": "first.jpg", "originalSource": "https://cdn.example.com/first.jpg"}]}),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"files": [{"alt": "Second batch", "contentType": "IMAGE", "filename": "second.jpg", "originalSource": "https://cdn.example.com/second.jpg"}]}),
+    ));
+
+    let first_id = first.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = second.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_id, second_id);
+    assert_eq!(
+        first_id,
+        "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"
+    );
+    assert_eq!(
+        second_id,
+        "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+    );
+    assert_eq!(first.body["data"]["fileCreate"]["userErrors"], json!([]));
+    assert_eq!(second.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead {
+          files(first: 10) {
+            nodes { id alt createdAt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+        ])
+    );
+}
+
+#[test]
 fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
     let mut proxy = snapshot_proxy();
 
@@ -1815,11 +1878,19 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
             {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete wrong type 1777945543894"}
         ]}),
     ));
+    let actual_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let wrong_type_media_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
         create.body["data"]["fileCreate"],
         json!({"files": [
-            {"id": "gid://shopify/MediaImage/2", "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
-            {"id": "gid://shopify/MediaImage/3", "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
+            {"id": actual_id, "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
+            {"id": wrong_type_media_id, "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
         ], "userErrors": []})
     );
 
@@ -1829,11 +1900,11 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
           fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+        json!({"fileIds": [actual_id]}),
     ));
     assert_eq!(
         delete_actual.body["data"]["fileDelete"],
-        json!({"deletedFileIds": ["gid://shopify/MediaImage/2"], "userErrors": []})
+        json!({"deletedFileIds": [actual_id], "userErrors": []})
     );
 
     let delete_wrong_type = proxy.process_request(json_graphql_request(
@@ -1842,10 +1913,10 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
           fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/Video/3"]}),
+        json!({"fileIds": [wrong_type_media_id.replace("/MediaImage/", "/Video/")]}),
     ));
     assert_eq!(
         delete_wrong_type.body["data"]["fileDelete"],
-        json!({"deletedFileIds": ["gid://shopify/MediaImage/3"], "userErrors": []})
+        json!({"deletedFileIds": [wrong_type_media_id], "userErrors": []})
     );
 }
