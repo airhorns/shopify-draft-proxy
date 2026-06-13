@@ -210,6 +210,13 @@ pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
     })
 }
 
+pub(in crate::proxy) fn media_file_cursor(file: &Value) -> String {
+    file.get("id")
+        .and_then(Value::as_str)
+        .map(|id| format!("cursor:{id}"))
+        .unwrap_or_default()
+}
+
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,

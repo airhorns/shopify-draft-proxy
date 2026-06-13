@@ -458,6 +458,161 @@ fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error
 }
 
 #[test]
+fn marketing_activity_delete_external_enforces_resolution_external_and_child_guards() {
+    let mut proxy = snapshot_proxy();
+    let mut setup = json_graphql_request(
+        r#"
+        mutation MarketingActivityDeleteExternalGuardsSetup(
+          $nativeInput: MarketingActivityUpdateInput!
+          $externalInput: MarketingActivityCreateExternalInput!
+          $parentInput: MarketingActivityCreateExternalInput!
+          $childInput: MarketingActivityCreateExternalInput!
+        ) {
+          native: marketingActivityUpdate(input: $nativeInput) {
+            marketingActivity { id isExternal }
+            userErrors { field message code }
+          }
+          external: marketingActivityCreateExternal(input: $externalInput) {
+            marketingActivity { id remoteId isExternal }
+            userErrors { field message code }
+          }
+          parent: marketingActivityCreateExternal(input: $parentInput) {
+            marketingActivity { id remoteId isExternal }
+            userErrors { field message code }
+          }
+          child: marketingActivityCreateExternal(input: $childInput) {
+            marketingActivity { id remoteId parentRemoteId isExternal }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "nativeInput": {"id": "gid://shopify/MarketingActivity/1001", "title": "Native Activity", "status": "ACTIVE"},
+            "externalInput": {"title": "External Activity", "remoteId": "delete-guard-external", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-external", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "delete-guard-external", "source": "email", "medium": "newsletter"}},
+            "parentInput": {"title": "Parent Activity", "remoteId": "delete-guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "hierarchyLevel": "CAMPAIGN", "utm": {"campaign": "delete-guard-parent", "source": "email", "medium": "newsletter"}},
+            "childInput": {"title": "Child Activity", "remoteId": "delete-guard-child", "parentRemoteId": "delete-guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "hierarchyLevel": "AD", "utm": {"campaign": "delete-guard-child", "source": "email", "medium": "newsletter"}}
+        }),
+    );
+    setup.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let setup = proxy.process_request(setup);
+    assert_eq!(setup.body["data"]["native"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["external"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["parent"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["child"]["userErrors"], json!([]));
+    let external_id = setup.body["data"]["external"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let parent_id = setup.body["data"]["parent"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut guards = json_graphql_request(
+        r#"
+        mutation MarketingActivityDeleteExternalGuards(
+          $unknownId: ID!
+          $nativeId: ID!
+          $parentId: ID!
+          $externalId: ID!
+        ) {
+          noSelector: marketingActivityDeleteExternal {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          unknownById: marketingActivityDeleteExternal(marketingActivityId: $unknownId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          missingRemote: marketingActivityDeleteExternal(remoteId: "missing-delete-guard-remote") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          nativeById: marketingActivityDeleteExternal(marketingActivityId: $nativeId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          parentById: marketingActivityDeleteExternal(id: $parentId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          validExternal: marketingActivityDeleteExternal(marketingActivityId: $externalId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "unknownId": "gid://shopify/MarketingActivity/999999999999",
+            "nativeId": "gid://shopify/MarketingActivity/1001",
+            "parentId": parent_id,
+            "externalId": external_id
+        }),
+    );
+    guards.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let guards = proxy.process_request(guards);
+    assert_eq!(
+        guards.body["data"]["noSelector"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.", "code": "INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["unknownById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["missingRemote"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["nativeById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "The marketing activity must be an external activity.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["parentById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.", "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["validExternal"],
+        json!({"deletedMarketingActivityId": external_id, "userErrors": []})
+    );
+
+    let mut read = json_graphql_request(
+        r#"
+        query MarketingActivityRead($nativeId: ID!, $parentId: ID!, $externalId: ID!) {
+          native: marketingActivity(id: $nativeId) { id isExternal }
+          parent: marketingActivity(id: $parentId) { id remoteId }
+          external: marketingActivity(id: $externalId) { id }
+        }
+        "#,
+        json!({
+            "nativeId": "gid://shopify/MarketingActivity/1001",
+            "parentId": parent_id,
+            "externalId": external_id
+        }),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["native"],
+        json!({"id": "gid://shopify/MarketingActivity/1001", "isExternal": false})
+    );
+    assert_eq!(
+        read.body["data"]["parent"],
+        json!({"id": parent_id, "remoteId": "delete-guard-parent"})
+    );
+    assert_eq!(read.body["data"]["external"], Value::Null);
+}
+
+#[test]
 fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
 
@@ -1065,6 +1220,92 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
 }
 
 #[test]
+fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateCreate {
+          appleOne: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.one", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId } }
+            userErrors { code field message }
+          }
+          android: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId } }
+            userErrors { code field message }
+          }
+          appleTwo: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.two", universalLinksEnabled: true, sharedWebCredentialsEnabled: true, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["android"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!) {
+          mobilePlatformApplications(first: $first) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [
+                {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "appId": "com.example.apple.one"},
+                {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "appId": "com.example.apple.one"}},
+                {"cursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "node": {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!, $after: String!) {
+          mobilePlatformApplications(first: $first, after: $after) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["mobilePlatformApplications"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [{"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}],
+            "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+}
+
+#[test]
 fn online_store_mobile_platform_application_create_model_validations_do_not_stage() {
     let mut proxy = snapshot_proxy();
     let long_application_id = "a".repeat(101);
@@ -1557,6 +1798,216 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
 }
 
 #[test]
+fn webhook_eventbridge_arn_validation_uses_shopify_partner_shape_and_fields() {
+    let mut proxy = snapshot_proxy();
+    let create_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeValidation($webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut missing_source_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713"}}),
+    );
+    missing_source_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let missing_source = proxy.process_request(missing_source_request);
+    assert_eq!(
+        missing_source.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is not a valid AWS ARN"}
+        ]})
+    );
+
+    let mut wrong_client_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}}),
+    );
+    wrong_client_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let wrong_client = proxy.process_request(wrong_client_request);
+    assert_eq!(
+        wrong_client.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let mut generic_arn_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1:123456789012:rule/foo"}}),
+    );
+    generic_arn_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let generic_arn = proxy.process_request(generic_arn_request);
+    assert_eq!(
+        generic_arn.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is not a valid AWS ARN"}
+        ]})
+    );
+
+    let mut accepted_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-x"}}),
+    );
+    accepted_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let accepted = proxy.process_request(accepted_request);
+    let subscription_id = accepted.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        accepted.body["data"]["eventBridgeWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let update_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeUpdateValidation($id: ID!, $webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut update_request = json_graphql_request(
+        update_mutation,
+        json!({
+            "id": subscription_id,
+            "webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}
+        }),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["eventBridgeWebhookSubscriptionUpdate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn webhook_cloud_destination_validation_preserves_unified_and_pubsub_fields() {
+    let mut proxy = snapshot_proxy();
+    let unified_mutation = r#"
+        mutation RustWebhookLocalRuntimeUnifiedCloudValidation($webhookSubscription: WebhookSubscriptionInput!) {
+          webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut unified_request = json_graphql_request(
+        unified_mutation,
+        json!({"webhookSubscription": {"callbackUrl": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}}),
+    );
+    unified_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let unified = proxy.process_request(unified_request);
+    assert_eq!(
+        unified.body["data"]["webhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let pubsub_create = r#"
+        mutation RustWebhookLocalRuntimePubSubProjectValidation($webhookSubscription: PubSubWebhookSubscriptionInput!) {
+          pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let bad_project_create = proxy.process_request(json_graphql_request(
+        pubsub_create,
+        json!({"webhookSubscription": {"pubSubProject": "-bad-project", "pubSubTopic": "valid-topic"}}),
+    ));
+    assert_eq!(
+        bad_project_create.body["data"]["pubSubWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [{
+            "field": ["webhookSubscription", "pubSubProject"],
+            "message": "Google Cloud Pub/Sub project ID is not valid"
+        }]})
+    );
+
+    let valid_project_create = proxy.process_request(json_graphql_request(
+        pubsub_create,
+        json!({"webhookSubscription": {"pubSubProject": "valid-project", "pubSubTopic": "valid-topic"}}),
+    ));
+    let subscription_id = valid_project_create.body["data"]["pubSubWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        valid_project_create.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let pubsub_update = r#"
+        mutation RustWebhookLocalRuntimePubSubProjectUpdateValidation($id: ID!, $webhookSubscription: PubSubWebhookSubscriptionInput!) {
+          pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let bad_project_update = proxy.process_request(json_graphql_request(
+        pubsub_update,
+        json!({
+            "id": subscription_id,
+            "webhookSubscription": {"pubSubProject": "-bad-project", "pubSubTopic": "valid-topic"}
+        }),
+    ));
+    assert_eq!(
+        bad_project_update.body["data"]["pubSubWebhookSubscriptionUpdate"],
+        json!({"webhookSubscription": null, "userErrors": [{
+            "field": ["webhookSubscription", "pubSubProject"],
+            "message": "Google Cloud Pub/Sub project ID is not valid"
+        }]})
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
 
@@ -1681,6 +2132,83 @@ fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         delete_non_main.body["data"]["deleteFormerMain"],
         json!({"deletedThemeId": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+}
+
+#[test]
+fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeCreate {
+          first: themeCreate(source: "https://example.com/first.zip", name: "First theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          second: themeCreate(source: "https://example.com/second.zip", name: "Second theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          third: themeCreate(source: "https://example.com/third.zip", name: "Third theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(created.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["second"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["third"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish($first: Int!) {
+          themes(first: $first) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["themes"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "name": "First theme"},
+                {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "name": "Second theme"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "name": "First theme"}},
+                {"cursor": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "name": "Second theme"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish($first: Int!, $after: String!) {
+          themes(first: $first, after: $after) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["themes"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["themes"],
+        json!({
+            "nodes": [{"id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "name": "Third theme"}],
+            "edges": [{"cursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "name": "Third theme"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+            }
+        })
     );
 }
 
@@ -2032,6 +2560,112 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
+    );
+}
+
+#[test]
+fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "First", "contentType": "IMAGE", "filename": "first.jpg", "originalSource": "https://cdn.example.com/first.jpg"},
+            {"alt": "Second", "contentType": "IMAGE", "filename": "second.jpg", "originalSource": "https://cdn.example.com/second.jpg"},
+            {"alt": "Third", "contentType": "IMAGE", "filename": "third.jpg", "originalSource": "https://cdn.example.com/third.jpg"}
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($first: Int!) {
+          files(first: $first) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["files"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"},
+                {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}
+            ],
+            "edges": [
+                {"cursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"}},
+                {"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($first: Int!, $after: String!) {
+          files(first: $first, after: $after) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["files"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}],
+            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let before_tail = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($last: Int!, $before: String!) {
+          files(last: $last, before: $before) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"last": 1, "before": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"}),
+    ));
+    assert_eq!(
+        before_tail.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}],
+            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+            }
+        })
     );
 }
 

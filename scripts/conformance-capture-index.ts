@@ -4761,6 +4761,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
       'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+      'config/parity-specs/store-properties/location-activate-generic-staging-readback.json',
     ],
     cleanupBehavior:
       'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
@@ -4776,6 +4777,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-add-validation-and-defaults.json`,
       'config/parity-specs/store-properties/location-add-validation-and-defaults.json',
+      'config/parity-specs/store-properties/location-add-generic-staging-readback.json',
       'config/parity-requests/store-properties/location-add-blank-name-code.graphql',
       'config/parity-requests/store-properties/location-add-capabilities-variable.graphql',
       'config/parity-requests/store-properties/location-add-inline-capabilities.graphql',
@@ -6903,13 +6905,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
     purpose:
-      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA success, read-after-write, and REGION_NOT_FOUND validation.',
+      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA and US success, read-after-write, and REGION_NOT_FOUND validation.',
     requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-backup-region-update-extended.json`,
       'config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-us.graphql',
     ],
-    cleanupBehavior: 'Temporarily stages AE as the backup region, then restores the store backup region to CA.',
+    cleanupBehavior:
+      'Temporarily stages CA, AE, and US as the backup region; creates/deletes temporary CA/US region markets if needed; then restores the store backup region to its original country.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7741,6 +7745,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}bulk-operation-run-mutation-user-errors.json`,
       'config/parity-specs/bulk-operations/bulk-operation-run-mutation-user-errors.json',
       'config/parity-requests/bulk-operations/bulk-operation-run-mutation-user-errors.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-name-independent-run-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-name-independence-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation validation behavior is independent of client GraphQL operation names.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-name-independent-run-roots.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-name-independent-run-roots.json',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-query.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-mutation.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

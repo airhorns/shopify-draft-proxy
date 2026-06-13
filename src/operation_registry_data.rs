@@ -2789,7 +2789,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::BulkOperations,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["bulkOperationRunMutation", "BulkOperationRunMutation"],
             &[],
         ),
