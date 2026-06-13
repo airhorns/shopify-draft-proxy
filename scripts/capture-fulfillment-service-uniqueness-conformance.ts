@@ -307,11 +307,7 @@ try {
     name: reservedAmazonVariables.name,
   };
   updateToReservedAmazonName = await client.runGraphqlRequest(updateDocument, updateToReservedAmazonNameVariables);
-  assertReservedNameUserError(
-    updateToReservedAmazonName,
-    'fulfillmentServiceUpdate',
-    'update-to-reserved-amazon-name',
-  );
+  assertReservedNameUserError(updateToReservedAmazonName, 'fulfillmentServiceUpdate', 'update-to-reserved-amazon-name');
 
   const fixture = {
     storeDomain,

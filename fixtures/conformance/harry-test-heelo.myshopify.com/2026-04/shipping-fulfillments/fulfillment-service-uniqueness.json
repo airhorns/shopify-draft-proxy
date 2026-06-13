@@ -63,9 +63,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name has already been taken"
             }
           ]
@@ -95,9 +93,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name has already been taken"
             }
           ]
@@ -168,9 +164,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name has already been taken"
             }
           ]
@@ -241,9 +235,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -273,9 +265,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -305,9 +295,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -337,9 +325,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -452,9 +438,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name has already been taken"
             }
           ]
@@ -485,9 +469,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -518,9 +500,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
@@ -551,9 +531,7 @@
           "fulfillmentService": null,
           "userErrors": [
             {
-              "field": [
-                "name"
-              ],
+              "field": ["name"],
               "message": "Name is reserved"
             }
           ]
