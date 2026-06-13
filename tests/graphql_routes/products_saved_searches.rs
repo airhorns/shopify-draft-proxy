@@ -1393,6 +1393,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishablePublishProductParity($id: ID!, $input: [PublicationInput!]!) {
               publishablePublish(id: $id, input: $input) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1404,6 +1405,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishableUnpublishProductParity($id: ID!, $input: [PublicationInput!]!) {
               publishableUnpublish(id: $id, input: $input) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1415,6 +1417,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishablePublishToCurrentChannelProductParity($id: ID!) {
               publishablePublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1426,6 +1429,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishableUnpublishToCurrentChannelProductParity($id: ID!) {
               publishableUnpublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1446,6 +1450,14 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
                 "publishedOnCurrentPublication": false,
                 "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
                 "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+            })
+        );
+        assert_eq!(
+            response.body["data"][root]["shop"],
+            json!({
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo",
+                "publicationCount": 5
             })
         );
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));

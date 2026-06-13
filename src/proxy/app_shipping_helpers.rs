@@ -117,7 +117,8 @@ pub(in crate::proxy) fn synthetic_shop_json() -> Value {
         "id": "gid://shopify/Shop/92891250994",
         "name": "harry-test-heelo",
         "myshopifyDomain": "harry-test-heelo.myshopify.com",
-        "currencyCode": "USD"
+        "currencyCode": "USD",
+        "publicationCount": 5
     })
 }
 
@@ -652,6 +653,7 @@ pub(in crate::proxy) fn publishable_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "publishable" => Some(selected_json(&publishable, publishable_selection)),
+            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
