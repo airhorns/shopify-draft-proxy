@@ -51,11 +51,7 @@ function readPayloadAlias(payload: ConformanceGraphqlPayload, alias: string): Re
   return mutationPayload;
 }
 
-function assertUserErrors(
-  payload: ConformanceGraphqlPayload,
-  alias: string,
-  expected: UserErrorExpectation[],
-): void {
+function assertUserErrors(payload: ConformanceGraphqlPayload, alias: string, expected: UserErrorExpectation[]): void {
   const mutationPayload = readPayloadAlias(payload, alias);
   if (mutationPayload['savedSearch'] !== null) {
     throw new Error(`Expected ${alias} savedSearch null: ${JSON.stringify(mutationPayload, null, 2)}`);
