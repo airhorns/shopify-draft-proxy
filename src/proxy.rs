@@ -437,7 +437,8 @@ impl Default for StagedState {
             free_shipping_automatic_status: None,
             redeem_code_bulk_live_added: false,
             redeem_code_bulk_live_deleted_seed: false,
-            backup_region: backup_region_country("CA"),
+            backup_region: backup_region_country("CA")
+                .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
         }
