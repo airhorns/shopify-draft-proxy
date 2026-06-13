@@ -140,4 +140,23 @@ describe('Rust parity runner CLI', () => {
     },
     parityCliTimeoutMs,
   );
+
+  it(
+    'applies expected-difference rules to wildcard array paths',
+    () => {
+      const output = execFileSync(
+        'corepack',
+        [
+          'pnpm',
+          'parity',
+          '--',
+          '--spec',
+          'config/parity-specs/products/inventory-transfer-ready-item-adjustments-local-staging.json',
+        ],
+        { cwd: repoRoot, encoding: 'utf8' },
+      );
+      expect(output).toContain('inventory-transfer-ready-item-adjustments-local-staging.json passed');
+    },
+    parityCliTimeoutMs,
+  );
 });

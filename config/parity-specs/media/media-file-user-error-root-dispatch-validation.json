@@ -1,0 +1,88 @@
+{
+  "scenarioId": "media-file-user-error-root-dispatch-validation",
+  "operationNames": ["fileCreate", "fileUpdate", "fileAcknowledgeUpdateFailed"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "dispatch-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-user-error-aggregation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-user-error-root-dispatch-create.graphql",
+    "variablesCapturePath": "$.setup.nonReadyCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Replays captured fileCreate setup, fileUpdate missing-id aggregation, and fileAcknowledgeUpdateFailed aggregation through neutral GraphQL operation names so the Rust media handlers are proven reachable by root field.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-non-ready-files",
+        "capturePath": "$.setup.nonReadyCreate.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates local MediaImage GIDs while Shopify returns dev-store MediaImage GIDs."
+          },
+          {
+            "path": "$.files[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates local MediaImage GIDs while Shopify returns dev-store MediaImage GIDs."
+          }
+        ]
+      },
+      {
+        "name": "file-update-two-missing-ids",
+        "capturePath": "$.branches.fileUpdateMissing.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-root-dispatch-update.graphql",
+          "variablesCapturePath": "$.branches.fileUpdateMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-acknowledge-missing-short-circuits-state",
+        "capturePath": "$.branches.fileAcknowledgeMixed.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-root-dispatch-acknowledge.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromCapturePath": "$.branches.fileAcknowledgeMixed.variables.fileIds[0]"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-acknowledge-two-non-ready-ids",
+        "capturePath": "$.branches.fileAcknowledgeNonReady.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "excludedPaths": ["$.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-root-dispatch-acknowledge.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[1].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

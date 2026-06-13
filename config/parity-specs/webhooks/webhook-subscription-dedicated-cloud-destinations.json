@@ -96,6 +96,20 @@
         }
       },
       {
+        "name": "regression-pubsub-create-bad-project-null-and-errors",
+        "capturePath": "$.validation.createPubSubBadProject.response.payload.data.pubSubWebhookSubscriptionCreate",
+        "proxyPath": "$.data.pubSubWebhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.createPubSubBadProject.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
+      },
+      {
         "name": "pubsub-create-bad-topic",
         "capturePath": "$.validation.createPubSubBadTopic.response.payload.data.pubSubWebhookSubscriptionCreate",
         "proxyPath": "$.data.pubSubWebhookSubscriptionCreate",
@@ -127,6 +141,27 @@
             "x-shopify-draft-proxy-api-client-id": "347082227713"
           }
         }
+      },
+      {
+        "name": "regression-pubsub-update-bad-project-null-and-errors",
+        "capturePath": "$.validation.updatePubSubBadProject.response.payload.data.pubSubWebhookSubscriptionUpdate",
+        "proxyPath": "$.data.pubSubWebhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.pubSubWebhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.updatePubSubBadProject.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
       },
       {
         "name": "pubsub-update-bad-topic",
@@ -298,6 +333,20 @@
         }
       },
       {
+        "name": "regression-eventbridge-create-malformed-arn-null-and-errors",
+        "capturePath": "$.validation.createEventBridgeMalformedArn.response.payload.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.createEventBridgeMalformedArn.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
+      },
+      {
         "name": "eventbridge-create-wrong-api-client",
         "capturePath": "$.validation.createEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionCreate",
         "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
@@ -309,6 +358,20 @@
             "x-shopify-draft-proxy-api-client-id": "347082227713"
           }
         }
+      },
+      {
+        "name": "regression-eventbridge-create-wrong-api-client-null-and-errors",
+        "capturePath": "$.validation.createEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.createEventBridgeWrongApiClient.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
       },
       {
         "name": "eventbridge-update-malformed-arn",
@@ -332,6 +395,28 @@
         }
       },
       {
+        "name": "regression-eventbridge-update-malformed-arn-null-and-errors",
+        "capturePath": "$.validation.updateEventBridgeMalformedArn.response.payload.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "eventbridge-create-payload",
+              "path": "$.data.eventBridgeWebhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.updateEventBridgeMalformedArn.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
+      },
+      {
         "name": "eventbridge-update-wrong-api-client",
         "capturePath": "$.validation.updateEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionUpdate",
         "proxyPath": "$.data.eventBridgeWebhookSubscriptionUpdate",
@@ -351,6 +436,28 @@
             "x-shopify-draft-proxy-api-client-id": "347082227713"
           }
         }
+      },
+      {
+        "name": "regression-eventbridge-update-wrong-api-client-null-and-errors",
+        "capturePath": "$.validation.updateEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "eventbridge-create-payload",
+              "path": "$.data.eventBridgeWebhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.updateEventBridgeWrongApiClient.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
       },
       {
         "name": "eventbridge-update-payload",

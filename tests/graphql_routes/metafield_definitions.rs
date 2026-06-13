@@ -437,6 +437,164 @@ fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_
 }
 
 #[test]
+fn metafield_definition_validation_update_gates_later_metafields_set() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "validation_affects_values";
+    let owner_id = "gid://shopify/Product/10173064872242";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionValidationAffectsValuesCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": namespace,
+                "key": "headline",
+                "ownerType": "PRODUCT",
+                "name": "Headline",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let before_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionValidationAffectsValuesSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": owner_id,
+                "namespace": namespace,
+                "key": "headline",
+                "type": "single_line_text_field",
+                "value": "unbounded headline"
+            }]
+        }),
+    ));
+    assert_eq!(
+        before_update.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionValidationAffectsValuesUpdate($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { namespace key validations { name value } }
+            validationJob { __typename done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": namespace,
+                "key": "headline",
+                "ownerType": "PRODUCT",
+                "validations": [{ "name": "max", "value": "5" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["metafieldDefinitionUpdate"]["updatedDefinition"]["validations"],
+        json!([{ "name": "max", "value": "5" }])
+    );
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionValidationAffectsValuesSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": owner_id,
+                "namespace": namespace,
+                "key": "headline",
+                "type": "single_line_text_field",
+                "value": "too long"
+            }]
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0", "value"],
+                "message": "Value is too long.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionValidationAffectsValuesSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": owner_id,
+                "namespace": namespace,
+                "key": "headline",
+                "type": "single_line_text_field",
+                "value": "short"
+            }]
+        }),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+        json!("short")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionValidationAffectsValuesRead($id: ID!, $namespace: String!, $key: String!) {
+          product(id: $id) {
+            metafield(namespace: $namespace, key: $key) { namespace key value }
+          }
+        }
+        "#,
+        json!({
+            "id": owner_id,
+            "namespace": namespace,
+            "key": "headline"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["metafield"],
+        json!({
+            "namespace": namespace,
+            "key": "headline",
+            "value": "short"
+        })
+    );
+}
+
+#[test]
 fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
     let mut proxy = snapshot_proxy();
 

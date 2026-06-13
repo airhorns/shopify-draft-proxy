@@ -472,8 +472,18 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   return false;
 }
 
+function ruleMatchesPath(rulePath: string, actualPath: string): boolean {
+  if (rulePath === actualPath) return true;
+  const wildcard = '\0ARRAY_INDEX_WILDCARD\0';
+  const pattern = `^${rulePath
+    .replace(/\[\*\]/gu, wildcard)
+    .replace(/[\\^$*+?.()|[\]{}]/gu, '\\$&')
+    .replaceAll(wildcard, String.raw`\[\d+\]`)}$`;
+  return new RegExp(pattern, 'u').test(actualPath);
+}
+
 function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[], basePath = '$'): string[] {
-  const rule = rules.find((candidate) => candidate.path === basePath);
+  const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule)) return [];
   if (Object.is(capture, proxy)) return [];
   if (Array.isArray(capture) && Array.isArray(proxy)) {

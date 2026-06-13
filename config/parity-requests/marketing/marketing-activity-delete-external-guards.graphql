@@ -1,5 +1,16 @@
-mutation MarketingActivityDeleteExternalGuards($createAfterDeleteAllInput: MarketingActivityCreateExternalInput!) {
+mutation MarketingActivityDeleteExternalGuards(
+  $createAfterDeleteAllInput: MarketingActivityCreateExternalInput!
+  $missingMarketingActivityId: ID!
+) {
   noArgsDelete: marketingActivityDeleteExternal {
+    deletedMarketingActivityId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingIdDelete: marketingActivityDeleteExternal(marketingActivityId: $missingMarketingActivityId) {
     deletedMarketingActivityId
     userErrors {
       field
