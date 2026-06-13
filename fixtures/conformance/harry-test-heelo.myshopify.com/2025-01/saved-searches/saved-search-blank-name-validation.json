@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-06-13T22:29:29.815Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "SavedSearchCreate with an empty string name returns base UserError objects with field and message only.",
+    "An empty string name does not short-circuit query validation; blank name and invalid PRODUCT query filters aggregate in one payload."
+  ],
+  "savedSearchCreateBlankNameValidation": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-validation-create.graphql",
+    "variables": {
+      "blankEmpty": {
+        "resourceType": "PRODUCT",
+        "name": "",
+        "query": ""
+      },
+      "blankInvalidQuery": {
+        "resourceType": "PRODUCT",
+        "name": "",
+        "query": "made_up_filter:foo"
+      }
+    },
+    "payload": {
+      "data": {
+        "blankEmpty": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name can't be blank"
+            }
+          ]
+        },
+        "blankInvalidQuery": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name can't be blank"
+            },
+            {
+              "field": [
+                "input",
+                "query"
+              ],
+              "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

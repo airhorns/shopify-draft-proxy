@@ -3337,6 +3337,25 @@ fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_cor
         })
     );
 
+    let order_reserved_and_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchOrderReservedUnknown($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) { savedSearch { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "resourceType": "ORDER", "name": "Order Reserved Unknown", "query": "reference_location_id:1 made_up_filter:foo" } }),
+    ));
+    assert_eq!(
+        order_reserved_and_unknown.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'made_up_filter' is not a valid filter" }
+            ]
+        })
+    );
+
     let update_seed = proxy.process_request(json_graphql_request(
         r#"
         mutation SavedSearchUpdateSeed($input: SavedSearchCreateInput!) {
@@ -3369,6 +3388,90 @@ fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_cor
                 { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
                 { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
             ]
+        })
+    );
+}
+
+#[test]
+fn saved_search_blank_name_and_input_required_user_errors_are_schema_shaped_and_aggregated() {
+    let mut proxy = snapshot_proxy();
+
+    let blank_invalid_query = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchBlankNameInvalidQuery($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "", "query": "made_up_filter:foo" } }),
+    ));
+    assert_eq!(blank_invalid_query.status, 200);
+    assert_eq!(
+        blank_invalid_query.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [
+                { "field": ["input", "name"], "message": "Name can't be blank" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'made_up_filter' is not a valid filter" }
+            ]
+        })
+    );
+
+    let blank_empty_query = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchBlankName($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "", "query": "" } }),
+    ));
+    assert_eq!(blank_empty_query.status, 200);
+    assert_eq!(
+        blank_empty_query.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [
+                { "field": ["input", "name"], "message": "Name can't be blank" }
+            ]
+        })
+    );
+
+    let null_inputs = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchNullInputs($createInput: SavedSearchCreateInput, $updateInput: SavedSearchUpdateInput) {
+          create: savedSearchCreate(input: $createInput) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+          update: savedSearchUpdate(input: $updateInput) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "createInput": null, "updateInput": null }),
+    ));
+    assert_eq!(null_inputs.status, 200);
+    assert_eq!(
+        null_inputs.body["data"],
+        json!({
+            "create": {
+                "savedSearch": null,
+                "userErrors": [
+                    { "field": ["input"], "message": "Saved search input is required" }
+                ]
+            },
+            "update": {
+                "savedSearch": null,
+                "userErrors": [
+                    { "field": ["input"], "message": "Saved search input is required" }
+                ]
+            }
         })
     );
 }

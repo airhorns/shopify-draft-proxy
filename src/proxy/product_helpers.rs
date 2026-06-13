@@ -1441,7 +1441,12 @@ pub(in crate::proxy) fn saved_search_mutation_payload_json(
                 Some(record) => saved_search_json(record, saved_search_selections),
                 None => Value::Null,
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
             _ => None,
         }
     })
@@ -1610,7 +1615,9 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
     let mut invalid_filters: Vec<String> = filters
         .iter()
         .filter_map(|(key, _)| {
-            if saved_search_known_filter(resource_type, key) {
+            if saved_search_known_filter(resource_type, key)
+                || saved_search_reserved_filter(resource_type, key)
+            {
                 None
             } else {
                 Some(saved_search_base_filter_key(key).to_string())
@@ -1642,6 +1649,10 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
         }
     }
     errors
+}
+
+fn saved_search_reserved_filter(resource_type: &str, key: &str) -> bool {
+    resource_type == "ORDER" && saved_search_base_filter_key(key) == "reference_location_id"
 }
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
