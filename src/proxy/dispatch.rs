@@ -151,6 +151,15 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if matches!(
+            root_field,
+            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         if let Some(response) = self.products_mutation_tail_helper_response(
             request,
             &query,
@@ -204,32 +213,23 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
-        {
-            return response;
-        }
-
-        if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
         if let Some(data) =
-            self.order_payment_transaction_fixture_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
             return ok_json(data);
         }
 
-        if let Some(data) = order_create_mandate_payment_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.mandate_payment_keys,
-        ) {
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
+        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -288,11 +288,7 @@ impl DraftProxy {
             }
         }
 
-        if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = self.draft_order_bulk_tag_fixture_data(&query, &variables) {
+        if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
             return ok_json(data);
         }
 
@@ -1074,32 +1070,7 @@ impl DraftProxy {
             );
         }
 
-        if let Some(data) =
-            order_return_recorded_reverse_logistics_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_shipping_fee_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_state_precondition_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.recorded_return_statuses,
-        ) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_local_runtime_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.return_status,
-        ) {
+        if let Some(data) = self.order_return_local_runtime_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -2237,6 +2208,15 @@ impl DraftProxy {
             }
             if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if matches!(
+            root_field,
+            "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
             }
         }
 

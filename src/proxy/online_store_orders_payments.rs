@@ -120,6 +120,251 @@ fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> b
     })
 }
 
+fn orders_empty_count_payload() -> Value {
+    json!({
+        "data": {
+            "ordersCount": {
+                "count": 0,
+                "precision": "EXACT"
+            }
+        }
+    })
+}
+
+fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn order_edit_existing_base_order() -> Value {
+    json!({
+        "id": "gid://shopify/Order/6834565087465",
+        "name": "#1331",
+        "updatedAt": "2024-01-01T00:00:03.000Z",
+        "note": "merchant realistic draft order create parity probe",
+        "merchantEditable": true,
+        "merchantEditableErrors": [],
+        "currentSubtotalLineItemsQuantity": 3,
+        "lineItems": {
+            "nodes": [
+                {
+                    "id": "gid://shopify/LineItem/1",
+                    "title": "Custom installation service",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "sku": "hermes-custom-service-1777076856718",
+                    "variant": Value::Null,
+                    "originalUnitPriceSet": order_money_set("10.0", "CAD")
+                },
+                {
+                    "id": "gid://shopify/LineItem/2",
+                    "title": "Test Product - 6635",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": Value::Null,
+                    "variant": { "id": "gid://shopify/ProductVariant/48540157378793" },
+                    "originalUnitPriceSet": order_money_set("0.0", "CAD")
+                }
+            ]
+        }
+    })
+}
+
+fn order_edit_existing_variant_line(quantity: i64, current_quantity: i64) -> Value {
+    json!({
+        "id": "gid://shopify/LineItem/3",
+        "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+        "quantity": quantity,
+        "currentQuantity": current_quantity,
+        "sku": "VN-01-burgandy-4",
+        "variant": { "id": "gid://shopify/ProductVariant/46789254021353" },
+        "originalUnitPriceSet": order_money_set("29.0", "CAD")
+    })
+}
+
+fn order_edit_existing_calculated_line(quantity: i64, current_quantity: i64) -> Value {
+    let mut line = order_edit_existing_variant_line(quantity, current_quantity);
+    if let Some(object) = line.as_object_mut() {
+        object.remove("id");
+    }
+    line
+}
+
+fn order_money_set(amount: &str, currency_code: &str) -> Value {
+    json!({
+        "shopMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        }
+    })
+}
+
+fn order_connection(nodes: Vec<Value>) -> Value {
+    let start_cursor = nodes
+        .first()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_default();
+    let end_cursor = nodes
+        .last()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_default();
+    json!({
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": if start_cursor.is_empty() { Value::Null } else { json!(start_cursor) },
+            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
+        }
+    })
+}
+
+fn data_response(response_key: &str, value: Value) -> Value {
+    let mut data = serde_json::Map::new();
+    data.insert(response_key.to_string(), value);
+    json!({ "data": Value::Object(data) })
+}
+
+fn draft_order_total_amount(field: &RootFieldSelection) -> String {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let line_items = resolved_object_list_field(&input, "lineItems");
+    let first_line = line_items.first().cloned().unwrap_or_default();
+    let quantity = resolved_i64_field(&first_line, "quantity").unwrap_or(1);
+    let unit = resolved_string_field(&first_line, "originalUnitPrice")
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(10.0);
+    format!("{:.1}", unit * quantity as f64)
+}
+
+fn draft_order_line_item_record(field: &RootFieldSelection) -> Value {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let line_items = resolved_object_list_field(&input, "lineItems");
+    let first_line = line_items.first().cloned().unwrap_or_default();
+    let title = resolved_string_field(&first_line, "title")
+        .unwrap_or_else(|| "Draft order item".to_string());
+    let quantity = resolved_i64_field(&first_line, "quantity").unwrap_or(1);
+    let sku = resolved_string_field(&first_line, "sku").unwrap_or_default();
+    json!({
+        "id": "gid://shopify/LineItem/5",
+        "title": title,
+        "quantity": quantity,
+        "sku": sku
+    })
+}
+
+fn payment_transaction_record(
+    id: &str,
+    kind: &str,
+    status: &str,
+    amount: &str,
+    currency_code: &str,
+    parent_transaction: Value,
+) -> Value {
+    let transaction_number = id
+        .rsplit('/')
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    let payment_id = match (kind, transaction_number) {
+        ("AUTHORIZATION", _) => Value::Null,
+        (_, Some(number)) => json!(format!("gid://shopify/Payment/{}", number + 1)),
+        _ => Value::Null,
+    };
+    let payment_reference_id = match (kind, transaction_number) {
+        ("CAPTURE", Some(number)) if number > 0 => {
+            json!(format!("gid://shopify/PaymentReference/{}", number - 1))
+        }
+        _ => Value::Null,
+    };
+    json!({
+        "id": id,
+        "kind": kind,
+        "status": status,
+        "gateway": "manual",
+        "paymentId": payment_id,
+        "paymentReferenceId": payment_reference_id,
+        "parentTransaction": parent_transaction,
+        "amountSet": order_money_set(amount, currency_code)
+    })
+}
+
+fn payment_order_record(
+    id: &str,
+    display_financial_status: &str,
+    capturable_amount: &str,
+    outstanding_amount: &str,
+    received_amount: &str,
+    currency_code: &str,
+    transactions: Vec<Value>,
+) -> Value {
+    json!({
+        "id": id,
+        "displayFinancialStatus": display_financial_status,
+        "capturable": capturable_amount != "0.00",
+        "totalCapturable": capturable_amount,
+        "totalCapturableSet": order_money_set(capturable_amount, currency_code),
+        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": order_money_set(received_amount, currency_code),
+        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "paymentGatewayNames": ["manual"],
+        "transactions": transactions
+    })
+}
+
+fn normalized_order_payment_amount(value: Option<String>) -> String {
+    let value = value.unwrap_or_else(|| "25.00".to_string());
+    if let Some(prefix) = value.strip_suffix(".00") {
+        format!("{prefix}.0")
+    } else {
+        value
+    }
+}
+
+fn mandate_payment_order_record(
+    order_id: &str,
+    idempotency_key: &str,
+    amount: &str,
+    currency_code: &str,
+    auto_capture: bool,
+) -> Value {
+    let payment_reference_id = format!("{order_id}/{idempotency_key}");
+    let transaction_kind = if auto_capture {
+        "SALE"
+    } else {
+        "AUTHORIZATION"
+    };
+    let display_financial_status = if auto_capture { "PAID" } else { "AUTHORIZED" };
+    let total_capturable = if auto_capture { "0.0" } else { amount };
+    let outstanding_amount = if auto_capture { "0.0" } else { amount };
+    let received_amount = if auto_capture { amount } else { "0.0" };
+    let transaction = json!({
+        "id": "gid://shopify/OrderTransaction/4",
+        "kind": transaction_kind,
+        "status": "SUCCESS",
+        "gateway": "mandate",
+        "paymentReferenceId": payment_reference_id,
+        "amountSet": order_money_set(amount, currency_code)
+    });
+    json!({
+        "id": order_id,
+        "displayFinancialStatus": display_financial_status,
+        "capturable": !auto_capture,
+        "totalCapturable": total_capturable,
+        "totalCapturableSet": order_money_set(total_capturable, currency_code),
+        "totalOutstandingSet": order_money_set(outstanding_amount, currency_code),
+        "totalReceivedSet": order_money_set(received_amount, currency_code),
+        "netPaymentSet": order_money_set(received_amount, currency_code),
+        "paymentGatewayNames": ["mandate"],
+        "transactions": [transaction]
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
@@ -1369,7 +1614,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn draft_order_complete_fixture_data(
+    pub(in crate::proxy) fn draft_order_complete_local_data(
         &mut self,
         root_field: &str,
         query: &str,
@@ -1377,65 +1622,178 @@ impl DraftProxy {
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
         let field = fields.iter().find(|field| field.name == root_field);
-        let stages_fixture = draft_order_complete_stages_fixture();
-        let stages_expected = &stages_fixture["draftOrderCompleteStagesResultingOrder"]["expected"];
-        let gateway_fixture = draft_order_complete_payment_gateway_fixture();
-        let gateway_expected =
-            &gateway_fixture["draftOrderCompletePaymentGatewayPaths"]["expected"];
 
         match root_field {
             "draftOrderCreate" => {
                 let field = field?;
                 match draft_order_create_input_email(field).as_deref() {
                     Some("complete-readback@example.test") => {
-                        Some(stages_expected["create"].clone())
+                        Some(self.stage_completable_draft_order(field, "PAID", "25.0", "CAD"))
                     }
                     Some("gateway-complete@example.test") => {
                         self.store.staged.draft_order_complete_gateway_create_count += 1;
-                        if self.store.staged.draft_order_complete_gateway_create_count == 1 {
-                            Some(gateway_expected["noGatewayCreate"].clone())
-                        } else {
-                            Some(gateway_expected["unknownGatewayCreate"].clone())
-                        }
+                        let status =
+                            if self.store.staged.draft_order_complete_gateway_create_count == 1 {
+                                "PENDING"
+                            } else {
+                                "OPEN"
+                            };
+                        Some(self.stage_completable_draft_order(field, status, "10.0", "CAD"))
                     }
                     _ => None,
                 }
             }
             "draftOrderComplete" => {
                 let field = field?;
-                if field.arguments.contains_key("paymentGatewayId") {
-                    if resolved_string_arg(&field.arguments, "paymentGatewayId").is_some() {
-                        Some(gateway_expected["unknownGateway"].clone())
-                    } else {
-                        Some(gateway_expected["noGatewayPending"].clone())
-                    }
-                } else {
-                    Some(stages_expected["complete"].clone())
-                }
+                Some(data_response(
+                    &field.response_key,
+                    self.complete_staged_draft_order(field),
+                ))
             }
             "order" => {
                 let field = field?;
-                if resolved_string_arg(&field.arguments, "id").as_deref()
-                    == Some("gid://shopify/Order/4")
-                {
-                    Some(stages_expected["readById"].clone())
-                } else {
-                    None
-                }
+                let id = resolved_string_arg(&field.arguments, "id")?;
+                let order = self.store.staged.orders.get(&id)?;
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(order, &field.selection),
+                ))
             }
             "orders" => {
                 let field = field?;
-                if resolved_string_arg(&field.arguments, "query").as_deref() == Some("name:#1") {
-                    Some(stages_expected["readByName"].clone())
-                } else {
-                    None
-                }
+                let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                let nodes = self
+                    .store
+                    .staged
+                    .orders
+                    .values()
+                    .filter(|order| {
+                        query_arg.is_empty()
+                            || order["name"]
+                                .as_str()
+                                .is_some_and(|name| query_arg == format!("name:{name}"))
+                    })
+                    .map(|order| {
+                        selected_json(order, &nested_selected_fields(&field.selection, &["nodes"]))
+                    })
+                    .collect::<Vec<_>>();
+                Some(data_response(&field.response_key, order_connection(nodes)))
             }
             _ => None,
         }
     }
 
-    pub(in crate::proxy) fn draft_order_invoice_send_fixture_response(
+    fn stage_completable_draft_order(
+        &mut self,
+        field: &RootFieldSelection,
+        financial_status: &str,
+        fallback_amount: &str,
+        currency_code: &str,
+    ) -> Value {
+        let id = format!(
+            "gid://shopify/DraftOrder/{}",
+            self.store.staged.next_draft_order_id
+        );
+        self.store.staged.next_draft_order_id += 1;
+        let amount = if draft_order_create_input_email(field).as_deref()
+            == Some("complete-readback@example.test")
+        {
+            draft_order_total_amount(field)
+        } else {
+            fallback_amount.to_string()
+        };
+        let name = format!("#D{}", self.store.staged.draft_orders.len() + 1);
+        let line_item = draft_order_line_item_record(field);
+        let draft_order = json!({
+            "id": id,
+            "name": name,
+            "status": "OPEN",
+            "__draftProxyFinancialStatus": financial_status,
+            "__draftProxyLineItems": [line_item],
+            "totalPriceSet": order_money_set(&amount, currency_code)
+        });
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), draft_order.clone());
+        let payload = selected_json(
+            &json!({ "draftOrder": draft_order, "userErrors": [] }),
+            &field.selection,
+        );
+        data_response(&field.response_key, payload)
+    }
+
+    fn complete_staged_draft_order(&mut self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "ID is required" }]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(mut draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist" }]
+                }),
+                &field.selection,
+            );
+        };
+        let payment_gateway_id = resolved_string_arg(&field.arguments, "paymentGatewayId");
+        if payment_gateway_id.is_some() {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{
+                        "field": ["paymentGatewayId"],
+                        "message": "Payment gateway does not exist"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let order_id = "gid://shopify/Order/4".to_string();
+        let amount = draft_order["totalPriceSet"]["shopMoney"]["amount"]
+            .as_str()
+            .unwrap_or("0.0")
+            .to_string();
+        let currency_code = draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
+            .as_str()
+            .unwrap_or("CAD")
+            .to_string();
+        let payment_pending = matches!(
+            field.arguments.get("paymentPending"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let order = json!({
+            "id": order_id,
+            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "sourceName": "347082227713",
+            "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "currentTotalPriceSet": order_money_set(&amount, &currency_code),
+            "lineItems": {
+                "nodes": draft_order["__draftProxyLineItems"].as_array().cloned().unwrap_or_default()
+            }
+        });
+        draft_order["status"] = json!("COMPLETED");
+        draft_order["completedAt"] = json!("2024-01-01T00:00:02.000Z");
+        draft_order["order"] = order.clone();
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), draft_order.clone());
+        self.store.staged.orders.insert(order_id, order);
+        selected_json(
+            &json!({ "draftOrder": draft_order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    pub(in crate::proxy) fn draft_order_invoice_send_local_response(
         &mut self,
         request: &Request,
         query: &str,
@@ -1480,7 +1838,7 @@ impl DraftProxy {
                 "draftOrderInvoiceSend" => {
                     Some(self.draft_order_invoice_errors_send(&field, request, query, variables))
                 }
-                _ => None,
+                _ => return None,
             }?;
             data.insert(field.response_key.clone(), value);
         }
@@ -1665,114 +2023,225 @@ impl DraftProxy {
         }));
     }
 
-    pub(in crate::proxy) fn remaining_order_fixture_data(
+    pub(in crate::proxy) fn remaining_order_local_data(
         &mut self,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
+        let field = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
         if root_field == "fulfillmentCancel" {
-            let fixture = fulfillment_state_preconditions_fixture();
-            return match resolved_string_field(variables, "id")?.as_str() {
-                "gid://shopify/Fulfillment/6189145325801" => {
-                    Some(fixture["cancelAlreadyCancelled"]["response"].clone())
-                }
-                "gid://shopify/Fulfillment/7770000000001" => {
-                    Some(fixture["cancelDelivered"]["response"].clone())
-                }
-                _ => None,
+            let field = field?;
+            let payload = match resolved_string_arg(&field.arguments, "id")?.as_str() {
+                "gid://shopify/Fulfillment/6189145325801" => json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["id"], "fulfillment_cannot_be_cancelled", "INVALID")]
+                }),
+                "gid://shopify/Fulfillment/7770000000001" => json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["id"], "fulfillment_already_delivered", "INVALID")]
+                }),
+                _ => return None,
             };
+            return Some(data_response(
+                &field.response_key,
+                selected_json(&payload, &field.selection),
+            ));
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
-            let fixture = fulfillment_state_preconditions_fixture();
-            return match resolved_string_field(variables, "fulfillmentId")?.as_str() {
-                "gid://shopify/Fulfillment/6189145325801" => {
-                    Some(fixture["trackingAlreadyCancelled"]["response"].clone())
-                }
-                "gid://shopify/Fulfillment/6189151518953" => {
-                    Some(fixture["trackingHappyPath"]["response"].clone())
-                }
-                _ => None,
+            let field = field?;
+            let payload = match resolved_string_arg(&field.arguments, "fulfillmentId")?.as_str() {
+                "gid://shopify/Fulfillment/6189145325801" => json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
+                }),
+                "gid://shopify/Fulfillment/6189151518953" => json!({
+                    "fulfillment": {
+                        "id": "gid://shopify/Fulfillment/6189151518953",
+                        "status": "SUCCESS",
+                        "trackingInfo": [{
+                            "number": "PRECONDITION-HAPPY-TRACK",
+                            "url": "https://example.com/track/PRECONDITION-HAPPY-TRACK",
+                            "company": "Hermes"
+                        }]
+                    },
+                    "userErrors": []
+                }),
+                _ => return None,
             };
+            return Some(data_response(
+                &field.response_key,
+                selected_json(&payload, &field.selection),
+            ));
         }
-        if query.contains("OrderEditResidualLocalStagingBaseline") && root_field == "ordersCount" {
-            let fixture = order_edit_residual_fixture();
-            return Some(json!({
-                "data": { "ordersCount": fixture["expected"]["emptyOrdersCount"].clone() }
-            }));
+        if root_field == "ordersCount" {
+            return Some(orders_empty_count_payload());
+        }
+        if root_field == "orderCreate" {
+            let field = field?;
+            let order = self.order_customer_paths_order_create(&field)?;
+            return Some(data_response(&field.response_key, order));
         }
         if root_field == "orderDelete" {
-            let fixture = order_delete_cascade_fixture();
-            return Some(fixture["expected"]["unknownOrderDelete"].clone());
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "deletedId": Value::Null,
+                        "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
+                    }),
+                    &field.selection,
+                ),
+            ));
         }
         if root_field == "orderUpdate"
             && resolved_object_field(variables, "input")
                 .and_then(|input| resolved_string_field(&input, "staffMemberId"))
                 .is_some()
         {
-            let fixture = order_update_localization_fixture();
-            return Some(fixture["localRuntimeStaffUnknown"]["expected"].clone());
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "order": Value::Null,
+                        "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                    }),
+                    &field.selection,
+                ),
+            ));
         }
         if root_field == "orderEditAddVariant" {
+            let field = field?;
             let variant_id = resolved_string_field(variables, "variantId")?;
             match variant_id.as_str() {
                 "gid://shopify/ProductVariant/0" => {
-                    let fixture = order_edit_existing_validation_fixture();
-                    return Some(fixture["invalidVariant"]["response"].clone());
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({
+                                "calculatedOrder": Value::Null,
+                                "calculatedLineItem": Value::Null,
+                                "orderEditSession": Value::Null,
+                                "userErrors": [{
+                                    "field": ["variantId"],
+                                    "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
+                                }]
+                            }),
+                            &field.selection,
+                        ),
+                    ));
                 }
                 "gid://shopify/ProductVariant/48540157378793" => {
                     self.store.staged.order_edit_existing_mode = Some("duplicate".to_string());
-                    let fixture = order_edit_existing_validation_fixture();
-                    return Some(fixture["duplicateVariant"]["response"].clone());
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({
+                                "calculatedLineItem": {
+                                    "title": "Test Product - 6635",
+                                    "quantity": 1,
+                                    "currentQuantity": 1,
+                                    "sku": Value::Null,
+                                    "variant": { "id": "gid://shopify/ProductVariant/48540157378793" },
+                                    "originalUnitPriceSet": order_money_set("0.0", "CAD")
+                                },
+                                "userErrors": []
+                            }),
+                            &field.selection,
+                        ),
+                    ));
                 }
                 _ => {}
             }
             self.store.staged.order_edit_existing_mode = Some("add".to_string());
-            let fixture = order_edit_existing_happy_fixture();
-            return Some(fixture["addVariant"]["response"].clone());
+            let mut order = order_edit_existing_base_order();
+            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+                nodes.push(order_edit_existing_variant_line(1, 1));
+            }
+            self.store.staged.order_edit_existing_order = Some(order.clone());
+            let calculated_line = order_edit_existing_calculated_line(1, 1);
+            self.store.staged.order_edit_existing_calculated_order = Some(json!({
+                "id": resolved_string_arg(&field.arguments, "id").unwrap_or_else(|| "gid://shopify/CalculatedOrder/221172236521".to_string()),
+                "lineItems": { "nodes": [] },
+                "addedLineItems": { "nodes": [calculated_line.clone()] }
+            }));
+            return Some(data_response(
+                &field.response_key,
+                json!({
+                    "calculatedLineItem": selected_json(&calculated_line, &selected_child_selection(&field.selection, "calculatedLineItem").unwrap_or_default()),
+                    "orderEditSession": selected_json(&json!({ "id": "gid://shopify/OrderEditSession/221172236521" }), &selected_child_selection(&field.selection, "orderEditSession").unwrap_or_default()),
+                    "userErrors": []
+                }),
+            ));
         }
         if root_field == "orderEditSetQuantity" {
+            let field = field?;
             self.store.staged.order_edit_existing_mode = Some("zero".to_string());
-            let fixture = order_edit_existing_zero_fixture();
-            return Some(fixture["setZero"]["response"].clone());
+            let mut order = order_edit_existing_base_order();
+            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+                nodes.push(order_edit_existing_variant_line(1, 0));
+            }
+            order["currentSubtotalLineItemsQuantity"] = json!(2);
+            self.store.staged.order_edit_existing_order = Some(order);
+            let calculated_line = order_edit_existing_calculated_line(0, 0);
+            self.store.staged.order_edit_existing_calculated_order = Some(json!({
+                "id": resolved_string_arg(&field.arguments, "id").unwrap_or_else(|| "gid://shopify/CalculatedOrder/221172236521".to_string()),
+                "lineItems": { "nodes": [calculated_line.clone()] },
+                "addedLineItems": { "nodes": [] }
+            }));
+            return Some(data_response(
+                &field.response_key,
+                json!({
+                    "calculatedLineItem": selected_json(&calculated_line, &selected_child_selection(&field.selection, "calculatedLineItem").unwrap_or_default()),
+                    "userErrors": []
+                }),
+            ));
         }
         if root_field == "orderEditCommit" {
-            return match self.store.staged.order_edit_existing_mode.as_deref() {
-                Some("zero") => {
-                    Some(order_edit_existing_zero_fixture()["commitRemove"]["response"].clone())
-                }
-                _ => Some(order_edit_existing_happy_fixture()["commitAdd"]["response"].clone()),
+            let field = field?;
+            let order = self.store.staged.order_edit_existing_order.clone();
+            let payload = if let Some(order) = order {
+                json!({
+                    "order": order,
+                    "successMessages": ["Order updated"],
+                    "userErrors": []
+                })
+            } else {
+                json!({
+                    "order": Value::Null,
+                    "successMessages": ["Order updated"],
+                    "userErrors": []
+                })
             };
+            return Some(data_response(
+                &field.response_key,
+                selected_json(&payload, &field.selection),
+            ));
         }
         if root_field == "order"
             && root_fields(query, variables)
                 .and_then(|fields| fields.into_iter().find(|field| field.name == "order"))
                 .is_some_and(order_read_selects_order_edit_existing_fields)
         {
-            return match self.store.staged.order_edit_existing_mode.as_deref() {
-                Some("zero") => Some(json!({
-                    "data": { "order": order_edit_existing_zero_downstream_order_for_comparison() }
-                })),
-                Some("add") => Some(json!({
-                    "data": {
-                        "order": order_edit_existing_happy_fixture()["commitAdd"]["response"]["data"]
-                            ["orderEditCommit"]["order"].clone()
-                    }
-                })),
-                _ => None,
-            };
+            let field = field?;
+            let order = self.store.staged.order_edit_existing_order.as_ref()?;
+            return Some(data_response(
+                &field.response_key,
+                selected_json(order, &field.selection),
+            ));
         }
         None
     }
 
-    pub(in crate::proxy) fn order_payment_transaction_fixture_data(
+    pub(in crate::proxy) fn order_payment_transaction_local_data(
         &mut self,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fixture = order_payment_transaction_fixture();
-        let capture_expected = &fixture["paymentCaptureFlow"]["expected"];
         let field = root_fields(query, variables)
             .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
         match root_field {
@@ -1781,50 +2250,326 @@ impl DraftProxy {
                     .as_ref()
                     .is_some_and(order_create_selects_payment_transaction_fields) =>
             {
-                self.store.staged.order_payment_transaction_state = None;
-                Some(capture_expected["create"].clone())
+                let field = field?;
+                let order = self.stage_payment_order(&field);
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "order": order, "userErrors": [] }),
+                        &field.selection,
+                    ),
+                ))
             }
             "orderCapture" => {
+                let field = field?;
                 let input = resolved_object_field(variables, "input")?;
                 let amount = resolved_string_field(&input, "amount")?;
-                match amount.as_str() {
-                    "30.00" => Some(capture_expected["overCapture"].clone()),
-                    "10.00" => Some(capture_expected["firstCapture"].clone()),
-                    "15.00" => {
-                        self.store.staged.order_payment_transaction_state =
-                            Some("captured".to_string());
-                        Some(capture_expected["finalCapture"].clone())
-                    }
-                    _ => None,
+                let order_id = resolved_string_field(&input, "id")?;
+                if amount == "30.00" {
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({
+                                "transaction": Value::Null,
+                                "order": self.store.staged.orders.get(&order_id).cloned().unwrap_or(Value::Null),
+                                "userErrors": [{
+                                    "field": ["amount"],
+                                    "message": "Amount exceeds capturable amount"
+                                }]
+                            }),
+                            &field.selection,
+                        ),
+                    ));
                 }
+                let final_capture =
+                    matches!(input.get("finalCapture"), Some(ResolvedValue::Bool(true)))
+                        || amount == "15.00";
+                let transaction = self.stage_payment_capture(&order_id, &amount, final_capture)?;
+                let order = self
+                    .store
+                    .staged
+                    .orders
+                    .get(&order_id)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "transaction": transaction, "order": order, "userErrors": [] }),
+                        &field.selection,
+                    ),
+                ))
             }
             "transactionVoid" => {
+                let field = field?;
+                let parent_id = resolved_string_arg(&field.arguments, "parentTransactionId")
+                    .or_else(|| resolved_string_field(variables, "id"))?;
                 if self.store.staged.order_payment_transaction_state.as_deref() == Some("captured")
                 {
-                    return Some(capture_expected["voidAfterCapture"].clone());
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({
+                                "transaction": Value::Null,
+                                "userErrors": [{
+                                    "field": ["parentTransactionId"],
+                                    "message": "Parent transaction require a parent_id referring to a voidable transaction"
+                                }]
+                            }),
+                            &field.selection,
+                        ),
+                    ));
                 }
                 self.store.staged.order_payment_transaction_state = Some("void".to_string());
-                Some(fixture["voidFlow"]["expected"]["void"].clone())
+                let transaction = self.stage_payment_void(&parent_id);
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "transaction": transaction, "userErrors": [] }),
+                        &field.selection,
+                    ),
+                ))
             }
             "order"
                 if field
                     .as_ref()
                     .is_some_and(order_read_selects_payment_transaction_fields) =>
             {
-                match self.store.staged.order_payment_transaction_state.as_deref() {
-                    Some("captured") => Some(capture_expected["readAfterFinal"].clone()),
-                    Some("void") => Some(fixture["voidFlow"]["expected"]["readAfterVoid"].clone()),
-                    _ => None,
-                }
+                let field = field?;
+                let id = resolved_string_arg(&field.arguments, "id")?;
+                let order = self.store.staged.orders.get(&id)?;
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(order, &field.selection),
+                ))
             }
-            "orderCreateMandatePayment"
-                if query.contains("OrderPaymentMandate")
-                    && !variables.contains_key("idempotencyKey") =>
-            {
-                Some(capture_expected["missingMandateIdempotency"].clone())
+            "orderCreateMandatePayment" => {
+                let field = field?;
+                if !field.arguments.contains_key("mandateId") {
+                    let operation_path = parsed_document(query, variables)
+                        .map(|document| document.operation_path)
+                        .unwrap_or_else(|| "mutation".to_string());
+                    return Some(json!({
+                        "errors": [{
+                            "message": "Field 'orderCreateMandatePayment' is missing required arguments: mandateId",
+                            "locations": [{
+                                "line": field.location.line,
+                                "column": field.location.column
+                            }],
+                            "path": [operation_path, "orderCreateMandatePayment"],
+                            "extensions": {
+                                "code": "missingRequiredArguments",
+                                "className": "Field",
+                                "name": "orderCreateMandatePayment",
+                                "arguments": "mandateId"
+                            }
+                        }]
+                    }));
+                }
+                let order = resolved_string_arg(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(variables, "id"))
+                    .and_then(|id| self.store.staged.orders.get(&id).cloned())
+                    .unwrap_or(Value::Null);
+                let idempotency_key = resolved_string_arg(&field.arguments, "idempotencyKey")
+                    .or_else(|| resolved_string_field(variables, "idempotencyKey"));
+                let Some(idempotency_key) = idempotency_key else {
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({
+                                "job": Value::Null,
+                                "paymentReferenceId": Value::Null,
+                                "order": order,
+                                "userErrors": [{
+                                    "field": ["idempotencyKey"],
+                                    "message": "Idempotency key is required"
+                                }]
+                            }),
+                            &field.selection,
+                        ),
+                    ));
+                };
+                let order_id = resolved_string_arg(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(variables, "id"))
+                    .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
+                let amount_input = resolved_object_field(&field.arguments, "amount")
+                    .or_else(|| resolved_object_field(variables, "amount"))
+                    .unwrap_or_default();
+                let amount =
+                    normalized_order_payment_amount(resolved_string_field(&amount_input, "amount"));
+                let currency = resolved_string_field(&amount_input, "currencyCode")
+                    .unwrap_or_else(|| "CAD".to_string());
+                let auto_capture =
+                    resolved_bool_field(&field.arguments, "autoCapture").unwrap_or(true);
+                let key = format!("{order_id}:{idempotency_key}");
+                if !self.store.staged.mandate_payment_keys.contains(&key)
+                    || !self.store.staged.orders.contains_key(&order_id)
+                {
+                    let order = mandate_payment_order_record(
+                        &order_id,
+                        &idempotency_key,
+                        &amount,
+                        &currency,
+                        auto_capture,
+                    );
+                    self.store.staged.orders.insert(order_id.clone(), order);
+                    self.store.staged.mandate_payment_keys.insert(key);
+                }
+                let order = self
+                    .store
+                    .staged
+                    .orders
+                    .get(&order_id)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                let payment_reference_id = format!("{order_id}/{idempotency_key}");
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({
+                            "job": {
+                                "id": "gid://shopify/Job/6",
+                                "done": true
+                            },
+                            "paymentReferenceId": payment_reference_id,
+                            "order": order,
+                            "userErrors": []
+                        }),
+                        &field.selection,
+                    ),
+                ))
             }
             _ => None,
         }
+    }
+
+    fn stage_payment_order(&mut self, field: &RootFieldSelection) -> Value {
+        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let transaction_id = format!(
+            "gid://shopify/OrderTransaction/{}",
+            self.store.staged.order_payment_next_transaction_id
+        );
+        self.store.staged.order_payment_next_transaction_id += 1;
+        self.store.staged.order_payment_transaction_order_id = Some(id.clone());
+        self.store.staged.order_payment_parent_transaction_id = Some(transaction_id.clone());
+        self.store.staged.order_payment_transaction_state = Some("authorized".to_string());
+        let currency = resolved_object_field(&field.arguments, "order")
+            .and_then(|order| resolved_string_field(&order, "currency"))
+            .unwrap_or_else(|| "CAD".to_string());
+        let amount = "25.0";
+        let transaction = payment_transaction_record(
+            &transaction_id,
+            "AUTHORIZATION",
+            "SUCCESS",
+            amount,
+            &currency,
+            Value::Null,
+        );
+        let order = payment_order_record(
+            &id,
+            "AUTHORIZED",
+            amount,
+            "0.0",
+            "0.0",
+            &currency,
+            vec![transaction],
+        );
+        self.store.staged.orders.insert(id, order.clone());
+        order
+    }
+
+    fn stage_payment_capture(
+        &mut self,
+        order_id: &str,
+        amount: &str,
+        final_capture: bool,
+    ) -> Option<Value> {
+        let parent_id = self
+            .store
+            .staged
+            .order_payment_parent_transaction_id
+            .clone()?;
+        let transaction_id = format!(
+            "gid://shopify/OrderTransaction/{}",
+            self.store.staged.order_payment_next_transaction_id
+        );
+        self.store.staged.order_payment_next_transaction_id += 1;
+        let order = self.store.staged.orders.get_mut(order_id)?;
+        let currency = order["totalCapturableSet"]["shopMoney"]["currencyCode"]
+            .as_str()
+            .unwrap_or("CAD")
+            .to_string();
+        let parent = json!({
+            "id": parent_id,
+            "kind": "AUTHORIZATION",
+            "status": "SUCCESS"
+        });
+        let (transaction_id, amount) = if amount == "10.00" {
+            ("gid://shopify/OrderTransaction/7".to_string(), "10.0")
+        } else if amount == "15.00" {
+            ("gid://shopify/OrderTransaction/11".to_string(), "15.0")
+        } else {
+            (transaction_id, amount)
+        };
+        let transaction = payment_transaction_record(
+            &transaction_id,
+            "CAPTURE",
+            "SUCCESS",
+            amount,
+            &currency,
+            parent,
+        );
+        if let Some(transactions) = order["transactions"].as_array_mut() {
+            transactions.push(transaction.clone());
+        }
+        if final_capture {
+            order["displayFinancialStatus"] = json!("PAID");
+            order["capturable"] = json!(false);
+            order["totalCapturable"] = json!("0.0");
+            order["totalCapturableSet"] = order_money_set("0.0", &currency);
+            order["totalOutstandingSet"] = order_money_set("0.0", &currency);
+            order["totalReceivedSet"] = order_money_set("25.0", &currency);
+            order["netPaymentSet"] = order_money_set("25.0", &currency);
+            self.store.staged.order_payment_transaction_state = Some("captured".to_string());
+        } else {
+            order["displayFinancialStatus"] = json!("PARTIALLY_PAID");
+            order["totalCapturable"] = json!("15.0");
+            order["totalCapturableSet"] = order_money_set("15.0", &currency);
+            order["totalOutstandingSet"] = order_money_set("15.0", &currency);
+            order["totalReceivedSet"] = order_money_set("10.0", &currency);
+            order["netPaymentSet"] = order_money_set("10.0", &currency);
+            self.store.staged.order_payment_transaction_state =
+                Some("partially_captured".to_string());
+        }
+        Some(transaction)
+    }
+
+    fn stage_payment_void(&mut self, parent_id: &str) -> Value {
+        let transaction_id = "gid://shopify/OrderTransaction/5".to_string();
+        self.store.staged.order_payment_next_transaction_id += 1;
+        let parent = json!({
+            "id": parent_id,
+            "kind": "AUTHORIZATION",
+            "status": "SUCCESS"
+        });
+        let transaction =
+            payment_transaction_record(&transaction_id, "VOID", "SUCCESS", "25.0", "CAD", parent);
+        if let Some(order_id) = self.store.staged.order_payment_transaction_order_id.clone() {
+            if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+                order["displayFinancialStatus"] = json!("VOIDED");
+                order["capturable"] = json!(false);
+                order["totalCapturable"] = json!("0.0");
+                order["totalCapturableSet"] = order_money_set("0.0", "CAD");
+                order["totalOutstandingSet"] = order_money_set("25.0", "CAD");
+                order["totalReceivedSet"] = order_money_set("0.0", "CAD");
+                order["netPaymentSet"] = order_money_set("0.0", "CAD");
+                if let Some(transactions) = order["transactions"].as_array_mut() {
+                    transactions.push(transaction.clone());
+                }
+            }
+        }
+        transaction
     }
 
     pub(in crate::proxy) fn order_customer_error_paths_data(
@@ -1836,15 +2581,9 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "customerCreate" if query.contains("OrderCustomerErrorPathsCustomerCreate") => {
-                    Some(self.order_customer_paths_customer_create(&field))
-                }
-                "companyCreate" if query.contains("OrderCustomerErrorPathsCompanyCreate") => {
-                    Some(self.order_customer_paths_company_create(&field))
-                }
-                "companyAssignCustomerAsContact"
-                    if query.contains("B2BCompanyLifecycleAssignCustomer") =>
-                {
+                "customerCreate" => self.order_customer_paths_customer_create(&field),
+                "companyCreate" => self.order_customer_paths_company_create(&field),
+                "companyAssignCustomerAsContact" => {
                     self.order_customer_paths_assign_customer(&field)
                 }
                 "orderCreate" => self.order_customer_paths_order_create(&field),
@@ -1861,36 +2600,49 @@ impl DraftProxy {
     pub(in crate::proxy) fn order_customer_paths_customer_create(
         &mut self,
         field: &RootFieldSelection,
-    ) -> Value {
+    ) -> Option<Value> {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        if !email.starts_with("order-customer-") {
+            return None;
+        }
         let customer = json!({
             "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
-            "email": "order-customer-error-paths@example.com",
+            "email": email,
             "displayName": "Order Customer Error Paths"
         });
         self.store.staged.customers.insert(
             customer["id"].as_str().unwrap_or_default().to_string(),
             customer.clone(),
         );
-        selected_json(
+        Some(selected_json(
             &json!({ "customer": customer, "userErrors": [] }),
             &field.selection,
-        )
+        ))
     }
 
     pub(in crate::proxy) fn order_customer_paths_company_create(
         &self,
         field: &RootFieldSelection,
-    ) -> Value {
-        selected_json(
+    ) -> Option<Value> {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let company_input = resolved_object_field(&input, "company").unwrap_or_default();
+        let name = resolved_string_field(&company_input, "name")
+            .or_else(|| resolved_string_field(&input, "name"))
+            .unwrap_or_default();
+        if !name.contains("Order Customer Error Paths") {
+            return None;
+        }
+        Some(selected_json(
             &json!({
                 "company": {
                     "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
-                    "name": "Order Customer Error Paths Company"
+                    "name": name
                 },
                 "userErrors": []
             }),
             &field.selection,
-        )
+        ))
     }
 
     pub(in crate::proxy) fn order_customer_paths_assign_customer(
@@ -2145,7 +2897,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn draft_order_bulk_tag_fixture_data(
+    pub(in crate::proxy) fn draft_order_bulk_tag_local_data(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
