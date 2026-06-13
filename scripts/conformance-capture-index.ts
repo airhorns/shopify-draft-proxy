@@ -4761,6 +4761,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
       'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+      'config/parity-specs/store-properties/location-activate-generic-staging-readback.json',
     ],
     cleanupBehavior:
       'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
@@ -4776,6 +4777,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-add-validation-and-defaults.json`,
       'config/parity-specs/store-properties/location-add-validation-and-defaults.json',
+      'config/parity-specs/store-properties/location-add-generic-staging-readback.json',
       'config/parity-requests/store-properties/location-add-blank-name-code.graphql',
       'config/parity-requests/store-properties/location-add-capabilities-variable.graphql',
       'config/parity-requests/store-properties/location-add-inline-capabilities.graphql',
