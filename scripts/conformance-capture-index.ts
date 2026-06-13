@@ -1769,6 +1769,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-validation-affects-values',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-affects-values-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate validations changing later metafieldsSet value acceptance/rejection and downstream product metafield readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-affects-values.json`,
+      'config/parity-specs/metafield-definitions/validation-affects-values.json',
+      'config/parity-requests/metafield-definitions/validation-affects-values-create.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-update.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-set.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and product-owned metafield definition, writes before and after a validation update, then deletes the definition and product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-pinning',
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
