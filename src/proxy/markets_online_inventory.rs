@@ -1705,6 +1705,22 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
     })
 }
 
+pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
+    json!({
+        "field": null,
+        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
+    })
+}
+
 pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
     json!({
         "field": null,

@@ -458,6 +458,161 @@ fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error
 }
 
 #[test]
+fn marketing_activity_delete_external_enforces_resolution_external_and_child_guards() {
+    let mut proxy = snapshot_proxy();
+    let mut setup = json_graphql_request(
+        r#"
+        mutation MarketingActivityDeleteExternalGuardsSetup(
+          $nativeInput: MarketingActivityUpdateInput!
+          $externalInput: MarketingActivityCreateExternalInput!
+          $parentInput: MarketingActivityCreateExternalInput!
+          $childInput: MarketingActivityCreateExternalInput!
+        ) {
+          native: marketingActivityUpdate(input: $nativeInput) {
+            marketingActivity { id isExternal }
+            userErrors { field message code }
+          }
+          external: marketingActivityCreateExternal(input: $externalInput) {
+            marketingActivity { id remoteId isExternal }
+            userErrors { field message code }
+          }
+          parent: marketingActivityCreateExternal(input: $parentInput) {
+            marketingActivity { id remoteId isExternal }
+            userErrors { field message code }
+          }
+          child: marketingActivityCreateExternal(input: $childInput) {
+            marketingActivity { id remoteId parentRemoteId isExternal }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "nativeInput": {"id": "gid://shopify/MarketingActivity/1001", "title": "Native Activity", "status": "ACTIVE"},
+            "externalInput": {"title": "External Activity", "remoteId": "delete-guard-external", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-external", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "delete-guard-external", "source": "email", "medium": "newsletter"}},
+            "parentInput": {"title": "Parent Activity", "remoteId": "delete-guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "hierarchyLevel": "CAMPAIGN", "utm": {"campaign": "delete-guard-parent", "source": "email", "medium": "newsletter"}},
+            "childInput": {"title": "Child Activity", "remoteId": "delete-guard-child", "parentRemoteId": "delete-guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/delete-guard-child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "hierarchyLevel": "AD", "utm": {"campaign": "delete-guard-child", "source": "email", "medium": "newsletter"}}
+        }),
+    );
+    setup.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let setup = proxy.process_request(setup);
+    assert_eq!(setup.body["data"]["native"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["external"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["parent"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["child"]["userErrors"], json!([]));
+    let external_id = setup.body["data"]["external"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let parent_id = setup.body["data"]["parent"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut guards = json_graphql_request(
+        r#"
+        mutation MarketingActivityDeleteExternalGuards(
+          $unknownId: ID!
+          $nativeId: ID!
+          $parentId: ID!
+          $externalId: ID!
+        ) {
+          noSelector: marketingActivityDeleteExternal {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          unknownById: marketingActivityDeleteExternal(marketingActivityId: $unknownId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          missingRemote: marketingActivityDeleteExternal(remoteId: "missing-delete-guard-remote") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          nativeById: marketingActivityDeleteExternal(marketingActivityId: $nativeId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          parentById: marketingActivityDeleteExternal(id: $parentId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+          validExternal: marketingActivityDeleteExternal(marketingActivityId: $externalId) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "unknownId": "gid://shopify/MarketingActivity/999999999999",
+            "nativeId": "gid://shopify/MarketingActivity/1001",
+            "parentId": parent_id,
+            "externalId": external_id
+        }),
+    );
+    guards.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let guards = proxy.process_request(guards);
+    assert_eq!(
+        guards.body["data"]["noSelector"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.", "code": "INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["unknownById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["missingRemote"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["nativeById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "The marketing activity must be an external activity.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["parentById"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.", "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"}]})
+    );
+    assert_eq!(
+        guards.body["data"]["validExternal"],
+        json!({"deletedMarketingActivityId": external_id, "userErrors": []})
+    );
+
+    let mut read = json_graphql_request(
+        r#"
+        query MarketingActivityRead($nativeId: ID!, $parentId: ID!, $externalId: ID!) {
+          native: marketingActivity(id: $nativeId) { id isExternal }
+          parent: marketingActivity(id: $parentId) { id remoteId }
+          external: marketingActivity(id: $externalId) { id }
+        }
+        "#,
+        json!({
+            "nativeId": "gid://shopify/MarketingActivity/1001",
+            "parentId": parent_id,
+            "externalId": external_id
+        }),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["native"],
+        json!({"id": "gid://shopify/MarketingActivity/1001", "isExternal": false})
+    );
+    assert_eq!(
+        read.body["data"]["parent"],
+        json!({"id": parent_id, "remoteId": "delete-guard-parent"})
+    );
+    assert_eq!(read.body["data"]["external"], Value::Null);
+}
+
+#[test]
 fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
 

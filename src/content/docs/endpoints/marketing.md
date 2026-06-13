@@ -56,6 +56,7 @@ External activity validation:
 - Non-external records, missing nested marketing events, and parent changes to a different resolved event fail before staging.
 - `remoteUrl` and `remotePreviewImageUrl` accept only `http` and `https` schemes. URL scalar failures remain top-level coercion errors before mutation handling.
 - External delete rejects missing selectors, missing external records, non-external records, and parent activity deletes that still have local child activity references.
+- The missing-selector and missing-ID/remote delete guards are covered by live parity. The non-external and child-reference delete guards are runtime-test-backed because the current disposable conformance shop has no discoverable non-external activity and cannot create the campaign-level parent needed for the child-event delete branch; the live delete-guards fixture records those setup blockers.
 
 Native/deprecated activity behavior:
 
